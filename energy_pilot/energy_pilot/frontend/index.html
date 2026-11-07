@@ -158,6 +158,12 @@
   .rolemore { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
   .rolefind { flex: 1; min-width: 160px; font: inherit; font-size: 13px; padding: 7px 10px; border-radius: 10px;
     border: 1px solid var(--line, rgba(127,127,127,.25)); background: transparent; color: inherit; }
+  /* Phone width: nothing may stick out of a card - rows wrap, and the role extras get their own line. */
+  .ctl { flex-wrap:wrap; gap:8px 12px; } .ctl .t { flex:1 1 140px; min-width:0; }
+  .ctl > :last-child { max-width:100%; } .seg.mini { flex-wrap:wrap; max-width:100%; min-width:0; }
+  .times2 { flex-wrap:wrap; max-width:100%; } .times2 input { min-width:0; max-width:120px; }
+  .set { flex-wrap:wrap; } .set > select { min-width:0; max-width:100%; flex:1 1 160px; }
+  .set .extra, .set .rolemore { flex-basis:100%; min-width:0; } .rolefind { min-width:0; width:100%; flex:1 1 100%; }
   .pnote { font-size:12.5px; color:var(--muted); margin:-4px 0 10px; } .pnote.warn { color:var(--warn); }
   /* tab bar */
   nav { position:fixed; left:0; right:0; bottom:0; padding:10px 14px calc(10px + env(safe-area-inset-bottom)); z-index:5; display:flex; justify-content:center;
