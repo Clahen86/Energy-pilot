@@ -420,6 +420,7 @@ class Engine:
         done = sum(kw for w, kw in rows if day0 <= w < now.replace(minute=0, second=0, microsecond=0))
         house_w = (self.ov.flow() or {}).get("house") or 0.0
         self.house_so_far = round(done + house_w / 1000 * now.minute / 60, 2)
+        self.house_so_far_day = now.date()  # yesterday's total must never count after midnight
 
     def watch_sign(self, raw_w: float | None, soc: float | None) -> None:
         """Is positive battery power charging or discharging here? Seen from the level going up or down."""
@@ -484,6 +485,10 @@ class Engine:
         if self.house_so_far is None and not rows:
             return None
         now = datetime.now(self.tz)
+        if getattr(self, "house_so_far_day", None) != now.date():
+            # Just after midnight, before the next refresh: only this hour's share so far.
+            house_w = (self.ov.flow() or {}).get("house") or 0.0
+            self.house_so_far, self.house_so_far_day = round(house_w / 1000 * now.minute / 60, 2), now.date()
         rest = sum(r["kwh"] for r in rows if datetime.fromisoformat(r["t"]).date() == now.date())
         rest -= (rows[0]["kwh"] * now.minute / 60) if rows else 0.0  # this hour's gone part is in "so far"
         return round((self.house_so_far or 0.0) + max(0.0, rest), 1)
