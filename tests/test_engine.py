@@ -112,3 +112,18 @@ def test_learning_review(tmp_path):
     assert rep["sun_cloudy"] == 0.6 and L.state["solar_bias"]["cloudy"] < 1.0
     assert rep["saving"] > 0 and rep["best_factor"] in (0.6, 0.75, 0.9, 1.0, 1.1, 1.25)
     assert L.review(day, house, pv, Battery(), prices, 30) is None  # once a day
+
+
+
+def test_quiet_hours_each_their_own(tmp_path):
+    from types import SimpleNamespace
+
+    from energy_pilot.engine import Engine
+
+    ov = SimpleNamespace(settings={"quiet_battery_from": "22:00", "quiet_battery_to": "06:00", "quiet_car_from": "17:00",
+                                   "quiet_car_to": "21:00"}, file=tmp_path / "s.json")
+    e = Engine(SimpleNamespace(states={}, config={}), ov)
+    assert e.quiet_hours("battery") == [22, 23, 0, 1, 2, 3, 4, 5]
+    assert e.quiet_hours("car") == [17, 18, 19, 20]
+    ov.settings = {"quiet_from": "23:00", "quiet_to": "01:00", "quiet_car": True}  # the old shared setting still works
+    assert e.quiet_hours("car") == [23, 0] and e.quiet_hours("battery") == []

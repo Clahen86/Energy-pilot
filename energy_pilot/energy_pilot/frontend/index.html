@@ -466,6 +466,12 @@ function styleView() {
   const row = (title, hint, ctl) => `<div class="ctl"><div class="t"><b>${title}</b>${hint ? `<span>${hint}</span>` : ""}</div>${ctl}</div>`;
   const hasBatt = !!settings.roles.battery_soc, hasCar = !!(settings.roles.ev_power || settings.roles.ev_plug);
   // One card per thing, with its own icon - so it's clear what belongs to the house battery and what to the car.
+  // Quiet hours of their own for the battery and the car (older settings: one shared period that was switched on).
+  const quietRow = (what) => {
+    const old = v[`quiet_${what}`] === true;
+    const f = v[`quiet_${what}_from`] ?? (old ? v.quiet_from : ""), t = v[`quiet_${what}_to`] ?? (old ? v.quiet_to : "");
+    return row(y.quiet, y.quietH, `<span class="times2"><input type="time" data-text="quiet_${what}_from" value="${esc(f || "")}"><i>–</i><input type="time" data-text="quiet_${what}_to" value="${esc(t || "")}"></span>`);
+  };
   const SC = { battery: "var(--batt)", car: "var(--car)", bolt: "var(--sun)", grid: "var(--grid)", pause: "var(--muted)" };
   const section = (ic, title, hint, body) => body ? `<div class="card fade sec-card"><div class="sec-head"><span class="sec-ic" style="--sc:${SC[ic]}">${icon(ic)}</span><div><b>${title}</b><span>${hint}</span></div></div>${body}</div>` : "";
   return `<div class="card fade"><div class="eyebrow"><span>${y.style}</span></div>
@@ -475,10 +481,10 @@ function styleView() {
       ${row(y.grid, y.gridH, tog("grid_charge", true))}
       ${row(y.size, settings.capacity_guess ? y.sizeH.replace("{x}", num(settings.capacity_guess, 1)) : "", numIn("battery_kwh", settings.capacity_guess ?? 10, "0.1", "kWh"))}
       ${row(y.power, y.powerH, numIn("battery_charge_kw", 3, "0.1", "kW"))}
-      ${v.quiet_from && v.quiet_to ? row(y.quietBatt, `${v.quiet_from}–${v.quiet_to}`, tog("quiet_battery")) : ""}` : "")}
+      ${quietRow("battery")}` : "")}
     ${section("car", y.secCar, y.secCarH, hasCar ? `${row(y.carMode, "", `<div class="seg mini">${["cheapest", "solar"].map((m) => `<button class="${(v.ev_mode || "cheapest") === m ? "on" : ""}" data-evmode="${m}">${y.carModes[m]}</button>`).join("")}</div>`)}
       ${row(y.charger, y.chargerH, numIn("charger_kw", 7.4, "0.1", "kW"))}
-      ${v.quiet_from && v.quiet_to ? row(y.quietCar, `${v.quiet_from}–${v.quiet_to}`, tog("quiet_car")) : ""}` : "")}
+      ${quietRow("car")}` : "")}
     ${section("bolt", y.secPrice, y.secPriceH, `${row(y.source, y.sourceH, `<div class="seg mini wide">${["auto", "spot", "tou"].map((m) => `<button class="${(v.price_source || "auto") === m ? "on" : ""}" data-psrc="${m}">${y.sources[m]}</button>`).join("")}</div>`)}
       ${v.price_source === "tou" ? touEditor(v) : ""}
       ${!settings.roles.price && v.price_source !== "tou" && (settings.zones || []).length ? `${row(y.area, settings.country === "DK" ? y.areaH : "", `<div class="seg mini">${(settings.zones || ["DK1", "DK2"]).map((a) => `<button class="${(v.price_area || settings.area_guess) === a ? "on" : ""}" data-area="${a}">${a}</button>`).join("")}</div>`)}
@@ -486,8 +492,7 @@ function styleView() {
     ${section("grid", y.secGrid, y.secGridH, `${row(y.fuse, y.fuseH, numIn("import_limit_kw", 10, "1", "kW"))}
       ${row(y.sell, y.sellH, tog("sell"))}
       ${v.sell ? row(y.sellPrice, "", numIn("sell_price", "0.5", "0.05", SYM())) : ""}`)}
-    ${(hasBatt || hasCar) ? section("pause", y.secQuiet, y.quietH, `${row(y.fromTo, "", `<span class="times2"><input type="time" data-text="quiet_from" value="${esc(v.quiet_from || "")}"><i>–</i><input type="time" data-text="quiet_to" value="${esc(v.quiet_to || "")}"></span>`)}
-      ${v.quiet_from && v.quiet_to ? `<div class="muted" style="padding-top:8px">${y.quietWhere}</div>` : ""}`) : ""}`;
+`;
 }
 function touEditor(v) {
   const y = T.y, plan = v.tou || { default: 0, periods: [] };

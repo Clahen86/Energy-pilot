@@ -219,14 +219,20 @@ class Engine:
             capacity_kwh=float(s.get("battery_kwh") or self._guess_capacity() or 10),
             max_charge_kw=float(s.get("battery_charge_kw") or 3), max_discharge_kw=float(s.get("battery_discharge_kw") or 3),
             min_soc=min_soc, grid_charge=grid, import_limit_kw=float(s["import_limit_kw"]) if s.get("import_limit_kw") else None,
-            quiet=frozenset(self.quiet_hours()) if s.get("quiet_battery") else frozenset(),
+            quiet=frozenset(self.quiet_hours("battery")),
         )
 
-    def quiet_hours(self) -> list[int]:
+    def quiet_hours(self, what: str) -> list[int]:
+        """The hours the battery or the car must not charge - each has its own (older settings: one shared period)."""
         s = self.ov.settings
+        start, end = s.get(f"quiet_{what}_from"), s.get(f"quiet_{what}_to")
+        if not (start and end) and s.get(f"quiet_{what}") is True:
+            start, end = s.get("quiet_from"), s.get("quiet_to")
         try:
-            a, b = int(str(s.get("quiet_from", "")).split(":")[0]), int(str(s.get("quiet_to", "")).split(":")[0])
+            a, b = int(str(start).split(":")[0]), int(str(end).split(":")[0])
         except ValueError:
+            return []
+        if a == b:
             return []
         return list(range(a, b)) if a < b else list(range(a, 24)) + list(range(0, b))
 
@@ -417,8 +423,8 @@ class Engine:
             ready = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
             if ready <= now:
                 ready += timedelta(days=1)
-        if st.get("quiet_car"):
-            skip = skip | {h.start for h in hours if h.start.hour in self.quiet_hours()}
+        if quiet := self.quiet_hours("car"):
+            skip = skip | {h.start for h in hours if h.start.hour in quiet}
         chosen = plan_car(hours, max(0.0, need), float(st.get("charger_kw") or 7.4), ready, now,
                           solar_only=st.get("ev_mode") == "solar", skip=skip)
         return {"hours": [t.isoformat() for t in chosen], "set": set(chosen), "need": round(max(0.0, need), 1)}

@@ -97,7 +97,8 @@ class Overview:
                 self.settings.setdefault("roles", {}).update({k: v for k, v in value.items() if k in ROLES})
             elif key in ("battery_kwh", "import_limit_kw", "language", "setup_done", "style", "price_area", "tariff", "markup", "price_source", "tou", "vat", "battery_min_soc", "grid_charge",
                          "sell", "sell_price", "battery_charge_kw", "battery_discharge_kw", "ev_mode", "charger_kw", "ev_need_kwh",
-                         "quiet_from", "quiet_to", "quiet_battery", "quiet_car"):
+                         "quiet_from", "quiet_to", "quiet_battery", "quiet_car",
+                         "quiet_battery_from", "quiet_battery_to", "quiet_car_from", "quiet_car_to"):
                 self.settings[key] = value
         self.file.write_text(json.dumps(self.settings, indent=2))
 
