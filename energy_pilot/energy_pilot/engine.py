@@ -398,7 +398,12 @@ class Engine:
             return
         def by_hour(rows: list[tuple[datetime, float]]) -> dict[str, float]:
             return {w.strftime("%Y-%m-%dT%H"): kw for w, kw in rows if w.date() == day.date()}
-        house = by_hour(await self._hourly_kw(self.ov.role("house_power"), 2)) if self.ov.role("house_power") else {}
+        house_rows = await self._hourly_kw(self.ov.role("house_power"), 2) if self.ov.role("house_power") else []
+        if house_rows and self.ev_in_house() and (ev_e := self.ov.role("ev_power")):
+            from . import evsplit
+
+            house_rows = evsplit.subtract(house_rows, await self._hourly_kw(ev_e, 2))  # as the forecast was made
+        house = by_hour(house_rows)
         pv = by_hour(await self._hourly_kw(self.ov.role("pv_power"), 2)) if self.ov.role("pv_power") else {}
         prices = {k: v["price"] for k, v in self.learning._expected(day.strftime("%Y-%m-%d")).items() if v.get("price") is not None}
         soc_start = None
