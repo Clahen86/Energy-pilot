@@ -129,15 +129,19 @@ class Controller:
             step = b["steps"][0]
             bat = self.engine.settings()
             intent = {"charge_grid": "charge", "hold": "hold"}.get(step["action"], "normal")
-            charge_kw = min(bat.max_charge_kw, max(0.5, (step["soc"] - (f["soc"] or 0)) / 100 * bat.capacity_kwh))
+            slot_h = (b.get("slot_min") or 60) / 60  # the step is one price slot (a quarter of an hour in Europe)
+            charge_kw = min(bat.max_charge_kw, max(0.5, (step["soc"] - (f["soc"] or 0)) / 100 * bat.capacity_kwh / slot_h))
             out["battery"] = {"intent": intent, "ctx": {
-                "min_soc": round(bat.min_soc), "soc": round(f["soc"] or bat.min_soc), "target": round(step["soc"]),
+                "min_soc": round(bat.min_soc), "soc": round(f["soc"] or bat.min_soc), "target": round(b.get("target") or step["soc"]),
                 "rate": round(100 * charge_kw / bat.max_charge_kw), "power_w": round(charge_kw * 1000),
                 "max_power_w": round(bat.max_discharge_kw * 1000)}}
         if self.ov.ev() is not None:
             tz = ZoneInfo(self.ha.config.get("time_zone") or "UTC")
-            hour = datetime.now(tz).replace(minute=0, second=0, microsecond=0)
-            planned = {datetime.fromisoformat(t) for t in ((res.get("car") or {}).get("hours") or [])}
+            car = res.get("car") or {}
+            now = datetime.now(tz)
+            slot = int(car.get("slot_min") or 60)
+            hour = now.replace(minute=now.minute // slot * slot if slot < 60 else 0, second=0, microsecond=0)  # the slot now
+            planned = {datetime.fromisoformat(t) for t in (car.get("hours") or [])}
             manual = bool(self.ov.settings.get("ev_now"))
             charge = f.get("plug") and (manual or hour in planned)
             kw = float(self.ov.settings.get("charger_kw") or 7.4)

@@ -237,6 +237,7 @@ class Overview:
 
         prices, self.price_info = collect(self.ha.states, self.role("price"),
                                           (self.engine.own_prices if self.engine else []) or [], tz)
+        self.fine_prices = prices  # quarter/half-hour prices as they come - the engine plans in those slots
         if prices:
             buckets: dict[str, list[float]] = {}
             for dt, value in prices.items():

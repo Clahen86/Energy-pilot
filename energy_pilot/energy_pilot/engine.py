@@ -73,6 +73,7 @@ class Hour:
     sell: float  # sell, per kWh (0 when export isn't paid)
     house: float  # kWh
     sun: float  # kWh
+    length: float = 1.0  # hours: 0.25 with quarter-hour prices (Europe since Oct 2025), 0.5 half-hour (UK Agile)
 
 
 @dataclass
@@ -109,17 +110,22 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
         end_value = median(h.price for h in hours) * eff  # what a kWh left over will be worth later
     n, m = len(hours), len(levels)
     INF = float("inf")
+    pct_step = step_pct / 100 * b.capacity_kwh  # kWh between two levels
     best = [[INF] * m for _ in range(n + 1)]
     choice: list[list[tuple[int, str, float, float]]] = [[(0, "hold", 0.0, 0.0)] * m for _ in range(n)]
     for j, lv in enumerate(levels):
         best[n][j] = -(kwh(lv) - kwh(b.min_soc)) * end_value
     for i in range(n - 1, -1, -1):
         h = hours[i]
+        # Only the levels the battery can reach in this slot (a quarter of an hour moves it a quarter as far).
+        up = int(b.max_charge_kw * h.length * eff / pct_step) + 2
+        down = int(b.max_discharge_kw * h.length / pct_step) + 2
         for j, lv in enumerate(levels):
-            for k, nxt in enumerate(levels):
+            for k in range(max(0, j - down), min(m, j + up + 1)):
+                nxt = levels[k]
                 delta = kwh(nxt) - kwh(lv)  # + stored, - taken out (energy in the battery)
                 if delta > 0:
-                    if delta / eff > b.max_charge_kw + 1e-9:
+                    if delta / eff > b.max_charge_kw * h.length + 1e-9:
                         continue
                     into = delta / eff  # what has to go in
                     from_sun = min(into, max(0.0, h.sun - h.house))
@@ -131,7 +137,7 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
                     action = "charge_sun" if into - from_sun < 1e-6 else "charge_grid"
                 elif delta < 0:
                     out = -delta * eff  # what comes out to the house
-                    if -delta > b.max_discharge_kw + 1e-9:
+                    if -delta > b.max_discharge_kw * h.length + 1e-9:
                         continue
                     need = max(0.0, h.house - h.sun)
                     if out > need + 1e-9:
@@ -141,7 +147,7 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
                 else:
                     grid = h.house - h.sun
                     action = "hold"
-                if b.import_limit_kw is not None and grid > b.import_limit_kw + 1e-9 and delta > 0:
+                if b.import_limit_kw is not None and grid > b.import_limit_kw * h.length + 1e-9 and delta > 0:
                     continue  # charging would trip the main fuse
                 cost = grid * h.price if grid > 0 else grid * h.sell
                 total = cost + best[i + 1][k]
@@ -170,17 +176,46 @@ def plan_car(hours: list[Hour], need_kwh: float, charger_kw: float, ready: datet
     if need_kwh <= 0 or charger_kw <= 0:
         return []
     until = ready or now + timedelta(hours=24)
-    usable = [h for h in hours if now - timedelta(hours=1) < h.start < until and h.start not in (skip or set())
-              and (not solar_only or h.sun - h.house >= charger_kw * 0.5)]
-    # A surplus hour costs what the energy would have been sold for; others their price.
-    ranked = sorted(usable, key=lambda h: h.sell if h.sun - h.house >= charger_kw * 0.7 else h.price)
+    usable = [h for h in hours if now - timedelta(hours=h.length) < h.start < until and h.start not in (skip or set())
+              and (not solar_only or h.sun - h.house >= charger_kw * h.length * 0.5)]
+    # A surplus slot costs what the energy would have been sold for; others their price.
+    ranked = sorted(usable, key=lambda h: h.sell if h.sun - h.house >= charger_kw * h.length * 0.7 else h.price)
     chosen, got = [], 0.0
     for h in ranked:
         if got >= need_kwh:
             break
         chosen.append(h.start)
-        got += charger_kw
+        got += charger_kw * h.length
     return sorted(chosen)
+
+
+# ---------- quarter-hour slots ----------
+
+def resolution(prices: dict[datetime, float], now: datetime) -> int:
+    """Minutes between prices from now on: 15 (Europe since October 2025), 30 (UK Agile) or 60."""
+    coming = sorted(t for t in prices if t >= now - timedelta(hours=1))[:12]
+    gaps = [round((b - a).total_seconds() / 60) for a, b in zip(coming, coming[1:])]
+    gap = min((g for g in gaps if g > 0), default=60)
+    return 15 if gap <= 15 else 30 if gap <= 30 else 60
+
+
+def split_slots(hours: list[Hour], prices: dict[datetime, float], now: datetime) -> list[Hour]:
+    """Hours split into the market's price slots, each with its own price; the slot now is scaled to what's left."""
+    res = resolution(prices, now) if prices else 60
+    k = 60 // res
+    out = []
+    for h in hours:
+        for i in range(k):
+            start = h.start + timedelta(minutes=i * res)
+            if start + timedelta(minutes=res) <= now:
+                continue  # already gone
+            price = prices.get(start, h.price) if k > 1 else h.price
+            out.append(Hour(start, price, h.sell, h.house / k, h.sun / k, res / 60))
+    if out and out[0].start < now:
+        part = 1 - (now - out[0].start).total_seconds() / (out[0].length * 3600)
+        out[0].house *= part
+        out[0].sun *= part
+    return out
 
 
 # ---------- running it ----------
@@ -468,10 +503,10 @@ class Engine:
                  for i, (t, r) in enumerate(zip(times, rows))]
         L.expect([{"t": times[0].isoformat(), "house": house[0], "sun": hours[0].sun, "price": rows[0]["price"], "cloud": clouds[0],
                    "house_s": simple[0], "house_m": ml[0], "sun_s": sun_simple[0], "sun_m": sun_ml.get(times[0])}])
-        # This hour is partly gone: scale it.
-        part = 1 - now.minute / 60
-        hours[0].house *= part
-        hours[0].sun *= part
+        # Prices per quarter (or half) hour where the market has them: plan in those slots, so the battery and
+        # the car use the cheapest quarters inside an hour too. House and sun are spread evenly over the hour.
+        hours = split_slots(hours, getattr(self.ov, "fine_prices", None) or {}, now)
+        slot_min = round(hours[0].length * 60) if hours else 60
         f = self.ov.flow()
         result: dict[str, Any] = {"at": now.isoformat(), "house": [{"t": t.isoformat(), "kwh": k} for t, k in zip(times, house)],
                                   "style": st.get("style") or "cheapest"}
@@ -480,14 +515,19 @@ class Engine:
             charger = float(st.get("charger_kw") or 7.4)
             for h in hours:
                 if h.start in car_plan["set"]:
-                    h.house += charger  # the car gets the sun first: what's left goes to the battery
+                    h.house += charger * h.length  # the car gets the sun first: what's left goes to the battery
         if f["soc"] is not None:
             b = self.settings()
             end_value = median(h.price for h in hours) * math.sqrt(b.efficiency) * L.end_factor
             p = plan_battery(hours, f["soc"], b, end_value=end_value)
+            # The target: where the current action leads (not just the end of this quarter).
+            run = 0
+            while run + 1 < len(p.steps) and p.steps[run + 1].action == p.steps[0].action:
+                run += 1
             result["battery"] = {
                 "steps": [{"t": s.start.isoformat(), "action": s.action, "soc": s.soc_end, "grid": s.grid_kwh} for s in p.steps],
-                "now": ACTION_KIND[p.steps[0].action] if p.steps else "hold", "target": p.steps[0].soc_end if p.steps else None,
+                "slot_min": slot_min,
+                "now": ACTION_KIND[p.steps[0].action] if p.steps else "hold", "target": p.steps[run].soc_end if p.steps else None,
                 "cost": p.cost, "cost_without": p.cost_without, "saving": p.saving, "capacity": b.capacity_kwh,
             }
         if car_plan is None:
@@ -496,7 +536,7 @@ class Engine:
                 skip = {datetime.fromisoformat(x["t"]) for x in result["battery"]["steps"] if x["action"] == "charge_sun"}
             car_plan = self._car(hours, now, f, skip)
         if car_plan:
-            result["car"] = {"hours": car_plan["hours"], "need_kwh": car_plan["need"]}
+            result["car"] = {"hours": car_plan["hours"], "need_kwh": car_plan["need"], "slot_min": slot_min}
         self.result = result
         self._compare()
         return result

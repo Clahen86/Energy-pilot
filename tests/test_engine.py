@@ -127,3 +127,38 @@ def test_quiet_hours_each_their_own(tmp_path):
     assert e.quiet_hours("car") == [17, 18, 19, 20]
     ov.settings = {"quiet_from": "23:00", "quiet_to": "01:00", "quiet_car": True}  # the old shared setting still works
     assert e.quiet_hours("car") == [23, 0] and e.quiet_hours("battery") == []
+
+
+def test_quarter_hour_slots_use_the_cheap_quarters():
+    from zoneinfo import ZoneInfo
+
+    from energy_pilot.engine import Battery, Hour, plan_battery, resolution, split_slots
+
+    tz = ZoneInfo("Europe/Copenhagen")
+    t0 = datetime(2026, 11, 8, 0, tzinfo=tz)
+    hours = [Hour(t0 + timedelta(hours=i), 2.0, 0.0, 1.0, 0.0) for i in range(4)]
+    # Inside the second hour one quarter is very cheap, one very dear.
+    fine = {t0 + timedelta(minutes=15 * q): 2.0 for q in range(16)}
+    fine[t0 + timedelta(minutes=60)] = 0.2
+    fine[t0 + timedelta(minutes=105)] = 5.0
+    assert resolution(fine, t0) == 15
+    slots = split_slots(hours, fine, t0)
+    assert len(slots) == 16 and slots[0].length == 0.25 and abs(sum(s.house for s in slots) - 4.0) < 1e-9
+    p = plan_battery(slots, 50, Battery(capacity_kwh=10, max_charge_kw=4, max_discharge_kw=4, efficiency=1.0))
+    by = {s.start: s for s in p.steps}
+    assert by[t0 + timedelta(minutes=60)].action == "charge_grid"  # buys in the cheap quarter
+    assert by[t0 + timedelta(minutes=105)].action == "discharge"  # uses it in the dear one
+    # A quarter moves the battery at most a quarter of an hour's power.
+    assert all(abs(s.soc_end - s.soc_start) <= 4 * 0.25 / 10 * 100 + 2.01 for s in p.steps)
+
+
+def test_hourly_prices_stay_hourly():
+    from zoneinfo import ZoneInfo
+
+    from energy_pilot.engine import Hour, split_slots
+
+    tz = ZoneInfo("Europe/Copenhagen")
+    t0 = datetime(2026, 11, 8, 0, tzinfo=tz)
+    hours = [Hour(t0 + timedelta(hours=i), 2.0, 0.0, 1.0, 0.0) for i in range(3)]
+    slots = split_slots(hours, {t0 + timedelta(hours=i): 2.0 for i in range(3)}, t0)
+    assert len(slots) == 3 and slots[0].length == 1.0
