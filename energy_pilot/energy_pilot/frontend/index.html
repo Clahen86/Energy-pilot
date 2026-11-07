@@ -94,7 +94,7 @@
   .ring b { position:absolute; inset:0; display:grid; place-items:center; font-size:12px; font-weight:650; }
   .app .t b { font-weight:600; } .app .t span { display:block; font-size:12.5px; color:var(--muted); }
   .seg { display:flex; background:var(--surface2); border-radius:11px; padding:3px; gap:2px; border:1px solid var(--line); }
-  .seg button { flex:1; border:0; background:transparent; color:var(--muted); padding:7px 10px; border-radius:8px; font:inherit; font-size:13px; font-weight:600; cursor:pointer; }
+  .seg button { flex:1; white-space:nowrap; border:0; background:transparent; color:var(--muted); padding:7px 10px; border-radius:8px; font:inherit; font-size:13px; font-weight:600; cursor:pointer; }
   .seg button.on { background:var(--surface); color:var(--text); box-shadow:0 1px 4px rgba(0,0,0,.25); }
   .seg button.on.control { color:var(--ok); } .seg button.on.shadow { color:var(--accent); }
   .stopall { width:100%; margin-top:10px; padding:13px; border-radius:14px; border:1px solid color-mix(in srgb, var(--bad) 35%, transparent); font:inherit; font-weight:650;
@@ -126,7 +126,10 @@
   .style svg { width:20px; height:20px; color:var(--muted); margin-bottom:6px; } .style b { font-weight:650; font-size:14px; } .style span { font-size:12px; color:var(--muted); line-height:1.35; }
   .style.on { border-color:var(--accent); background:color-mix(in srgb, var(--accent) 12%, var(--surface)); box-shadow:0 10px 24px -14px var(--accent); } .style.on svg { color:var(--accent); }
   .numin { width:84px; font:650 16px system-ui; text-align:right; color:var(--text); background:var(--surface2); border:1px solid var(--line); border-radius:10px; padding:7px 9px; }
-  .seg.mini { min-width:150px; } .numin.sm { width:62px; font-size:14px; padding:6px; } .unitin { display:flex; align-items:center; gap:6px; } .unitin i { font-style:normal; color:var(--muted); font-size:13px; min-width:26px; } .times2 { display:flex; align-items:center; gap:6px; } .times2 input { font-size:15px; padding:5px 6px; } .times2 i { color:var(--muted); font-style:normal; }
+  .seg.mini { min-width:150px; }
+  .tou { margin:4px 0 0; padding:4px 12px 12px; border-radius:16px; background:var(--surface2); }
+  .period { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:10px 0; border-top:1px solid var(--line); }
+  .pname { flex:1; min-width:120px; font:600 14px system-ui; color:var(--text); background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:7px 9px; } .numin.sm { width:62px; font-size:14px; padding:6px; } .unitin { display:flex; align-items:center; gap:6px; } .unitin i { font-style:normal; color:var(--muted); font-size:13px; min-width:26px; } .times2 { display:flex; align-items:center; gap:6px; } .times2 input { font-size:15px; padding:5px 6px; } .times2 i { color:var(--muted); font-style:normal; }
   /* tab bar */
   nav { position:fixed; left:0; right:0; bottom:0; padding:10px 14px calc(10px + env(safe-area-inset-bottom)); z-index:5; display:flex; justify-content:center;
     background:linear-gradient(transparent, var(--bg) 45%); }
@@ -166,6 +169,9 @@ const T = {
       sell: "Må sælge til nettet", sellH: "Overskud fra solen sælges, når det betaler sig", sellPrice: "Du får pr. kWh", fuse: "Importloft", fuseH: "Hovedsikringen - køb aldrig mere",
       carMode: "Bilen lader", carModes: { cheapest: "Billigst", solar: "Kun sol" }, charger: "Laderens effekt", chargerH: "Typisk 3,7 / 7,4 / 11 kW",
       quiet: "Stille timer", quietH: "Ingen opladning i dette tidsrum", quietBatt: "Gælder batteriet", quietCar: "Gælder bilen",
+      source: "Elpris", sourceH: "Hvor priserne kommer fra", sources: { auto: "Automatisk", spot: "Spotpris", tou: "Egen tarif" },
+      preset: "Start fra", choose: "Vælg…", defaultPrice: "Normalpris", defaultPriceH: "Når ingen periode gælder", periodName: "Navn, fx Spids",
+      addPeriod: "Tilføj periode", days: { all: "Alle dage", weekdays: "Hverdage", weekends: "Weekend" },
       area: "Prisområde", areaH: "Vest (DK1) eller øst (DK2) for Storebælt", tariff: "Nettarif (lav · høj · spids)", tariffH: "Pr. kWh uden moms - se din elregning" },
     legSoc: "Batteri-niveau (plan)", legCar: "Bilen lader", saves: "Planen sparer cirka {x} de næste timer.",
     engineName: "Energipilots egen motor", engineHint: "Sammenlignet med din AppDaemon · sparer ca. {x} de næste timer",
@@ -200,6 +206,9 @@ const T = {
       sell: "May sell to the grid", sellH: "Solar surplus is sold when it pays", sellPrice: "You get per kWh", fuse: "Import limit", fuseH: "The main fuse - never buy more",
       carMode: "The car charges", carModes: { cheapest: "Cheapest", solar: "Sun only" }, charger: "Charger power", chargerH: "Typically 3.7 / 7.4 / 11 kW",
       quiet: "Quiet hours", quietH: "No charging in this period", quietBatt: "Applies to the battery", quietCar: "Applies to the car",
+      source: "Electricity price", sourceH: "Where prices come from", sources: { auto: "Automatic", spot: "Spot price", tou: "Own tariff" },
+      preset: "Start from", choose: "Choose…", defaultPrice: "Normal price", defaultPriceH: "When no period applies", periodName: "Name, e.g. Peak",
+      addPeriod: "Add period", days: { all: "Every day", weekdays: "Weekdays", weekends: "Weekends" },
       area: "Price area", areaH: "West (DK1) or east (DK2) of the Great Belt", tariff: "Grid tariff (low · high · peak)", tariffH: "Per kWh excl. VAT - see your bill" },
     legSoc: "Battery level (plan)", legCar: "Car charges", saves: "The plan saves about {x} over the coming hours.",
     engineName: "Energy Pilot's own engine", engineHint: "Compared with your AppDaemon · saves about {x} over the coming hours",
@@ -429,11 +438,26 @@ function styleView() {
       ${row(y.fuse, y.fuseH, numIn("import_limit_kw", 10, "1", "kW"))}
       ${hasCar ? `${row(y.carMode, "", `<div class="seg mini">${["cheapest", "solar"].map((m) => `<button class="${(v.ev_mode || "cheapest") === m ? "on" : ""}" data-evmode="${m}">${y.carModes[m]}</button>`).join("")}</div>`)}
       ${row(y.charger, y.chargerH, numIn("charger_kw", 7.4, "0.1", "kW"))}` : ""}
-      ${!settings.roles.price ? `${row(y.area, settings.country === "DK" ? y.areaH : "", `<div class="seg mini">${(settings.zones || ["DK1", "DK2"]).map((a) => `<button class="${(v.price_area || settings.area_guess) === a ? "on" : ""}" data-area="${a}">${a}</button>`).join("")}</div>`)}
+      ${row(y.source, y.sourceH, `<div class="seg mini">${["auto", "spot", "tou"].map((m) => `<button class="${(v.price_source || "auto") === m ? "on" : ""}" data-psrc="${m}">${y.sources[m]}</button>`).join("")}</div>`)}
+      ${v.price_source === "tou" ? touEditor(v) : ""}
+      ${!settings.roles.price && v.price_source !== "tou" && (settings.zones || []).length ? `${row(y.area, settings.country === "DK" ? y.areaH : "", `<div class="seg mini">${(settings.zones || ["DK1", "DK2"]).map((a) => `<button class="${(v.price_area || settings.area_guess) === a ? "on" : ""}" data-area="${a}">${a}</button>`).join("")}</div>`)}
         ${row(y.tariff, y.tariffH, `<span class="times2">${["low", "high", "peak"].map((k) => `<input class="numin sm" type="number" step="0.01" data-tariff="${k}" value="${(v.tariff || {})[k] ?? ""}" placeholder="${settings.country === "DK" ? { low: 0.115, high: 0.346, peak: 1.038 }[k] : 0}">`).join("")}</span>`)}` : ""}
       ${row(y.quiet, y.quietH, `<span class="times2"><input type="time" data-text="quiet_from" value="${esc(v.quiet_from || "")}"><i>–</i><input type="time" data-text="quiet_to" value="${esc(v.quiet_to || "")}"></span>`)}
       ${v.quiet_from && v.quiet_to ? `${hasBatt ? row(y.quietBatt, "", tog("quiet_battery")) : ""}${hasCar ? row(y.quietCar, "", tog("quiet_car")) : ""}` : ""}
     </div>`;
+}
+function touEditor(v) {
+  const y = T.y, plan = v.tou || { default: 0, periods: [] };
+  const days = (p, i) => `<select data-tou-days="${i}">${["all", "weekdays", "weekends"].map((d) => `<option value="${d}" ${p.days === d ? "selected" : ""}>${y.days[d]}</option>`).join("")}</select>`;
+  return `<div class="tou">
+    <div class="ctl"><div class="t"><b>${y.preset}</b></div><select data-tou-preset><option value="">${y.choose}</option>
+      ${Object.entries(settings.tou_presets || {}).map(([k, p]) => `<option value="${k}">${esc(p.name)}</option>`).join("")}</select></div>
+    <div class="ctl"><div class="t"><b>${y.defaultPrice}</b><span>${y.defaultPriceH}</span></div><span class="unitin"><input class="numin" type="number" step="0.01" data-tou-default value="${plan.default ?? ""}"><i>${SYM()}</i></span></div>
+    ${(plan.periods || []).map((p, i) => `<div class="period"><input class="pname" data-tou-name="${i}" value="${esc(p.name || "")}" placeholder="${y.periodName}">
+      <span class="times2"><input type="time" data-tou-from="${i}" value="${esc(p.from || "")}"><i>–</i><input type="time" data-tou-to="${i}" value="${esc(p.to || "")}"></span>
+      ${days(p, i)}<span class="unitin"><input class="numin sm" type="number" step="0.01" data-tou-price="${i}" value="${p.price ?? ""}"><i>${SYM()}</i></span>
+      <button class="x" data-tou-del="${i}" aria-label="x">✕</button></div>`).join("")}
+    <button class="ghostbtn" data-tou-add>+ ${y.addPeriod}</button></div>`;
 }
 function settingsView() {
   if (!settings) return `<div class="card">…</div>`;
@@ -513,6 +537,16 @@ function wire() {
   document.querySelectorAll("[data-num]").forEach((i) => i.onchange = () => saveSet({ [i.dataset.num]: i.value === "" ? null : Number(i.value.replace(",", ".")) }));
   document.querySelectorAll("[data-text]").forEach((i) => i.onchange = () => saveSet({ [i.dataset.text]: i.value || null }));
   document.querySelectorAll("[data-range]").forEach((i) => { i.oninput = () => ($("#r-" + i.dataset.range).textContent = `${i.value} %`); i.onchange = () => saveSet({ [i.dataset.range]: Number(i.value) }); });
+  document.querySelectorAll("[data-psrc]").forEach((b) => b.onclick = () => saveSet({ price_source: b.dataset.psrc === "auto" ? null : b.dataset.psrc }));
+  const tou = () => JSON.parse(JSON.stringify(settings.settings.tou || { default: 0, periods: [] }));
+  $("[data-tou-preset]")?.addEventListener("change", (e) => { const p = settings.tou_presets[e.target.value]; if (p) saveSet({ tou: { default: p.default, periods: p.periods } }); });
+  $("[data-tou-default]")?.addEventListener("change", (e) => { const t = tou(); t.default = Number(e.target.value.replace(",", ".")); saveSet({ tou: t }); });
+  $("[data-tou-add]")?.addEventListener("click", () => { const t = tou(); t.periods.push({ name: "", price: t.default, from: "17:00", to: "21:00", days: "all" }); saveSet({ tou: t }); });
+  for (const [attr, key, conv] of [["data-tou-name", "name", String], ["data-tou-from", "from", String], ["data-tou-to", "to", String],
+    ["data-tou-days", "days", String], ["data-tou-price", "price", (x) => Number(String(x).replace(",", "."))]]) {
+    document.querySelectorAll(`[${attr}]`).forEach((el) => el.onchange = () => { const t = tou(); t.periods[Number(el.getAttribute(attr))][key] = conv(el.value); saveSet({ tou: t }); });
+  }
+  document.querySelectorAll("[data-tou-del]").forEach((b) => b.onclick = () => { const t = tou(); t.periods.splice(Number(b.dataset.touDel), 1); saveSet({ tou: t }); });
   document.querySelectorAll("[data-area]").forEach((b) => b.onclick = () => saveSet({ price_area: b.dataset.area }));
   document.querySelectorAll("[data-tariff]").forEach((i) => i.onchange = () => saveSet({ tariff: { ...(settings.settings.tariff || {}), [i.dataset.tariff]: i.value === "" ? undefined : Number(i.value.replace(",", ".")) } }));
   document.querySelectorAll("[data-evmode]").forEach((b) => b.onclick = () => saveSet({ ev_mode: b.dataset.evmode }));

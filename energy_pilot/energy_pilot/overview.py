@@ -95,7 +95,7 @@ class Overview:
         for key, value in changes.items():
             if key == "roles":
                 self.settings.setdefault("roles", {}).update({k: v for k, v in value.items() if k in ROLES})
-            elif key in ("battery_kwh", "import_limit_kw", "language", "setup_done", "style", "price_area", "tariff", "markup", "battery_min_soc", "grid_charge",
+            elif key in ("battery_kwh", "import_limit_kw", "language", "setup_done", "style", "price_area", "tariff", "markup", "price_source", "tou", "vat", "battery_min_soc", "grid_charge",
                          "sell", "sell_price", "battery_charge_kw", "battery_discharge_kw", "ev_mode", "charger_kw", "ev_need_kwh",
                          "quiet_from", "quiet_to", "quiet_battery", "quiet_car"):
                 self.settings[key] = value
@@ -104,6 +104,8 @@ class Overview:
     # ---------- finding the parts ----------
 
     def role(self, name: str) -> str | None:
+        if name == "price" and self.settings.get("price_source") in ("tou", "spot"):
+            return None  # the user picked Energy Pilot's own prices
         chosen = (self.settings.get("roles") or {}).get(name)
         states = self.ha.states
         if chosen == "":

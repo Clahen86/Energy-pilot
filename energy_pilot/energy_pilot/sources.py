@@ -269,3 +269,51 @@ class HouseModel:
             return None
         X = [self.features(h, (weather.at(h) or {}).get("temp") if weather else None) for h in hours]
         return [round(max(0.0, float(v)), 3) for v in self.model.predict(X)]
+
+
+# ---------- own tariff plan (time of use) ----------
+
+# Examples to start from - the user checks them against the bill (prices change).
+TOU_PRESETS = {
+    "day_night": {"name": "Dag/nat", "default": 0.30, "periods": [{"name": "Nat", "price": 0.20, "from": "23:00", "to": "07:00", "days": "all"}]},
+    "peak_17_21": {"name": "Spidslast 17-21", "default": 0.30, "periods": [{"name": "Spids", "price": 0.55, "from": "17:00", "to": "21:00", "days": "all"}]},
+    "pge_etou_c": {"name": "PG&E E-TOU-C (US)", "default": 0.42, "currency": "USD",
+                   "periods": [{"name": "Peak", "price": 0.52, "from": "16:00", "to": "21:00", "days": "all"}]},
+    "sce_tou_d_4_9": {"name": "SCE TOU-D-4-9PM (US)", "default": 0.33, "currency": "USD",
+                      "periods": [{"name": "On-peak", "price": 0.55, "from": "16:00", "to": "21:00", "days": "weekdays"},
+                                  {"name": "Mid-peak", "price": 0.43, "from": "16:00", "to": "21:00", "days": "weekends"}]},
+    "economy7": {"name": "Economy 7 (UK)", "default": 0.29, "currency": "GBP",
+                 "periods": [{"name": "Night", "price": 0.14, "from": "00:30", "to": "07:30", "days": "all"}]},
+}
+
+
+def _minutes(text: str) -> int:
+    h, m = (int(x) for x in str(text).split(":")[:2])
+    return h * 60 + m
+
+
+def tou_price(plan: dict[str, Any], when: datetime) -> float:
+    """The price at a moment from a plan: the first period that covers it, else the default."""
+    m = when.hour * 60 + when.minute
+    weekend = is_day_off(when.date())
+    for p in plan.get("periods") or []:
+        days = p.get("days", "all")
+        if (days == "weekdays" and weekend) or (days == "weekends" and not weekend):
+            continue
+        months = p.get("months")
+        if months and when.month not in months:
+            continue
+        a, b = _minutes(p.get("from", "00:00")), _minutes(p.get("to", "00:00"))
+        if (a <= m < b) if a < b else (m >= a or m < b):
+            return float(p["price"])
+    return float(plan.get("default", 0))
+
+
+def tou_prices(plan: dict[str, Any], tz: ZoneInfo) -> list[dict[str, Any]]:
+    """Today and tomorrow in 15-minute steps, like a price sensor's "prices"."""
+    start = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
+    out = []
+    for i in range(2 * 96):
+        t = start + timedelta(minutes=15 * i)
+        out.append({"start": t.isoformat(), "end": (t + timedelta(minutes=15)).isoformat(), "price": round(tou_price(plan, t), 4)})
+    return out

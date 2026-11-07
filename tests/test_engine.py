@@ -77,3 +77,17 @@ def test_other_countries():
     assert price_area(59.9, 10.75, "NO") == "NO1" and price_area(60.39, 5.32, "NO") == "NO5"
     assert price_area(52.5, 13.4, "DE") == "DE-LU"
     assert consumer_price(100, 12, {}, "DE") == round(0.1 * 1.19, 4)  # spot + VAT only, unless told more
+
+
+def test_tariff_plan():
+    from zoneinfo import ZoneInfo
+
+    from energy_pilot.sources import TOU_PRESETS, tou_price, tou_prices
+
+    plan = TOU_PRESETS["sce_tou_d_4_9"]
+    assert tou_price(plan, datetime(2026, 11, 9, 17, 0)) == 0.55  # Monday on-peak
+    assert tou_price(plan, datetime(2026, 11, 8, 17, 0)) == 0.43  # Sunday mid-peak
+    assert tou_price(plan, datetime(2026, 11, 9, 10, 0)) == 0.33
+    night = TOU_PRESETS["day_night"]
+    assert tou_price(night, datetime(2026, 11, 9, 2, 0)) == 0.20 and tou_price(night, datetime(2026, 11, 9, 12, 0)) == 0.30
+    assert len(tou_prices(night, ZoneInfo("America/Los_Angeles"))) == 192
