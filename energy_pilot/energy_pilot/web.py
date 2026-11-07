@@ -23,11 +23,17 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
         st = runner.status()
         data["shadow"] = [{k: a[k] for k in ("name", "mode", "agree", "checks", "errors")} for a in st["apps"]]
         data["connected"] = st["connected"]
+        data["setup_done"] = bool(overview.settings.get("setup_done"))
         return web.json_response(data)
 
     async def get_settings(_req: web.Request) -> web.Response:
         return web.json_response({"settings": overview.settings, "roles": overview.roles(),
+                                  "sources": {r: overview.source(r) for r in overview.roles()},
                                   "candidates": overview.candidates()})
+
+    async def redetect(_req: web.Request) -> web.Response:
+        await overview.async_detect()
+        return web.json_response({"ok": True})
 
     async def save_settings(req: web.Request) -> web.Response:
         overview.save(await req.json())
@@ -68,6 +74,7 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
     app.router.add_get("/api/overview", get_overview)
     app.router.add_get("/api/settings", get_settings)
     app.router.add_post("/api/settings", save_settings)
+    app.router.add_post("/api/detect", redetect)
     app.router.add_post("/api/ev", ev)
     app.router.add_post("/api/mode", mode)
     app.router.add_post("/api/shadow_all", stop_all)

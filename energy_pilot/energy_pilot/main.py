@@ -70,6 +70,14 @@ async def main() -> None:
     runner = Runner(ha, apps_dir, data_dir, opts.get("apps") or DEFAULT_APPS)
     asyncio.create_task(ha.run())
     overview = Overview(ha, data_dir)
+
+    async def detect_hourly() -> None:
+        while True:
+            await ha.connected.wait()
+            await overview.async_detect()
+            await asyncio.sleep(3600)
+
+    asyncio.create_task(detect_hourly())
     asyncio.create_task(Cards(ha, overview, os.environ.get("BUILD_VERSION", "dev")).run())
     web_runner = web.AppRunner(make_app(runner, overview))
     await web_runner.setup()

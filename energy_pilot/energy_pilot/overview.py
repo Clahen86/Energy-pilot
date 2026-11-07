@@ -72,6 +72,17 @@ class Overview:
         self.ha = ha
         self.file = data_dir / "energy_pilot_settings.json"
         self.settings: dict[str, Any] = self._load()
+        self.detected: dict[str, dict[str, str]] = {}
+
+    async def async_detect(self) -> None:
+        from .detect import detect
+
+        try:
+            self.detected = await detect(self.ha)
+        except Exception:  # noqa: BLE001 - keep what was found before
+            import logging
+
+            logging.getLogger(__name__).warning("Finding the parts failed", exc_info=True)
 
     def _load(self) -> dict[str, Any]:
         try:
@@ -83,7 +94,7 @@ class Overview:
         for key, value in changes.items():
             if key == "roles":
                 self.settings.setdefault("roles", {}).update({k: v for k, v in value.items() if k in ROLES})
-            elif key in ("battery_kwh", "import_limit_kw", "language"):
+            elif key in ("battery_kwh", "import_limit_kw", "language", "setup_done"):
                 self.settings[key] = value
         self.file.write_text(json.dumps(self.settings, indent=2))
 
@@ -100,7 +111,20 @@ class Overview:
         for e in spec["known"]:
             if e in states and states[e].get("state") not in ("unavailable", "unknown", None):
                 return e
-        return None
+        found = (self.detected.get(name) or {}).get("entity_id")
+        return found if found in states else None
+
+    def source(self, name: str) -> str | None:
+        """Where a part was found: "chosen", "known", "energy", "integration:<platform>", "name" or "computed"."""
+        chosen = (self.settings.get("roles") or {}).get(name)
+        if chosen:
+            return "chosen"
+        e = self.role(name)
+        if e is None:
+            return "computed" if name == "house_power" and self.role("grid_power") and self.role("pv_power") else None
+        if e in ROLES[name]["known"]:
+            return "known"
+        return (self.detected.get(name) or {}).get("source")
 
     def roles(self) -> dict[str, str | None]:
         return {name: self.role(name) for name in ROLES}
@@ -147,6 +171,8 @@ class Overview:
         # Positive battery = charging (Growatt reports discharge as negative). Grid: positive = buying.
         if grid is None and None not in (pv, house):
             grid = (house or 0) + (ev or 0) + (batt or 0) - (pv or 0)
+        if house is None and None not in (pv, grid):
+            house = max(0.0, (pv or 0) + (grid or 0) - (batt or 0) - (ev or 0))  # what's left is the house
         return {
             "pv": pv, "house": house, "battery": batt, "soc": soc, "grid": grid, "ev": ev, "plug": plug,
             "has": {"pv": pv is not None, "battery": soc is not None or batt is not None, "grid": grid is not None,

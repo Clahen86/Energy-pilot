@@ -105,6 +105,20 @@
   .set { display:flex; align-items:center; gap:12px; padding:10px 0; border-top:1px solid var(--line); }
   .set span { flex:1; font-size:14px; }
   select { font:inherit; font-size:13.5px; padding:8px 10px; border-radius:10px; border:1px solid var(--line2); background:var(--surface2); color:var(--text); max-width:58%; }
+  .rl { display:block; font-weight:500; font-size:14px; }
+  .src { display:inline-block; font-style:normal; font-size:11px; font-weight:600; margin-top:2px; color:var(--muted); }
+  .src.energy, .src.integration { color:var(--ok); } .src.name { color:var(--warn); } .src.none { color:var(--faint); } .src.known, .src.chosen { color:var(--accent); }
+  .link { border:0; background:none; color:var(--accent); font:inherit; font-size:12px; font-weight:650; cursor:pointer; letter-spacing:0; text-transform:none; }
+  .ghostbtn { width:100%; margin-top:16px; padding:12px; border-radius:14px; border:1px solid var(--line2); background:transparent; color:var(--text); font:inherit; font-weight:600; cursor:pointer; }
+  .hero { text-align:center; padding:26px 10px 6px; }
+  .hero h2 { font-size:26px; letter-spacing:-.03em; margin:16px 0 8px; font-weight:700; }
+  .hero p { max-width:440px; margin:0 auto; }
+  .logo.big { width:58px; height:58px; border-radius:18px; margin:0 auto; box-shadow:0 18px 40px -12px var(--accent); } .logo.big svg { width:30px; height:30px; }
+  .steps { list-style:none; padding:0; margin:22px auto 6px; max-width:440px; text-align:left; display:grid; gap:10px; }
+  .steps li { display:flex; gap:14px; align-items:flex-start; background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px; }
+  .steps li svg { width:22px; height:22px; color:var(--accent); flex:none; margin-top:1px; } .steps b { display:block; font-weight:650; } .steps span { font-size:13px; color:var(--muted); }
+  .cta { display:block; width:100%; max-width:440px; margin:18px auto 8px; padding:15px; border:0; border-radius:16px; font:inherit; font-size:16px; font-weight:650; color:#fff; cursor:pointer;
+    background:linear-gradient(135deg, var(--accent), #22d3ee); box-shadow:0 16px 34px -14px var(--accent); }
   /* tab bar */
   nav { position:fixed; left:0; right:0; bottom:0; padding:10px 14px calc(10px + env(safe-area-inset-bottom)); z-index:5; display:flex; justify-content:center;
     background:linear-gradient(transparent, var(--bg) 45%); }
@@ -133,6 +147,12 @@ const T = {
     chargeNow: "Lad nu", readyAt: "Klar kl.", atMost: "Højst", session: "denne opladning", shadowTitle: "Skygge eller styrer", shadowHint: "Skygge: regner og viser, styrer intet. Styrer: overtager. Sluk samme del i AppDaemon, før den styrer.",
     agree: "enig", compare: "sammenligninger", errors: "fejl", stopAll: "Sæt alt tilbage i skygge", modes: { shadow: "Skygge", control: "Styrer", off: "Fra" },
     names: { growatt_parallel: "Batteri og sol", ev_charge_controller: "Bilopladning", husmodel: "Husets forbrug" },
+    src: { energy: "Energi-dashboard", name: "Fundet ud fra navnet", known: "Dit eget", chosen: "Valgt af dig", computed: "Beregnet" }, notFound: "Ikke fundet",
+    findAgain: "Find igen", runGuide: "Kør guiden igen", looksRight: "Det ser rigtigt ud", start: "Kom i gang", back: "Tilbage",
+    g1title: "Velkommen til Energipilot", g1text: "Vi har kigget dit hjem igennem og fundet {n} ting. Ret det, der er forkert - resten klarer den selv.",
+    g2title: "Altid i skygge først", g2text: "Energipilot rører ingenting, før du siger til.",
+    g2a: "Skygge", g2aT: "Den regner og viser, hvad den ville gøre - men styrer intet.", g2b: "Sammenlign", g2bT: "Se hvor enig den er med det, der styrer i dag.",
+    g2c: "Styrer", g2cT: "Når du er tryg, slår du styring til - én del ad gangen. Ét tryk sætter alt tilbage.",
     setTitle: "Det du har", setHint: "Fundet automatisk. Vælg \"Har ikke\" for at skjule en del.", auto: "Automatisk", none: "Har ikke",
     groups: { sun: "Sol", battery: "Batteri", grid: "Net og hus", car: "Bil", data: "Priser og prognoser" },
     roles: { pv_power: "Solcelle-effekt", solar_today: "Solprognose i dag", solar_tomorrow: "Solprognose i morgen", battery_power: "Batteri-effekt", battery_soc: "Batteri-niveau",
@@ -149,6 +169,12 @@ const T = {
     chargeNow: "Charge now", readyAt: "Ready at", atMost: "At most", session: "this charge", shadowTitle: "Shadow or in control", shadowHint: "Shadow: plans and shows, controls nothing. In control: takes over. Switch the same part off in AppDaemon first.",
     agree: "agree", compare: "comparisons", errors: "errors", stopAll: "Put everything back in shadow", modes: { shadow: "Shadow", control: "Control", off: "Off" },
     names: { growatt_parallel: "Battery and sun", ev_charge_controller: "Car charging", husmodel: "House model" },
+    src: { energy: "Energy dashboard", name: "Found by name", known: "Your own", chosen: "Chosen by you", computed: "Calculated" }, notFound: "Not found",
+    findAgain: "Find again", runGuide: "Run the guide again", looksRight: "Looks right", start: "Get started", back: "Back",
+    g1title: "Welcome to Energy Pilot", g1text: "We looked through your home and found {n} things. Fix what's wrong - it handles the rest.",
+    g2title: "Always in shadow first", g2text: "Energy Pilot touches nothing until you say so.",
+    g2a: "Shadow", g2aT: "It plans and shows what it would do - but controls nothing.", g2b: "Compare", g2bT: "See how much it agrees with what controls today.",
+    g2c: "Control", g2cT: "When you're confident, switch control on - one part at a time. One tap puts everything back.",
     setTitle: "What you have", setHint: "Found by itself. Pick \"Don't have\" to hide a part.", auto: "Automatic", none: "Don't have",
     groups: { sun: "Sun", battery: "Battery", grid: "Grid and home", car: "Car", data: "Prices and forecasts" },
     roles: { pv_power: "Solar power", solar_today: "Solar forecast today", solar_tomorrow: "Solar forecast tomorrow", battery_power: "Battery power", battery_soc: "Battery level",
@@ -325,16 +351,44 @@ function shadowView() {
     ${control ? `<button class="stopall" data-stopall>${T.stopAll}</button>` : ""}</div>`;
 }
 const GROUPICON = { sun: "sun", battery: "battery", grid: "house", car: "car", data: "chart" };
+const PLATNAME = { stromligning: "Strømligning", nordpool: "Nord Pool", energidataservice: "Energi Data Service", tibber: "Tibber", solcast_solar: "Solcast",
+  forecast_solar: "Forecast.Solar", keba: "KEBA", easee: "Easee", zaptec: "Zaptec", goecharger: "go-e", wallbox: "Wallbox", ocpp: "OCPP",
+  growatt_server: "Growatt", huawei_solar: "Huawei", solaredge: "SolarEdge", victron: "Victron", givenergy: "GivEnergy" };
+function sourceLabel(src) {
+  if (!src) return "";
+  if (src.startsWith("integration:")) { const p = src.split(":")[1]; return PLATNAME[p] || p; }
+  return { energy: T.src.energy, name: T.src.name, known: T.src.known, chosen: T.src.chosen, computed: T.src.computed }[src] || src;
+}
+function roleRows(roles) {
+  return roles.map((r) => {
+    const chosen = (settings.settings.roles || {})[r], foundId = settings.roles[r], src = settings.sources?.[r];
+    const found = foundId ? ((settings.candidates[r] || []).find((c) => c.entity_id === foundId)?.name || foundId) : null;
+    const opts = (settings.candidates[r] || []).map((c) => `<option value="${c.entity_id}" ${chosen === c.entity_id ? "selected" : ""}>${esc(c.name)}</option>`).join("");
+    return `<div class="set"><span><b class="rl">${T.roles[r]}</b>${src ? `<em class="src ${src.split(":")[0]}">${esc(sourceLabel(src))}</em>` : `<em class="src none">${T.notFound}</em>`}</span>
+      <select data-role="${r}"><option value="__auto" ${chosen == null ? "selected" : ""}>${found ? esc(found) : T.auto}</option>
+      <option value="" ${chosen === "" ? "selected" : ""}>${T.none}</option>${opts}</select></div>`;
+  }).join("");
+}
 function settingsView() {
   if (!settings) return `<div class="card">…</div>`;
-  return `<div class="card fade"><div class="eyebrow"><span>${T.setTitle}</span></div><div class="muted">${T.setHint}</div>
-    ${Object.entries(GROUPS).map(([g, roles]) => `<div class="group"><h4>${icon(GROUPICON[g])}${T.groups[g]}</h4>${roles.map((r) => {
-      const chosen = (settings.settings.roles || {})[r], foundId = settings.roles[r];
-      const found = foundId ? ((settings.candidates[r] || []).find((c) => c.entity_id === foundId)?.name || foundId) : null;
-      const opts = (settings.candidates[r] || []).map((c) => `<option value="${c.entity_id}" ${chosen === c.entity_id ? "selected" : ""}>${esc(c.name)}</option>`).join("");
-      return `<div class="set"><span>${T.roles[r]}</span><select data-role="${r}"><option value="__auto" ${chosen == null ? "selected" : ""}>${T.auto}${found ? ": " + esc(found) : ""}</option>
-        <option value="" ${chosen === "" ? "selected" : ""}>${T.none}</option>${opts}</select></div>`;
-    }).join("")}</div>`).join("")}</div>`;
+  return `<div class="card fade"><div class="eyebrow"><span>${T.setTitle}</span><button class="link" data-redetect>${T.findAgain}</button></div><div class="muted">${T.setHint}</div>
+    ${Object.entries(GROUPS).map(([g, roles]) => `<div class="group"><h4>${icon(GROUPICON[g])}${T.groups[g]}</h4>${roleRows(roles)}</div>`).join("")}
+    <button class="ghostbtn" data-setup>${T.runGuide}</button></div>`;
+}
+let step = 1;
+function setupView() {
+  if (!settings) return `<div class="card">…</div>`;
+  if (step === 2) return `<div class="hero fade"><div class="logo big"><svg viewBox="0 0 24 24" fill="#fff"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></div>
+      <h2>${T.g2title}</h2><p class="muted">${T.g2text}</p>
+      <ul class="steps"><li>${icon("layers")}<div><b>${T.g2a}</b><span>${T.g2aT}</span></div></li><li>${icon("chart")}<div><b>${T.g2b}</b><span>${T.g2bT}</span></div></li>
+        <li>${icon("bolt")}<div><b>${T.g2c}</b><span>${T.g2cT}</span></div></li></ul>
+      <button class="cta" data-finish>${T.start}</button><button class="link" data-step="1">${T.back}</button></div>`;
+  const parts = Object.entries(GROUPS).filter(([g]) => g !== "data");
+  const foundCount = Object.values(settings.roles).filter(Boolean).length;
+  return `<div class="hero fade"><div class="logo big"><svg viewBox="0 0 24 24" fill="#fff"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></div>
+      <h2>${T.g1title}</h2><p class="muted">${T.g1text.replace("{n}", foundCount)}</p></div>
+    <div class="card fade">${parts.concat([["data", GROUPS.data]]).map(([g, roles]) => `<div class="group"><h4>${icon(GROUPICON[g])}${T.groups[g]}</h4>${roleRows(roles)}</div>`).join("")}
+      <button class="cta" data-step="2">${T.looksRight}</button></div>`;
 }
 
 /* ---------- drawing and updating ---------- */
@@ -342,7 +396,8 @@ function render() {
   const root = $("#root");
   if (!data) return;
   const control = (data.shadow || []).filter((a) => a.mode === "control").length;
-  const body = tab === "plan" ? planView() : tab === "shadow" ? shadowView() : tab === "settings" ? settingsView() : home();
+  const body = tab === "setup" ? setupView() : tab === "plan" ? planView() : tab === "shadow" ? shadowView() : tab === "settings" ? settingsView() : home();
+  document.querySelector("nav").style.display = tab === "setup" ? "none" : "";
   root.innerHTML = `<div class="top"><div class="brand"><span class="logo"><svg viewBox="0 0 24 24" fill="#fff"><path d="${"M13 2 4 14h7l-1 8 9-12h-7z"}"/></svg></span><h1>${T.title}</h1></div>
     <span class="badge ${control ? "live" : ""}"><i></i>${control ? `${control} ${T.modes.control.toLowerCase()}` : T.modes.shadow}</span></div>${body}`;
   const TABICON = { home: "gauge", plan: "chart", shadow: "layers", settings: "sliders" };
@@ -384,8 +439,12 @@ function wire() {
   });
   $("[data-stopall]")?.addEventListener("click", async () => { await api("/api/shadow_all", {}); status = await api("/api/status"); await load(); render(); });
   document.querySelectorAll("[data-role]").forEach((s) => s.onchange = async () => {
-    await api("/api/settings", { roles: { [s.dataset.role]: s.value === "__auto" ? null : s.value } }); settings = await api("/api/settings"); await load();
+    await api("/api/settings", { roles: { [s.dataset.role]: s.value === "__auto" ? null : s.value } }); settings = await api("/api/settings"); await load(); render();
   });
+  document.querySelectorAll("[data-step]").forEach((b) => b.onclick = () => { step = Number(b.dataset.step); render(); window.scrollTo(0, 0); });
+  $("[data-finish]")?.addEventListener("click", async () => { await api("/api/settings", { setup_done: true }); await load(); tab = "home"; localStorage.setItem("ep_tab", tab); render(); });
+  $("[data-setup]")?.addEventListener("click", () => { step = 1; tab = "setup"; render(); window.scrollTo(0, 0); });
+  $("[data-redetect]")?.addEventListener("click", async (e) => { e.target.textContent = "…"; await api("/api/detect", {}); settings = await api("/api/settings"); await load(); render(); });
   $("[data-ev=manual]")?.addEventListener("click", async (e) => { const b = e.currentTarget, on = !b.classList.contains("on"); b.classList.toggle("on", on); await api("/api/ev", { manual: on }); });
   $("[data-ev=ready]")?.addEventListener("change", (e) => api("/api/ev", { ready: e.target.value + ":00" }));
   const cap = $("[data-ev=cap]");
@@ -395,6 +454,8 @@ function wire() {
 async function load() { data = await api("/api/overview?lang=" + L).catch(() => data); }
 (async () => {
   await load();
+  if (data && !data.setup_done) tab = "setup";
+  if (tab === "setup") settings = await api("/api/settings");
   if (tab === "shadow") status = await api("/api/status");
   if (tab === "settings") settings = await api("/api/settings");
   render();
