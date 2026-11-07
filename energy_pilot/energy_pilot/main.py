@@ -106,6 +106,15 @@ async def main() -> None:
 
     asyncio.create_task(run_engine())
     asyncio.create_task(Cards(ha, overview, os.environ.get("BUILD_VERSION", "dev")).run())
+
+    async def companion_setup() -> None:
+        from . import companion
+
+        await ha.connected.wait()
+        companion.install()
+        await companion.announce(ha.session)
+
+    asyncio.create_task(companion_setup())
     web_runner = web.AppRunner(make_app(runner, overview))
     await web_runner.setup()
     await web.TCPSite(web_runner, "0.0.0.0", int(os.environ.get("PORT", 8099))).start()

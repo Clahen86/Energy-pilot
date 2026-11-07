@@ -1,5 +1,5 @@
 name: Energipilot
-version: "0.12.0"
+version: "0.13.0"
 slug: energy_pilot
 description: Batteri, sol og bilopladning i én app - i skygge først, styrer når du siger til.
 url: https://github.com/Clahen86/Energy-pilot
@@ -12,6 +12,8 @@ ingress_port: 8099
 panel_icon: mdi:lightning-bolt-circle
 panel_title: Energipilot
 homeassistant_api: true
+discovery:
+  - energy_pilot
 hassio_api: true
 map:
   - addon_config:rw

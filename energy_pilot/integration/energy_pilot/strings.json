@@ -1,0 +1,83 @@
+{
+  "config": {
+    "step": {
+      "confirm": {
+        "title": "Energipilot",
+        "description": "Add Energy Pilot's buttons and sensors to Home Assistant?"
+      },
+      "user": {
+        "title": "Energipilot",
+        "description": "The address of the Energy Pilot app (Docker).",
+        "data": {
+          "url": "Address"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Energy Pilot isn't answering at that address."
+    },
+    "abort": {
+      "already_configured": "Energy Pilot is already added."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "decision": {
+        "name": "Decision",
+        "state": {
+          "discharge": "Battery powers the house",
+          "charge": "Battery charges",
+          "grid": "Charging with cheap power",
+          "hold": "Saving the power"
+        }
+      },
+      "price_now": {
+        "name": "Price now"
+      },
+      "battery_target": {
+        "name": "Battery target"
+      },
+      "plan_saving": {
+        "name": "Plan saves"
+      },
+      "saved_yesterday": {
+        "name": "Saved yesterday"
+      }
+    },
+    "switch": {
+      "charge_now": {
+        "name": "Charge now"
+      }
+    },
+    "time": {
+      "ready_at": {
+        "name": "Ready at"
+      }
+    },
+    "number": {
+      "at_most": {
+        "name": "At most"
+      },
+      "battery_min": {
+        "name": "Battery minimum"
+      }
+    },
+    "select": {
+      "style": {
+        "name": "Style",
+        "state": {
+          "cheapest": "Cheapest",
+          "solar": "Most sun",
+          "safe": "Safety",
+          "car_first": "Car first",
+          "battery_first": "Battery first"
+        }
+      }
+    },
+    "button": {
+      "all_shadow": {
+        "name": "Everything back to shadow"
+      }
+    }
+  }
+}

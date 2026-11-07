@@ -1,0 +1,83 @@
+{
+  "config": {
+    "step": {
+      "confirm": {
+        "title": "Energipilot",
+        "description": "Tilføj Energipilots knapper og sensorer til Home Assistant?"
+      },
+      "user": {
+        "title": "Energipilot",
+        "description": "Adressen på Energipilot-appen (Docker).",
+        "data": {
+          "url": "Adresse"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Energipilot svarer ikke på den adresse."
+    },
+    "abort": {
+      "already_configured": "Energipilot er allerede tilføjet."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "decision": {
+        "name": "Beslutning",
+        "state": {
+          "discharge": "Batteriet forsyner huset",
+          "charge": "Batteriet lader",
+          "grid": "Lader med billig strøm",
+          "hold": "Gemmer strømmen"
+        }
+      },
+      "price_now": {
+        "name": "Pris nu"
+      },
+      "battery_target": {
+        "name": "Batteri-mål"
+      },
+      "plan_saving": {
+        "name": "Planen sparer"
+      },
+      "saved_yesterday": {
+        "name": "Sparet i går"
+      }
+    },
+    "switch": {
+      "charge_now": {
+        "name": "Lad nu"
+      }
+    },
+    "time": {
+      "ready_at": {
+        "name": "Klar kl."
+      }
+    },
+    "number": {
+      "at_most": {
+        "name": "Højst"
+      },
+      "battery_min": {
+        "name": "Batteri-minimum"
+      }
+    },
+    "select": {
+      "style": {
+        "name": "Stil",
+        "state": {
+          "cheapest": "Billigst muligt",
+          "solar": "Mest sol",
+          "safe": "Tryghed",
+          "car_first": "Bilen først",
+          "battery_first": "Batteriet først"
+        }
+      }
+    },
+    "button": {
+      "all_shadow": {
+        "name": "Alt tilbage i skygge"
+      }
+    }
+  }
+}
