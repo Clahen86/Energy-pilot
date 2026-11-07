@@ -192,7 +192,10 @@ class Engine:
     def __init__(self, ha: Any, overview: Any) -> None:
         from .sources import HouseModel
 
+        from .learning import Learning
+
         self.ha, self.ov = ha, overview
+        self.learning = Learning(overview.file.parent)
         self.weather: Any = None
         self.house_model = HouseModel()
         self.solar_factors: dict[int, float] = {}
@@ -320,6 +323,30 @@ class Engine:
             start = datetime.now(self.tz).replace(minute=0, second=0, microsecond=0)
             self.own_solar = solar_forecast(self.solar_factors, self.weather, [start + timedelta(hours=i) for i in range(48)])
 
+    async def review(self) -> None:
+        """After midnight: yesterday with the real numbers - the engine learns from it (see learning.py)."""
+        now = datetime.now(self.tz)
+        if now.hour == 0 and now.minute < 10:
+            return  # let the statistics for the last hour be written first
+        day = (now - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        if self.learning.state.get("reviewed") == day.strftime("%Y-%m-%d"):
+            return
+        def by_hour(rows: list[tuple[datetime, float]]) -> dict[str, float]:
+            return {w.strftime("%Y-%m-%dT%H"): kw for w, kw in rows if w.date() == day.date()}
+        house = by_hour(await self._hourly_kw(self.ov.role("house_power"), 2)) if self.ov.role("house_power") else {}
+        pv = by_hour(await self._hourly_kw(self.ov.role("pv_power"), 2)) if self.ov.role("pv_power") else {}
+        prices = {k: v["price"] for k, v in self.learning._expected(day.strftime("%Y-%m-%d")).items() if v.get("price") is not None}
+        soc_start = None
+        if self.ov.role("battery_soc"):
+            socs = by_hour(await self._hourly_kw(self.ov.role("battery_soc"), 2))
+            first = socs.get(day.strftime("%Y-%m-%dT00"))
+            soc_start = first * 1000 if first is not None else None  # _hourly_kw divides by 1000 for non-kW units
+        if not house:
+            return
+        report = self.learning.review(day, house, pv, self.settings(), prices, soc_start)
+        if report:
+            _LOGGER.info("Learned from %s: %s", report["day"], report)
+
     def sources_used(self) -> dict[str, Any]:
         return {"weather": bool(self.weather and self.weather.hours), "own_prices": bool(self.own_prices and not self.ov.role("price")),
                 "own_solar": bool(self.own_solar and not self.ov.role("solar_today")), "house_model": self.house_model.model is not None,
@@ -339,7 +366,13 @@ class Engine:
             or (house_forecast(self.profile, times) if self.profile else [h.get("house", 0.6) for h in rows])
         st = self.ov.settings
         sell = float(st.get("sell_price") or 0) if st.get("sell") else 0.0  # what exported power earns
-        hours = [Hour(t, r["price"], sell, house[i], r.get("sun", 0.0)) for i, (t, r) in enumerate(zip(times, rows))]
+        # What it has learned: the sun forecast's usual error (cloudy/clear) and a margin on the house in the dear hours.
+        L = self.learning
+        clouds = [((self.weather.at(t) or {}).get("cloud") if self.weather else None) for t in times]
+        dear = sorted(r["price"] for r in rows)[int(len(rows) * 0.75)] if len(rows) > 3 else None
+        hours = [Hour(t, r["price"], sell, house[i] + (L.margin if dear is not None and r["price"] >= dear else 0.0),
+                      L.sun(r.get("sun", 0.0), clouds[i])) for i, (t, r) in enumerate(zip(times, rows))]
+        L.expect([{"t": times[0].isoformat(), "house": house[0], "sun": hours[0].sun, "price": rows[0]["price"], "cloud": clouds[0]}])
         # This hour is partly gone: scale it.
         part = 1 - now.minute / 60
         hours[0].house *= part
@@ -355,7 +388,8 @@ class Engine:
                     h.house += charger  # the car gets the sun first: what's left goes to the battery
         if f["soc"] is not None:
             b = self.settings()
-            p = plan_battery(hours, f["soc"], b)
+            end_value = median(h.price for h in hours) * math.sqrt(b.efficiency) * L.end_factor
+            p = plan_battery(hours, f["soc"], b, end_value=end_value)
             result["battery"] = {
                 "steps": [{"t": s.start.isoformat(), "action": s.action, "soc": s.soc_end, "grid": s.grid_kwh} for s in p.steps],
                 "now": ACTION_KIND[p.steps[0].action] if p.steps else "hold", "target": p.steps[0].soc_end if p.steps else None,

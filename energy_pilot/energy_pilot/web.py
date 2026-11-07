@@ -31,7 +31,7 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
             a = eng.agree
             data["engine"] = {"saving": b.get("saving"), "now": b.get("now"), "capacity": b.get("capacity"),
                               "agree": round(100 * a["same"] / a["checks"]) if a["checks"] else None, "checks": a["checks"],
-                              "profile": bool(eng.profile), "car": eng.result.get("car"), "sources": eng.sources_used(),
+                              "profile": bool(eng.profile), "car": eng.result.get("car"), "sources": eng.sources_used(), "learning": eng.learning.summary(),
                               "decision": overview.engine_decision("da" if lang(req) == "da" else "en")}
         return web.json_response(data)
 

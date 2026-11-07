@@ -93,6 +93,7 @@ async def main() -> None:
                     learned = asyncio.get_running_loop().time()
                 await engine.refresh_sources()
                 engine.run()
+                await engine.review()
             except Exception:  # noqa: BLE001 - tries again next round
                 logging.getLogger("energy_pilot.engine").warning("Engine round failed", exc_info=True)
             await asyncio.sleep(300)

@@ -130,6 +130,8 @@
   .tou { margin:4px 0 0; padding:4px 12px 12px; border-radius:16px; background:var(--surface2); }
   .period { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:10px 0; border-top:1px solid var(--line); }
   .pname { flex:1; min-width:120px; font:600 14px system-ui; color:var(--text); background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:7px 9px; } .numin.sm { width:62px; font-size:14px; padding:6px; } .unitin { display:flex; align-items:center; gap:6px; } .unitin i { font-style:normal; color:var(--muted); font-size:13px; min-width:26px; } .times2 { display:flex; align-items:center; gap:6px; } .times2 input { font-size:15px; padding:5px 6px; } .times2 i { color:var(--muted); font-style:normal; }
+  .lrow { display:flex; align-items:baseline; gap:10px; padding:8px 0; border-top:1px solid var(--line); font-size:14px; }
+  .lrow span { flex:1; } .lrow b { font-weight:650; } .lrow b.good { color:var(--ok); } .lrow em { font-style:normal; font-size:12px; color:var(--muted); min-width:90px; text-align:right; }
   /* tab bar */
   nav { position:fixed; left:0; right:0; bottom:0; padding:10px 14px calc(10px + env(safe-area-inset-bottom)); z-index:5; display:flex; justify-content:center;
     background:linear-gradient(transparent, var(--bg) 45%); }
@@ -173,6 +175,10 @@ const T = {
       preset: "Start fra", choose: "Vælg…", defaultPrice: "Normalpris", defaultPriceH: "Når ingen periode gælder", periodName: "Navn, fx Spids",
       addPeriod: "Tilføj periode", days: { all: "Alle dage", weekdays: "Hverdage", weekends: "Weekend" },
       area: "Prisområde", areaH: "Vest (DK1) eller øst (DK2) for Storebælt", tariff: "Nettarif (lav · høj · spids)", tariffH: "Pr. kWh uden moms - se din elregning" },
+    learn: { title: "Selvkontrol", week: "Denne uge", yesterday: "I går", first: "Første rapport kommer i morgen tidlig - den lærer af hver dag.",
+      saved: "Batteriet sparede", without: "uden batteri", house: "Forbruget ramt", perHour: "pr. time", sunCloudy: "Sol, skyet", sunClear: "Sol, klart",
+      ofForecast: "af prognosen", learned: "Det har den lært", biasCloudy: "Solkorrektion, skyet", biasClear: "Solkorrektion, klart",
+      margin: "Margin i dyre timer", marginH: "så batteriet ikke løber tør", endValue: "Værdi af strøm til senere", endValueH: "af medianprisen" },
     legSoc: "Batteri-niveau (plan)", legCar: "Bilen lader", saves: "Planen sparer cirka {x} de næste timer.",
     engineName: "Energipilots egen motor", engineHint: "Sammenlignet med din AppDaemon · sparer ca. {x} de næste timer",
     g1title: "Velkommen til Energipilot", g1text: "Vi har kigget dit hjem igennem og fundet {n} ting. Ret det, der er forkert - resten klarer den selv.",
@@ -210,6 +216,10 @@ const T = {
       preset: "Start from", choose: "Choose…", defaultPrice: "Normal price", defaultPriceH: "When no period applies", periodName: "Name, e.g. Peak",
       addPeriod: "Add period", days: { all: "Every day", weekdays: "Weekdays", weekends: "Weekends" },
       area: "Price area", areaH: "West (DK1) or east (DK2) of the Great Belt", tariff: "Grid tariff (low · high · peak)", tariffH: "Per kWh excl. VAT - see your bill" },
+    learn: { title: "Self-check", week: "This week", yesterday: "Yesterday", first: "The first report comes tomorrow morning - it learns from every day.",
+      saved: "The battery saved", without: "without battery", house: "Use hit", perHour: "per hour", sunCloudy: "Sun, cloudy", sunClear: "Sun, clear",
+      ofForecast: "of the forecast", learned: "What it has learned", biasCloudy: "Solar correction, cloudy", biasClear: "Solar correction, clear",
+      margin: "Margin in dear hours", marginH: "so the battery doesn't run dry", endValue: "Value of power for later", endValueH: "of the median price" },
     legSoc: "Battery level (plan)", legCar: "Car charges", saves: "The plan saves about {x} over the coming hours.",
     engineName: "Energy Pilot's own engine", engineHint: "Compared with your AppDaemon · saves about {x} over the coming hours",
     g1title: "Welcome to Energy Pilot", g1text: "We looked through your home and found {n} things. Fix what's wrong - it handles the rest.",
@@ -382,7 +392,26 @@ function planSvg(plan) {
       ${hrs.some((h) => h.car) ? `<span><i style="background:var(--car)"></i>${T.legCar}</span>` : ""}</div>
     ${plan.cheapest.length ? `<div class="eyebrow" style="margin:16px 0 8px"><span>${T.cheapest}</span></div><div class="chips">${plan.cheapest.map((t) => `<span class="chip good">${clock(t)}</span>`).join("")}</div>` : ""}`;
 }
-function planView() { return `<div class="card fade"><div class="eyebrow"><span>${T.planTitle}</span></div>${planSvg(data.plan)}</div>`; }
+function learnCard() {
+  const l = data.engine?.learning, k = T.learn;
+  if (!l) return "";
+  const y = l.yesterday, pct = (v) => v == null ? "–" : `${Math.round(v * 100)} %`;
+  const rows = y ? [
+    y.saving != null ? [k.saved, `<b class="good">${kr(y.saving)}</b>`, `${k.without} ${kr(y.cost_without)}`] : null,
+    y.house_error != null ? [k.house, `± ${num(y.house_error, 2)} kWh`, k.perHour] : null,
+    y.sun_cloudy != null ? [k.sunCloudy, pct(y.sun_cloudy), k.ofForecast] : null,
+    y.sun_clear != null ? [k.sunClear, pct(y.sun_clear), k.ofForecast] : null,
+  ].filter(Boolean) : [];
+  return `<div class="card fade"><div class="eyebrow"><span>${k.title}</span>${l.week_saving != null ? `<span>${k.week} ${kr(l.week_saving)}</span>` : ""}</div>
+    ${y ? `<div class="muted" style="margin-bottom:6px">${k.yesterday}</div>${rows.map((r) => `<div class="lrow"><span>${r[0]}</span><b>${r[1]}</b><em>${r[2]}</em></div>`).join("")}`
+      : `<div class="muted">${k.first}</div>`}
+    <div class="eyebrow" style="margin:16px 0 6px"><span>${k.learned}</span></div>
+    <div class="lrow"><span>${k.biasCloudy}</span><b>${pct(l.solar_bias.cloudy)}</b><em></em></div>
+    <div class="lrow"><span>${k.biasClear}</span><b>${pct(l.solar_bias.clear)}</b><em></em></div>
+    <div class="lrow"><span>${k.margin}</span><b>${num(l.house_margin, 2)} kWh</b><em>${k.marginH}</em></div>
+    <div class="lrow"><span>${k.endValue}</span><b>${pct(l.end_factor)}</b><em>${k.endValueH}</em></div></div>`;
+}
+function planView() { return `<div class="card fade"><div class="eyebrow"><span>${T.planTitle}</span></div>${planSvg(data.plan)}</div>${learnCard()}`; }
 function ring(p) {
   const r = 22, c = 2 * Math.PI * r, v = p ?? 0, color = p == null ? "var(--faint)" : p >= 95 ? "var(--ok)" : p >= 80 ? "var(--warn)" : "var(--bad)";
   return `<div class="ring"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="${r}" stroke="var(--line2)"/><circle cx="26" cy="26" r="${r}" stroke="${color}" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - v / 100)}"/></svg><b>${p == null ? "–" : p + "%"}</b></div>`;

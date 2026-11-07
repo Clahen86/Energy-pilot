@@ -91,3 +91,24 @@ def test_tariff_plan():
     night = TOU_PRESETS["day_night"]
     assert tou_price(night, datetime(2026, 11, 9, 2, 0)) == 0.20 and tou_price(night, datetime(2026, 11, 9, 12, 0)) == 0.30
     assert len(tou_prices(night, ZoneInfo("America/Los_Angeles"))) == 192
+
+
+def test_learning_review(tmp_path):
+    from zoneinfo import ZoneInfo
+
+    from energy_pilot.learning import Learning
+
+    tz = ZoneInfo("Europe/Copenhagen")
+    day = datetime(2026, 11, 6, tzinfo=tz)
+    L = Learning(tmp_path)
+    keys = [f"2026-11-06T{h:02d}" for h in range(24)]
+    prices = {k: (1.0 if h < 6 else 4.0 if 17 <= h < 21 else 2.0) for h, k in enumerate(keys)}
+    for h, k in enumerate(keys):
+        L.expect([{"t": k + ":00:00+01:00", "house": 0.8, "sun": 1.0 if 10 <= h < 15 else 0.0, "price": prices[k], "cloud": 80}])
+    house = {k: 1.0 for k in keys}  # the house used more than expected
+    pv = {k: (0.6 if 10 <= h < 15 else 0.0) for h, k in enumerate(keys)}  # the sun gave less on a cloudy day
+    rep = L.review(day, house, pv, Battery(capacity_kwh=10), prices, 30)
+    assert rep["house_error"] == 0.2 and L.margin > 0
+    assert rep["sun_cloudy"] == 0.6 and L.state["solar_bias"]["cloudy"] < 1.0
+    assert rep["saving"] > 0 and rep["best_factor"] in (0.6, 0.75, 0.9, 1.0, 1.1, 1.25)
+    assert L.review(day, house, pv, Battery(), prices, 30) is None  # once a day
