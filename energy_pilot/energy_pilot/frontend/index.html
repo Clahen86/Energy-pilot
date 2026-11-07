@@ -164,6 +164,7 @@
   .times2 { flex-wrap:wrap; max-width:100%; } .times2 input { min-width:0; max-width:120px; }
   .set { flex-wrap:wrap; } .set > select { min-width:0; max-width:100%; flex:1 1 160px; }
   .set .extra, .set .rolemore { flex-basis:100%; min-width:0; } .rolemore .link { color:var(--muted); font-weight:600; } .rolefind { min-width:0; width:100%; flex:1 1 100%; }
+  .cp-head em.blk { font-style:normal; color:var(--muted); font-size:12px; }
   .pnote { font-size:12.5px; color:var(--muted); margin:-4px 0 10px; } .pnote.warn { color:var(--warn); }
   /* tab bar */
   nav { position:fixed; left:0; right:0; bottom:0; padding:10px 14px calc(10px + env(safe-area-inset-bottom)); z-index:5; display:flex; justify-content:center;
@@ -190,7 +191,7 @@ const T = {
     priceNow: "Pris nu", sunToday: "Sol i dag", houseToday: "Hus i dag", target: "mål", cheap: "billig", mid: "normal", dear: "dyr",
     now: "Lige nu", why: "Hvorfor (teknisk)", planTitle: "Dagens plan", cheapest: "Billigste timer", tapHour: "Tryk på en time for detaljer",
     legPrice: "Pris", legSun: "Sol", legHouse: "Hus", legCharge: "Batteri lader", carTitle: "Bilen", plugged: "Sat i", notPlugged: "Ikke sat i",
-    chargeNow: "Lad nu", readyAt: "Klar kl.", atMost: "Højst", session: "denne opladning", shadowTitle: "Skygge eller styrer", shadowHint: "Skygge: regner og viser, styrer intet. Styrer: overtager. Sluk samme del i AppDaemon, før den styrer.",
+    chargeNow: "Lad nu", readyAt: "Klar kl.", atMost: "Højst", session: "denne opladning", shadowTitle: "Skygge eller styrer", shadowHint: "Kopier af dine egne AppDaemon-apps, kørt ved siden af de rigtige. Skygge: regner og viser, styrer intet. Styrer: kopien overtager – sluk den rigtige først.",
     agree: "enig", compare: "sammenligninger", errors: "fejl", stopAll: "Sæt alt tilbage i skygge", modes: { shadow: "Skygge", control: "Styrer", off: "Fra" },
     names: { growatt_parallel: "Batteri og sol", ev_charge_controller: "Bilopladning", husmodel: "Husets forbrug" },
     src: { energy: "Energi-dashboard", name: "Fundet ud fra navnet", known: "Dit eget", chosen: "Valgt af dig", computed: "Beregnet", own: "Hentes af Energipilot" }, notFound: "Ikke fundet", addArray: "Tilføj endnu et anlæg", findSensor: "Søg efter en sensor…", findOther: "Find en anden sensor", pick: "Vælg…", remove: "Fjern",
@@ -226,7 +227,7 @@ const T = {
       now: "Nu ville den", calls: "Det den sender", confirm: "Lad Energipilots motor styre? Sørg for at intet andet styrer det samme.",
       batNormal: "Normal drift (batteriet dækker huset, ned til {m} %)", batHold: "Holde på strømmen (ikke under {s} %)", batCharge: "Lade fra nettet til {t} % ({p} kW)",
       carCharge: "Lade bilen ({a} A)", carStop: "Ikke lade bilen nu",
-      blocked: { other_system: "Din AppDaemon styrer batteriet - motoren holder sig væk", no_profile: "Vælg inverter-styring under Indstillinger → Husbatteri", no_charger: "Fandt ingen lader-kontroller",
+      blocked: { other_system: "Dit eget system styrer – motoren sender intet", no_profile: "Vælg inverter-styring under Indstillinger → Husbatteri", no_charger: "Fandt ingen lader-kontroller",
         missing_controls: "Der mangler kontroller - motoren styrer ikke, før de findes" },
       checkOk: "Test: alle kontroller fundet", checkMissing: "Test: {n} kontroller mangler", model: "Model", optional: "valgfri",
       untested: "Denne profil er lavet ud fra mærkets kendte kontroller, men ikke prøvet på et rigtigt anlæg - lad den køre i skygge først.",
@@ -266,7 +267,7 @@ const T = {
     priceNow: "Price now", sunToday: "Sun today", houseToday: "Home today", target: "target", cheap: "cheap", mid: "normal", dear: "dear",
     now: "Right now", why: "Why (technical)", planTitle: "Today's plan", cheapest: "Cheapest hours", tapHour: "Tap an hour for details",
     legPrice: "Price", legSun: "Sun", legHouse: "Home", legCharge: "Battery charges", carTitle: "The car", plugged: "Plugged in", notPlugged: "Not plugged in",
-    chargeNow: "Charge now", readyAt: "Ready at", atMost: "At most", session: "this charge", shadowTitle: "Shadow or in control", shadowHint: "Shadow: plans and shows, controls nothing. In control: takes over. Switch the same part off in AppDaemon first.",
+    chargeNow: "Charge now", readyAt: "Ready at", atMost: "At most", session: "this charge", shadowTitle: "Shadow or in control", shadowHint: "Copies of your own AppDaemon apps, run next to the real ones. Shadow: plans and shows, controls nothing. In control: the copy takes over – switch the real one off first.",
     agree: "agree", compare: "comparisons", errors: "errors", stopAll: "Put everything back in shadow", modes: { shadow: "Shadow", control: "Control", off: "Off" },
     names: { growatt_parallel: "Battery and sun", ev_charge_controller: "Car charging", husmodel: "House model" },
     src: { energy: "Energy dashboard", name: "Found by name", known: "Your own", chosen: "Chosen by you", computed: "Calculated", own: "Fetched by Energy Pilot" }, notFound: "Not found", addArray: "Add another array", findSensor: "Search for a sensor…", findOther: "Find another sensor", pick: "Pick…", remove: "Remove",
@@ -302,7 +303,7 @@ const T = {
       now: "Now it would", calls: "What it sends", confirm: "Let Energy Pilot's engine control? Make sure nothing else controls the same.",
       batNormal: "Run normally (battery covers the house, down to {m} %)", batHold: "Keep the power (not below {s} %)", batCharge: "Charge from the grid to {t} % ({p} kW)",
       carCharge: "Charge the car ({a} A)", carStop: "Not charge the car now",
-      blocked: { other_system: "Your AppDaemon controls the battery - the engine stays away", no_profile: "Pick inverter control under Settings → House battery", no_charger: "No charger controls found",
+      blocked: { other_system: "Your own system controls it – the engine sends nothing", no_profile: "Pick inverter control under Settings → House battery", no_charger: "No charger controls found",
         missing_controls: "Controls are missing - the engine won't control until they're found" },
       checkOk: "Test: every control found", checkMissing: "Test: {n} controls missing", model: "Model", optional: "optional",
       untested: "This profile is built from the brand's known controls but not yet tried on a real system - run it in shadow first.",
@@ -607,7 +608,7 @@ function controlView() {
     const st = control[key];
     if (!st.now && !st.entities.length) return "";
     return `<div class="cpart"><div class="cp-head"><span class="sec-ic" style="--sc:${key === "car" ? "var(--car)" : "var(--batt)"}">${icon(ic)}</span><div><b>${title}</b>
-        <span>${st.blocked ? c.blocked[st.blocked] : `${c.now}: ${describe(key, st.now)}`}</span></div></div>
+        <span>${st.now ? `${c.now}: ${describe(key, st.now)}` : ""}${st.blocked ? `${st.now ? "<br>" : ""}<em class="blk">${c.blocked[st.blocked]}</em>` : ""}</span></div></div>
       <div class="seg">${["shadow", "control", "off"].map((m) => `<button class="${m} ${st.mode === m ? "on" : ""}" data-cpart="${key}" data-cmode="${m}" ${m === "control" && st.blocked ? "disabled" : ""}>${T.modes[m]}</button>`).join("")}</div>
       ${st.calls.length ? `<details class="more"><summary>${c.calls} (${st.calls.length})</summary><table>${st.calls.map((x) => `<tr><td>${esc(x.domain + "." + x.service)}</td><td>${esc(JSON.stringify(x.data))}</td></tr>`).join("")}</table></details>` : ""}
     </div>`;
@@ -621,7 +622,7 @@ function shadowView() {
   return `<div class="card fade"><div class="eyebrow"><span>${T.shadowTitle}</span></div><div class="muted" style="margin-bottom:10px">${T.shadowHint}</div>
     ${status.apps.map((a) => `<div class="app">${ring(a.agree)}<div class="t"><b>${T.names[a.name] || esc(a.name)}</b><span>${a.agree == null ? "–" : a.agree + " % " + T.agree} · ${a.checks} ${T.compare} · ${a.errors} ${T.errors}</span></div>
       <div class="seg">${["shadow", "control", "off"].map((m) => `<button class="${m} ${a.mode === m ? "on" : ""}" data-app="${a.name}" data-mode="${m}">${T.modes[m]}</button>`).join("")}</div></div>
-      <details class="more"><summary>${L === "da" ? "Detaljer" : "Details"}</summary><table><tr><th>Sensor</th><th>Pilot</th><th>System</th></tr>
+      <details class="more"><summary>${L === "da" ? "Detaljer" : "Details"}</summary><table><tr><th>Sensor</th><th>${L === "da" ? "Kopi" : "Copy"}</th><th>${L === "da" ? "Dit system" : "Your system"}</th></tr>
         ${a.entities.map((e) => `<tr><td>${esc(e.entity_id)}</td><td>${esc(e.mine_now)}</td><td>${esc(e.real ?? "–")}</td></tr>`).join("")}</table>
         <table style="margin-top:8px"><tr><th>${L === "da" ? "Ville gøre" : "Would do"}</th><th>Data</th></tr>${a.would.slice(0, 15).map((w) => `<tr><td>${esc(w.service)}</td><td>${esc(JSON.stringify(w.data)).slice(0, 120)}</td></tr>`).join("")}</table></details>`).join("")}
     ${controlView()}
