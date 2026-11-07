@@ -36,6 +36,11 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
                     other = float(stc.get("state"))
                 except (TypeError, ValueError):
                     other = None
+                # Another system's number only when it's believable: at most three times the dearest price
+                # (a glitch once made it 5,208 kr/kWh) - otherwise Energy Pilot's own is shown.
+                top = max((h["price"] for h in (data.get("plan") or {}).get("hours", []) if "price" in h), default=5.0)
+                if other is not None and not 0 <= other <= 3 * max(top, 1.0):
+                    other = None
             data["ledger"] = overview.engine.ledger.summary(_dt.now(_Z(runner.ha.config.get("time_zone") or "UTC")), other)
             soc = (overview.flow() or {}).get("soc")
             if soc is not None:
