@@ -162,7 +162,7 @@
   nav button { border:0; background:transparent; color:var(--muted); font:inherit; font-size:11px; font-weight:600; padding:7px 14px 6px; border-radius:13px; cursor:pointer;
     display:flex; flex-direction:column; align-items:center; gap:3px; min-width:68px; }
   nav button svg { width:21px; height:21px; } nav button.on { color:var(--text); background:var(--surface2); }
-  .fade { animation:fade .4s cubic-bezier(.2,.8,.2,1) both; } @keyframes fade { from { opacity:0; transform:translateY(8px); } }
+  .fade { animation:fade .4s cubic-bezier(.2,.8,.2,1) both; } .nofade .fade { animation:none; } @keyframes fade { from { opacity:0; transform:translateY(8px); } }
   @media (max-width:640px) { .metrics { grid-template-columns:repeat(2, 1fr); } }
   @media (prefers-reduced-motion: reduce) { * { animation:none !important; } }
 </style>
@@ -700,14 +700,18 @@ function setupView() {
 }
 
 /* ---------- drawing and updating ---------- */
-function render() {
+let lastHtml = "";
+function render(quiet = false) {
   const root = $("#root");
   if (!data) return;
   const control = (data.shadow || []).filter((a) => a.mode === "control").length;
   const body = tab === "setup" ? setupView() : tab === "plan" ? planView() : tab === "shadow" ? shadowView() : tab === "settings" ? settingsView() : home();
   document.querySelector("nav").style.display = tab === "setup" ? "none" : "";
-  root.innerHTML = `<div class="top"><div class="brand"><span class="logo"><svg viewBox="0 0 24 24" fill="#fff"><path d="${"M13 2 4 14h7l-1 8 9-12h-7z"}"/></svg></span><h1>${T.title}</h1></div>
+  const html = `<div class="top"><div class="brand"><span class="logo"><svg viewBox="0 0 24 24" fill="#fff"><path d="${"M13 2 4 14h7l-1 8 9-12h-7z"}"/></svg></span><h1>${T.title}</h1></div>
     <span class="badge ${control ? "live" : ""}"><i></i>${control ? `${control} ${T.modes.control.toLowerCase()}` : T.modes.shadow}</span></div>${body}`;
+  if (quiet && html === lastHtml) return;  // nothing changed: leave the page alone (no blinking)
+  root.classList.toggle("nofade", quiet);  // updates don't fade in again
+  root.innerHTML = lastHtml = html;
   const TABICON = { home: "gauge", plan: "chart", shadow: "layers", settings: "sliders" };
   $("#tabs").innerHTML = Object.entries(T.tabs).map(([k, v]) => `<button class="${tab === k ? "on" : ""}" data-tab="${k}">${icon(TABICON[k])}<span>${v}</span></button>`).join("");
   flowKey = flowSig(data.flow);
@@ -805,9 +809,9 @@ async function load() { data = await api("/api/overview?lang=" + L).catch(() => 
     if (document.hidden) return;
     await load();
     if (tab === "home") patch();
-    if (tab === "shadow") { status = await api("/api/status"); control = await api("/api/control"); if (!document.querySelector("details[open]")) render(); }
+    if (tab === "shadow") { status = await api("/api/status"); control = await api("/api/control"); if (!document.querySelector("details[open]")) render(true); }
   }, 4000);
-  setInterval(() => { if (tab === "home" || tab === "plan") render(); }, 300000);
+  setInterval(() => { if (tab === "home" || tab === "plan") render(true); }, 300000);
 })();
 </script>
 </body>
