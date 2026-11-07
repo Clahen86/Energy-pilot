@@ -78,6 +78,7 @@ class Cards:
             # Several solar arrays: the card adds them up.
             "roles": {**o.roles(), **{k: v for k in ("pv_power",) if len(v := o.role_all(k)) > 1}}, "decision": decision, "plan": snap["plan"]["hours"],
             "price_min": snap["plan"]["price_min"], "price_max": snap["plan"]["price_max"], "cheapest": snap["plan"]["cheapest"],
+            "battery_sign": o.battery_sign(),
             "solar": snap["solar"], "house_today": snap["house_today"], "ev": snap["ev"], "version": self.version,
         }
         key = json.dumps([decision.get("key"), decision.get("target"), attrs["plan"], attrs["ev"], attrs["roles"], attrs["solar"]],

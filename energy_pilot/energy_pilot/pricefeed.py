@@ -16,9 +16,10 @@ from datetime import datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-LIST_KEYS = ("prices", "raw_today", "raw_tomorrow", "today", "tomorrow", "forecast", "data", "prices_today", "prices_tomorrow")
+LIST_KEYS = ("prices", "raw_today", "raw_tomorrow", "today", "tomorrow", "forecast", "forecasts", "data", "prices_today",
+             "prices_tomorrow")  # "forecasts": Amber
 TIME_KEYS = ("start", "startsAt", "starts_at", "hour", "time", "from", "start_time", "valid_from")
-VALUE_KEYS = ("price", "value", "total", "price_inc_vat", "value_inc_vat", "price_ct_per_kwh")
+VALUE_KEYS = ("price", "value", "total", "price_inc_vat", "value_inc_vat", "price_ct_per_kwh", "per_kwh")
 
 
 def _when(value: Any, tz: ZoneInfo) -> datetime | None:

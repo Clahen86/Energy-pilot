@@ -28,6 +28,8 @@ ROLES: dict[str, dict[str, Any]] = {
     "house_forecast": {"known": ["sensor.ml_forecast_appdaemon"], "class": None, "words": []},
     "battery_cost": {"known": ["sensor.batteri_gennemsnitlig_kostpris_dkk_kwh"], "class": None, "words": ["kostpris", "battery_cost", "stored_cost", "average_cost"]},
     "battery_plan": {"known": ["sensor.appdaemon_comparison_controller"], "class": None, "words": []},
+    # A feed-in price that changes (Amber, Tibber export …) - instead of the fixed sell price. Only when chosen.
+    "sell_price": {"known": [], "class": None, "words": ["feed_in", "feedin", "export_price", "sell_price", "salgspris"]},
     "ev_manual": {"known": ["input_boolean.bil_lad_manuelt"], "class": None, "words": []},
     "ev_ready": {"known": ["input_datetime.bil_klar_tid"], "class": None, "words": []},
     "ev_cap": {"known": ["input_number.bil_lad_loft_kwh"], "class": None, "words": []},
@@ -99,7 +101,7 @@ class Overview:
             if key == "roles":
                 self.settings.setdefault("roles", {}).update({k: v for k, v in value.items() if k in ROLES})
             elif key in ("battery_kwh", "import_limit_kw", "language", "setup_done", "style", "price_area", "tariff", "markup", "price_source", "tou", "vat", "battery_min_soc", "grid_charge",
-                         "sell", "sell_price", "solar_value", "ev_in_house", "battery_charge_kw", "battery_discharge_kw", "ev_mode", "charger_kw", "ev_need_kwh",
+                         "sell", "sell_price", "solar_value", "ev_in_house", "battery_sign", "battery_charge_kw", "battery_discharge_kw", "ev_mode", "charger_kw", "ev_need_kwh",
                          "quiet_from", "quiet_to", "quiet_battery", "quiet_car",
                          "quiet_battery_from", "quiet_battery_to", "quiet_car_from", "quiet_car_to",
                          "control", "inverter_profile", "custom_profile", "battery_takeover", "ev_now", "charger_phases", "ev_ready"):
@@ -107,6 +109,13 @@ class Overview:
         self.file.write_text(json.dumps(self.settings, indent=2))
 
     # ---------- finding the parts ----------
+
+    def battery_sign(self) -> int:
+        """+1: positive battery power is charging (Growatt). -1: positive is discharging (Fox ESS). Chosen, or found."""
+        chosen = self.settings.get("battery_sign")
+        if chosen in (1, -1):
+            return chosen
+        return (self.engine.sign_found() if self.engine else None) or 1
 
     def role_all(self, name: str) -> list[str]:
         """Every entity for a part - solar can be several arrays (and forecasts), added up."""
@@ -121,6 +130,8 @@ class Overview:
             return None  # the user picked Energy Pilot's own prices
         chosen = (self.settings.get("roles") or {}).get(name)
         states = self.ha.states
+        if name == "sell_price" and not chosen:
+            return None  # a changing feed-in price only when the user picks one
         if isinstance(chosen, list):  # several (solar arrays): the first stands for them where only one fits
             chosen = next((e for e in chosen if e in states), None)
         if chosen == "":
@@ -204,6 +215,8 @@ class Overview:
         pv = sum(arrays) if arrays else None  # several arrays are added up
         house = _watts(st.get(r["house_power"])) if r["house_power"] else None
         batt = _watts(st.get(r["battery_power"])) if r["battery_power"] else None
+        if batt is not None:
+            batt *= self.battery_sign()  # some integrations (Fox ESS Modbus …) count discharging as positive
         soc = _num(st.get(r["battery_soc"])) if r["battery_soc"] else None
         grid = _watts(st.get(r["grid_power"])) if r["grid_power"] else None
         ev = _watts(st.get(r["ev_power"])) if r["ev_power"] else None

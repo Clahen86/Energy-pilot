@@ -62,6 +62,7 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
                                   "candidates": overview.candidates(),
                                   "ev_detected": overview.engine.ev_detected if overview.engine else None,
                                   "all_sensors": overview.all_sensors(),
+                                  "battery_sign_found": overview.engine.sign_found() if overview.engine else None,
                                   "roles_all": {r: overview.role_all(r) for r in ("pv_power", "solar_today", "solar_tomorrow")}})
 
     async def redetect(_req: web.Request) -> web.Response:

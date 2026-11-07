@@ -199,7 +199,8 @@ def resolution(prices: dict[datetime, float], now: datetime) -> int:
     return 15 if gap <= 15 else 30 if gap <= 30 else 60
 
 
-def split_slots(hours: list[Hour], prices: dict[datetime, float], now: datetime) -> list[Hour]:
+def split_slots(hours: list[Hour], prices: dict[datetime, float], now: datetime,
+                sells: dict[datetime, float] | None = None) -> list[Hour]:
     """Hours split into the market's price slots, each with its own price; the slot now is scaled to what's left."""
     res = resolution(prices, now) if prices else 60
     k = 60 // res
@@ -210,7 +211,8 @@ def split_slots(hours: list[Hour], prices: dict[datetime, float], now: datetime)
             if start + timedelta(minutes=res) <= now:
                 continue  # already gone
             price = prices.get(start, h.price) if k > 1 else h.price
-            out.append(Hour(start, price, h.sell, h.house / k, h.sun / k, res / 60))
+            sell = sells.get(start, h.sell) if sells and k > 1 else h.sell
+            out.append(Hour(start, price, sell, h.house / k, h.sun / k, res / 60))
     if out and out[0].start < now:
         part = 1 - (now - out[0].start).total_seconds() / (out[0].length * 3600)
         out[0].house *= part
@@ -254,6 +256,7 @@ class Engine:
         self.agree = {"checks": 0, "same": 0}
         self.house_so_far: float | None = None  # kWh the house has used today, from the statistics
         self.ev_detected: bool | None = None  # is the car in the house's use? (see evsplit.py)
+        self._sign_prev: tuple[float, float] | None = None
 
     def settings(self) -> Battery:
         """The battery as set - a style changes the defaults: "solar" never buys for the battery, "safe" keeps 30 %."""
@@ -416,6 +419,55 @@ class Engine:
         house_w = (self.ov.flow() or {}).get("house") or 0.0
         self.house_so_far = round(done + house_w / 1000 * now.minute / 60, 2)
 
+    def watch_sign(self, raw_w: float | None, soc: float | None) -> None:
+        """Is positive battery power charging or discharging here? Seen from the level going up or down."""
+        if raw_w is None or soc is None:
+            return
+        votes = self.learning.state.setdefault("battery_sign", {"same": 0, "opposite": 0})
+        if abs(raw_w) < 200:
+            self._sign_prev = None  # idle: start over
+            return
+        if self._sign_prev is None or (self._sign_prev[0] > 0) != (raw_w > 0):
+            self._sign_prev = (raw_w, soc)  # a new run in one direction: remember where the level started
+            return
+        d = soc - self._sign_prev[1]
+        if abs(d) >= 1:  # the level moved a whole percent during the run
+            votes["same" if (d > 0) == (raw_w > 0) else "opposite"] += 1
+            self._sign_prev = (raw_w, soc)
+
+    def sign_found(self) -> int | None:
+        v = self.learning.state.get("battery_sign") or {}
+        same, opp = v.get("same", 0), v.get("opposite", 0)
+        if opp >= 3 and opp > 3 * same:
+            return -1
+        if same >= 3 and same > 3 * opp:
+            return 1
+        return None
+
+    def sell_prices(self) -> dict[datetime, float]:
+        """A changing feed-in price (a chosen sensor), with its forecast; empty when the price is fixed."""
+        e = self.ov.role("sell_price")
+        if not e or not (s := self.ha.states.get(e)):
+            return {}
+        from .pricefeed import parse
+
+        now = datetime.now(self.tz)
+        out = parse(s.get("attributes") or {}, self.tz, now.replace(hour=0, minute=0, second=0, microsecond=0))
+        try:
+            cur = float(s.get("state"))
+            out.setdefault(now.replace(minute=now.minute // 15 * 15, second=0, microsecond=0), cur)
+        except (TypeError, ValueError):
+            pass
+        if out and sorted(out.values())[len(out) // 2] < 0:
+            out = {k: -v for k, v in out.items()}  # written as negative when it's paid to you (Amber): earnings are positive here
+        return out
+
+    def sell_at(self, prices: dict[datetime, float], when: datetime, fixed: float) -> float:
+        if not prices:
+            return fixed
+        past = [k for k in prices if k <= when]
+        return prices[max(past)] if past else prices[min(prices)]
+
     def ev_in_house(self) -> bool:
         """The user's choice wins; otherwise what was found."""
         chosen = self.ov.settings.get("ev_in_house")
@@ -499,6 +551,7 @@ class Engine:
         house = [Mixer.mix(s, m, hw) for s, m in zip(simple, ml)]
         st = self.ov.settings
         sell = float(st.get("sell_price") or 0) if st.get("sell") else 0.0  # what exported power earns
+        sells = self.sell_prices()  # a changing feed-in price, when one is chosen
         # What it has learned: the sun forecast's usual error (cloudy/clear) and a margin on the house in the dear hours.
         L = self.learning
         clouds = [((self.weather.at(t) or {}).get("cloud") if self.weather else None) for t in times]
@@ -507,13 +560,13 @@ class Engine:
         sun_ml = self.solar_model.predict(times, w) if w else {}
         sw = self.mixer.share("sun")
         sun = [Mixer.mix(s, sun_ml.get(t), sw) for s, t in zip(sun_simple, times)]
-        hours = [Hour(t, r["price"], sell, house[i] + (L.margin if dear is not None and r["price"] >= dear else 0.0), sun[i])
+        hours = [Hour(t, r["price"], self.sell_at(sells, t, sell), house[i] + (L.margin if dear is not None and r["price"] >= dear else 0.0), sun[i])
                  for i, (t, r) in enumerate(zip(times, rows))]
         L.expect([{"t": times[0].isoformat(), "house": house[0], "sun": hours[0].sun, "price": rows[0]["price"], "cloud": clouds[0],
                    "house_s": simple[0], "house_m": ml[0], "sun_s": sun_simple[0], "sun_m": sun_ml.get(times[0])}])
         # Prices per quarter (or half) hour where the market has them: plan in those slots, so the battery and
         # the car use the cheapest quarters inside an hour too. House and sun are spread evenly over the hour.
-        hours = split_slots(hours, getattr(self.ov, "fine_prices", None) or {}, now)
+        hours = split_slots(hours, getattr(self.ov, "fine_prices", None) or {}, now, sells)
         slot_min = round(hours[0].length * 60) if hours else 60
         f = self.ov.flow()
         result: dict[str, Any] = {"at": now.isoformat(), "house": [{"t": t.isoformat(), "kwh": k} for t, k in zip(times, house)],

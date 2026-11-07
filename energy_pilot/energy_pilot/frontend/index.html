@@ -202,6 +202,11 @@ const T = {
       preset: "Start fra", choose: "Vælg…", defaultPrice: "Normalpris", defaultPriceH: "Når ingen periode gælder", periodName: "Navn, fx Spids",
       addPeriod: "Tilføj periode", days: { all: "Alle dage", weekdays: "Hverdage", weekends: "Weekend" },
       fromTo: "Fra – til", secBattery: "Husbatteri", secBatteryH: "Batteriet i huset", secCar: "Bil og lader", secCarH: "Opladning af elbilen",
+      sign: "Batteriets effekt", signs: { auto: "Find selv", norm: "+ er lader", rev: "+ er aflader" },
+      signNorm: "Fundet: positivt tal = batteriet lader", signRev: "Fundet: positivt tal = batteriet aflader (fx Fox ESS) – vendes",
+      signUnknown: "Ser på batteriniveauet for at finde ud af, hvilken vej tallet går",
+      sellFromSensor: "Bruges kun, når salgsprisen fra sensoren mangler",
+      sellSensorH: "Skifter din salgspris (fx Amber)? Vælg en sensor med prisen, så bruger planen den time for time.",
       evInHouse: "Bilen er med i husforbruget", evHouse: { auto: "Find selv", yes: "Ja", no: "Nej" },
       evInHouseYes: "Fundet: ja – bilen trækkes fra, så den ikke tæller to gange", evInHouseNo: "Fundet: nej – husforbruget er uden bil",
       evInHouseUnknown: "Har ikke set bilen lade nok endnu til at vide det",
@@ -241,7 +246,7 @@ const T = {
     g2c: "Styrer", g2cT: "Når du er tryg, slår du styring til - én del ad gangen. Ét tryk sætter alt tilbage.",
     setTitle: "Det du har", setHint: "Fundet automatisk. Vælg \"Har ikke\" for at skjule en del.", auto: "Automatisk", none: "Har ikke",
     groups: { sun: "Sol", battery: "Batteri", grid: "Net og hus", car: "Bil", data: "Priser og prognoser" },
-    roles: { pv_power: "Solcelle-effekt", solar_today: "Solprognose i dag", solar_tomorrow: "Solprognose i morgen", battery_power: "Batteri-effekt", battery_soc: "Batteri-niveau",
+    roles: { sell_price: "Salgspris (sensor)", pv_power: "Solcelle-effekt", solar_today: "Solprognose i dag", solar_tomorrow: "Solprognose i morgen", battery_power: "Batteri-effekt", battery_soc: "Batteri-niveau",
       battery_plan: "Batteri-plan", grid_power: "Net-effekt", house_power: "Husets forbrug", house_forecast: "Forbrugsprognose", ev_power: "Ladeeffekt", ev_plug: "Stik",
       ev_session: "Opladet i alt", ev_manual: "Lad nu-knap", ev_ready: "Klar kl.", ev_cap: "Højst kWh", price: "Elpris" },
     confirm: "Lad Energipilot styre denne del? Sluk den samme app i AppDaemon først, så kun én styrer.", saved: "Gemt ✓",
@@ -270,6 +275,11 @@ const T = {
       preset: "Start from", choose: "Choose…", defaultPrice: "Normal price", defaultPriceH: "When no period applies", periodName: "Name, e.g. Peak",
       addPeriod: "Add period", days: { all: "Every day", weekdays: "Weekdays", weekends: "Weekends" },
       fromTo: "From – to", secBattery: "House battery", secBatteryH: "The battery in the house", secCar: "Car and charger", secCarH: "Charging the car",
+      sign: "Battery power", signs: { auto: "Find out", norm: "+ is charging", rev: "+ is discharging" },
+      signNorm: "Found: positive means charging", signRev: "Found: positive means discharging (e.g. Fox ESS) – reversed",
+      signUnknown: "Watching the battery level to tell which way the number goes",
+      sellFromSensor: "Only used when the sensor's price is missing",
+      sellSensorH: "Does your feed-in price change (e.g. Amber)? Pick a sensor with the price, and the plan uses it slot by slot.",
       evInHouse: "The car is in the house's use", evHouse: { auto: "Find out", yes: "Yes", no: "No" },
       evInHouseYes: "Found: yes – the car is taken out so it doesn't count twice", evInHouseNo: "Found: no – the house's use is without the car",
       evInHouseUnknown: "Hasn't seen the car charge enough yet to tell",
@@ -309,7 +319,7 @@ const T = {
     g2c: "Control", g2cT: "When you're confident, switch control on - one part at a time. One tap puts everything back.",
     setTitle: "What you have", setHint: "Found by itself. Pick \"Don't have\" to hide a part.", auto: "Automatic", none: "Don't have",
     groups: { sun: "Sun", battery: "Battery", grid: "Grid and home", car: "Car", data: "Prices and forecasts" },
-    roles: { pv_power: "Solar power", solar_today: "Solar forecast today", solar_tomorrow: "Solar forecast tomorrow", battery_power: "Battery power", battery_soc: "Battery level",
+    roles: { sell_price: "Feed-in price (sensor)", pv_power: "Solar power", solar_today: "Solar forecast today", solar_tomorrow: "Solar forecast tomorrow", battery_power: "Battery power", battery_soc: "Battery level",
       battery_plan: "Battery plan", grid_power: "Grid power", house_power: "House consumption", house_forecast: "Consumption forecast", ev_power: "Charging power", ev_plug: "Plug",
       ev_session: "Charged", ev_manual: "Charge now switch", ev_ready: "Ready at", ev_cap: "At most kWh", price: "Electricity price" },
     confirm: "Let Energy Pilot control this part? Switch the same app off in AppDaemon first, so only one controls.", saved: "Saved ✓",
@@ -666,6 +676,8 @@ function styleView() {
       ${row(y.grid, y.gridH, tog("grid_charge", true))}
       ${row(y.size, settings.capacity_guess ? y.sizeH.replace("{x}", num(settings.capacity_guess, 1)) : "", numIn("battery_kwh", settings.capacity_guess ?? 10, "0.1", "kWh"))}
       ${row(y.power, y.powerH, numIn("battery_charge_kw", 3, "0.1", "kW"))}
+      ${row(y.sign, settings.battery_sign_found === -1 ? y.signRev : settings.battery_sign_found === 1 ? y.signNorm : y.signUnknown,
+        `<div class="seg mini">${[["auto", null], ["norm", 1], ["rev", -1]].map(([k, val]) => `<button class="${(v.battery_sign ?? null) === val ? "on" : ""}" data-bsign="${k}">${y.signs[k]}</button>`).join("")}</div>`)}
       ${quietRow("battery")}
       ${control?.profile ? row(T.ctl.profile, T.ctl.profileH, `<select data-iprof><option value="">${T.auto}${control.profile.key && control.profile.key !== "custom" && !v.inverter_profile ? ": " + esc(control.profile.choices[control.profile.key] || "") : ""}</option>
         ${Object.entries(control.profile.choices).map(([k, n]) => `<option value="${k}" ${v.inverter_profile === k ? "selected" : ""}>${esc(n)}</option>`).join("")}
@@ -682,7 +694,8 @@ function styleView() {
         ${row(y.tariff, y.tariffH, `<span class="times2">${["low", "high", "peak"].map((k) => `<input class="numin sm" type="number" step="0.01" data-tariff="${k}" value="${(v.tariff || {})[k] ?? ""}" placeholder="${settings.country === "DK" ? { low: 0.115, high: 0.346, peak: 1.038 }[k] : 0}">`).join("")}</span>`)}` : ""}`)}
     ${section("grid", y.secGrid, y.secGridH, `${row(y.fuse, y.fuseH, numIn("import_limit_kw", 10, "1", "kW"))}
       ${row(y.sell, y.sellH, tog("sell"))}
-      ${v.sell ? row(y.sellPrice, "", numIn("sell_price", "0.5", "0.05", SYM())) : ""}
+      ${v.sell ? row(y.sellPrice, settings.roles.sell_price ? y.sellFromSensor : "", numIn("sell_price", "0.5", "0.05", SYM())) : ""}
+      ${v.sell ? `<div class="muted" style="margin:4px 0 2px">${y.sellSensorH}</div>${roleRows(["sell_price"])}` : ""}
       ${row(T.ledger.solarValue, T.ledger.solarValueH, `<div class="seg mini">${["free", "sell"].map((m) => `<button class="${(v.solar_value || "free") === m ? "on" : ""}" data-sval="${m}">${T.ledger.sv[m]}</button>`).join("")}</div>`)}`)}
 `;
 }
@@ -826,6 +839,7 @@ function wire() {
   document.querySelectorAll("[data-range]").forEach((i) => { i.oninput = () => ($("#r-" + i.dataset.range).textContent = `${i.value} %`); i.onchange = () => saveSet({ [i.dataset.range]: Number(i.value) }); });
   document.querySelectorAll("[data-psrc]").forEach((b) => b.onclick = () => saveSet({ price_source: b.dataset.psrc === "auto" ? null : b.dataset.psrc }));
   document.querySelectorAll("[data-sval]").forEach((b) => b.onclick = () => saveSet({ solar_value: b.dataset.sval }));
+  document.querySelectorAll("[data-bsign]").forEach((b) => b.onclick = () => saveSet({ battery_sign: { auto: null, norm: 1, rev: -1 }[b.dataset.bsign] }));
   const tou = () => JSON.parse(JSON.stringify(settings.settings.tou || { default: 0, periods: [] }));
   $("[data-tou-preset]")?.addEventListener("change", (e) => { const p = settings.tou_presets[e.target.value]; if (p) saveSet({ tou: { default: p.default, periods: p.periods } }); });
   $("[data-tou-default]")?.addEventListener("change", (e) => { const t = tou(); t.default = Number(e.target.value.replace(",", ".")); saveSet({ tou: t }); });

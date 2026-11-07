@@ -127,6 +127,13 @@ async def main() -> None:
                 price = prices[max(past)] if past else None
                 st, b = overview.settings, engine.settings()
                 sell = float(st.get("sell_price") or 0) if st.get("sell") else 0.0
+                sell = engine.sell_at(engine.sell_prices(), now, sell)  # a changing feed-in price, when chosen
+                if (be := overview.role("battery_power")) and (bs := ha.states.get(be)):
+                    try:
+                        raw = float(bs.get("state")) * (1000 if str((bs.get("attributes") or {}).get("unit_of_measurement", "")).lower() == "kw" else 1)
+                    except (TypeError, ValueError):
+                        raw = None
+                    engine.watch_sign(raw, overview.flow().get("soc"))
                 f = overview.flow()
                 engine.ledger.tick(now, f, price, sell, b.capacity_kwh, b.min_soc, b.efficiency,
                                    st.get("solar_value") or "free")

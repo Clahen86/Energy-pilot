@@ -96,7 +96,9 @@ class EnergipilotCard extends HTMLElement {
 
   _flow() {
     const r = this._hass.states[SENSOR]?.attributes?.roles || {};
-    const pv = this._w(r.pv_power), house = this._w(r.house_power), batt = this._w(r.battery_power), soc = this._num(r.battery_soc);
+    const sign = this._hass.states[SENSOR]?.attributes?.battery_sign || 1;  // Fox ESS and others count discharging as positive
+    const rawBatt = this._w(r.battery_power);
+    const pv = this._w(r.pv_power), house = this._w(r.house_power), batt = rawBatt == null ? null : rawBatt * sign, soc = this._num(r.battery_soc);
     let grid = this._w(r.grid_power); const ev = this._w(r.ev_power);
     const plug = r.ev_plug ? this._hass.states[r.ev_plug]?.state === "on" : null;
     if (grid == null && pv != null && house != null) grid = house + (ev || 0) + (batt || 0) - pv;
