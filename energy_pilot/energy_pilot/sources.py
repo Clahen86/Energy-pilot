@@ -75,11 +75,11 @@ class Weather:
         self.hours: dict[datetime, dict[str, float]] = {}
         self._at = 0.0
 
-    async def refresh(self, past_days: int = 45) -> None:
+    async def refresh(self, past_days: int = 60) -> None:
         if time.time() - self._at < 3600 and self.hours:
             return
         params = {"latitude": f"{self.lat:.3f}", "longitude": f"{self.lon:.3f}", "timezone": str(self.tz),
-                  "hourly": "temperature_2m,cloud_cover,shortwave_radiation", "past_days": str(past_days), "forecast_days": "2"}
+                  "hourly": "temperature_2m,cloud_cover,shortwave_radiation,wind_speed_100m", "past_days": str(past_days), "forecast_days": "2"}
         async with self.session.get(OPEN_METEO, params=params, timeout=30) as resp:
             resp.raise_for_status()
             data = await resp.json()
@@ -87,7 +87,8 @@ class Weather:
         out = {}
         for i, t in enumerate(h.get("time") or []):
             when = datetime.fromisoformat(t).replace(tzinfo=self.tz)
-            out[when] = {"temp": h["temperature_2m"][i], "cloud": h["cloud_cover"][i], "sun": h["shortwave_radiation"][i]}
+            out[when] = {"temp": h["temperature_2m"][i], "cloud": h["cloud_cover"][i], "sun": h["shortwave_radiation"][i],
+                         "wind": (h.get("wind_speed_100m") or [None] * (i + 1))[i]}  # much wind: cheap power
         self.hours, self._at = out, time.time()
 
     def at(self, when: datetime) -> dict[str, float] | None:

@@ -126,8 +126,15 @@ async def main() -> None:
                 price = prices[max(past)] if past else None
                 st, b = overview.settings, engine.settings()
                 sell = float(st.get("sell_price") or 0) if st.get("sell") else 0.0
-                engine.ledger.tick(now, overview.flow(), price, sell, b.capacity_kwh, b.min_soc, b.efficiency,
+                f = overview.flow()
+                engine.ledger.tick(now, f, price, sell, b.capacity_kwh, b.min_soc, b.efficiency,
                                    st.get("solar_value") or "free")
+                engine.price_model.remember(prices, now)
+                ev = overview.ev() or {}
+                engine.habits.see(now, f.get("plug"), ev.get("session_kwh"))
+                engine.batt_learn.see(f.get("battery"), f.get("soc"), 30 / 3600, b.capacity_kwh)
+                if now.minute % 10 == 0 and now.second < 30:
+                    engine.learning.save()
             except Exception:  # noqa: BLE001
                 logging.getLogger("energy_pilot.ledger").debug("Ledger round failed", exc_info=True)
             await asyncio.sleep(30)

@@ -216,10 +216,14 @@ const T = {
       saved: "Batteriet sparede", without: "uden batteri", house: "Forbruget ramt", perHour: "pr. time", sunCloudy: "Sol, skyet", sunClear: "Sol, klart",
       ofForecast: "af prognosen", learned: "Det har den lært", biasCloudy: "Solkorrektion, skyet", biasClear: "Solkorrektion, klart",
       margin: "Margin i dyre timer", marginH: "så batteriet ikke løber tør", endValue: "Værdi af strøm til senere", endValueH: "af medianprisen" },
+    blend: { title: "Hvem bestemmer prognosen", house: "Forbrug", sun: "Sol", price: "Priser før kl. 13", simple: "simpel",
+      training: "Træner ({d}/{n} dage)", eff: "Batteriets virkningsgrad", effSeen: "lært af {n} runder", datasheet: "databladets, lærer stadig",
+      car: "Bilens vaner", carDays: "kender {n} ugedage", carNone: "lærer stadig", carNeed: "{n} opladninger set" },
     ledger: { title: "Batteriet har sparet", since: "målt siden", today: "I dag", month: "Måned", year: "År", total: "I alt",
       inBattery: "I batteriet", costs: "kostede {p}/kWh", fromOther: "fra din AppDaemon",
       hint: "Målt på det, du faktisk har købt og solgt, sammenlignet med samme hus og sol uden batteri.",
       solarValue: "Solstrøm i batteriet", solarValueH: "Hvad en kWh fra solen tæller som i batteriets kostpris", sv: { free: "Gratis", sell: "Salgsprisen" } },
+    priceEstimated: "Morgendagens priser er skønnet, indtil de rigtige kommer (ca. kl. 13).",
     priceMissing: "Morgendagens priser er ikke kommet endnu - planen stopper ved midnat.", priceFilled: "Morgendagens priser er skønnet ud fra spotprisen, indtil din pris-integration har dem.",
     legSoc: "Batteri-niveau (plan)", legCar: "Bilen lader", saves: "Planen sparer cirka {x} de næste timer.",
     engineName: "Energipilots egen motor", engineHint: "Sammenlignet med din AppDaemon · sparer ca. {x} de næste timer",
@@ -277,10 +281,14 @@ const T = {
       saved: "The battery saved", without: "without battery", house: "Use hit", perHour: "per hour", sunCloudy: "Sun, cloudy", sunClear: "Sun, clear",
       ofForecast: "of the forecast", learned: "What it has learned", biasCloudy: "Solar correction, cloudy", biasClear: "Solar correction, clear",
       margin: "Margin in dear hours", marginH: "so the battery doesn't run dry", endValue: "Value of power for later", endValueH: "of the median price" },
+    blend: { title: "Who makes the forecast", house: "House use", sun: "Sun", price: "Prices before 13:00", simple: "simple",
+      training: "Training ({d}/{n} days)", eff: "Battery efficiency", effSeen: "learned from {n} rounds", datasheet: "datasheet's, still learning",
+      car: "The car's habits", carDays: "knows {n} weekdays", carNone: "still learning", carNeed: "{n} charges seen" },
     ledger: { title: "The battery has saved", since: "measured since", today: "Today", month: "Month", year: "Year", total: "In all",
       inBattery: "In the battery", costs: "cost {p}/kWh", fromOther: "from your AppDaemon",
       hint: "Measured on what you really bought and sold, against the same house and sun without the battery.",
       solarValue: "Solar power in the battery", solarValueH: "What a kWh from the sun counts as in the battery's cost", sv: { free: "Free", sell: "The sell price" } },
+    priceEstimated: "Tomorrow's prices are estimated until the real ones are out (around 13:00).",
     priceMissing: "Tomorrow's prices aren't out yet - the plan ends at midnight.", priceFilled: "Tomorrow's prices are estimated from the spot price until your price integration has them.",
     legSoc: "Battery level (plan)", legCar: "Car charges", saves: "The plan saves about {x} over the coming hours.",
     engineName: "Energy Pilot's own engine", engineHint: "Compared with your AppDaemon · saves about {x} over the coming hours",
@@ -454,6 +462,7 @@ function carCard(ev, f) {
 }
 function priceNote() {
   const i = data?.price_info || {};
+  if (i.estimated) return `<p class="pnote">${T.priceEstimated}</p>`;
   if (i.tomorrow_missing) return `<p class="pnote warn">${T.priceMissing}</p>`;
   if (i.filled) return `<p class="pnote">${T.priceFilled}</p>`;
   return "";
@@ -498,6 +507,22 @@ function planSvg(plan) {
       ${hrs.some((h) => h.car) ? `<span><i style="background:var(--car)"></i>${T.legCar}</span>` : ""}</div>
     ${plan.cheapest.length ? `<div class="eyebrow" style="margin:16px 0 8px"><span>${T.cheapest}</span></div><div class="chips">${plan.cheapest.map((t) => `<span class="chip good">${clock(t)}</span>`).join("")}</div>` : ""}`;
 }
+function blendRows() {
+  const b = data.engine?.blend, k = T.blend;
+  if (!b) return "";
+  const who = (x, kind, unit) => {
+    const tr = b.trained[kind] || 0, need = { house: 21, sun: 21, price: 14 }[kind];
+    const w = Math.round((x.w || 0) * 100);
+    const status = tr < need ? k.training.replace("{d}", tr).replace("{n}", need) : `${w} % ML · ${100 - w} % ${k.simple}`;
+    const err = x.ml != null || x.simple != null ? `± ${num(w >= 50 ? x.ml : x.simple, 2)} ${unit}` : "";
+    return `<div class="lrow"><span>${k[kind]}</span><b>${status}</b><em>${err}</em></div>`;
+  };
+  const car = b.car || {}, days = Object.values(car.leave || {}).filter(Boolean).length;
+  return `<div class="eyebrow" style="margin:16px 0 6px"><span>${k.title}</span></div>
+    ${who(b.house, "house", "kWh/t")}${who(b.sun, "sun", "kWh/t")}${who(b.price, "price", SYM() + "/kWh")}
+    <div class="lrow"><span>${k.eff}</span><b>${Math.round(b.battery.efficiency * 100)} %</b><em>${b.battery.seen ? k.effSeen.replace("{n}", b.battery.seen) : k.datasheet}</em></div>
+    ${data.ev ? `<div class="lrow"><span>${k.car}</span><b>${days ? k.carDays.replace("{n}", days) : k.carNone}</b><em>${car.need_seen ? k.carNeed.replace("{n}", car.need_seen) : ""}</em></div>` : ""}`;
+}
 function learnCard() {
   const l = data.engine?.learning, k = T.learn;
   if (!l) return "";
@@ -515,7 +540,7 @@ function learnCard() {
     <div class="lrow"><span>${k.biasCloudy}</span><b>${pct(l.solar_bias.cloudy)}</b><em></em></div>
     <div class="lrow"><span>${k.biasClear}</span><b>${pct(l.solar_bias.clear)}</b><em></em></div>
     <div class="lrow"><span>${k.margin}</span><b>${num(l.house_margin, 2)} kWh</b><em>${k.marginH}</em></div>
-    <div class="lrow"><span>${k.endValue}</span><b>${pct(l.end_factor)}</b><em>${k.endValueH}</em></div></div>`;
+    <div class="lrow"><span>${k.endValue}</span><b>${pct(l.end_factor)}</b><em>${k.endValueH}</em></div>${blendRows()}</div>`;
 }
 function planView() { return `<div class="card fade"><div class="eyebrow"><span>${T.planTitle}</span></div>${priceNote()}${planSvg(data.plan)}</div>${learnCard()}`; }
 function ring(p) {

@@ -243,6 +243,19 @@ class Overview:
             for key, h in hours.items():
                 if h["t"] in buckets:
                     h["price"] = round(sum(buckets[h["t"]]) / len(buckets[h["t"]]), 3)
+        # Tomorrow's prices before they're out (around 13:00): estimated - replaced by the real ones when they come.
+        if self.engine and prices:
+            last = max(prices)
+            end = start.replace(hour=0) + timedelta(days=2)  # to the end of tomorrow
+            gaps = [t for t in (start + timedelta(hours=i) for i in range(48))
+                    if last < t < end and "price" not in hours.get(t.strftime("%Y-%m-%dT%H"), {})]
+            if gaps:
+                eng = self.engine
+                est = eng.price_model.estimate(gaps, eng.weather if eng.weather and eng.weather.hours else None, eng.mixer.share("price"))
+                for when, v in est.items():
+                    if (h := slot(when)) is not None:
+                        h["price"], h["est"] = round(v, 3), True
+                self.price_info["estimated"] = len(est)
         for role in ("solar_today", "solar_tomorrow"):
             if (e := self.role(role)) and (s := self.ha.states.get(e)):
                 for p in (s.get("attributes") or {}).get("detailedHourly") or []:

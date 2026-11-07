@@ -199,6 +199,14 @@ class Engine:
         from .ledger import Ledger
 
         self.ledger = Ledger(overview.file.parent)
+        from .blend import BatteryLearner, Habits, Mixer, PriceModel, SolarModel
+
+        self.mixer = Mixer(self.learning.state)
+        self.solar_model = SolarModel()
+        self.price_model = PriceModel(overview.file.parent)
+        self.price_days = 0
+        self.habits = Habits(self.learning.state)
+        self.batt_learn = BatteryLearner(self.learning.state)
         self.weather: Any = None
         self.house_model = HouseModel()
         self.solar_factors: dict[int, float] = {}
@@ -223,6 +231,7 @@ class Engine:
             max_charge_kw=float(s.get("battery_charge_kw") or 3), max_discharge_kw=float(s.get("battery_discharge_kw") or 3),
             min_soc=min_soc, grid_charge=grid, import_limit_kw=float(s["import_limit_kw"]) if s.get("import_limit_kw") else None,
             quiet=frozenset(self.quiet_hours("battery")),
+            efficiency=self.batt_learn.efficiency(0.92),  # the datasheet's, until it has seen the real one
         )
 
     def quiet_hours(self, what: str) -> list[int]:
@@ -291,7 +300,7 @@ class Engine:
             except Exception:  # noqa: BLE001 - no internet: learn without weather
                 _LOGGER.info("No weather from Open-Meteo - learning without it")
         if e := self.ov.role("house_power"):
-            rows = await self._hourly_kw(e, 45)
+            rows = await self._hourly_kw(e, 60)
             if rows:
                 self.profile = house_profile(rows, now)
                 self.profile_at = now
@@ -300,8 +309,16 @@ class Engine:
                 except Exception:  # noqa: BLE001 - the profile is used instead
                     _LOGGER.warning("House model failed", exc_info=True)
         if (e := self.ov.role("pv_power")) and self.weather and self.weather.hours:
-            pv = dict(await self._hourly_kw(e, 45))
+            pv = dict(await self._hourly_kw(e, 60))
             self.solar_factors = learn_solar(pv, self.weather)
+            try:
+                self.solar_model.train(pv, self.weather)
+            except Exception:  # noqa: BLE001 - the simple solar forecast is used
+                _LOGGER.warning("Solar model failed", exc_info=True)
+        try:
+            self.price_days = self.price_model.train(self.weather, self.tz)
+        except Exception:  # noqa: BLE001
+            _LOGGER.warning("Price model failed", exc_info=True)
 
     async def refresh_sources(self) -> None:
         """Every few minutes: weather (hourly), and own prices/solar forecast where the home has none."""
@@ -353,8 +370,23 @@ class Engine:
         if not house:
             return
         report = self.learning.review(day, house, pv, self.settings(), prices, soc_start)
+        if report is not None:
+            # How well each way hit yesterday - the ML share moves towards what it earned.
+            for kind in ("house", "sun"):
+                days = (self.house_model.samples // 24) if kind == "house" else self.solar_model.days
+                self.mixer.update(kind, report.get(f"{kind}_err_simple"), report.get(f"{kind}_err_ml"), days)
+            es, em = self.price_model.score(now)
+            if es is not None or em is not None:
+                self.mixer.update("price", es, em, self.price_days)
+            self.learning.save()
         if report:
             _LOGGER.info("Learned from %s: %s", report["day"], report)
+
+    def blend_info(self) -> dict[str, Any]:
+        """Who decides now, and how well each one hits."""
+        return {"house": self.mixer.info("house"), "sun": self.mixer.info("sun"), "price": self.mixer.info("price"),
+                "battery": self.batt_learn.info(0.92), "car": self.habits.info(),
+                "trained": {"house": self.house_model.samples // 24, "sun": self.solar_model.days, "price": self.price_days}}
 
     def sources_used(self) -> dict[str, Any]:
         return {"weather": bool(self.weather and self.weather.hours), "own_prices": bool(self.own_prices and not self.ov.role("price")),
@@ -371,17 +403,27 @@ class Engine:
         if not rows:
             return None
         times = [datetime.fromisoformat(h["t"]) for h in rows]
-        house = self.house_model.predict(times, self.weather if self.weather and self.weather.hours else None) \
-            or (house_forecast(self.profile, times) if self.profile else [h.get("house", 0.6) for h in rows])
+        from .blend import Mixer
+
+        w = self.weather if self.weather and self.weather.hours else None
+        simple = house_forecast(self.profile, times) if self.profile else [h.get("house", 0.6) for h in rows]
+        ml = self.house_model.predict(times, w) or [None] * len(times)
+        hw = self.mixer.share("house")
+        house = [Mixer.mix(s, m, hw) for s, m in zip(simple, ml)]
         st = self.ov.settings
         sell = float(st.get("sell_price") or 0) if st.get("sell") else 0.0  # what exported power earns
         # What it has learned: the sun forecast's usual error (cloudy/clear) and a margin on the house in the dear hours.
         L = self.learning
         clouds = [((self.weather.at(t) or {}).get("cloud") if self.weather else None) for t in times]
         dear = sorted(r["price"] for r in rows)[int(len(rows) * 0.75)] if len(rows) > 3 else None
-        hours = [Hour(t, r["price"], sell, house[i] + (L.margin if dear is not None and r["price"] >= dear else 0.0),
-                      L.sun(r.get("sun", 0.0), clouds[i])) for i, (t, r) in enumerate(zip(times, rows))]
-        L.expect([{"t": times[0].isoformat(), "house": house[0], "sun": hours[0].sun, "price": rows[0]["price"], "cloud": clouds[0]}])
+        sun_simple = [L.sun(r.get("sun", 0.0), clouds[i]) for i, r in enumerate(rows)]
+        sun_ml = self.solar_model.predict(times, w) if w else {}
+        sw = self.mixer.share("sun")
+        sun = [Mixer.mix(s, sun_ml.get(t), sw) for s, t in zip(sun_simple, times)]
+        hours = [Hour(t, r["price"], sell, house[i] + (L.margin if dear is not None and r["price"] >= dear else 0.0), sun[i])
+                 for i, (t, r) in enumerate(zip(times, rows))]
+        L.expect([{"t": times[0].isoformat(), "house": house[0], "sun": hours[0].sun, "price": rows[0]["price"], "cloud": clouds[0],
+                   "house_s": simple[0], "house_m": ml[0], "sun_s": sun_simple[0], "sun_m": sun_ml.get(times[0])}])
         # This hour is partly gone: scale it.
         part = 1 - now.minute / 60
         hours[0].house *= part
@@ -419,13 +461,23 @@ class Engine:
         ev, st = self.ov.ev(), self.ov.settings
         if ev is None or not f.get("plug"):
             return None
-        need = float(ev.get("cap") or st.get("ev_need_kwh") or 20) - float(ev.get("session_kwh") or 0)
+        # What the user set wins; otherwise the car's learned habits (when it leaves, how much it takes).
+        cap = float(ev.get("cap")) if self.ov.role("ev_cap") and ev.get("cap") else self.habits.need(float(ev.get("cap") or st.get("ev_need_kwh") or 20))
+        need = cap - float(ev.get("session_kwh") or 0)
         ready = None
         if ev.get("ready") and ev["ready"] != "00:00:00":
             hh, mm = (int(x) for x in str(ev["ready"]).split(":")[:2])
             ready = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
             if ready <= now:
                 ready += timedelta(days=1)
+        else:
+            for ahead in (0, 1):
+                day = now + timedelta(days=ahead)
+                if (lv := self.habits.leave(day.weekday())) is not None:
+                    cand = day.replace(hour=lv[0], minute=lv[1], second=0, microsecond=0)
+                    if cand > now:
+                        ready = cand
+                        break
         if quiet := self.quiet_hours("car"):
             skip = skip | {h.start for h in hours if h.start.hour in quiet}
         chosen = plan_car(hours, max(0.0, need), float(st.get("charger_kw") or 7.4), ready, now,

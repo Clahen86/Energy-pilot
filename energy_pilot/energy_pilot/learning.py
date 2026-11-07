@@ -114,6 +114,13 @@ class Learning:
             self.state["end_factor"] = round(0.75 * self.end_factor + 0.25 * best, 3)
             p = plan_battery(hours, soc_start, battery, end_value=base * self.end_factor)
             report.update(saving=p.saving, cost=p.cost, cost_without=p.cost_without, best_factor=best)
+        # Both ways of forecasting, each against what really happened (for the blend).
+        for kind, real in (("house", house), ("sun", pv)):
+            for way, col in (("simple", f"{kind}_s"), ("ml", f"{kind}_m")):
+                pairs = [(exp[h][col], real[h]) for h in exp if h in real and exp[h].get(col) is not None
+                         and (kind == "house" or (exp[h].get("sun_s") or 0) > 0.05 or real[h] > 0.05)]
+                if len(pairs) >= 6:
+                    report[f"{kind}_err_{way}"] = round(mean(abs(a - b) for a, b in pairs), 3)
         self.state["reports"] = (self.state.get("reports") or [])[-29:] + [report]
         self.state["reviewed"] = key
         self.save()
