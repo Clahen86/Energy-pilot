@@ -24,6 +24,14 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
         data["shadow"] = [{k: a[k] for k in ("name", "mode", "agree", "checks", "errors")} for a in st["apps"]]
         data["connected"] = st["connected"]
         data["setup_done"] = bool(overview.settings.get("setup_done"))
+        eng = overview.engine
+        if eng and eng.result:
+            b = eng.result.get("battery") or {}
+            a = eng.agree
+            data["engine"] = {"saving": b.get("saving"), "now": b.get("now"), "capacity": b.get("capacity"),
+                              "agree": round(100 * a["same"] / a["checks"]) if a["checks"] else None, "checks": a["checks"],
+                              "profile": bool(eng.profile), "car": eng.result.get("car"),
+                              "decision": overview.engine_decision("da" if lang(req) == "da" else "en")}
         return web.json_response(data)
 
     async def get_settings(_req: web.Request) -> web.Response:

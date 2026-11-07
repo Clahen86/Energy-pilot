@@ -52,6 +52,7 @@
   .dotc svg { width:20px; height:20px; }
   .status h2 { margin:0 0 3px; font-size:18px; font-weight:650; letter-spacing:-.015em; }
   .status p { margin:0; color:var(--muted); font-size:14px; }
+  .status .save { margin-top:6px; color:var(--ok); font-weight:600; font-size:13px; }
   .status details { margin-top:8px; font-size:12px; color:var(--faint); } .status summary { cursor:pointer; }
   /* metrics */
   .metrics { display:grid; grid-template-columns:repeat(4, 1fr); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:22px; overflow:hidden; margin-top:12px; }
@@ -149,6 +150,8 @@ const T = {
     names: { growatt_parallel: "Batteri og sol", ev_charge_controller: "Bilopladning", husmodel: "Husets forbrug" },
     src: { energy: "Energi-dashboard", name: "Fundet ud fra navnet", known: "Dit eget", chosen: "Valgt af dig", computed: "Beregnet" }, notFound: "Ikke fundet",
     findAgain: "Find igen", runGuide: "Kør guiden igen", looksRight: "Det ser rigtigt ud", start: "Kom i gang", back: "Tilbage",
+    legSoc: "Batteri-niveau (plan)", legCar: "Bilen lader", saves: "Planen sparer cirka {x} de næste timer.",
+    engineName: "Energipilots egen motor", engineHint: "Sammenlignet med din AppDaemon · sparer ca. {x} de næste timer",
     g1title: "Velkommen til Energipilot", g1text: "Vi har kigget dit hjem igennem og fundet {n} ting. Ret det, der er forkert - resten klarer den selv.",
     g2title: "Altid i skygge først", g2text: "Energipilot rører ingenting, før du siger til.",
     g2a: "Skygge", g2aT: "Den regner og viser, hvad den ville gøre - men styrer intet.", g2b: "Sammenlign", g2bT: "Se hvor enig den er med det, der styrer i dag.",
@@ -171,6 +174,8 @@ const T = {
     names: { growatt_parallel: "Battery and sun", ev_charge_controller: "Car charging", husmodel: "House model" },
     src: { energy: "Energy dashboard", name: "Found by name", known: "Your own", chosen: "Chosen by you", computed: "Calculated" }, notFound: "Not found",
     findAgain: "Find again", runGuide: "Run the guide again", looksRight: "Looks right", start: "Get started", back: "Back",
+    legSoc: "Battery level (plan)", legCar: "Car charges", saves: "The plan saves about {x} over the coming hours.",
+    engineName: "Energy Pilot's own engine", engineHint: "Compared with your AppDaemon · saves about {x} over the coming hours",
     g1title: "Welcome to Energy Pilot", g1text: "We looked through your home and found {n} things. Fix what's wrong - it handles the rest.",
     g2title: "Always in shadow first", g2text: "Energy Pilot touches nothing until you say so.",
     g2a: "Shadow", g2aT: "It plans and shows what it would do - but controls nothing.", g2b: "Compare", g2bT: "See how much it agrees with what controls today.",
@@ -278,7 +283,8 @@ function home() {
   ].join("");
   return `<div class="card flow fade" id="flow">${flowSvg(f)}</div>
     ${dec ? `<div class="card status fade" style="--c:${DECCOL[dec.kind]}"><div class="dotc">${icon(DECICON[dec.kind])}</div>
-      <div><h2>${esc(dec.text)}</h2><p>${esc(reason)}</p>${dec.reason ? `<details><summary>${T.why}</summary>${esc(dec.reason)}</details>` : ""}</div></div>` : ""}
+      <div><h2>${esc(dec.text)}</h2><p>${esc(reason)}</p>${dec.engine && dec.saving > 0 ? `<p class="save">${T.saves.replace("{x}", kr(dec.saving))}</p>` : ""}
+      ${dec.reason ? `<details><summary>${T.why}</summary>${esc(dec.reason)}</details>` : ""}</div></div>` : ""}
     <div class="metrics fade">${metrics}</div>
     ${d.ev ? carCard(d.ev, f) : ""}
     <div class="card fade"><div class="eyebrow"><span>${T.planTitle}</span></div>${planSvg(d.plan)}</div>`;
@@ -327,11 +333,15 @@ function planSvg(plan) {
       ${gridLines}${bars}
       ${sun.length > 1 ? `<path d="${sunPath} L${sun[sun.length - 1][0]} ${y0} L${sun[0][0]} ${y0}Z" fill="url(#sung)"/><path d="${sunPath}" fill="none" stroke="var(--sun)" stroke-width="2"/>` : ""}
       ${house.length > 1 ? `<path d="${smooth(house)}" fill="none" stroke="var(--house)" stroke-width="1.6" stroke-dasharray="4 3" opacity=".8"/>` : ""}
+      ${(() => { const sp = hrs.map((h, i) => h.soc != null ? [i * W + W / 2, y0 - (h.soc / 100) * ph] : null).filter(Boolean);
+        return sp.length > 1 ? `<path d="${smooth(sp)}" fill="none" stroke="var(--batt)" stroke-width="2.2"/>` : ""; })()}
+      ${hrs.map((h, i) => h.car ? `<rect x="${i * W + 5}" y="${y0 + 9}" width="${W - 10}" height="3" rx="1.5" fill="var(--car)"/>` : "").join("")}
       ${nowX != null ? `<line x1="${nowX}" x2="${nowX}" y1="${top - 6}" y2="${y0}" stroke="var(--text)" stroke-width="1.5"/><circle cx="${nowX}" cy="${top - 6}" r="3" fill="var(--text)"/>` : ""}
     </svg></div>
     <div class="tip" id="tip">${T.tapHour}</div>
     <div class="legend"><span><i style="background:linear-gradient(90deg,hsl(150 70% 52%),hsl(0 70% 60%))"></i>${T.legPrice}</span><span><i style="background:var(--sun)"></i>${T.legSun}</span>
-      <span><i style="background:var(--house)"></i>${T.legHouse}</span><span><i style="background:var(--batt)"></i>${T.legCharge}</span></div>
+      <span><i style="background:var(--house)"></i>${T.legHouse}</span><span><i style="background:var(--batt)"></i>${T.legSoc}</span>
+      ${hrs.some((h) => h.car) ? `<span><i style="background:var(--car)"></i>${T.legCar}</span>` : ""}</div>
     ${plan.cheapest.length ? `<div class="eyebrow" style="margin:16px 0 8px"><span>${T.cheapest}</span></div><div class="chips">${plan.cheapest.map((t) => `<span class="chip good">${clock(t)}</span>`).join("")}</div>` : ""}`;
 }
 function planView() { return `<div class="card fade"><div class="eyebrow"><span>${T.planTitle}</span></div>${planSvg(data.plan)}</div>`; }
@@ -348,6 +358,7 @@ function shadowView() {
       <details class="more"><summary>${L === "da" ? "Detaljer" : "Details"}</summary><table><tr><th>Sensor</th><th>Pilot</th><th>System</th></tr>
         ${a.entities.map((e) => `<tr><td>${esc(e.entity_id)}</td><td>${esc(e.mine_now)}</td><td>${esc(e.real ?? "–")}</td></tr>`).join("")}</table>
         <table style="margin-top:8px"><tr><th>${L === "da" ? "Ville gøre" : "Would do"}</th><th>Data</th></tr>${a.would.slice(0, 15).map((w) => `<tr><td>${esc(w.service)}</td><td>${esc(JSON.stringify(w.data)).slice(0, 120)}</td></tr>`).join("")}</table></details>`).join("")}
+    ${data?.engine && data.engine.checks ? `<div class="app">${ring(data.engine.agree)}<div class="t"><b>${T.engineName}</b><span>${T.engineHint.replace("{x}", kr(data.engine.saving))}</span></div></div>` : ""}
     ${control ? `<button class="stopall" data-stopall>${T.stopAll}</button>` : ""}</div>`;
 }
 const GROUPICON = { sun: "sun", battery: "battery", grid: "house", car: "car", data: "chart" };
@@ -431,7 +442,7 @@ function wire() {
   });
   document.querySelectorAll("[data-h]").forEach((g) => g.onclick = () => {
     const h = data.plan.hours.filter((x) => x.price != null || x.sun != null)[Number(g.dataset.h)];
-    $("#tip").innerHTML = `<b>${clock(h.t)}</b> · ${kr(h.price)}/kWh${h.sun != null ? ` · ${T.legSun} ${num(h.sun, 1)} kWh` : ""}${h.house != null ? ` · ${T.legHouse} ${num(h.house, 1)} kWh` : ""}${h.charge ? ` · ${T.legCharge}` : ""}`;
+    $("#tip").innerHTML = `<b>${clock(h.t)}</b> · ${kr(h.price)}/kWh${h.sun != null ? ` · ${T.legSun} ${num(h.sun, 1)} kWh` : ""}${h.house != null ? ` · ${T.legHouse} ${num(h.house, 1)} kWh` : ""}${h.soc != null ? ` · ${T.battery} ${num(h.soc, 0)} %` : ""}${h.charge ? ` · ${T.legCharge}` : ""}${h.car ? ` · ${T.legCar}` : ""}`;
   });
   document.querySelectorAll("[data-mode]").forEach((b) => b.onclick = async () => {
     if (b.dataset.mode === "control" && !confirm(T.confirm)) return;

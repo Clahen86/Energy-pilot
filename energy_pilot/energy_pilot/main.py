@@ -12,6 +12,7 @@ from aiohttp import web
 
 from .ha import HomeAssistant
 from .cards import Cards
+from .engine import Engine
 from .overview import Overview
 from .runner import Runner
 from .web import make_app
@@ -78,6 +79,24 @@ async def main() -> None:
             await asyncio.sleep(3600)
 
     asyncio.create_task(detect_hourly())
+    engine = Engine(ha, overview)
+    overview.engine = engine
+
+    async def run_engine() -> None:
+        await ha.connected.wait()
+        await asyncio.sleep(20)  # let the parts be found first
+        learned = 0.0
+        while True:
+            try:
+                if asyncio.get_running_loop().time() - learned > 86400 or not engine.profile:
+                    await engine.learn()
+                    learned = asyncio.get_running_loop().time()
+                engine.run()
+            except Exception:  # noqa: BLE001 - tries again next round
+                logging.getLogger("energy_pilot.engine").warning("Engine round failed", exc_info=True)
+            await asyncio.sleep(300)
+
+    asyncio.create_task(run_engine())
     asyncio.create_task(Cards(ha, overview, os.environ.get("BUILD_VERSION", "dev")).run())
     web_runner = web.AppRunner(make_app(runner, overview))
     await web_runner.setup()

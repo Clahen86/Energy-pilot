@@ -73,6 +73,7 @@ class Overview:
         self.file = data_dir / "energy_pilot_settings.json"
         self.settings: dict[str, Any] = self._load()
         self.detected: dict[str, dict[str, str]] = {}
+        self.engine: Any = None
 
     async def async_detect(self) -> None:
         from .detect import detect
@@ -179,11 +180,20 @@ class Overview:
                     "ev": r["ev_power"] is not None or r["ev_plug"] is not None},
         }
 
+    def engine_decision(self, lang: str) -> dict[str, Any] | None:
+        b = ((self.engine.result if self.engine else None) or {}).get("battery")
+        if not b:
+            return None
+        key = {"discharge": "FREE_DISCHARGE", "charge": "FREE_CHARGE", "grid": "GRID_CHARGE", "hold": "FREE_HOLD"}[b["now"]]
+        text, kind = DECISIONS.get(lang, DECISIONS["en"])[key]
+        return {"key": key, "text": text, "kind": kind, "reason": None, "target": b["target"], "plan": [], "engine": True,
+                "saving": b["saving"]}
+
     def decision(self, lang: str) -> dict[str, Any] | None:
         e = self.role("battery_plan")
         s = self.ha.states.get(e) if e else None
         if not s:
-            return None
+            return self.engine_decision(lang)
         a = s.get("attributes") or {}
         key = str(s.get("state"))
         text, kind = DECISIONS.get(lang, DECISIONS["en"]).get(key, (key.replace("_", " ").capitalize(), "hold"))
@@ -253,6 +263,19 @@ class Overview:
                     dt += timedelta(days=1)
                 if (h := slot(dt)) is not None:
                     h["charge"] = p.get("charge_pct")
+        res = (self.engine.result if self.engine else None) or {}
+        for st in (res.get("battery") or {}).get("steps", []):
+            if (h := slot(datetime.fromisoformat(st["t"]))) is not None:
+                h["soc"] = st["soc"]
+                if not self.role("battery_plan") and st["action"] in ("charge_grid", "charge_sun"):
+                    h["charge"] = True
+        for t in (res.get("car") or {}).get("hours", []):
+            if (h := slot(datetime.fromisoformat(t))) is not None:
+                h["car"] = True
+        if not self.role("house_forecast"):
+            for row in res.get("house", []):
+                if (h := slot(datetime.fromisoformat(row["t"]))) is not None:
+                    h.setdefault("house", row["kwh"])
         rows = sorted(hours.values(), key=lambda h: h["t"])
         prices = [h["price"] for h in rows if "price" in h]
         cheapest = sorted((h for h in rows if "price" in h and h["t"] >= now.replace(minute=0, second=0, microsecond=0).isoformat()),
