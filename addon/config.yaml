@@ -1,0 +1,24 @@
+name: Energipilot
+version: "0.1.0"
+slug: energy_pilot
+description: Batteri, sol og bilopladning i én app - i skygge først, styrer når du siger til.
+url: https://github.com/Clahen86/ha-energy-pilot
+arch:
+  - amd64
+  - aarch64
+init: false
+ingress: true
+ingress_port: 8099
+panel_icon: mdi:lightning-bolt-circle
+panel_title: Energipilot
+homeassistant_api: true
+hassio_api: true
+map:
+  - addon_config:rw
+  - all_addon_configs:ro
+options:
+  apps_dir: /addon_configs/a0d7b954_appdaemon/apps
+  seed_from: /addon_configs/a0d7b954_appdaemon
+schema:
+  apps_dir: str
+  seed_from: str?

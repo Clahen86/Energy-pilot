@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Energipilot</title>
+<style>
+  :root { --bg:#f4f5f8; --card:#fff; --text:#1f2328; --muted:#6b7280; --line:#e5e7eb; --shadow:#8b5cf6; --control:#22c55e; --off:#9ca3af; --bad:#ef4444; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#111318; --card:#1c1f26; --text:#e6e8eb; --muted:#9aa0a8; --line:#333844; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.45 system-ui, -apple-system, Roboto, sans-serif; }
+  main { max-width:900px; margin:0 auto; padding:16px; }
+  .hero { border-radius:26px; padding:22px; color:#fff; background:linear-gradient(135deg, #6d28d9, #2563eb); box-shadow:0 18px 40px -20px #6d28d9; position:relative; overflow:hidden; }
+  .hero h1 { margin:0 0 4px; font-size:26px; } .hero p { margin:0; opacity:.9; }
+  .hero .row { display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
+  .pill { background:rgba(255,255,255,.2); border-radius:12px; padding:4px 10px; font-size:13px; }
+  button { font:inherit; cursor:pointer; }
+  .stop { margin-left:auto; background:#fff; color:#b91c1c; border:0; border-radius:14px; padding:8px 14px; font-weight:700; }
+  .card { background:var(--card); border-radius:22px; padding:16px; margin-top:14px; box-shadow:0 2px 10px rgba(0,0,0,.06); }
+  .head { display:flex; align-items:center; gap:10px; }
+  .head h2 { margin:0; font-size:18px; flex:1; }
+  .seg { display:inline-flex; background:var(--bg); border-radius:14px; padding:3px; gap:2px; }
+  .seg button { border:0; background:transparent; color:var(--text); padding:7px 12px; border-radius:11px; font-size:13px; }
+  .seg button.on.shadow { background:var(--shadow); color:#fff; } .seg button.on.control { background:var(--control); color:#fff; } .seg button.on.off { background:var(--off); color:#fff; }
+  .stats { display:flex; gap:10px; margin:12px 0 4px; }
+  .stats div { flex:1; background:var(--bg); border-radius:14px; padding:10px; text-align:center; }
+  .stats b { display:block; font-size:22px; } .stats span { font-size:12px; color:var(--muted); }
+  details { margin-top:10px; } summary { cursor:pointer; font-weight:600; }
+  table { width:100%; border-collapse:collapse; font-size:13px; margin-top:6px; }
+  td, th { text-align:left; padding:6px 4px; border-top:1px solid var(--line); vertical-align:top; word-break:break-word; }
+  .ok { color:var(--control); } .no { color:var(--bad); }
+  .log { font:12px/1.4 ui-monospace, Menlo, monospace; white-space:pre-wrap; max-height:300px; overflow:auto; background:var(--bg); border-radius:12px; padding:10px; }
+  .muted { color:var(--muted); font-size:13px; }
+  .warn { background:color-mix(in srgb, #f59e0b 18%, transparent); border-radius:12px; padding:10px; margin-top:10px; font-size:14px; }
+</style>
+</head>
+<body>
+<main id="root"><div class="muted">Indlæser…</div></main>
+<script>
+const NAMES = { growatt_parallel: "🔋 Batteri og sol", ev_charge_controller: "🚗 Bilopladning", husmodel: "🏠 Husets forbrug" };
+const MODES = [["shadow", "Skygge"], ["control", "Styrer"], ["off", "Fra"]];
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const ago = (t) => { const s = Math.round(Date.now() / 1000 - t); return s < 60 ? `${s} s` : s < 3600 ? `${Math.round(s / 60)} min` : `${Math.round(s / 3600)} t`; };
+const api = (p, body) => fetch(p.replace(/^\//, ""), body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}).then((r) => r.json());
+let open = {};
+
+function app(a) {
+  const agree = a.agree == null ? "–" : `${a.agree} %`;
+  const rows = a.entities.map((e) => `<tr><td>${esc(e.entity_id)}</td><td>${esc(e.mine_now)}</td><td>${esc(e.real ?? "–")}</td>
+    <td class="${e.last_same ? "ok" : e.checks ? "no" : ""}">${e.checks ? Math.round(100 * e.same / e.checks) + " %" : "–"}</td></tr>`).join("");
+  const would = a.would.map((w) => `<tr><td>${ago(w.t)}</td><td>${esc(w.service)}</td><td>${esc(JSON.stringify(w.data))}</td></tr>`).join("");
+  const log = a.log.map((l) => `${new Date(l.t * 1000).toLocaleTimeString("da-DK")} ${l.level === "INFO" ? "" : l.level + " "}${esc(l.text)}`).join("\n");
+  return `<section class="card"><div class="head"><h2>${NAMES[a.name] || esc(a.name)}</h2>
+    <div class="seg">${MODES.map(([m, l]) => `<button class="${m} ${a.mode === m ? "on" : ""}" data-app="${a.name}" data-mode="${m}">${l}</button>`).join("")}</div></div>
+    <div class="stats"><div><b>${agree}</b><span>enig med dit system</span></div><div><b>${a.checks}</b><span>sammenligninger</span></div>
+      <div><b>${a.would.length}</b><span>ting den ville gøre</span></div><div><b class="${a.errors ? "no" : ""}">${a.errors}</b><span>fejl</span></div></div>
+    ${a.mode === "control" ? `<div class="warn">⚠️ Styrer: sørg for at samme app er slukket i AppDaemon, så kun én styrer.</div>` : ""}
+    <details ${open[a.name + "e"] ? "open" : ""} data-k="${a.name}e"><summary>Sammenligning (${a.entities.length})</summary>
+      <table><tr><th>Sensor</th><th>Energipilot</th><th>Dit system</th><th>Enig</th></tr>${rows}</table></details>
+    <details ${open[a.name + "w"] ? "open" : ""} data-k="${a.name}w"><summary>Det den ville have gjort (${a.would.length})</summary>
+      <table><tr><th>For</th><th>Handling</th><th>Data</th></tr>${would || `<tr><td colspan="3" class="muted">Intet endnu</td></tr>`}</table></details>
+    <details ${open[a.name + "l"] ? "open" : ""} data-k="${a.name}l"><summary>Log</summary><div class="log">${log}</div></details>
+  </section>`;
+}
+
+async function render() {
+  const s = await api("/api/status").catch(() => null);
+  const root = document.getElementById("root");
+  if (!s) { root.innerHTML = `<div class="card">Kan ikke nå Energipilot…</div>`; return; }
+  const control = s.apps.filter((a) => a.mode === "control").length;
+  root.innerHTML = `<div class="hero"><h1>⚡ Energipilot</h1><p>${control ? `${control} del(e) styrer` : "Alt kører i skygge - intet bliver styret"}</p>
+    <div class="row"><span class="pill">${s.connected ? "● Forbundet til HA " + esc(s.ha || "") : "○ Ikke forbundet"}</span>
+    ${control ? `<button class="stop" data-stop>⏹ Alt i skygge</button>` : ""}</div></div>${s.apps.map(app).join("")}`;
+  root.querySelectorAll("details").forEach((d) => d.addEventListener("toggle", () => (open[d.dataset.k] = d.open)));
+  root.querySelectorAll("[data-mode]").forEach((b) => b.addEventListener("click", async () => {
+    if (b.dataset.mode === "control" && !confirm("Lad Energipilot styre? Sluk samme app i AppDaemon først.")) return;
+    await api("/api/mode", { app: b.dataset.app, mode: b.dataset.mode }); render();
+  }));
+  root.querySelector("[data-stop]")?.addEventListener("click", async () => { await api("/api/shadow_all", {}); render(); });
+}
+render();
+setInterval(render, 5000);
+</script>
+</body>
+</html>
