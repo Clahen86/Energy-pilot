@@ -80,3 +80,17 @@ def test_deye_solarman_sets_all_six_programmes():
     assert {"domain": "switch", "service": "turn_on", "data": {"entity_id": "switch.deye_battery_grid_charging"}} in charge
     hold = adapters.resolve(p["hold"], deye, CTX)
     assert {"entity_id": "number.deye_program_1_soc", "value": 62} in [c["data"] for c in hold]
+
+
+def test_victron_ess():
+    vic = ["number.ess_ac_grid_setpoint", "switch.ess_force_charge", "number.ess_maximum_charge_power", "number.ess_maximum_discharge_power"]
+    assert adapters.guess_profile(vic, {"victron"}) == "victron"
+    p = adapters.PROFILES["victron"]
+    steps = {i: p[i] for i in ("normal", "hold", "charge")}
+    assert adapters.missing(adapters.check(steps, vic)) == []
+    charge = adapters.resolve(p["charge"], vic, CTX)
+    assert {"entity_id": "number.ess_maximum_charge_power", "value": 2400} in [c["data"] for c in charge]
+    assert charge[-1] == {"domain": "switch", "service": "turn_on", "data": {"entity_id": "switch.ess_force_charge"}}
+    hold = adapters.resolve(p["hold"], vic, CTX)
+    assert {"entity_id": "number.ess_maximum_discharge_power", "value": 0} in [c["data"] for c in hold]
+    assert all("grid_setpoint" not in str(c) for i in steps for c in adapters.resolve(p[i], vic, CTX))  # his own setpoint stays

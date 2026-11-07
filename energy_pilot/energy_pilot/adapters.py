@@ -75,6 +75,18 @@ PROFILES: dict[str, dict[str, Any]] = {
         + [(rf"number\..*program_{n}_soc$", "number", "{target}") for n in range(1, 7)]
         + [(rf"select\..*program_{n}_charging$", "select", "Grid") for n in range(1, 7)],
     },
+    # Victron ESS (GX via Modbus). The grid setpoint is left alone, so the owner's own setting stays.
+    "victron": {
+        "name": "Victron (ESS)",
+        "match": r"victron|\bess_",
+        "models": r"victron|multiplus|quattro|cerbo|venus",
+        "normal": [(r"switch\..*ess_force_charge$", "off", None),
+                   (r"number\..*ess_maximum_discharge_power$", "number", "{max_power_w}")],
+        "hold": [(r"switch\..*ess_force_charge$", "off", None),
+                 (r"number\..*ess_maximum_discharge_power$", "number", "0")],
+        "charge": [(r"number\..*ess_maximum_charge_power$", "number", "{power_w}"),
+                   (r"switch\..*ess_force_charge$", "on", None)],
+    },
     "huawei_solar": {
         "name": "Huawei SUN2000 / LUNA2000",
         "match": r"huawei|sun2000|luna",
@@ -136,6 +148,8 @@ CHARGER_SERVICES = {
 
 
 def fill(value: Any, ctx: dict[str, Any]) -> Any:
+    if isinstance(value, str) and re.fullmatch(r"-?\d+(?:\.\d+)?", value):
+        return float(value) if "." in value else int(value)  # a plain number in a profile ("0")
     if isinstance(value, str) and "{" in value:
         out = value.format(**{k: (round(v) if isinstance(v, float) else v) for k, v in ctx.items()})
         try:

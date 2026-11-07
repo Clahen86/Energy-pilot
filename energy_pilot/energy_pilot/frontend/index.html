@@ -200,7 +200,8 @@ const T = {
         safe: ["Tryghed", "Holder altid 30 % til strømafbrud - sparer lidt mindre"], car_first: ["Bilen først", "Solen går til bilen før batteriet"],
         battery_first: ["Batteriet først", "Bilen får solen, når batteriet er fuldt"] },
       minSoc: "Batteri-minimum", minSocH: "Går aldrig under dette", grid: "Må lade fra nettet", gridH: "Når strømmen er billig nok til at betale sig",
-      size: "Batteriets størrelse", sizeH: "Fundet: {x} kWh", power: "Lade- og afladeeffekt", powerH: "Hvad batteriet kan pr. time",
+      size: "Batteriets størrelse", sizeH: "Fundet: {x} kWh", power: "Ladeeffekt", powerH: "Hvor hurtigt batteriet kan lade",
+      powerOut: "Afladeeffekt", powerOutH: "Hvor hurtigt det kan aflade – tomt = som ladeeffekten",
       sell: "Må sælge til nettet", sellH: "Overskud fra solen sælges, når det betaler sig", sellPrice: "Du får pr. kWh", fuse: "Importloft", fuseH: "Hovedsikringen - køb aldrig mere",
       carMode: "Bilen lader", carModes: { cheapest: "Billigst", solar: "Kun sol" }, charger: "Laderens effekt", chargerH: "Typisk 3,7 / 7,4 / 11 kW",
       quiet: "Stille timer", quietH: "Ingen opladning i dette tidsrum", quietBatt: "Gælder batteriet", quietCar: "Gælder bilen",
@@ -273,7 +274,8 @@ const T = {
         safe: ["Safety", "Always keeps 30 % for power cuts - saves a little less"], car_first: ["Car first", "The sun goes to the car before the battery"],
         battery_first: ["Battery first", "The car gets the sun once the battery is full"] },
       minSoc: "Battery minimum", minSocH: "Never goes below this", grid: "May charge from the grid", gridH: "When power is cheap enough to pay off",
-      size: "Battery size", sizeH: "Found: {x} kWh", power: "Charge and discharge power", powerH: "What the battery can do per hour",
+      size: "Battery size", sizeH: "Found: {x} kWh", power: "Charge power", powerH: "How fast the battery can charge",
+      powerOut: "Discharge power", powerOutH: "How fast it can discharge – empty = same as charge",
       sell: "May sell to the grid", sellH: "Solar surplus is sold when it pays", sellPrice: "You get per kWh", fuse: "Import limit", fuseH: "The main fuse - never buy more",
       carMode: "The car charges", carModes: { cheapest: "Cheapest", solar: "Sun only" }, charger: "Charger power", chargerH: "Typically 3.7 / 7.4 / 11 kW",
       quiet: "Quiet hours", quietH: "No charging in this period", quietBatt: "Applies to the battery", quietCar: "Applies to the car",
@@ -683,6 +685,7 @@ function styleView() {
       ${row(y.grid, y.gridH, tog("grid_charge", true))}
       ${row(y.size, settings.capacity_guess ? y.sizeH.replace("{x}", num(settings.capacity_guess, 1)) : "", numIn("battery_kwh", settings.capacity_guess ?? 10, "0.1", "kWh"))}
       ${row(y.power, y.powerH, numIn("battery_charge_kw", 3, "0.1", "kW"))}
+      ${row(y.powerOut, y.powerOutH, numIn("battery_discharge_kw", v.battery_charge_kw ?? 3, "0.1", "kW"))}
       ${row(y.sign, settings.battery_sign_found === -1 ? y.signRev : settings.battery_sign_found === 1 ? y.signNorm : y.signUnknown,
         `<div class="seg mini">${[["auto", null], ["norm", 1], ["rev", -1]].map(([k, val]) => `<button class="${(v.battery_sign ?? null) === val ? "on" : ""}" data-bsign="${k}">${y.signs[k]}</button>`).join("")}</div>`)}
       ${quietRow("battery")}

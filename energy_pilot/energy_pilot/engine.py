@@ -268,7 +268,9 @@ class Engine:
         grid = bool(s.get("grid_charge", True)) and style != "solar"
         return Battery(
             capacity_kwh=float(s.get("battery_kwh") or self._guess_capacity() or 10),
-            max_charge_kw=float(s.get("battery_charge_kw") or 3), max_discharge_kw=float(s.get("battery_discharge_kw") or 3),
+            # Discharge as charge unless set on its own (extra chargers can make charging faster).
+            max_charge_kw=float(s.get("battery_charge_kw") or 3),
+            max_discharge_kw=float(s.get("battery_discharge_kw") or s.get("battery_charge_kw") or 3),
             min_soc=min_soc, grid_charge=grid, import_limit_kw=float(s["import_limit_kw"]) if s.get("import_limit_kw") else None,
             quiet=frozenset(self.quiet_hours("battery")),
             efficiency=self.batt_learn.efficiency(0.92),  # the datasheet's, until it has seen the real one
