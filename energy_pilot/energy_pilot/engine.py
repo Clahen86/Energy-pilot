@@ -316,8 +316,8 @@ class Engine:
         use_tou = st.get("price_source") == "tou" or (st.get("price_source") in (None, "auto") and country not in ZONES and st.get("tou"))
         if not self.ov.role("price") and use_tou and st.get("tou"):
             self.own_prices = tou_prices(st["tou"], self.tz)  # the user's own tariff plan
-        elif not self.ov.role("price") and time.time() - self._prices_at > 1800 and self.ha.session is not None and \
-                (country in ZONES or st.get("price_area")):
+        elif time.time() - self._prices_at > 1800 and self.ha.session is not None and (country in ZONES or st.get("price_area")):
+            # Also with a price integration: its missing hours (tomorrow not out there yet) are filled from these.
             area = st.get("price_area") or price_area(float(self.ha.config.get("latitude") or 56), float(self.ha.config.get("longitude") or 10),
                                                       self.ha.config.get("country"))
             try:

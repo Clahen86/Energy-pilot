@@ -1,0 +1,42 @@
+"""Prices from every kind of price integration, today and tomorrow, and filling what's missing."""
+
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
+from energy_pilot.pricefeed import collect, parse
+
+TZ = ZoneInfo("Europe/Copenhagen")
+DAY0 = datetime.now(TZ).replace(hour=0, minute=0, second=0, microsecond=0)
+T1 = DAY0 + timedelta(days=1)
+
+
+def iso(d):
+    return d.isoformat()
+
+
+def test_stromligning_today_and_tomorrow_entity():
+    states = {
+        "sensor.stromligning_current_price_vat": {"attributes": {"unit_of_measurement": "kr/kWh", "prices": [
+            {"start": iso(DAY0 + timedelta(hours=h)), "end": iso(DAY0 + timedelta(hours=h + 1)), "price": 2.0} for h in range(24)]}},
+        "binary_sensor.stromligning_tomorrow_available_vat": {"attributes": {"prices": [
+            {"start": iso(T1 + timedelta(hours=h)), "end": iso(T1 + timedelta(hours=h + 1)), "price": 1.5} for h in range(24)]}},
+    }
+    prices, info = collect(states, "sensor.stromligning_current_price_vat", [], TZ)
+    assert prices[T1 + timedelta(hours=5)] == 1.5 and len(prices) == 48 and not info["tomorrow_missing"]
+
+
+def test_nordpool_tibber_eds_shapes():
+    nordpool = parse({"unit_of_measurement": "EUR/MWh", "raw_today": [{"start": DAY0, "end": DAY0 + timedelta(hours=1), "value": 100.0}],
+                      "tomorrow": [50.0] * 24}, TZ, DAY0)
+    assert nordpool[DAY0] == 0.1 and nordpool[T1 + timedelta(hours=3)] == 0.05
+    tibber = parse({"today": [{"startsAt": iso(DAY0), "total": 0.31}]}, TZ, DAY0)
+    assert tibber[DAY0] == 0.31
+    eds = parse({"forecast": [{"hour": iso(T1), "price": 1.2}]}, TZ, DAY0)
+    assert eds[T1] == 1.2
+
+
+def test_missing_tomorrow_is_filled_at_the_users_level():
+    states = {"sensor.my_price": {"attributes": {"prices": [{"start": iso(DAY0 + timedelta(hours=h)), "price": 3.0} for h in range(24)]}}}
+    own = [{"start": iso(DAY0 + timedelta(hours=h)), "price": 2.5} for h in range(48)]  # own spot prices, 0.5 lower
+    prices, info = collect(states, "sensor.my_price", own, TZ)
+    assert prices[T1 + timedelta(hours=8)] == 3.0 and info["filled"] == 24

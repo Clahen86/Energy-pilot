@@ -75,6 +75,7 @@ class Overview:
         self.detected: dict[str, dict[str, str]] = {}
         self.engine: Any = None
         self.controller: Any = None
+        self.price_info: dict[str, Any] = {}
 
     async def async_detect(self) -> None:
         from .detect import detect
@@ -229,19 +230,13 @@ class Overview:
             key = dt.strftime("%Y-%m-%dT%H")
             return hours.setdefault(key, {"t": dt.replace(minute=0, second=0, microsecond=0).isoformat()})
 
-        price_list = None
-        if (e := self.role("price")) and (s := self.ha.states.get(e)):
-            price_list = (s.get("attributes") or {}).get("prices") or []
-        elif self.engine and self.engine.own_prices:
-            price_list = self.engine.own_prices  # fetched by the engine itself
-        if price_list is not None:
+        from .pricefeed import collect
+
+        prices, self.price_info = collect(self.ha.states, self.role("price"),
+                                          (self.engine.own_prices if self.engine else []) or [], tz)
+        if prices:
             buckets: dict[str, list[float]] = {}
-            for p in price_list:
-                try:
-                    dt = datetime.fromisoformat(str(p.get("start")))
-                    value = float(p.get("price", p.get("value")))
-                except (TypeError, ValueError):
-                    continue
+            for dt, value in prices.items():
                 if (h := slot(dt)) is not None:
                     buckets.setdefault(h["t"], []).append(value)
             for key, h in hours.items():

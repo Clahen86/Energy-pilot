@@ -147,6 +147,7 @@
   .cpart { padding:14px 0; border-top:1px solid var(--line); } .cp-head { display:flex; gap:12px; align-items:center; margin-bottom:10px; }
   .cp-head b { display:block; font-weight:650; } .cp-head span { font-size:12.5px; color:var(--muted); }
   .seg button:disabled { opacity:.35; cursor:not-allowed; }
+  .pnote { font-size:12.5px; color:var(--muted); margin:-4px 0 10px; } .pnote.warn { color:var(--warn); }
   /* tab bar */
   nav { position:fixed; left:0; right:0; bottom:0; padding:10px 14px calc(10px + env(safe-area-inset-bottom)); z-index:5; display:flex; justify-content:center;
     background:linear-gradient(transparent, var(--bg) 45%); }
@@ -205,6 +206,7 @@ const T = {
       saved: "Batteriet sparede", without: "uden batteri", house: "Forbruget ramt", perHour: "pr. time", sunCloudy: "Sol, skyet", sunClear: "Sol, klart",
       ofForecast: "af prognosen", learned: "Det har den lært", biasCloudy: "Solkorrektion, skyet", biasClear: "Solkorrektion, klart",
       margin: "Margin i dyre timer", marginH: "så batteriet ikke løber tør", endValue: "Værdi af strøm til senere", endValueH: "af medianprisen" },
+    priceMissing: "Morgendagens priser er ikke kommet endnu - planen stopper ved midnat.", priceFilled: "Morgendagens priser er skønnet ud fra spotprisen, indtil din pris-integration har dem.",
     legSoc: "Batteri-niveau (plan)", legCar: "Bilen lader", saves: "Planen sparer cirka {x} de næste timer.",
     engineName: "Energipilots egen motor", engineHint: "Sammenlignet med din AppDaemon · sparer ca. {x} de næste timer",
     g1title: "Velkommen til Energipilot", g1text: "Vi har kigget dit hjem igennem og fundet {n} ting. Ret det, der er forkert - resten klarer den selv.",
@@ -257,6 +259,7 @@ const T = {
       saved: "The battery saved", without: "without battery", house: "Use hit", perHour: "per hour", sunCloudy: "Sun, cloudy", sunClear: "Sun, clear",
       ofForecast: "of the forecast", learned: "What it has learned", biasCloudy: "Solar correction, cloudy", biasClear: "Solar correction, clear",
       margin: "Margin in dear hours", marginH: "so the battery doesn't run dry", endValue: "Value of power for later", endValueH: "of the median price" },
+    priceMissing: "Tomorrow's prices aren't out yet - the plan ends at midnight.", priceFilled: "Tomorrow's prices are estimated from the spot price until your price integration has them.",
     legSoc: "Battery level (plan)", legCar: "Car charges", saves: "The plan saves about {x} over the coming hours.",
     engineName: "Energy Pilot's own engine", engineHint: "Compared with your AppDaemon · saves about {x} over the coming hours",
     g1title: "Welcome to Energy Pilot", g1text: "We looked through your home and found {n} things. Fix what's wrong - it handles the rest.",
@@ -400,7 +403,7 @@ function home() {
       ${dec.reason ? `<details><summary>${T.why}</summary>${esc(dec.reason)}</details>` : ""}</div></div>` : ""}
     <div class="metrics fade">${metrics}</div>
     ${d.ev ? carCard(d.ev, f) : ""}
-    <div class="card fade"><div class="eyebrow"><span>${T.planTitle}</span></div>${planSvg(d.plan)}</div>`;
+    <div class="card fade"><div class="eyebrow"><span>${T.planTitle}</span></div>${priceNote()}${planSvg(d.plan)}</div>`;
 }
 const CAR_ART = `<svg class="pic" viewBox="0 0 240 90" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <path d="M14 62c0-8 4-12 14-14l26-5 22-18c6-5 13-7 21-7h40c9 0 17 3 24 9l17 15 28 5c10 2 14 7 14 15v4c0 3-2 5-5 5h-11"/>
@@ -416,6 +419,12 @@ function carCard(ev, f) {
     ${ev.ready != null ? `<div class="ctl"><div class="t"><b>${T.readyAt}</b><span>${L === "da" ? "Opladet til denne tid" : "Charged by this time"}</span></div><input type="time" data-ev="ready" value="${esc(String(ev.ready).slice(0, 5))}"></div>` : ""}
     ${ev.cap != null ? `<div class="ctl"><div class="t"><b>${T.atMost}</b><span>${L === "da" ? "Pr. opladning" : "Per charge"}</span></div><div class="range"><input type="range" min="0" max="${ev.cap_max || 100}" step="1" value="${ev.cap}" data-ev="cap"><b id="capv">${num(ev.cap, 0)} kWh</b></div></div>` : ""}
   </div>`;
+}
+function priceNote() {
+  const i = data?.price_info || {};
+  if (i.tomorrow_missing) return `<p class="pnote warn">${T.priceMissing}</p>`;
+  if (i.filled) return `<p class="pnote">${T.priceFilled}</p>`;
+  return "";
 }
 function planSvg(plan) {
   const hrs = plan.hours.filter((h) => h.price != null || h.sun != null);
@@ -476,7 +485,7 @@ function learnCard() {
     <div class="lrow"><span>${k.margin}</span><b>${num(l.house_margin, 2)} kWh</b><em>${k.marginH}</em></div>
     <div class="lrow"><span>${k.endValue}</span><b>${pct(l.end_factor)}</b><em>${k.endValueH}</em></div></div>`;
 }
-function planView() { return `<div class="card fade"><div class="eyebrow"><span>${T.planTitle}</span></div>${planSvg(data.plan)}</div>${learnCard()}`; }
+function planView() { return `<div class="card fade"><div class="eyebrow"><span>${T.planTitle}</span></div>${priceNote()}${planSvg(data.plan)}</div>${learnCard()}`; }
 function ring(p) {
   const r = 22, c = 2 * Math.PI * r, v = p ?? 0, color = p == null ? "var(--faint)" : p >= 95 ? "var(--ok)" : p >= 80 ? "var(--warn)" : "var(--bad)";
   return `<div class="ring"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="${r}" stroke="var(--line2)"/><circle cx="26" cy="26" r="${r}" stroke="${color}" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - v / 100)}"/></svg><b>${p == null ? "–" : p + "%"}</b></div>`;

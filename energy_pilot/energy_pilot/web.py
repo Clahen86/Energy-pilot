@@ -25,6 +25,7 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
         data["connected"] = st["connected"]
         data["setup_done"] = bool(overview.settings.get("setup_done"))
         data["currency"] = runner.ha.config.get("currency") or "EUR"
+        data["price_info"] = overview.price_info
         eng = overview.engine
         if eng and eng.result:
             b = eng.result.get("battery") or {}
