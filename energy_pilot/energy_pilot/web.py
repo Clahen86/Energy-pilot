@@ -59,7 +59,8 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
         return web.json_response({"settings": overview.settings, "roles": overview.roles(), "capacity_guess": guess, "area_guess": area,
                                   "zones": ZONES.get(country, []), "tou_presets": __import__("energy_pilot.sources", fromlist=["TOU_PRESETS"]).TOU_PRESETS, "country": country, "currency": runner.ha.config.get("currency"),
                                   "sources": {r: overview.source(r) for r in overview.roles()},
-                                  "candidates": overview.candidates()})
+                                  "candidates": overview.candidates(),
+                                  "ev_detected": overview.engine.ev_detected if overview.engine else None})
 
     async def redetect(_req: web.Request) -> web.Response:
         await overview.async_detect()

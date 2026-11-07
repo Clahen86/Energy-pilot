@@ -99,7 +99,7 @@ class Overview:
             if key == "roles":
                 self.settings.setdefault("roles", {}).update({k: v for k, v in value.items() if k in ROLES})
             elif key in ("battery_kwh", "import_limit_kw", "language", "setup_done", "style", "price_area", "tariff", "markup", "price_source", "tou", "vat", "battery_min_soc", "grid_charge",
-                         "sell", "sell_price", "solar_value", "battery_charge_kw", "battery_discharge_kw", "ev_mode", "charger_kw", "ev_need_kwh",
+                         "sell", "sell_price", "solar_value", "ev_in_house", "battery_charge_kw", "battery_discharge_kw", "ev_mode", "charger_kw", "ev_need_kwh",
                          "quiet_from", "quiet_to", "quiet_battery", "quiet_car",
                          "quiet_battery_from", "quiet_battery_to", "quiet_car_from", "quiet_car_to",
                          "control", "inverter_profile", "custom_profile", "battery_takeover", "ev_now", "charger_phases", "ev_ready"):
@@ -185,6 +185,8 @@ class Overview:
         ev = _watts(st.get(r["ev_power"])) if r["ev_power"] else None
         plug = (st.get(r["ev_plug"]) or {}).get("state") == "on" if r["ev_plug"] else None
         # Positive battery = charging (Growatt reports discharge as negative). Grid: positive = buying.
+        if house is not None and ev and self.engine and self.engine.ev_in_house():
+            house = max(0.0, house - ev)  # the car is in the house's sensor: it is shown (and planned) on its own
         if grid is None and None not in (pv, house):
             grid = (house or 0) + (ev or 0) + (batt or 0) - (pv or 0)
         if house is None and None not in (pv, grid):

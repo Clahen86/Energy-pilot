@@ -197,6 +197,9 @@ const T = {
       preset: "Start fra", choose: "Vælg…", defaultPrice: "Normalpris", defaultPriceH: "Når ingen periode gælder", periodName: "Navn, fx Spids",
       addPeriod: "Tilføj periode", days: { all: "Alle dage", weekdays: "Hverdage", weekends: "Weekend" },
       fromTo: "Fra – til", secBattery: "Husbatteri", secBatteryH: "Batteriet i huset", secCar: "Bil og lader", secCarH: "Opladning af elbilen",
+      evInHouse: "Bilen er med i husforbruget", evHouse: { auto: "Find selv", yes: "Ja", no: "Nej" },
+      evInHouseYes: "Fundet: ja – bilen trækkes fra, så den ikke tæller to gange", evInHouseNo: "Fundet: nej – husforbruget er uden bil",
+      evInHouseUnknown: "Har ikke set bilen lade nok endnu til at vide det",
       secPrice: "Elpris", secPriceH: "Hvad strømmen koster", secGrid: "Elnettet", secGridH: "Køb og salg", secQuiet: "Stille timer",
       quietWhere: "Vælg under Husbatteri og Bil og lader, hvad der skal holde pause.",
       area: "Prisområde", areaH: "Vest (DK1) eller øst (DK2) for Storebælt", tariff: "Nettarif (lav · høj · spids)", tariffH: "Pr. kWh uden moms - se din elregning" },
@@ -262,6 +265,9 @@ const T = {
       preset: "Start from", choose: "Choose…", defaultPrice: "Normal price", defaultPriceH: "When no period applies", periodName: "Name, e.g. Peak",
       addPeriod: "Add period", days: { all: "Every day", weekdays: "Weekdays", weekends: "Weekends" },
       fromTo: "From – to", secBattery: "House battery", secBatteryH: "The battery in the house", secCar: "Car and charger", secCarH: "Charging the car",
+      evInHouse: "The car is in the house's use", evHouse: { auto: "Find out", yes: "Yes", no: "No" },
+      evInHouseYes: "Found: yes – the car is taken out so it doesn't count twice", evInHouseNo: "Found: no – the house's use is without the car",
+      evInHouseUnknown: "Hasn't seen the car charge enough yet to tell",
       secPrice: "Electricity price", secPriceH: "What power costs", secGrid: "The grid", secGridH: "Buying and selling", secQuiet: "Quiet hours",
       quietWhere: "Choose under House battery and Car and charger what should pause.",
       area: "Price area", areaH: "West (DK1) or east (DK2) of the Great Belt", tariff: "Grid tariff (low · high · peak)", tariffH: "Per kWh excl. VAT - see your bill" },
@@ -644,7 +650,9 @@ function styleView() {
       ${v.inverter_profile === "custom" ? customEditor(v) : ""}` : "")}
     ${section("car", y.secCar, y.secCarH, hasCar ? `${row(y.carMode, "", `<div class="seg mini">${["cheapest", "solar"].map((m) => `<button class="${(v.ev_mode || "cheapest") === m ? "on" : ""}" data-evmode="${m}">${y.carModes[m]}</button>`).join("")}</div>`)}
       ${row(y.charger, y.chargerH, numIn("charger_kw", 7.4, "0.1", "kW"))}
-      ${quietRow("car")}` : "")}
+      ${quietRow("car")}
+      ${row(y.evInHouse, settings.ev_detected == null ? y.evInHouseUnknown : settings.ev_detected ? y.evInHouseYes : y.evInHouseNo,
+        `<div class="seg mini">${[["auto", null], ["yes", true], ["no", false]].map(([k, val]) => `<button class="${(v.ev_in_house ?? null) === val ? "on" : ""}" data-evhouse="${k}">${y.evHouse[k]}</button>`).join("")}</div>`)}` : "")}
     ${section("bolt", y.secPrice, y.secPriceH, `${row(y.source, y.sourceH, `<div class="seg mini wide">${["auto", "spot", "tou"].map((m) => `<button class="${(v.price_source || "auto") === m ? "on" : ""}" data-psrc="${m}">${y.sources[m]}</button>`).join("")}</div>`)}
       ${v.price_source === "tou" ? touEditor(v) : ""}
       ${!settings.roles.price && v.price_source !== "tou" && (settings.zones || []).length ? `${row(y.area, settings.country === "DK" ? y.areaH : "", `<div class="seg mini">${(settings.zones || ["DK1", "DK2"]).map((a) => `<button class="${(v.price_area || settings.area_guess) === a ? "on" : ""}" data-area="${a}">${a}</button>`).join("")}</div>`)}
@@ -788,6 +796,7 @@ function wire() {
   document.querySelectorAll("[data-area]").forEach((b) => b.onclick = () => saveSet({ price_area: b.dataset.area }));
   document.querySelectorAll("[data-tariff]").forEach((i) => i.onchange = () => saveSet({ tariff: { ...(settings.settings.tariff || {}), [i.dataset.tariff]: i.value === "" ? undefined : Number(i.value.replace(",", ".")) } }));
   document.querySelectorAll("[data-evmode]").forEach((b) => b.onclick = () => saveSet({ ev_mode: b.dataset.evmode }));
+  document.querySelectorAll("[data-evhouse]").forEach((b) => b.onclick = () => saveSet({ ev_in_house: { auto: null, yes: true, no: false }[b.dataset.evhouse] }));
   document.querySelectorAll("[data-step]").forEach((b) => b.onclick = () => { step = Number(b.dataset.step); render(); window.scrollTo(0, 0); });
   $("[data-finish]")?.addEventListener("click", async () => { await api("/api/settings", { setup_done: true }); await load(); tab = "home"; localStorage.setItem("ep_tab", tab); render(); });
   $("[data-setup]")?.addEventListener("click", () => { step = 1; tab = "setup"; render(); window.scrollTo(0, 0); });

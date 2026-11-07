@@ -218,6 +218,7 @@ class Engine:
         self.result: dict[str, Any] | None = None
         self.agree = {"checks": 0, "same": 0}
         self.house_so_far: float | None = None  # kWh the house has used today, from the statistics
+        self.ev_detected: bool | None = None  # is the car in the house's use? (see evsplit.py)
 
     def settings(self) -> Battery:
         """The battery as set - a style changes the defaults: "solar" never buys for the battery, "safe" keeps 30 %."""
@@ -302,6 +303,13 @@ class Engine:
                 _LOGGER.info("No weather from Open-Meteo - learning without it")
         if e := self.ov.role("house_power"):
             rows = await self._hourly_kw(e, 60)
+            if rows and (ev_e := self.ov.role("ev_power")):
+                from . import evsplit
+
+                ev_rows = await self._hourly_kw(ev_e, 60)
+                self.ev_detected = evsplit.detect(rows, ev_rows)
+                if self.ev_in_house():
+                    rows = evsplit.subtract(rows, ev_rows)  # the car is planned on its own
             if rows:
                 self.profile = house_profile(rows, now)
                 self.profile_at = now
@@ -357,9 +365,18 @@ class Engine:
         now = datetime.now(self.tz)
         day0 = now.replace(hour=0, minute=0, second=0, microsecond=0)
         rows = await self._hourly_kw(e, 1)
+        if self.ev_in_house() and (ev_e := self.ov.role("ev_power")):
+            from . import evsplit
+
+            rows = evsplit.subtract(rows, await self._hourly_kw(ev_e, 1))
         done = sum(kw for w, kw in rows if day0 <= w < now.replace(minute=0, second=0, microsecond=0))
         house_w = (self.ov.flow() or {}).get("house") or 0.0
         self.house_so_far = round(done + house_w / 1000 * now.minute / 60, 2)
+
+    def ev_in_house(self) -> bool:
+        """The user's choice wins; otherwise what was found."""
+        chosen = self.ov.settings.get("ev_in_house")
+        return bool(chosen) if chosen is not None else bool(self.ev_detected)
 
     def house_today(self) -> float | None:
         """Today in all: used so far plus the engine's own forecast for the rest of the day - the plan's numbers."""
