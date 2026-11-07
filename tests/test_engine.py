@@ -56,3 +56,15 @@ def test_styles_limits_and_quiet():
     # Solar-only car
     hours = day([2] * 24, sun=[0] * 10 + [8, 8] + [0] * 12)
     assert [h.hour for h in plan_car(hours, 14, 7, None, T0, solar_only=True)] == [10, 11]
+
+
+def test_holidays_and_prices():
+    from datetime import date
+
+    from energy_pilot.sources import consumer_price, easter, is_day_off, price_area
+
+    assert easter(2026) == date(2026, 4, 5)
+    assert is_day_off(date(2026, 12, 25)) and is_day_off(date(2026, 5, 14))  # Christmas, Ascension
+    assert not is_day_off(date(2026, 11, 9))
+    assert price_area(55.63, 12.09) == "DK2" and price_area(56.15, 10.2) == "DK1"
+    assert consumer_price(1000, 18, {}) > consumer_price(1000, 3, {})  # peak tariff

@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 import logging
 import math
 from statistics import median
+import time
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -189,7 +190,15 @@ ACTION_KIND = {"discharge": "discharge", "charge_sun": "charge", "charge_grid": 
 
 class Engine:
     def __init__(self, ha: Any, overview: Any) -> None:
+        from .sources import HouseModel
+
         self.ha, self.ov = ha, overview
+        self.weather: Any = None
+        self.house_model = HouseModel()
+        self.solar_factors: dict[int, float] = {}
+        self.own_prices: list[dict[str, Any]] = []
+        self.own_solar: dict[datetime, float] = {}
+        self._prices_at = 0.0
         self.profile: dict[tuple[bool, int], float] = {}
         self.profile_at: datetime | None = None
         self.result: dict[str, Any] | None = None
@@ -229,31 +238,81 @@ class Engine:
                     return v
         return None
 
-    async def learn(self) -> None:
-        """The house profile from 28 days of hourly means of the house's power."""
-        e = self.ov.role("house_power")
-        if not e:
-            return
-        tz = ZoneInfo(self.ha.config.get("time_zone") or "UTC")
+    @property
+    def tz(self) -> ZoneInfo:
+        return ZoneInfo(self.ha.config.get("time_zone") or "UTC")
+
+    async def _hourly_kw(self, entity_id: str, days: int) -> list[tuple[datetime, float]]:
+        """Hourly mean power (kW) from the recorder's statistics."""
+        tz = self.tz
         now = datetime.now(tz)
         try:
             res = await self.ha.call_service("recorder", "get_statistics", {
-                "statistic_ids": [e], "period": "hour", "types": ["mean"],
-                "start_time": (now - timedelta(days=28)).isoformat(), "end_time": now.isoformat()}, response=True)
+                "statistic_ids": [entity_id], "period": "hour", "types": ["mean"],
+                "start_time": (now - timedelta(days=days)).isoformat(), "end_time": now.isoformat()}, response=True)
         except Exception:  # noqa: BLE001
-            _LOGGER.debug("No statistics for %s", e, exc_info=True)
-            return
+            _LOGGER.debug("No statistics for %s", entity_id, exc_info=True)
+            return []
+        unit = str(((self.ha.states.get(entity_id) or {}).get("attributes") or {}).get("unit_of_measurement") or "W").lower()
         rows = []
-        unit = str(((self.ha.states.get(e) or {}).get("attributes") or {}).get("unit_of_measurement") or "W").lower()
-        for r in ((res or {}).get("response") or {}).get("statistics", {}).get(e, []):
-            start = r.get("start")
+        for r in ((res or {}).get("response") or {}).get("statistics", {}).get(entity_id, []):
+            start, mean = r.get("start"), r.get("mean")
+            if mean is None:
+                continue
             when = datetime.fromtimestamp(start / 1000, tz) if isinstance(start, (int, float)) else datetime.fromisoformat(str(start)).astimezone(tz)
-            mean = r.get("mean")
-            if mean is not None:
-                rows.append((when, float(mean) / (1 if unit == "kw" else 1000)))
-        if rows:
-            self.profile = house_profile(rows, now)
-            self.profile_at = now
+            rows.append((when, float(mean) / (1 if unit == "kw" else 1000)))
+        return rows
+
+    async def learn(self) -> None:
+        """Once a day: weather for the past weeks, the house model, and what the solar panels make of sunlight."""
+        from .sources import Weather, learn_solar
+
+        now = datetime.now(self.tz)
+        if self.weather is None and self.ha.session is not None and self.ha.config.get("latitude") is not None:
+            self.weather = Weather(self.ha.session, float(self.ha.config["latitude"]), float(self.ha.config["longitude"]), self.tz)
+        if self.weather is not None:
+            try:
+                await self.weather.refresh()
+            except Exception:  # noqa: BLE001 - no internet: learn without weather
+                _LOGGER.info("No weather from Open-Meteo - learning without it")
+        if e := self.ov.role("house_power"):
+            rows = await self._hourly_kw(e, 45)
+            if rows:
+                self.profile = house_profile(rows, now)
+                self.profile_at = now
+                try:
+                    self.house_model.train(rows, self.weather if self.weather and self.weather.hours else None, now)
+                except Exception:  # noqa: BLE001 - the profile is used instead
+                    _LOGGER.warning("House model failed", exc_info=True)
+        if (e := self.ov.role("pv_power")) and self.weather and self.weather.hours:
+            pv = dict(await self._hourly_kw(e, 45))
+            self.solar_factors = learn_solar(pv, self.weather)
+
+    async def refresh_sources(self) -> None:
+        """Every few minutes: weather (hourly), and own prices/solar forecast where the home has none."""
+        from .sources import fetch_prices, price_area, solar_forecast
+
+        if self.weather is not None:
+            try:
+                await self.weather.refresh()
+            except Exception:  # noqa: BLE001
+                pass
+        if not self.ov.role("price") and time.time() - self._prices_at > 1800 and self.ha.session is not None:
+            st = self.ov.settings
+            area = st.get("price_area") or price_area(float(self.ha.config.get("latitude") or 56), float(self.ha.config.get("longitude") or 10))
+            try:
+                self.own_prices = await fetch_prices(self.ha.session, area, self.tz, st)
+                self._prices_at = time.time()
+            except Exception:  # noqa: BLE001
+                _LOGGER.info("No prices from Energi Data Service right now")
+        if self.solar_factors and self.weather and not self.ov.role("solar_today"):
+            start = datetime.now(self.tz).replace(minute=0, second=0, microsecond=0)
+            self.own_solar = solar_forecast(self.solar_factors, self.weather, [start + timedelta(hours=i) for i in range(48)])
+
+    def sources_used(self) -> dict[str, Any]:
+        return {"weather": bool(self.weather and self.weather.hours), "own_prices": bool(self.own_prices and not self.ov.role("price")),
+                "own_solar": bool(self.own_solar and not self.ov.role("solar_today")), "house_model": self.house_model.model is not None,
+                "house_error": self.house_model.error, "house_samples": self.house_model.samples}
 
     def run(self) -> dict[str, Any] | None:
         """Plan from now over the hours with prices."""
@@ -265,7 +324,8 @@ class Engine:
         if not rows:
             return None
         times = [datetime.fromisoformat(h["t"]) for h in rows]
-        house = house_forecast(self.profile, times) if self.profile else [h.get("house", 0.6) for h in rows]
+        house = self.house_model.predict(times, self.weather if self.weather and self.weather.hours else None) \
+            or (house_forecast(self.profile, times) if self.profile else [h.get("house", 0.6) for h in rows])
         st = self.ov.settings
         sell = float(st.get("sell_price") or 0) if st.get("sell") else 0.0  # what exported power earns
         hours = [Hour(t, r["price"], sell, house[i], r.get("sun", 0.0)) for i, (t, r) in enumerate(zip(times, rows))]

@@ -91,6 +91,7 @@ async def main() -> None:
                 if asyncio.get_running_loop().time() - learned > 86400 or not engine.profile:
                     await engine.learn()
                     learned = asyncio.get_running_loop().time()
+                await engine.refresh_sources()
                 engine.run()
             except Exception:  # noqa: BLE001 - tries again next round
                 logging.getLogger("energy_pilot.engine").warning("Engine round failed", exc_info=True)

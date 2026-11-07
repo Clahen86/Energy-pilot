@@ -95,7 +95,7 @@ class Overview:
         for key, value in changes.items():
             if key == "roles":
                 self.settings.setdefault("roles", {}).update({k: v for k, v in value.items() if k in ROLES})
-            elif key in ("battery_kwh", "import_limit_kw", "language", "setup_done", "style", "battery_min_soc", "grid_charge",
+            elif key in ("battery_kwh", "import_limit_kw", "language", "setup_done", "style", "price_area", "tariff", "markup", "battery_min_soc", "grid_charge",
                          "sell", "sell_price", "battery_charge_kw", "battery_discharge_kw", "ev_mode", "charger_kw", "ev_need_kwh",
                          "quiet_from", "quiet_to", "quiet_battery", "quiet_car"):
                 self.settings[key] = value
@@ -124,7 +124,13 @@ class Overview:
             return "chosen"
         e = self.role(name)
         if e is None:
-            return "computed" if name == "house_power" and self.role("grid_power") and self.role("pv_power") else None
+            if name == "house_power" and self.role("grid_power") and self.role("pv_power"):
+                return "computed"
+            eng = self.engine
+            if eng and ((name == "price" and eng.own_prices) or (name in ("solar_today", "solar_tomorrow") and eng.own_solar)
+                        or (name == "house_forecast" and eng.house_model.model is not None)):
+                return "own"
+            return None
         if e in ROLES[name]["known"]:
             return "known"
         return (self.detected.get(name) or {}).get("source")
@@ -218,9 +224,14 @@ class Overview:
             key = dt.strftime("%Y-%m-%dT%H")
             return hours.setdefault(key, {"t": dt.replace(minute=0, second=0, microsecond=0).isoformat()})
 
+        price_list = None
         if (e := self.role("price")) and (s := self.ha.states.get(e)):
+            price_list = (s.get("attributes") or {}).get("prices") or []
+        elif self.engine and self.engine.own_prices:
+            price_list = self.engine.own_prices  # fetched by the engine itself
+        if price_list is not None:
             buckets: dict[str, list[float]] = {}
-            for p in (s.get("attributes") or {}).get("prices") or []:
+            for p in price_list:
                 try:
                     dt = datetime.fromisoformat(str(p.get("start")))
                     value = float(p.get("price", p.get("value")))
@@ -241,6 +252,10 @@ class Overview:
                         continue
                     if (h := slot(dt)) is not None:
                         h["sun"] = round(kwh, 2)
+        if not self.role("solar_today") and self.engine and self.engine.own_solar:
+            for when, kwh in self.engine.own_solar.items():
+                if (h := slot(when)) is not None:
+                    h["sun"] = kwh
         if (e := self.role("house_forecast")) and (s := self.ha.states.get(e)):
             hourly = (s.get("attributes") or {}).get("hourly_kwh") or []
             if isinstance(hourly, list):
@@ -303,6 +318,11 @@ class Overview:
     def snapshot(self, lang: str = "da") -> dict[str, Any]:
         price_e = self.role("price")
         price = self.ha.states.get(price_e) if price_e else None
+        if price is None and self.engine and self.engine.own_prices:
+            now = datetime.now(ZoneInfo(self.ha.config.get("time_zone") or "UTC"))
+            cur = [p for p in self.engine.own_prices if datetime.fromisoformat(p["start"]) <= now < datetime.fromisoformat(p["end"])]
+            if cur:
+                price = {"state": cur[0]["price"], "attributes": {"unit_of_measurement": "kr/kWh"}}
         solar = {k: _num(self.ha.states.get(self.role(k))) if self.role(k) else None for k in ("solar_today", "solar_tomorrow")}
         house_e = self.role("house_forecast")
         return {

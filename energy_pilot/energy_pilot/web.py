@@ -30,13 +30,16 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
             a = eng.agree
             data["engine"] = {"saving": b.get("saving"), "now": b.get("now"), "capacity": b.get("capacity"),
                               "agree": round(100 * a["same"] / a["checks"]) if a["checks"] else None, "checks": a["checks"],
-                              "profile": bool(eng.profile), "car": eng.result.get("car"),
+                              "profile": bool(eng.profile), "car": eng.result.get("car"), "sources": eng.sources_used(),
                               "decision": overview.engine_decision("da" if lang(req) == "da" else "en")}
         return web.json_response(data)
 
     async def get_settings(_req: web.Request) -> web.Response:
         guess = overview.engine._guess_capacity() if overview.engine else None
-        return web.json_response({"settings": overview.settings, "roles": overview.roles(), "capacity_guess": guess,
+        from .sources import price_area
+
+        area = price_area(float(runner.ha.config.get("latitude") or 56), float(runner.ha.config.get("longitude") or 10))
+        return web.json_response({"settings": overview.settings, "roles": overview.roles(), "capacity_guess": guess, "area_guess": area,
                                   "sources": {r: overview.source(r) for r in overview.roles()},
                                   "candidates": overview.candidates()})
 

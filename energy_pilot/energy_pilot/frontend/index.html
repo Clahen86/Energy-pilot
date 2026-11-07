@@ -126,7 +126,7 @@
   .style svg { width:20px; height:20px; color:var(--muted); margin-bottom:6px; } .style b { font-weight:650; font-size:14px; } .style span { font-size:12px; color:var(--muted); line-height:1.35; }
   .style.on { border-color:var(--accent); background:color-mix(in srgb, var(--accent) 12%, var(--surface)); box-shadow:0 10px 24px -14px var(--accent); } .style.on svg { color:var(--accent); }
   .numin { width:84px; font:650 16px system-ui; text-align:right; color:var(--text); background:var(--surface2); border:1px solid var(--line); border-radius:10px; padding:7px 9px; }
-  .seg.mini { min-width:150px; } .unitin { display:flex; align-items:center; gap:6px; } .unitin i { font-style:normal; color:var(--muted); font-size:13px; min-width:26px; } .times2 { display:flex; align-items:center; gap:6px; } .times2 input { font-size:15px; padding:5px 6px; } .times2 i { color:var(--muted); font-style:normal; }
+  .seg.mini { min-width:150px; } .numin.sm { width:62px; font-size:14px; padding:6px; } .unitin { display:flex; align-items:center; gap:6px; } .unitin i { font-style:normal; color:var(--muted); font-size:13px; min-width:26px; } .times2 { display:flex; align-items:center; gap:6px; } .times2 input { font-size:15px; padding:5px 6px; } .times2 i { color:var(--muted); font-style:normal; }
   /* tab bar */
   nav { position:fixed; left:0; right:0; bottom:0; padding:10px 14px calc(10px + env(safe-area-inset-bottom)); z-index:5; display:flex; justify-content:center;
     background:linear-gradient(transparent, var(--bg) 45%); }
@@ -155,7 +155,7 @@ const T = {
     chargeNow: "Lad nu", readyAt: "Klar kl.", atMost: "Højst", session: "denne opladning", shadowTitle: "Skygge eller styrer", shadowHint: "Skygge: regner og viser, styrer intet. Styrer: overtager. Sluk samme del i AppDaemon, før den styrer.",
     agree: "enig", compare: "sammenligninger", errors: "fejl", stopAll: "Sæt alt tilbage i skygge", modes: { shadow: "Skygge", control: "Styrer", off: "Fra" },
     names: { growatt_parallel: "Batteri og sol", ev_charge_controller: "Bilopladning", husmodel: "Husets forbrug" },
-    src: { energy: "Energi-dashboard", name: "Fundet ud fra navnet", known: "Dit eget", chosen: "Valgt af dig", computed: "Beregnet" }, notFound: "Ikke fundet",
+    src: { energy: "Energi-dashboard", name: "Fundet ud fra navnet", known: "Dit eget", chosen: "Valgt af dig", computed: "Beregnet", own: "Hentes af Energipilot" }, notFound: "Ikke fundet",
     findAgain: "Find igen", runGuide: "Kør guiden igen", looksRight: "Det ser rigtigt ud", start: "Kom i gang", back: "Tilbage",
     y: { style: "Din stil", fine: "Finjustering",
       styles: { cheapest: ["Billigst muligt", "Flytter forbruget til de billige timer"], solar: ["Mest sol", "Lader aldrig batteriet fra nettet"],
@@ -165,7 +165,8 @@ const T = {
       size: "Batteriets størrelse", sizeH: "Fundet: {x} kWh", power: "Lade- og afladeeffekt", powerH: "Hvad batteriet kan pr. time",
       sell: "Må sælge til nettet", sellH: "Overskud fra solen sælges, når det betaler sig", sellPrice: "Du får pr. kWh", fuse: "Importloft", fuseH: "Hovedsikringen - køb aldrig mere",
       carMode: "Bilen lader", carModes: { cheapest: "Billigst", solar: "Kun sol" }, charger: "Laderens effekt", chargerH: "Typisk 3,7 / 7,4 / 11 kW",
-      quiet: "Stille timer", quietH: "Ingen opladning i dette tidsrum", quietBatt: "Gælder batteriet", quietCar: "Gælder bilen" },
+      quiet: "Stille timer", quietH: "Ingen opladning i dette tidsrum", quietBatt: "Gælder batteriet", quietCar: "Gælder bilen",
+      area: "Prisområde", areaH: "Vest (DK1) eller øst (DK2) for Storebælt", tariff: "Nettarif (lav · høj · spids)", tariffH: "kr/kWh uden moms - se din elregning" },
     legSoc: "Batteri-niveau (plan)", legCar: "Bilen lader", saves: "Planen sparer cirka {x} de næste timer.",
     engineName: "Energipilots egen motor", engineHint: "Sammenlignet med din AppDaemon · sparer ca. {x} de næste timer",
     g1title: "Velkommen til Energipilot", g1text: "Vi har kigget dit hjem igennem og fundet {n} ting. Ret det, der er forkert - resten klarer den selv.",
@@ -188,7 +189,7 @@ const T = {
     chargeNow: "Charge now", readyAt: "Ready at", atMost: "At most", session: "this charge", shadowTitle: "Shadow or in control", shadowHint: "Shadow: plans and shows, controls nothing. In control: takes over. Switch the same part off in AppDaemon first.",
     agree: "agree", compare: "comparisons", errors: "errors", stopAll: "Put everything back in shadow", modes: { shadow: "Shadow", control: "Control", off: "Off" },
     names: { growatt_parallel: "Battery and sun", ev_charge_controller: "Car charging", husmodel: "House model" },
-    src: { energy: "Energy dashboard", name: "Found by name", known: "Your own", chosen: "Chosen by you", computed: "Calculated" }, notFound: "Not found",
+    src: { energy: "Energy dashboard", name: "Found by name", known: "Your own", chosen: "Chosen by you", computed: "Calculated", own: "Fetched by Energy Pilot" }, notFound: "Not found",
     findAgain: "Find again", runGuide: "Run the guide again", looksRight: "Looks right", start: "Get started", back: "Back",
     y: { style: "Your style", fine: "Fine-tuning",
       styles: { cheapest: ["Cheapest", "Moves use to the cheap hours"], solar: ["Most sun", "Never charges the battery from the grid"],
@@ -198,7 +199,8 @@ const T = {
       size: "Battery size", sizeH: "Found: {x} kWh", power: "Charge and discharge power", powerH: "What the battery can do per hour",
       sell: "May sell to the grid", sellH: "Solar surplus is sold when it pays", sellPrice: "You get per kWh", fuse: "Import limit", fuseH: "The main fuse - never buy more",
       carMode: "The car charges", carModes: { cheapest: "Cheapest", solar: "Sun only" }, charger: "Charger power", chargerH: "Typically 3.7 / 7.4 / 11 kW",
-      quiet: "Quiet hours", quietH: "No charging in this period", quietBatt: "Applies to the battery", quietCar: "Applies to the car" },
+      quiet: "Quiet hours", quietH: "No charging in this period", quietBatt: "Applies to the battery", quietCar: "Applies to the car",
+      area: "Price area", areaH: "West (DK1) or east (DK2) of the Great Belt", tariff: "Grid tariff (low · high · peak)", tariffH: "kr/kWh excl. VAT - see your bill" },
     legSoc: "Battery level (plan)", legCar: "Car charges", saves: "The plan saves about {x} over the coming hours.",
     engineName: "Energy Pilot's own engine", engineHint: "Compared with your AppDaemon · saves about {x} over the coming hours",
     g1title: "Welcome to Energy Pilot", g1text: "We looked through your home and found {n} things. Fix what's wrong - it handles the rest.",
@@ -393,7 +395,7 @@ const PLATNAME = { stromligning: "Strømligning", nordpool: "Nord Pool", energid
 function sourceLabel(src) {
   if (!src) return "";
   if (src.startsWith("integration:")) { const p = src.split(":")[1]; return PLATNAME[p] || p; }
-  return { energy: T.src.energy, name: T.src.name, known: T.src.known, chosen: T.src.chosen, computed: T.src.computed }[src] || src;
+  return { energy: T.src.energy, name: T.src.name, known: T.src.known, chosen: T.src.chosen, computed: T.src.computed, own: T.src.own }[src] || src;
 }
 function roleRows(roles) {
   return roles.map((r) => {
@@ -425,6 +427,8 @@ function styleView() {
       ${row(y.fuse, y.fuseH, numIn("import_limit_kw", 10, "1", "kW"))}
       ${hasCar ? `${row(y.carMode, "", `<div class="seg mini">${["cheapest", "solar"].map((m) => `<button class="${(v.ev_mode || "cheapest") === m ? "on" : ""}" data-evmode="${m}">${y.carModes[m]}</button>`).join("")}</div>`)}
       ${row(y.charger, y.chargerH, numIn("charger_kw", 7.4, "0.1", "kW"))}` : ""}
+      ${!settings.roles.price ? `${row(y.area, y.areaH, `<div class="seg mini">${["DK1", "DK2"].map((a) => `<button class="${(v.price_area || settings.area_guess) === a ? "on" : ""}" data-area="${a}">${a}</button>`).join("")}</div>`)}
+        ${row(y.tariff, y.tariffH, `<span class="times2">${["low", "high", "peak"].map((k) => `<input class="numin sm" type="number" step="0.01" data-tariff="${k}" value="${(v.tariff || {})[k] ?? ""}" placeholder="${{ low: 0.115, high: 0.346, peak: 1.038 }[k]}">`).join("")}</span>`)}` : ""}
       ${row(y.quiet, y.quietH, `<span class="times2"><input type="time" data-text="quiet_from" value="${esc(v.quiet_from || "")}"><i>–</i><input type="time" data-text="quiet_to" value="${esc(v.quiet_to || "")}"></span>`)}
       ${v.quiet_from && v.quiet_to ? `${hasBatt ? row(y.quietBatt, "", tog("quiet_battery")) : ""}${hasCar ? row(y.quietCar, "", tog("quiet_car")) : ""}` : ""}
     </div>`;
@@ -507,6 +511,8 @@ function wire() {
   document.querySelectorAll("[data-num]").forEach((i) => i.onchange = () => saveSet({ [i.dataset.num]: i.value === "" ? null : Number(i.value.replace(",", ".")) }));
   document.querySelectorAll("[data-text]").forEach((i) => i.onchange = () => saveSet({ [i.dataset.text]: i.value || null }));
   document.querySelectorAll("[data-range]").forEach((i) => { i.oninput = () => ($("#r-" + i.dataset.range).textContent = `${i.value} %`); i.onchange = () => saveSet({ [i.dataset.range]: Number(i.value) }); });
+  document.querySelectorAll("[data-area]").forEach((b) => b.onclick = () => saveSet({ price_area: b.dataset.area }));
+  document.querySelectorAll("[data-tariff]").forEach((i) => i.onchange = () => saveSet({ tariff: { ...(settings.settings.tariff || {}), [i.dataset.tariff]: i.value === "" ? undefined : Number(i.value.replace(",", ".")) } }));
   document.querySelectorAll("[data-evmode]").forEach((b) => b.onclick = () => saveSet({ ev_mode: b.dataset.evmode }));
   document.querySelectorAll("[data-step]").forEach((b) => b.onclick = () => { step = Number(b.dataset.step); render(); window.scrollTo(0, 0); });
   $("[data-finish]")?.addEventListener("click", async () => { await api("/api/settings", { setup_done: true }); await load(); tab = "home"; localStorage.setItem("ep_tab", tab); render(); });
