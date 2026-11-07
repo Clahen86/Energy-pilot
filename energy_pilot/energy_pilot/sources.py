@@ -49,8 +49,20 @@ def holidays_dk(year: int) -> set[date]:
             date(year, 12, 24), date(year, 12, 25), date(year, 12, 26), date(year, 12, 31)}
 
 
+COUNTRY = "DK"  # set from Home Assistant's country at start
+
+
 def is_day_off(d: date) -> bool:
-    return d.weekday() >= 5 or d in holidays_dk(d.year)
+    if d.weekday() >= 5:
+        return True
+    if COUNTRY == "DK":
+        return d in holidays_dk(d.year)
+    try:
+        import holidays
+
+        return d in holidays.country_holidays(COUNTRY, years=d.year)
+    except Exception:  # noqa: BLE001 - unknown country: weekends only
+        return False
 
 
 # ---------- weather ----------
@@ -89,21 +101,82 @@ DEFAULT_TARIFF = {"low": 0.115, "high": 0.346, "peak": 1.038}  # Radius 2026, ro
 TARIFF_HOURS = {h: ("low" if h < 6 else "peak" if 17 <= h < 21 else "high") for h in range(24)}
 
 
-def price_area(lat: float, lon: float) -> str:
-    """DK1 west of the Great Belt, DK2 east of it."""
-    return "DK2" if lon >= 11.0 else "DK1"
+# Bidding zones per country (day-ahead prices), and VAT on electricity.
+ZONES = {
+    "DK": ["DK1", "DK2"], "SE": ["SE1", "SE2", "SE3", "SE4"], "NO": ["NO1", "NO2", "NO3", "NO4", "NO5"], "FI": ["FI"],
+    "DE": ["DE-LU"], "LU": ["DE-LU"], "NL": ["NL"], "BE": ["BE"], "AT": ["AT"], "FR": ["FR"], "PL": ["PL"], "CH": ["CH"],
+    "CZ": ["CZ"], "SK": ["SK"], "SI": ["SI"], "HU": ["HU"], "HR": ["HR"], "RO": ["RO"], "BG": ["BG"], "GR": ["GR"],
+    "ES": ["ES"], "PT": ["PT"], "EE": ["EE"], "LV": ["LV"], "LT": ["LT"],
+    "IT": ["IT-North", "IT-Centre-North", "IT-Centre-South", "IT-South", "IT-Sicily", "IT-Sardinia"],
+}
+VAT = {"DK": 0.25, "SE": 0.25, "NO": 0.25, "FI": 0.255, "DE": 0.19, "LU": 0.08, "NL": 0.21, "BE": 0.06, "AT": 0.20,
+       "FR": 0.20, "PL": 0.23, "CH": 0.081, "CZ": 0.21, "SK": 0.23, "SI": 0.22, "HU": 0.27, "HR": 0.13, "RO": 0.19,
+       "BG": 0.20, "GR": 0.06, "ES": 0.21, "PT": 0.06, "EE": 0.24, "LV": 0.21, "LT": 0.21, "IT": 0.10}
+ENERGY_CHARTS = "https://api.energy-charts.info/price"
+FX = "https://api.frankfurter.dev/v1/latest"
+_fx: dict[str, Any] = {"at": 0.0, "rates": {}}
 
 
-def consumer_price(spot_dkk_mwh: float, hour: int, s: dict[str, Any]) -> float:
-    """What a kWh costs at home: spot + tariffs + tax + markup, with VAT."""
-    tariff = {**DEFAULT_TARIFF, **(s.get("tariff") or {})}
-    net = tariff[TARIFF_HOURS[hour]]
-    extra = float(s.get("system_tariff", 0.072)) + float(s.get("elafgift", 0.008)) + float(s.get("markup", 0.012))
-    return round((spot_dkk_mwh / 1000 + net + extra) * (1 + float(s.get("vat", 0.25))), 4)
+def price_area(lat: float, lon: float, country: str | None = None) -> str:
+    """The home's bidding zone - a guess the user can change."""
+    country = (country or COUNTRY or "DK").upper()
+    if country == "DK":
+        return "DK2" if lon >= 11.0 else "DK1"
+    if country == "SE":
+        return "SE1" if lat >= 66 else "SE2" if lat >= 61.5 else "SE3" if lat >= 57.2 else "SE4"
+    if country == "NO":
+        return "NO4" if lat >= 65 else "NO3" if lat >= 62.5 else "NO5" if lon <= 7.5 and lat >= 59.8 else "NO2" if lon <= 9 else "NO1"
+    return (ZONES.get(country) or ["DE-LU"])[0]
 
 
-async def fetch_prices(session: Any, area: str, tz: ZoneInfo, s: dict[str, Any]) -> list[dict[str, Any]]:
-    """[{start, end, price}] for today and tomorrow (as far as known), like Strømligning's "prices"."""
+def consumer_price(spot_mwh: float, hour: int, s: dict[str, Any], country: str | None = None) -> float:
+    """What a kWh costs at home: spot + grid tariff + taxes + markup, with VAT. Spot in the local currency per MWh.
+    Denmark has its tariff model built in; elsewhere the user says what is added (default: VAT only)."""
+    country = (country or COUNTRY or "DK").upper()
+    vat = float(s.get("vat", VAT.get(country, 0.2)))
+    if country == "DK":
+        tariff = {**DEFAULT_TARIFF, **(s.get("tariff") or {})}
+        extra = tariff[TARIFF_HOURS[hour]] + float(s.get("system_tariff", 0.072)) + float(s.get("elafgift", 0.008)) + float(s.get("markup", 0.012))
+    else:
+        tariff = {"low": 0.0, "high": 0.0, "peak": 0.0, **(s.get("tariff") or {})}
+        extra = tariff[TARIFF_HOURS[hour]] + float(s.get("markup", 0.0))
+    return round((spot_mwh / 1000 + extra) * (1 + vat), 4)
+
+
+def country_of(area: str) -> str:
+    """The country a bidding zone belongs to ("SE3" -> "SE", "DE-LU" -> "DE", "IT-North" -> "IT")."""
+    return area[:2].upper()
+
+
+async def _rate(session: Any, currency: str) -> float:
+    """EUR -> the home's currency (ECB rates, once a day)."""
+    if currency == "EUR":
+        return 1.0
+    if time.time() - _fx["at"] > 86400 or currency not in _fx["rates"]:
+        async with session.get(FX, params={"base": "EUR"}, timeout=20) as resp:
+            resp.raise_for_status()
+            _fx["rates"], _fx["at"] = (await resp.json()).get("rates") or {}, time.time()
+    return float(_fx["rates"][currency])
+
+
+async def fetch_prices(session: Any, area: str, tz: ZoneInfo, s: dict[str, Any], currency: str = "DKK") -> list[dict[str, Any]]:
+    """[{start, end, price}] for today and tomorrow (as far as known), like Strømligning's "prices".
+    Danish zones from Energi Data Service (in DKK), all others from energy-charts.info (EUR, converted)."""
+    if not area.startswith("DK"):
+        rate = await _rate(session, currency)
+        async with session.get(ENERGY_CHARTS, params={"bzn": area}, timeout=30) as resp:
+            resp.raise_for_status()
+            data = await resp.json()
+        out = []
+        times, prices = data.get("unix_seconds") or [], data.get("price") or []
+        step = (times[1] - times[0]) if len(times) > 1 else 3600
+        for ts, eur in zip(times, prices):
+            if eur is None:
+                continue
+            t = datetime.fromtimestamp(ts, tz)
+            out.append({"start": t.isoformat(), "end": (t + timedelta(seconds=step)).isoformat(),
+                        "price": consumer_price(eur * rate, t.hour, s, country_of(area))})
+        return out
     start = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
     params = {"start": start.strftime("%Y-%m-%dT%H:%M"), "end": (start + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M"),
               "filter": f'{{"PriceArea":["{area}"]}}', "sort": "TimeDK asc", "limit": "400"}
@@ -116,7 +189,7 @@ async def fetch_prices(session: Any, area: str, tz: ZoneInfo, s: dict[str, Any])
         spot = r.get("DayAheadPriceDKK")
         if spot is None:
             continue
-        out.append({"start": t.isoformat(), "end": (t + timedelta(minutes=15)).isoformat(), "price": consumer_price(spot, t.hour, s)})
+        out.append({"start": t.isoformat(), "end": (t + timedelta(minutes=15)).isoformat(), "price": consumer_price(spot, t.hour, s, "DK")})
     return out
 
 

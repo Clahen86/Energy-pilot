@@ -24,6 +24,7 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
         data["shadow"] = [{k: a[k] for k in ("name", "mode", "agree", "checks", "errors")} for a in st["apps"]]
         data["connected"] = st["connected"]
         data["setup_done"] = bool(overview.settings.get("setup_done"))
+        data["currency"] = runner.ha.config.get("currency") or "EUR"
         eng = overview.engine
         if eng and eng.result:
             b = eng.result.get("battery") or {}
@@ -36,10 +37,12 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
 
     async def get_settings(_req: web.Request) -> web.Response:
         guess = overview.engine._guess_capacity() if overview.engine else None
-        from .sources import price_area
+        from .sources import ZONES, price_area
 
-        area = price_area(float(runner.ha.config.get("latitude") or 56), float(runner.ha.config.get("longitude") or 10))
+        country = (runner.ha.config.get("country") or "DK").upper()
+        area = price_area(float(runner.ha.config.get("latitude") or 56), float(runner.ha.config.get("longitude") or 10), country)
         return web.json_response({"settings": overview.settings, "roles": overview.roles(), "capacity_guess": guess, "area_guess": area,
+                                  "zones": ZONES.get(country, [area]), "country": country, "currency": runner.ha.config.get("currency"),
                                   "sources": {r: overview.source(r) for r in overview.roles()},
                                   "candidates": overview.candidates()})
 

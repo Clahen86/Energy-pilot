@@ -68,3 +68,12 @@ def test_holidays_and_prices():
     assert not is_day_off(date(2026, 11, 9))
     assert price_area(55.63, 12.09) == "DK2" and price_area(56.15, 10.2) == "DK1"
     assert consumer_price(1000, 18, {}) > consumer_price(1000, 3, {})  # peak tariff
+
+
+def test_other_countries():
+    from energy_pilot.sources import consumer_price, price_area
+
+    assert price_area(59.33, 18.06, "SE") == "SE3" and price_area(55.6, 13.0, "SE") == "SE4"
+    assert price_area(59.9, 10.75, "NO") == "NO1" and price_area(60.39, 5.32, "NO") == "NO5"
+    assert price_area(52.5, 13.4, "DE") == "DE-LU"
+    assert consumer_price(100, 12, {}, "DE") == round(0.1 * 1.19, 4)  # spot + VAT only, unless told more

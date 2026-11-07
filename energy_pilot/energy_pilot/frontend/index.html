@@ -166,7 +166,7 @@ const T = {
       sell: "Må sælge til nettet", sellH: "Overskud fra solen sælges, når det betaler sig", sellPrice: "Du får pr. kWh", fuse: "Importloft", fuseH: "Hovedsikringen - køb aldrig mere",
       carMode: "Bilen lader", carModes: { cheapest: "Billigst", solar: "Kun sol" }, charger: "Laderens effekt", chargerH: "Typisk 3,7 / 7,4 / 11 kW",
       quiet: "Stille timer", quietH: "Ingen opladning i dette tidsrum", quietBatt: "Gælder batteriet", quietCar: "Gælder bilen",
-      area: "Prisområde", areaH: "Vest (DK1) eller øst (DK2) for Storebælt", tariff: "Nettarif (lav · høj · spids)", tariffH: "kr/kWh uden moms - se din elregning" },
+      area: "Prisområde", areaH: "Vest (DK1) eller øst (DK2) for Storebælt", tariff: "Nettarif (lav · høj · spids)", tariffH: "Pr. kWh uden moms - se din elregning" },
     legSoc: "Batteri-niveau (plan)", legCar: "Bilen lader", saves: "Planen sparer cirka {x} de næste timer.",
     engineName: "Energipilots egen motor", engineHint: "Sammenlignet med din AppDaemon · sparer ca. {x} de næste timer",
     g1title: "Velkommen til Energipilot", g1text: "Vi har kigget dit hjem igennem og fundet {n} ting. Ret det, der er forkert - resten klarer den selv.",
@@ -200,7 +200,7 @@ const T = {
       sell: "May sell to the grid", sellH: "Solar surplus is sold when it pays", sellPrice: "You get per kWh", fuse: "Import limit", fuseH: "The main fuse - never buy more",
       carMode: "The car charges", carModes: { cheapest: "Cheapest", solar: "Sun only" }, charger: "Charger power", chargerH: "Typically 3.7 / 7.4 / 11 kW",
       quiet: "Quiet hours", quietH: "No charging in this period", quietBatt: "Applies to the battery", quietCar: "Applies to the car",
-      area: "Price area", areaH: "West (DK1) or east (DK2) of the Great Belt", tariff: "Grid tariff (low · high · peak)", tariffH: "kr/kWh excl. VAT - see your bill" },
+      area: "Price area", areaH: "West (DK1) or east (DK2) of the Great Belt", tariff: "Grid tariff (low · high · peak)", tariffH: "Per kWh excl. VAT - see your bill" },
     legSoc: "Battery level (plan)", legCar: "Car charges", saves: "The plan saves about {x} over the coming hours.",
     engineName: "Energy Pilot's own engine", engineHint: "Compared with your AppDaemon · saves about {x} over the coming hours",
     g1title: "Welcome to Energy Pilot", g1text: "We looked through your home and found {n} things. Fix what's wrong - it handles the rest.",
@@ -225,7 +225,9 @@ const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const num = (v, d = 1) => v == null ? "–" : Number(v).toFixed(d).replace(".", L === "da" ? "," : ".");
 const kw = (w) => w == null ? "–" : Math.abs(w) >= 1000 ? `${num(Math.abs(w) / 1000, 1)} kW` : `${Math.round(Math.abs(w))} W`;
-const kr = (v) => v == null ? "–" : L === "da" ? `${num(v, 2)} kr` : `${num(v, 2)}`;
+const CUR = () => (data && data.currency) || "DKK";
+const SYM = () => ({ DKK: "kr", SEK: "kr", NOK: "kr", EUR: "€", GBP: "£", CHF: "CHF", PLN: "zł", CZK: "Kč", HUF: "Ft" }[CUR()] || CUR());
+const kr = (v) => v == null ? "–" : ["€", "£"].includes(SYM()) ? `${SYM()}${num(v, 2)}` : `${num(v, 2)} ${SYM()}`;
 const api = (p, body) => fetch(p.replace(/^\//, ""), body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}).then((r) => r.json());
 const clock = (iso) => { const d = new Date(iso); return `${String(d.getHours()).padStart(2, "0")}:00`; };
 
@@ -303,7 +305,7 @@ function home() {
   const lv = level(d.price.now, d.plan);
   const metric = (ic, lbl, v, unit, sub, id, extra = "") => `<div class="metric"><div class="lbl">${icon(ic)}${lbl}</div><div class="v" ${id ? `id="${id}"` : ""}>${v}<small>${unit}</small></div>${sub ? `<div class="s">${sub}</div>` : ""}${extra}</div>`;
   const metrics = [
-    d.price.now != null ? metric("bolt", T.priceNow, num(d.price.now, 2), "kr/kWh", lv ? `<span class="lvl ${lv}">${T[lv]}</span> ${L === "da" ? "i dag" : "today"}` : "", "t-price") : "",
+    d.price.now != null ? metric("bolt", T.priceNow, num(d.price.now, 2), `${SYM()}/kWh`, lv ? `<span class="lvl ${lv}">${T[lv]}</span> ${L === "da" ? "i dag" : "today"}` : "", "t-price") : "",
     d.solar.solar_today != null ? metric("sun", T.sunToday, num(d.solar.solar_today, 1), "kWh", d.solar.solar_tomorrow != null ? `${L === "da" ? "I morgen" : "Tomorrow"} ${num(d.solar.solar_tomorrow, 1)} kWh` : "") : "",
     f.soc != null ? metric("battery", T.battery, num(f.soc, 0), "%", dec?.target != null ? `${T.target} ${num(dec.target, 0)} %` : "", "t-soc", `<div class="bar"><span id="t-socbar" style="width:${f.soc}%"></span></div>`) : "",
     d.house_today != null ? metric("house", T.houseToday, num(d.house_today, 1), "kWh", L === "da" ? "forventet" : "expected") : "",
@@ -423,12 +425,12 @@ function styleView() {
       ${row(y.size, settings.capacity_guess ? y.sizeH.replace("{x}", num(settings.capacity_guess, 1)) : "", numIn("battery_kwh", settings.capacity_guess ?? 10, "0.1", "kWh"))}
       ${row(y.power, y.powerH, numIn("battery_charge_kw", 3, "0.1", "kW"))}` : ""}
       ${row(y.sell, y.sellH, tog("sell"))}
-      ${v.sell ? row(y.sellPrice, "", numIn("sell_price", "0.5", "0.05", "kr")) : ""}
+      ${v.sell ? row(y.sellPrice, "", numIn("sell_price", "0.5", "0.05", SYM())) : ""}
       ${row(y.fuse, y.fuseH, numIn("import_limit_kw", 10, "1", "kW"))}
       ${hasCar ? `${row(y.carMode, "", `<div class="seg mini">${["cheapest", "solar"].map((m) => `<button class="${(v.ev_mode || "cheapest") === m ? "on" : ""}" data-evmode="${m}">${y.carModes[m]}</button>`).join("")}</div>`)}
       ${row(y.charger, y.chargerH, numIn("charger_kw", 7.4, "0.1", "kW"))}` : ""}
-      ${!settings.roles.price ? `${row(y.area, y.areaH, `<div class="seg mini">${["DK1", "DK2"].map((a) => `<button class="${(v.price_area || settings.area_guess) === a ? "on" : ""}" data-area="${a}">${a}</button>`).join("")}</div>`)}
-        ${row(y.tariff, y.tariffH, `<span class="times2">${["low", "high", "peak"].map((k) => `<input class="numin sm" type="number" step="0.01" data-tariff="${k}" value="${(v.tariff || {})[k] ?? ""}" placeholder="${{ low: 0.115, high: 0.346, peak: 1.038 }[k]}">`).join("")}</span>`)}` : ""}
+      ${!settings.roles.price ? `${row(y.area, settings.country === "DK" ? y.areaH : "", `<div class="seg mini">${(settings.zones || ["DK1", "DK2"]).map((a) => `<button class="${(v.price_area || settings.area_guess) === a ? "on" : ""}" data-area="${a}">${a}</button>`).join("")}</div>`)}
+        ${row(y.tariff, y.tariffH, `<span class="times2">${["low", "high", "peak"].map((k) => `<input class="numin sm" type="number" step="0.01" data-tariff="${k}" value="${(v.tariff || {})[k] ?? ""}" placeholder="${settings.country === "DK" ? { low: 0.115, high: 0.346, peak: 1.038 }[k] : 0}">`).join("")}</span>`)}` : ""}
       ${row(y.quiet, y.quietH, `<span class="times2"><input type="time" data-text="quiet_from" value="${esc(v.quiet_from || "")}"><i>–</i><input type="time" data-text="quiet_to" value="${esc(v.quiet_to || "")}"></span>`)}
       ${v.quiet_from && v.quiet_to ? `${hasBatt ? row(y.quietBatt, "", tog("quiet_battery")) : ""}${hasCar ? row(y.quietCar, "", tog("quiet_car")) : ""}` : ""}
     </div>`;

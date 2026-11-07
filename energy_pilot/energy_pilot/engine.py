@@ -267,6 +267,9 @@ class Engine:
         """Once a day: weather for the past weeks, the house model, and what the solar panels make of sunlight."""
         from .sources import Weather, learn_solar
 
+        from . import sources
+
+        sources.COUNTRY = (self.ha.config.get("country") or "DK").upper()
         now = datetime.now(self.tz)
         if self.weather is None and self.ha.session is not None and self.ha.config.get("latitude") is not None:
             self.weather = Weather(self.ha.session, float(self.ha.config["latitude"]), float(self.ha.config["longitude"]), self.tz)
@@ -299,9 +302,10 @@ class Engine:
                 pass
         if not self.ov.role("price") and time.time() - self._prices_at > 1800 and self.ha.session is not None:
             st = self.ov.settings
-            area = st.get("price_area") or price_area(float(self.ha.config.get("latitude") or 56), float(self.ha.config.get("longitude") or 10))
+            area = st.get("price_area") or price_area(float(self.ha.config.get("latitude") or 56), float(self.ha.config.get("longitude") or 10),
+                                                      self.ha.config.get("country"))
             try:
-                self.own_prices = await fetch_prices(self.ha.session, area, self.tz, st)
+                self.own_prices = await fetch_prices(self.ha.session, area, self.tz, st, self.ha.config.get("currency") or "EUR")
                 self._prices_at = time.time()
             except Exception:  # noqa: BLE001
                 _LOGGER.info("No prices from Energi Data Service right now")
