@@ -163,7 +163,7 @@
   .ctl > :last-child { max-width:100%; } .seg.mini { flex-wrap:wrap; max-width:100%; min-width:0; }
   .times2 { flex-wrap:wrap; max-width:100%; } .times2 input { min-width:0; max-width:120px; }
   .set { flex-wrap:wrap; } .set > select { min-width:0; max-width:100%; flex:1 1 160px; }
-  .set .extra, .set .rolemore { flex-basis:100%; min-width:0; } .rolefind { min-width:0; width:100%; flex:1 1 100%; }
+  .set .extra, .set .rolemore { flex-basis:100%; min-width:0; } .rolemore .link { color:var(--muted); font-weight:600; } .rolefind { min-width:0; width:100%; flex:1 1 100%; }
   .pnote { font-size:12.5px; color:var(--muted); margin:-4px 0 10px; } .pnote.warn { color:var(--warn); }
   /* tab bar */
   nav { position:fixed; left:0; right:0; bottom:0; padding:10px 14px calc(10px + env(safe-area-inset-bottom)); z-index:5; display:flex; justify-content:center;
@@ -193,7 +193,7 @@ const T = {
     chargeNow: "Lad nu", readyAt: "Klar kl.", atMost: "Højst", session: "denne opladning", shadowTitle: "Skygge eller styrer", shadowHint: "Skygge: regner og viser, styrer intet. Styrer: overtager. Sluk samme del i AppDaemon, før den styrer.",
     agree: "enig", compare: "sammenligninger", errors: "fejl", stopAll: "Sæt alt tilbage i skygge", modes: { shadow: "Skygge", control: "Styrer", off: "Fra" },
     names: { growatt_parallel: "Batteri og sol", ev_charge_controller: "Bilopladning", husmodel: "Husets forbrug" },
-    src: { energy: "Energi-dashboard", name: "Fundet ud fra navnet", known: "Dit eget", chosen: "Valgt af dig", computed: "Beregnet", own: "Hentes af Energipilot" }, notFound: "Ikke fundet", addArray: "Tilføj endnu et anlæg", findSensor: "Søg efter en sensor…", pick: "Vælg…", remove: "Fjern",
+    src: { energy: "Energi-dashboard", name: "Fundet ud fra navnet", known: "Dit eget", chosen: "Valgt af dig", computed: "Beregnet", own: "Hentes af Energipilot" }, notFound: "Ikke fundet", addArray: "Tilføj endnu et anlæg", findSensor: "Søg efter en sensor…", findOther: "Find en anden sensor", pick: "Vælg…", remove: "Fjern",
     findAgain: "Find igen", runGuide: "Kør guiden igen", looksRight: "Det ser rigtigt ud", start: "Kom i gang", back: "Tilbage",
     y: { style: "Din stil", fine: "Finjustering",
       styles: { cheapest: ["Billigst muligt", "Flytter forbruget til de billige timer"], solar: ["Mest sol", "Lader aldrig batteriet fra nettet"],
@@ -266,7 +266,7 @@ const T = {
     chargeNow: "Charge now", readyAt: "Ready at", atMost: "At most", session: "this charge", shadowTitle: "Shadow or in control", shadowHint: "Shadow: plans and shows, controls nothing. In control: takes over. Switch the same part off in AppDaemon first.",
     agree: "agree", compare: "comparisons", errors: "errors", stopAll: "Put everything back in shadow", modes: { shadow: "Shadow", control: "Control", off: "Off" },
     names: { growatt_parallel: "Battery and sun", ev_charge_controller: "Car charging", husmodel: "House model" },
-    src: { energy: "Energy dashboard", name: "Found by name", known: "Your own", chosen: "Chosen by you", computed: "Calculated", own: "Fetched by Energy Pilot" }, notFound: "Not found", addArray: "Add another array", findSensor: "Search for a sensor…", pick: "Pick…", remove: "Remove",
+    src: { energy: "Energy dashboard", name: "Found by name", known: "Your own", chosen: "Chosen by you", computed: "Calculated", own: "Fetched by Energy Pilot" }, notFound: "Not found", addArray: "Add another array", findSensor: "Search for a sensor…", findOther: "Find another sensor", pick: "Pick…", remove: "Remove",
     findAgain: "Find again", runGuide: "Run the guide again", looksRight: "Looks right", start: "Get started", back: "Back",
     y: { style: "Your style", fine: "Fine-tuning",
       styles: { cheapest: ["Cheapest", "Moves use to the cheap hours"], solar: ["Most sun", "Never charges the battery from the grid"],
@@ -633,7 +633,7 @@ function sourceLabel(src) {
 }
 // Solar can be several arrays (and forecasts): they are added up.
 const MULTI = ["pv_power", "solar_today", "solar_tomorrow"];
-let roleAdd = {};
+let roleAdd = {}, roleFind = {};
 function roleList(r) {
   const c = (settings.settings.roles || {})[r];
   return Array.isArray(c) ? c : c ? [c] : [];
@@ -656,7 +656,8 @@ function roleRows(roles) {
       <option value="" ${chosen === "" ? "selected" : ""}>${T.none}</option>${opts(chosen)}</select>
       ${extra}${adding}
       <div class="rolemore">${multi && (list.length || foundId) ? `<button class="link" data-roleadd="${r}">+ ${T.addArray}</button>` : ""}
-        <input class="rolefind" list="ep-all" data-rolefind="${r}" placeholder="${T.findSensor}"></div></div>`;
+        ${roleFind[r] ? `<input class="rolefind" list="ep-all" data-rolefind="${r}" placeholder="${T.findSensor}">`
+          : `<button class="link" data-rolesearch="${r}">${T.findOther}</button>`}</div></div>`;
   }).join("") + sensors;
 }
 const STYLES = [["cheapest", "bolt"], ["solar", "sun"], ["safe", "battery"], ["car_first", "car"], ["battery_first", "layers"]];
@@ -815,7 +816,7 @@ function wire() {
     await api("/api/mode", { app: b.dataset.app, mode: b.dataset.mode }); status = await api("/api/status"); await load(); render();
   });
   $("[data-stopall]")?.addEventListener("click", async () => { await api("/api/shadow_all", {}); status = await api("/api/status"); await load(); render(); });
-  const saveRole = async (r, v) => { await api("/api/settings", { roles: { [r]: v } }); roleAdd = {}; settings = await api("/api/settings"); await load(); render(); };
+  const saveRole = async (r, v) => { await api("/api/settings", { roles: { [r]: v } }); roleAdd = {}; roleFind = {}; settings = await api("/api/settings"); await load(); render(); };
   const base = (r) => { const l = roleList(r); return l.length ? l : (settings.roles[r] ? [settings.roles[r]] : []); };
   document.querySelectorAll("[data-role]").forEach((s) => s.onchange = () => {
     const r = s.dataset.role, l = roleList(r);
@@ -832,6 +833,9 @@ function wire() {
     saveRole(r, l.length > 1 ? l : (l[0] ?? null));
   });
   document.querySelectorAll("[data-roleadd]").forEach((b) => b.onclick = () => { roleAdd[b.dataset.roleadd] = true; render(); });
+  document.querySelectorAll("[data-rolesearch]").forEach((b) => b.onclick = () => {
+    roleFind[b.dataset.rolesearch] = true; render(); document.querySelector(`[data-rolefind="${b.dataset.rolesearch}"]`)?.focus();
+  });
   document.querySelectorAll("[data-rolefind]").forEach((i) => i.onchange = () => {
     const r = i.dataset.rolefind, v = i.value.trim();
     if (!(settings.all_sensors || []).some((c) => c.entity_id === v)) return;
