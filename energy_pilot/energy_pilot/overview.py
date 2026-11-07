@@ -233,7 +233,7 @@ class Overview:
                           key=lambda h: h["price"])[:3]
         return {"now": now.isoformat(), "hours": rows,
                 "price_min": min(prices) if prices else None, "price_max": max(prices) if prices else None,
-                "cheapest": [h["t"] for h in cheapest]}
+                "cheapest": sorted(h["t"] for h in cheapest)}
 
     def ev(self) -> dict[str, Any] | None:
         r, st = self.roles(), self.ha.states

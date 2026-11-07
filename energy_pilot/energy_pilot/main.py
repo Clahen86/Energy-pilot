@@ -11,6 +11,7 @@ from pathlib import Path
 from aiohttp import web
 
 from .ha import HomeAssistant
+from .cards import Cards
 from .overview import Overview
 from .runner import Runner
 from .web import make_app
@@ -68,7 +69,9 @@ async def main() -> None:
     ha = HomeAssistant()
     runner = Runner(ha, apps_dir, data_dir, opts.get("apps") or DEFAULT_APPS)
     asyncio.create_task(ha.run())
-    web_runner = web.AppRunner(make_app(runner, Overview(ha, data_dir)))
+    overview = Overview(ha, data_dir)
+    asyncio.create_task(Cards(ha, overview, os.environ.get("BUILD_VERSION", "dev")).run())
+    web_runner = web.AppRunner(make_app(runner, overview))
     await web_runner.setup()
     await web.TCPSite(web_runner, "0.0.0.0", int(os.environ.get("PORT", 8099))).start()
     await runner.start()

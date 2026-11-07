@@ -1,5 +1,5 @@
 name: Energipilot
-version: "0.3.0"
+version: "0.4.0"
 slug: energy_pilot
 description: Batteri, sol og bilopladning i én app - i skygge først, styrer når du siger til.
 url: https://github.com/Clahen86/Energy-pilot
@@ -16,6 +16,7 @@ hassio_api: true
 map:
   - addon_config:rw
   - all_addon_configs:ro
+  - homeassistant_config:rw
 options:
   apps_dir: /addon_configs/a0d7b954_appdaemon/apps
   seed_from: /addon_configs/a0d7b954_appdaemon
