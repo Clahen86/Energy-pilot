@@ -209,6 +209,8 @@ const T = {
       preset: "Start fra", choose: "Vælg…", defaultPrice: "Normalpris", defaultPriceH: "Når ingen periode gælder", periodName: "Navn, fx Spids",
       addPeriod: "Tilføj periode", days: { all: "Alle dage", weekdays: "Hverdage", weekends: "Weekend" },
       fromTo: "Fra – til", secBattery: "Husbatteri", secBatteryH: "Batteriet i huset", secCar: "Bil og lader", secCarH: "Opladning af elbilen",
+      followSun: "Følg solen", followSunH: "Strømmen følger soloverskuddet (6 A og op), og bilen lader også uden for planen, når solen giver nok",
+      fuseGuard: "Pas på hovedsikringen", fuseGuardH: "Skruer ned for bilen, så huset aldrig køber mere end {x} kW",
       sign: "Batteriets effekt", signs: { auto: "Find selv", norm: "+ er lader", rev: "+ er aflader" },
       signNorm: "Fundet: positivt tal = batteriet lader", signRev: "Fundet: positivt tal = batteriet aflader (fx Fox ESS) – vendes",
       signUnknown: "Ser på batteriniveauet for at finde ud af, hvilken vej tallet går",
@@ -283,6 +285,8 @@ const T = {
       preset: "Start from", choose: "Choose…", defaultPrice: "Normal price", defaultPriceH: "When no period applies", periodName: "Name, e.g. Peak",
       addPeriod: "Add period", days: { all: "Every day", weekdays: "Weekdays", weekends: "Weekends" },
       fromTo: "From – to", secBattery: "House battery", secBatteryH: "The battery in the house", secCar: "Car and charger", secCarH: "Charging the car",
+      followSun: "Follow the sun", followSunH: "The current follows the solar surplus (6 A and up), and the car also charges outside the plan when the sun gives enough",
+      fuseGuard: "Mind the main fuse", fuseGuardH: "Turns the car down so the house never buys more than {x} kW",
       sign: "Battery power", signs: { auto: "Find out", norm: "+ is charging", rev: "+ is discharging" },
       signNorm: "Found: positive means charging", signRev: "Found: positive means discharging (e.g. Fox ESS) – reversed",
       signUnknown: "Watching the battery level to tell which way the number goes",
@@ -695,6 +699,8 @@ function styleView() {
       ${v.inverter_profile === "custom" ? customEditor(v) : ""}` : "")}
     ${section("car", y.secCar, y.secCarH, hasCar ? `${row(y.carMode, "", `<div class="seg mini">${["cheapest", "solar"].map((m) => `<button class="${(v.ev_mode || "cheapest") === m ? "on" : ""}" data-evmode="${m}">${y.carModes[m]}</button>`).join("")}</div>`)}
       ${row(y.charger, y.chargerH, numIn("charger_kw", 7.4, "0.1", "kW"))}
+      ${settings.roles.pv_power ? row(y.followSun, y.followSunH, tog("ev_follow_sun", true)) : ""}
+      ${v.import_limit_kw ? row(y.fuseGuard, y.fuseGuardH.replace("{x}", num(v.import_limit_kw, 0)), tog("ev_fuse_guard", true)) : ""}
       ${quietRow("car")}
       ${row(y.evInHouse, settings.ev_detected == null ? y.evInHouseUnknown : settings.ev_detected ? y.evInHouseYes : y.evInHouseNo,
         `<div class="seg mini">${[["auto", null], ["yes", true], ["no", false]].map(([k, val]) => `<button class="${(v.ev_in_house ?? null) === val ? "on" : ""}" data-evhouse="${k}">${y.evHouse[k]}</button>`).join("")}</div>`)}` : "")}

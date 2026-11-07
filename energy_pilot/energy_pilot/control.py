@@ -37,6 +37,8 @@ class Controller:
         self.services: set[str] | None = None
         self.last: dict[str, dict[str, Any]] = {}
         self.log: dict[str, deque] = {"battery": deque(maxlen=60), "car": deque(maxlen=60)}
+        self._sun_on = False  # the car is charging on the sun's surplus (for the start/stop margin)
+        self.car_why = ""
 
     # ---------- settings ----------
 
@@ -143,10 +145,15 @@ class Controller:
             hour = now.replace(minute=now.minute // slot * slot if slot < 60 else 0, second=0, microsecond=0)  # the slot now
             planned = {datetime.fromisoformat(t) for t in (car.get("hours") or [])}
             manual = bool(self.ov.settings.get("ev_now"))
-            charge = f.get("plug") and (manual or hour in planned)
-            kw = float(self.ov.settings.get("charger_kw") or 7.4)
-            phases = int(self.ov.settings.get("charger_phases") or (3 if kw > 7.5 else 1))
-            out["car"] = {"intent": "charge" if charge else "stop", "ctx": {"current": min(32, max(6, kw * 1000 / (230 * phases)))}}
+            from .carspeed import decide
+
+            st = dict(self.ov.settings)
+            if st.get("ev_follow_sun") is None:
+                st["ev_follow_sun"] = bool(self.ov.role("pv_power"))  # on by default when there is solar
+            need = float(car.get("need_kwh") if car.get("need_kwh") is not None else 1.0)
+            d = decide(f, st, hour in planned, manual, need, self._sun_on)
+            self._sun_on, self.car_why = d["sun"], d["why"]
+            out["car"] = {"intent": "charge" if d["charge"] else "stop", "ctx": {"current": d["current"]}}
         return out
 
     def calls(self, part: str, want: dict[str, Any]) -> list[dict[str, Any]]:
@@ -155,8 +162,10 @@ class Controller:
             return adapters.resolve(steps.get(want["intent"], []), self._pool(), want["ctx"])
         return adapters.charger_calls(want["intent"], self.entities["car"], self.platforms["car"], want["ctx"]["current"])
 
-    async def tick(self) -> None:
+    async def tick(self, parts: tuple[str, ...] = ("battery", "car")) -> None:
         for part, want in self.intents().items():
+            if part not in parts:
+                continue
             mode = self.mode(part)
             if mode == "off":
                 continue

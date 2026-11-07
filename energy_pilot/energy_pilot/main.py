@@ -109,6 +109,20 @@ async def main() -> None:
 
     asyncio.create_task(run_engine())
 
+    async def run_car() -> None:
+        """Every minute: the car's current follows the sun's surplus and the fuse (see carspeed.py)."""
+        await ha.connected.wait()
+        await asyncio.sleep(60)
+        while True:
+            try:
+                if controller.entities["car"] or controller.platforms["car"]:
+                    await controller.tick(("car",))
+            except Exception:  # noqa: BLE001
+                logging.getLogger("energy_pilot.car").debug("Car round failed", exc_info=True)
+            await asyncio.sleep(60)
+
+    asyncio.create_task(run_car())
+
     async def run_ledger() -> None:
         """Every half minute: what the battery holds and what it cost, and what it saved."""
         from datetime import datetime as _dt
