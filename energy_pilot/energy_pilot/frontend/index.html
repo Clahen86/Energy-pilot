@@ -425,7 +425,8 @@ function home() {
     d.price.now != null ? metric("bolt", T.priceNow, num(d.price.now, 2), `${SYM()}/kWh`, lv ? `<span class="lvl ${lv}">${T[lv]}</span> ${L === "da" ? "i dag" : "today"}` : "", "t-price") : "",
     d.solar.solar_today != null ? metric("sun", T.sunToday, num(d.solar.solar_today, 1), "kWh", d.solar.solar_tomorrow != null ? `${L === "da" ? "I morgen" : "Tomorrow"} ${num(d.solar.solar_tomorrow, 1)} kWh` : "") : "",
     f.soc != null ? metric("battery", T.battery, num(f.soc, 0), "%", dec?.target != null ? `${T.target} ${num(dec.target, 0)} %` : "", "t-soc", `<div class="bar"><span id="t-socbar" style="width:${f.soc}%"></span></div>`) : "",
-    d.house_today != null ? metric("house", T.houseToday, num(d.house_today, 1), "kWh", L === "da" ? "forventet" : "expected") : "",
+    d.house_today != null ? metric("house", T.houseToday, num(d.house_today, 1), "kWh",
+      d.house_other != null ? `${d.house_other_appdaemon ? (L === "da" ? "din AppDaemon" : "your AppDaemon") : (L === "da" ? "anden prognose" : "other forecast")}: ${num(d.house_other, 1)}` : (L === "da" ? "forventet" : "expected")) : "",
   ].join("");
   return `<div class="card flow fade" id="flow">${flowSvg(f)}</div>
     ${dec ? `<div class="card status fade" style="--c:${DECCOL[dec.kind]}"><div class="dotc">${icon(DECICON[dec.kind])}</div>

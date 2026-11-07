@@ -97,6 +97,7 @@ async def main() -> None:
                     await engine.learn()
                     learned = asyncio.get_running_loop().time()
                 await engine.refresh_sources()
+                await engine.refresh_house_today()
                 engine.run()
                 await engine.review()
                 if not controller.entities["battery"] and not controller.entities["car"] or int(asyncio.get_running_loop().time()) % 3600 < 300:

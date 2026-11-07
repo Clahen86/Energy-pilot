@@ -345,6 +345,11 @@ class Overview:
         return {
             "flow": self.flow(), "decision": self.decision(lang), "plan": self.plan(), "ev": self.ev(),
             "price": {"now": _num(price), "unit": ((price or {}).get("attributes") or {}).get("unit_of_measurement")},
-            "solar": solar, "house_today": _num(self.ha.states.get(house_e)) if house_e else None,
+            # Home today: the engine's own (what the plan uses); another system's forecast is shown beside it.
+            "solar": solar,
+            "house_today": (self.engine.house_today() if self.engine else None)
+            or (_num(self.ha.states.get(house_e)) if house_e else None),
+            "house_other": _num(self.ha.states.get(house_e)) if house_e and self.engine and self.engine.house_today() else None,
+            "house_other_appdaemon": bool(house_e and "appdaemon" in house_e),
             "settings": self.settings,
         }

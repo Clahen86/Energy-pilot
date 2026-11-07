@@ -217,6 +217,7 @@ class Engine:
         self.profile_at: datetime | None = None
         self.result: dict[str, Any] | None = None
         self.agree = {"checks": 0, "same": 0}
+        self.house_so_far: float | None = None  # kWh the house has used today, from the statistics
 
     def settings(self) -> Battery:
         """The battery as set - a style changes the defaults: "solar" never buys for the battery, "safe" keeps 30 %."""
@@ -348,6 +349,27 @@ class Engine:
         if self.solar_factors and self.weather and not self.ov.role("solar_today"):
             start = datetime.now(self.tz).replace(minute=0, second=0, microsecond=0)
             self.own_solar = solar_forecast(self.solar_factors, self.weather, [start + timedelta(hours=i) for i in range(48)])
+
+    async def refresh_house_today(self) -> None:
+        """What the house has used so far today (whole hours from the statistics, plus this hour's share)."""
+        if not (e := self.ov.role("house_power")):
+            return
+        now = datetime.now(self.tz)
+        day0 = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        rows = await self._hourly_kw(e, 1)
+        done = sum(kw for w, kw in rows if day0 <= w < now.replace(minute=0, second=0, microsecond=0))
+        house_w = (self.ov.flow() or {}).get("house") or 0.0
+        self.house_so_far = round(done + house_w / 1000 * now.minute / 60, 2)
+
+    def house_today(self) -> float | None:
+        """Today in all: used so far plus the engine's own forecast for the rest of the day - the plan's numbers."""
+        rows = (self.result or {}).get("house") or []
+        if self.house_so_far is None and not rows:
+            return None
+        now = datetime.now(self.tz)
+        rest = sum(r["kwh"] for r in rows if datetime.fromisoformat(r["t"]).date() == now.date())
+        rest -= (rows[0]["kwh"] * now.minute / 60) if rows else 0.0  # this hour's gone part is in "so far"
+        return round((self.house_so_far or 0.0) + max(0.0, rest), 1)
 
     async def review(self) -> None:
         """After midnight: yesterday with the real numbers - the engine learns from it (see learning.py)."""
