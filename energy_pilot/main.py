@@ -67,9 +67,9 @@ async def main() -> None:
     ha = HomeAssistant()
     runner = Runner(ha, apps_dir, data_dir, opts.get("apps") or DEFAULT_APPS)
     asyncio.create_task(ha.run())
-    site = web.TCPSite(web_runner := web.AppRunner(make_app(runner)), "0.0.0.0", int(os.environ.get("PORT", 8099)))
+    web_runner = web.AppRunner(make_app(runner))
     await web_runner.setup()
-    await site.start()
+    await web.TCPSite(web_runner, "0.0.0.0", int(os.environ.get("PORT", 8099))).start()
     await runner.start()
     await asyncio.Event().wait()
 

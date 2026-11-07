@@ -129,12 +129,14 @@ class HomeAssistant:
         if self.connected.is_set():
             await self._subscribe(event)
 
-    async def call_service(self, domain: str, service: str, data: dict[str, Any]) -> Any:
+    async def call_service(self, domain: str, service: str, data: dict[str, Any], response: bool = False) -> Any:
         target = {k: data.pop(k) for k in ("entity_id", "device_id", "area_id") if k in data}
         msg: dict[str, Any] = {"type": "call_service", "domain": domain, "service": service, "service_data": data}
         if target:
             msg["target"] = target
-        return await self.command(msg)
+        if response:
+            msg["return_response"] = True
+        return await self.command(msg, timeout=170)
 
     async def set_state(self, entity_id: str, state: Any, attributes: dict[str, Any] | None) -> None:
         assert self.session is not None

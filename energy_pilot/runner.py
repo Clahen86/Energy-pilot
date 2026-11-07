@@ -190,12 +190,16 @@ class Runner:
 
     def call_service(self, name: str, service: str, data: dict[str, Any]) -> Any:
         domain, _, svc = service.replace(".", "/", 1).partition("/")
+        if svc.startswith("get_"):
+            # Only reads (statistics, calendars, forecasts): done in shadow too, or the app would plan blind.
+            result = self._sync(self.ha.call_service(domain, svc, dict(data), response=True), timeout=180)
+            return {"success": True, "result": result}
         if self.mode(name) != CONTROL:
             self.apps[name].would.append({"t": time.time(), "service": f"{domain}.{svc}", "data": _plain(data)})
             # What the app sets on a helper it sees itself, as if it had happened.
             self._pretend(domain, svc, data)
             return None
-        return self._sync(self.ha.call_service(domain, svc, dict(data)))
+        return {"success": True, "result": self._sync(self.ha.call_service(domain, svc, dict(data)))}
 
     def _pretend(self, domain: str, svc: str, data: dict[str, Any]) -> None:
         entity = data.get("entity_id")

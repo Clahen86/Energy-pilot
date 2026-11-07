@@ -18,8 +18,9 @@ class FakeHA:
         self.config = {"time_zone": "Europe/Copenhagen", "version": "test"}
         self.calls, self.written = [], []
 
-    async def call_service(self, domain, service, data):
+    async def call_service(self, domain, service, data, response=False):
         self.calls.append((domain, service, data))
+        return {"response": {"ok": True}} if response else {"context": {}}
 
     async def set_state(self, entity_id, state, attributes):
         self.written.append((entity_id, state))
