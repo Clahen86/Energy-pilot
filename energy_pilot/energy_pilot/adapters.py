@@ -58,6 +58,23 @@ PROFILES: dict[str, dict[str, Any]] = {
                    (r"select\..*(work_mode_priority|priority_mode|inverter_priority)$", "select", "Battery first")],
         "optional": [r"number\..*(battery_first_charge_rate|charge_power_rate)$"],
     },
+    # Deye hybrid (also Sunsynk-built) via the Solarman integration (davidrapan/ha-solarman). Deye works with six
+    # "Time of Use" programmes; each has a battery level it won't go below and whether it may charge from the grid.
+    # All six are set alike, so whichever programme is running does what the plan wants - no clock times are touched.
+    "solarman": {
+        "name": "Deye (Solarman)",
+        "match": r"deye|solarman",
+        "models": r"deye|SUN-\d+K-SG|sg0\dlp|sg0\dhp",
+        "normal": [(r"select\..*time_of_use$", "select", "Week"), (r"switch\..*battery_grid_charging$", "off", None)]
+        + [(rf"number\..*program_{n}_soc$", "number", "{min_soc}") for n in range(1, 7)]
+        + [(rf"select\..*program_{n}_charging$", "select", "Disabled") for n in range(1, 7)],
+        "hold": [(r"select\..*time_of_use$", "select", "Week"), (r"switch\..*battery_grid_charging$", "off", None)]
+        + [(rf"number\..*program_{n}_soc$", "number", "{soc}") for n in range(1, 7)]
+        + [(rf"select\..*program_{n}_charging$", "select", "Disabled") for n in range(1, 7)],
+        "charge": [(r"select\..*time_of_use$", "select", "Week"), (r"switch\..*battery_grid_charging$", "on", None)]
+        + [(rf"number\..*program_{n}_soc$", "number", "{target}") for n in range(1, 7)]
+        + [(rf"select\..*program_{n}_charging$", "select", "Grid") for n in range(1, 7)],
+    },
     "huawei_solar": {
         "name": "Huawei SUN2000 / LUNA2000",
         "match": r"huawei|sun2000|luna",

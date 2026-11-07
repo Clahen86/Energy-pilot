@@ -65,3 +65,18 @@ def test_missing_control_is_found_and_never_half():
     found = ["number.huawei_maximum_discharging_power"]
     assert adapters.missing(adapters.check(hs, found, h["optional"], {"huawei_solar.forcible_charge_soc"})) == []
     assert adapters.missing(adapters.check(hs, found, h["optional"], set())) == ["huawei_solar.forcible_charge_soc"]
+
+
+def test_deye_solarman_sets_all_six_programmes():
+    deye = (["select.deye_time_of_use", "switch.deye_battery_grid_charging", "select.deye_work_mode"]
+            + [f"number.deye_program_{n}_soc" for n in range(1, 7)] + [f"select.deye_program_{n}_charging" for n in range(1, 7)])
+    assert adapters.guess_profile(deye, {"solarman"}) == "solarman"
+    p = adapters.PROFILES["solarman"]
+    steps = {i: p[i] for i in ("normal", "hold", "charge")}
+    assert adapters.missing(adapters.check(steps, deye)) == []
+    charge = adapters.resolve(p["charge"], deye, CTX)
+    assert {"entity_id": "number.deye_program_4_soc", "value": 90} in [c["data"] for c in charge]
+    assert {"entity_id": "select.deye_program_6_charging", "option": "Grid"} in [c["data"] for c in charge]
+    assert {"domain": "switch", "service": "turn_on", "data": {"entity_id": "switch.deye_battery_grid_charging"}} in charge
+    hold = adapters.resolve(p["hold"], deye, CTX)
+    assert {"entity_id": "number.deye_program_1_soc", "value": 62} in [c["data"] for c in hold]
