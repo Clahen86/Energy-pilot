@@ -35,7 +35,8 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
         return web.json_response(data)
 
     async def get_settings(_req: web.Request) -> web.Response:
-        return web.json_response({"settings": overview.settings, "roles": overview.roles(),
+        guess = overview.engine._guess_capacity() if overview.engine else None
+        return web.json_response({"settings": overview.settings, "roles": overview.roles(), "capacity_guess": guess,
                                   "sources": {r: overview.source(r) for r in overview.roles()},
                                   "candidates": overview.candidates()})
 
@@ -45,6 +46,11 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
 
     async def save_settings(req: web.Request) -> web.Response:
         overview.save(await req.json())
+        if overview.engine:
+            try:
+                overview.engine.run()  # the new choices show at once
+            except Exception:  # noqa: BLE001
+                pass
         return web.json_response({"ok": True})
 
     async def ev(req: web.Request) -> web.Response:

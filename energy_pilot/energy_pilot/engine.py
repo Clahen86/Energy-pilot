@@ -61,6 +61,8 @@ class Battery:
     max_soc: float = 100.0
     efficiency: float = 0.92  # round trip
     grid_charge: bool = True  # may charge from the grid when it pays
+    import_limit_kw: float | None = None  # main fuse: never buy more than this in an hour
+    quiet: frozenset = frozenset()  # hours (0-23) the battery must not charge
 
 
 @dataclass
@@ -123,6 +125,8 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
                     grid = h.house - h.sun + into
                     if not b.grid_charge and grid > max(0.0, h.house - h.sun) + 1e-9:
                         continue
+                    if h.start.hour in b.quiet:
+                        continue
                     action = "charge_sun" if into - from_sun < 1e-6 else "charge_grid"
                 elif delta < 0:
                     out = -delta * eff  # what comes out to the house
@@ -136,6 +140,8 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
                 else:
                     grid = h.house - h.sun
                     action = "hold"
+                if b.import_limit_kw is not None and grid > b.import_limit_kw + 1e-9 and delta > 0:
+                    continue  # charging would trip the main fuse
                 cost = grid * h.price if grid > 0 else grid * h.sell
                 total = cost + best[i + 1][k]
                 if total < best[i][j] - 1e-12:
@@ -156,12 +162,15 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
 
 # ---------- car plan ----------
 
-def plan_car(hours: list[Hour], need_kwh: float, charger_kw: float, ready: datetime | None, now: datetime) -> list[datetime]:
-    """The hours to charge in: sun surplus first, then the cheapest - all before 'ready' (or within 24 h)."""
+def plan_car(hours: list[Hour], need_kwh: float, charger_kw: float, ready: datetime | None, now: datetime,
+             solar_only: bool = False, skip: set | None = None) -> list[datetime]:
+    """The hours to charge in: sun surplus first, then the cheapest - all before 'ready' (or within 24 h).
+    solar_only: only hours with a real surplus. skip: hours not to use (quiet hours, the battery's sun hours)."""
     if need_kwh <= 0 or charger_kw <= 0:
         return []
     until = ready or now + timedelta(hours=24)
-    usable = [h for h in hours if now - timedelta(hours=1) < h.start < until]
+    usable = [h for h in hours if now - timedelta(hours=1) < h.start < until and h.start not in (skip or set())
+              and (not solar_only or h.sun - h.house >= charger_kw * 0.5)]
     # A surplus hour costs what the energy would have been sold for; others their price.
     ranked = sorted(usable, key=lambda h: h.sell if h.sun - h.house >= charger_kw * 0.7 else h.price)
     chosen, got = [], 0.0
@@ -187,12 +196,27 @@ class Engine:
         self.agree = {"checks": 0, "same": 0}
 
     def settings(self) -> Battery:
+        """The battery as set - a style changes the defaults: "solar" never buys for the battery, "safe" keeps 30 %."""
         s = self.ov.settings
+        style = s.get("style") or "cheapest"
+        min_soc = float(s.get("battery_min_soc") or 10)
+        if style == "safe":
+            min_soc = max(min_soc, 30.0)
+        grid = bool(s.get("grid_charge", True)) and style != "solar"
         return Battery(
             capacity_kwh=float(s.get("battery_kwh") or self._guess_capacity() or 10),
             max_charge_kw=float(s.get("battery_charge_kw") or 3), max_discharge_kw=float(s.get("battery_discharge_kw") or 3),
-            min_soc=float(s.get("battery_min_soc") or 10), grid_charge=bool(s.get("grid_charge", True)),
+            min_soc=min_soc, grid_charge=grid, import_limit_kw=float(s["import_limit_kw"]) if s.get("import_limit_kw") else None,
+            quiet=frozenset(self.quiet_hours()) if s.get("quiet_battery") else frozenset(),
         )
+
+    def quiet_hours(self) -> list[int]:
+        s = self.ov.settings
+        try:
+            a, b = int(str(s.get("quiet_from", "")).split(":")[0]), int(str(s.get("quiet_to", "")).split(":")[0])
+        except ValueError:
+            return []
+        return list(range(a, b)) if a < b else list(range(a, 24)) + list(range(0, b))
 
     def _guess_capacity(self) -> float | None:
         for e, st in self.ha.states.items():
@@ -242,14 +266,22 @@ class Engine:
             return None
         times = [datetime.fromisoformat(h["t"]) for h in rows]
         house = house_forecast(self.profile, times) if self.profile else [h.get("house", 0.6) for h in rows]
-        sell_factor = float(self.ov.settings.get("sell_factor", 0.0))  # share of the price paid for exported power
-        hours = [Hour(t, r["price"], r["price"] * sell_factor, house[i], r.get("sun", 0.0)) for i, (t, r) in enumerate(zip(times, rows))]
+        st = self.ov.settings
+        sell = float(st.get("sell_price") or 0) if st.get("sell") else 0.0  # what exported power earns
+        hours = [Hour(t, r["price"], sell, house[i], r.get("sun", 0.0)) for i, (t, r) in enumerate(zip(times, rows))]
         # This hour is partly gone: scale it.
         part = 1 - now.minute / 60
         hours[0].house *= part
         hours[0].sun *= part
         f = self.ov.flow()
-        result: dict[str, Any] = {"at": now.isoformat(), "house": [{"t": t.isoformat(), "kwh": k} for t, k in zip(times, house)]}
+        result: dict[str, Any] = {"at": now.isoformat(), "house": [{"t": t.isoformat(), "kwh": k} for t, k in zip(times, house)],
+                                  "style": st.get("style") or "cheapest"}
+        car_plan = self._car(hours, now, f, skip=set()) if (st.get("style") == "car_first") else None
+        if car_plan:
+            charger = float(st.get("charger_kw") or 7.4)
+            for h in hours:
+                if h.start in car_plan["set"]:
+                    h.house += charger  # the car gets the sun first: what's left goes to the battery
         if f["soc"] is not None:
             b = self.settings()
             p = plan_battery(hours, f["soc"], b)
@@ -258,20 +290,33 @@ class Engine:
                 "now": ACTION_KIND[p.steps[0].action] if p.steps else "hold", "target": p.steps[0].soc_end if p.steps else None,
                 "cost": p.cost, "cost_without": p.cost_without, "saving": p.saving, "capacity": b.capacity_kwh,
             }
-        ev = self.ov.ev()
-        if ev is not None and f.get("plug"):
-            need = float(ev.get("cap") or self.ov.settings.get("ev_need_kwh") or 20) - float(ev.get("session_kwh") or 0)
-            ready = None
-            if ev.get("ready") and ev["ready"] != "00:00:00":
-                hh, mm = (int(x) for x in str(ev["ready"]).split(":")[:2])
-                ready = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
-                if ready <= now:
-                    ready += timedelta(days=1)
-            charger = float(self.ov.settings.get("charger_kw") or 7.4)
-            result["car"] = {"hours": [t.isoformat() for t in plan_car(hours, max(0.0, need), charger, ready, now)], "need_kwh": round(max(0.0, need), 1)}
+        if car_plan is None:
+            skip = set()
+            if st.get("style") == "battery_first" and result.get("battery"):
+                skip = {datetime.fromisoformat(x["t"]) for x in result["battery"]["steps"] if x["action"] == "charge_sun"}
+            car_plan = self._car(hours, now, f, skip)
+        if car_plan:
+            result["car"] = {"hours": car_plan["hours"], "need_kwh": car_plan["need"]}
         self.result = result
         self._compare()
         return result
+
+    def _car(self, hours: list[Hour], now: datetime, f: dict[str, Any], skip: set) -> dict[str, Any] | None:
+        ev, st = self.ov.ev(), self.ov.settings
+        if ev is None or not f.get("plug"):
+            return None
+        need = float(ev.get("cap") or st.get("ev_need_kwh") or 20) - float(ev.get("session_kwh") or 0)
+        ready = None
+        if ev.get("ready") and ev["ready"] != "00:00:00":
+            hh, mm = (int(x) for x in str(ev["ready"]).split(":")[:2])
+            ready = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+            if ready <= now:
+                ready += timedelta(days=1)
+        if st.get("quiet_car"):
+            skip = skip | {h.start for h in hours if h.start.hour in self.quiet_hours()}
+        chosen = plan_car(hours, max(0.0, need), float(st.get("charger_kw") or 7.4), ready, now,
+                          solar_only=st.get("ev_mode") == "solar", skip=skip)
+        return {"hours": [t.isoformat() for t in chosen], "set": set(chosen), "need": round(max(0.0, need), 1)}
 
     def _compare(self) -> None:
         """How often the engine agrees with the system that controls today (when there is one)."""

@@ -40,3 +40,19 @@ def test_house_profile_and_car():
     hours = day([3, 3, 1, 1, 2, 2] + [3] * 18)
     chosen = plan_car(hours, need_kwh=14, charger_kw=7, ready=T0 + timedelta(hours=7), now=T0)
     assert [h.hour for h in chosen] == [2, 3]
+
+
+def test_styles_limits_and_quiet():
+    prices = [1.0] * 6 + [2.0] * 11 + [4.0] * 4 + [2.0] * 3
+    # Never from the grid
+    p = plan_battery(day(prices), soc_now=10, b=Battery(grid_charge=False))
+    assert not any(s.action == "charge_grid" for s in p.steps)
+    # Quiet at night: no charging 0-6
+    p = plan_battery(day(prices), soc_now=10, b=Battery(quiet=frozenset(range(0, 6))))
+    assert not any(s.action.startswith("charge") for s in p.steps[:6])
+    # A low main fuse: charging may not push the hour over it
+    p = plan_battery(day(prices, house=2.5), soc_now=10, b=Battery(import_limit_kw=4.0, max_charge_kw=3))
+    assert all(s.grid_kwh <= 4.0 + 1e-6 for s in p.steps if s.action.startswith("charge"))
+    # Solar-only car
+    hours = day([2] * 24, sun=[0] * 10 + [8, 8] + [0] * 12)
+    assert [h.hour for h in plan_car(hours, 14, 7, None, T0, solar_only=True)] == [10, 11]
