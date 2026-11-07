@@ -31,6 +31,41 @@ const lang = (h) => ((h?.locale?.language || h?.language || "da").startsWith("da
 const ic = (n, size = 16) => `<svg class="ic" style="width:${size}px;height:${size}px" viewBox="0 0 24 24">${P[n]}</svg>`;
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
+/* ---------- energy flow: every real path (sun→battery, grid→battery, battery→car …), shared by panel and card ---------- */
+function flowPaths(f) {
+  // Who feeds whom (W): the sun first to the house, then the car, the battery, the grid; the battery to the house and
+  // the car; the grid covers the rest.
+  const src = { pv: Math.max(0, f.pv || 0), batt: Math.max(0, -(f.battery ?? f.batt ?? 0)), grid: Math.max(0, f.grid || 0) };
+  const need = { house: Math.max(0, f.house || 0), ev: Math.max(0, f.ev || 0), batt: Math.max(0, f.battery ?? f.batt ?? 0), grid: Math.max(0, -(f.grid || 0)) };
+  const out = {};
+  for (const s of ["pv", "batt", "grid"]) {
+    for (const d of ["house", "ev", "batt", "grid"]) {
+      if (s === d || (s === "grid" && d === "grid")) continue;
+      const w = Math.min(src[s], need[d]);
+      if (w > 1) { out[`${s}>${d}`] = w; src[s] -= w; need[d] -= w; }
+    }
+  }
+  return out;
+}
+const FLOW_GEOM = {
+  "pv>house": "M180 74 L180 116", "pv>batt": "M156 58 Q86 70 64 122", "pv>grid": "M204 58 Q274 70 296 122", "pv>ev": "M204 66 Q262 150 204 236",
+  "batt>house": "M74 150 L146 150", "batt>ev": "M62 178 Q76 254 154 260", "batt>grid": "M66 172 Q180 236 294 172",
+  "grid>house": "M286 150 L214 150", "grid>ev": "M298 178 Q284 254 206 260", "grid>batt": "M294 128 Q180 70 66 128",
+};
+const FLOW_COLOR = { pv: "var(--sun)", batt: "var(--batt)", grid: "var(--grid)", house: "var(--house)" };
+function flowBeams(f, filterId) {
+  const paths = flowPaths(f), out = [];
+  for (const [key, w] of Object.entries(paths)) {
+    const [s] = key.split(">");
+    const d = FLOW_GEOM[key];
+    if (!d) continue;
+    const width = (1.6 + Math.min(3.2, w / 1200)).toFixed(1), dur = Math.max(0.7, Math.min(3.4, 2800 / w)).toFixed(2);
+    out.push(`<path class="lane" d="${d}" style="stroke:${FLOW_COLOR[s]}"/>
+      <path class="beam" d="${d}" style="stroke:${FLOW_COLOR[s]};stroke-width:${width};--d:${dur}s" filter="url(#${filterId})"/>`);
+  }
+  return out.join("");
+}
+
 class EnergipilotCard extends HTMLElement {
   setConfig(config) { this._config = { view: "overview", ...config }; if (!this.shadowRoot) this.attachShadow({ mode: "open" }); this._uid = Math.random().toString(36).slice(2, 7); }
   static getConfigElement() { return document.createElement("energipilot-card-editor"); }
@@ -66,7 +101,8 @@ class EnergipilotCard extends HTMLElement {
   }
   _sig() {
     const f = this._flow(), b = (w) => w == null || Math.abs(w) < 30 ? 0 : (w > 0 ? 1 : -1) * (Math.abs(w) > 3000 ? 3 : Math.abs(w) > 1200 ? 2 : 1);
-    return [b(f.pv), b(f.grid), b(f.batt), b(f.ev), Object.values(f.has).join()].join("|");
+    const p = flowPaths(f);
+    return Object.keys(p).sort().map((k) => k + Math.min(3, Math.floor(p[k] / 1200))).join(",") + "|" + Object.values(f.has).join();
   }
 
   _render() {
@@ -89,29 +125,25 @@ class EnergipilotCard extends HTMLElement {
     const bb = root.getElementById("bbar"); if (bb) bb.style.width = `${f.soc || 0}%`;
   }
 
-  _node(id, x, y, color, value, unit, cap, extra = "", above = false) {
-    return `<g transform="translate(${x} ${y})"><circle r="33" class="nbg"/><circle r="33" fill="none" stroke="${color}" stroke-opacity=".6" stroke-width="1.4"/>${extra}
-      <g transform="translate(-10 -21) scale(.84)" style="color:${color}"><svg width="24" height="24" viewBox="0 0 24 24" class="ic" style="width:24px;height:24px">${P[id]}</svg></g>
+  _node(id, x, y, color, value, unit, cap, extra = "", above = false, active = false) {
+    return `<g transform="translate(${x} ${y})" class="node ${active ? "on" : ""}" style="--nc:${color}"><circle r="40" class="halo"/><circle r="33" class="nbg"/><circle r="33" fill="none" stroke="${color}" stroke-opacity=".6" stroke-width="1.4"/>${extra}
+      <g transform="translate(-10 -21) scale(.84)" style="color:${color}"><svg width="24" height="24" viewBox="0 0 24 24" class="ic ${id === "sun" && active ? "spin" : ""}" style="width:24px;height:24px">${P[id]}</svg></g>
       <text class="val" y="17" id="v-${id}">${value}<tspan class="unit" id="u-${id}">${unit ? " " + unit : ""}</tspan></text>
       ${cap != null ? `<text class="cap" y="${above ? -42 : 50}">${esc(cap)}</text>` : ""}</g>`;
-  }
-  _edge(d, w, color, rev) {
-    const n = Math.abs(w || 0);
-    if (n < 30) return `<path class="base" d="${d}"/>`;
-    return `<path class="base" d="${d}"/><path class="beam ${rev ? "rev" : ""}" d="${d}" style="stroke:${color};--d:${Math.max(0.8, Math.min(3.6, 3000 / n)).toFixed(2)}s" filter="url(#g${this._uid})"/>`;
   }
   _flowHtml() {
     const f = this._flow(), t = this.t, h = f.has, gc = (f.grid || 0) < -30 ? "#3ddc97" : "#6ea8fe", r = 38, c = 2 * Math.PI * r;
     const [pv, pvu] = this._split(f.pv), [ho, hou] = this._split(f.house), [gr, gru] = this._split(f.grid), [ev, evu] = this._split(f.ev);
     const ring = `<circle r="${r}" fill="none" stroke="#a78bfa" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - (f.soc || 0) / 100)}" transform="rotate(-90)" id="soc"/>`;
     return `<div class="flow"><svg viewBox="-20 -20 400 352"><defs><filter id="g${this._uid}" filterUnits="userSpaceOnUse" x="-40" y="-40" width="480" height="430"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-      ${h.pv ? this._edge("M180 73 L180 117", f.pv, "#f5b544") : ""}${h.grid ? this._edge("M287 150 L213 150", f.grid, gc, (f.grid || 0) < 0) : ""}
-      ${h.battery ? this._edge("M73 150 L147 150", f.batt, "#a78bfa", (f.batt || 0) > 0) : ""}${h.ev ? this._edge("M180 183 L180 227", f.ev, "#f472b6") : ""}
-      ${h.pv ? this._node("sun", 180, 40, "#f5b544", pv, pvu, t.sun.toUpperCase(), "", true) : ""}
-      ${h.grid ? this._node("grid", 320, 150, gc, gr, gru, (f.grid < -30 ? t.sell : f.grid > 30 ? t.buy : t.grid).toUpperCase()) : ""}
-      ${this._node("house", 180, 150, "var(--ep-house)", ho, hou, null)}
-      ${h.battery ? this._node("battery", 40, 150, "#a78bfa", this._n(f.soc, 0), "%", (f.batt > 30 ? t.charging : f.batt < -30 ? t.discharging : t.idle).toUpperCase(), ring) : ""}
-      ${h.ev ? this._node("car", 180, 260, "#f472b6", f.ev > 30 ? ev : "–", f.ev > 30 ? evu : "", (f.ev > 30 ? t.charging : f.plug ? t.plugged : t.notPlugged).toUpperCase()) : ""}
+      ${h.pv ? '<path class="base" d="M180 74 L180 116"/>' : ""}${h.grid ? '<path class="base" d="M286 150 L214 150"/>' : ""}
+      ${h.battery ? '<path class="base" d="M74 150 L146 150"/>' : ""}${h.ev ? '<path class="base" d="M180 184 L180 228"/>' : ""}
+      ${flowBeams(f, "g" + this._uid)}
+      ${h.pv ? this._node("sun", 180, 40, "#f5b544", pv, pvu, t.sun.toUpperCase(), "", true, (f.pv || 0) > 30) : ""}
+      ${h.grid ? this._node("grid", 320, 150, gc, gr, gru, (f.grid < -30 ? t.sell : f.grid > 30 ? t.buy : t.grid).toUpperCase(), "", false, Math.abs(f.grid || 0) > 30) : ""}
+      ${this._node("house", 180, 150, "var(--ep-house)", ho, hou, null, "", false, true)}
+      ${h.battery ? this._node("battery", 40, 150, "#a78bfa", this._n(f.soc, 0), "%", (f.batt > 30 ? t.charging : f.batt < -30 ? t.discharging : t.idle).toUpperCase(), ring, false, Math.abs(f.batt || 0) > 30) : ""}
+      ${h.ev ? this._node("car", 180, 260, "#f472b6", f.ev > 30 ? ev : "–", f.ev > 30 ? evu : "", (f.ev > 30 ? t.charging : f.plug ? t.plugged : t.notPlugged).toUpperCase(), "", false, (f.ev || 0) > 30) : ""}
     </svg></div>`;
   }
   _statusHtml() {
@@ -172,7 +204,11 @@ class EnergipilotCard extends HTMLElement {
 }
 
 const CSS = `
-  :host { --ep-house: var(--primary-text-color); }
+  :host { --ep-house: var(--primary-text-color); --house: var(--primary-text-color); --sun:#f5b544; --batt:#a78bfa; --grid:#6ea8fe; --car:#f472b6; }
+  .lane { fill:none; stroke-width:1.2; stroke-opacity:.18; }
+  .node .halo { fill:var(--nc); opacity:0; } .node.on .halo { animation:halo 3s ease-in-out infinite; }
+  @keyframes halo { 0%,100% { opacity:.05; r:36px; } 50% { opacity:.16; r:42px; } }
+  .spin { animation:spin 18s linear infinite; transform-origin:12px 12px; } @keyframes spin { to { transform:rotate(360deg); } }
   ha-card { overflow:hidden; padding:4px 0; }
   .title { font-size:16px; font-weight:600; padding:12px 16px 0; }
   .ic { stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; vertical-align:-3px; }

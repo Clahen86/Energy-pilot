@@ -42,6 +42,13 @@
   .n-unit { font:500 11px system-ui, sans-serif; fill:var(--muted); }
   .n-cap { font:600 10.5px system-ui, sans-serif; fill:var(--muted); text-anchor:middle; letter-spacing:.08em; text-transform:uppercase; }
   .base { fill:none; stroke:var(--line2); stroke-width:1.5; }
+  .lane { fill:none; stroke-width:1.2; stroke-opacity:.18; }
+  .node .halo { fill:var(--nc); opacity:0; }
+  .node.on .halo { animation:halo 3s ease-in-out infinite; }
+  @keyframes halo { 0%,100% { opacity:.05; r:36px; } 50% { opacity:.16; r:42px; } }
+  .nbg { fill:var(--surface2); }
+  .spin { animation:spin 18s linear infinite; transform-origin:12px 12px; } @keyframes spin { to { transform:rotate(360deg); } }
+  .flow { background-image:radial-gradient(color-mix(in srgb, var(--text) 7%, transparent) 1px, transparent 1px); background-size:18px 18px; background-position:center; }
   .beam { fill:none; stroke-width:2.2; stroke-linecap:round; stroke-dasharray:14 46; animation:beam var(--d) linear infinite; filter:url(#glow); }
   .beam.rev { animation-direction:reverse; }
   @keyframes beam { to { stroke-dashoffset:-60; } }
@@ -298,20 +305,48 @@ const P = {
 const icon = (n, cls = "ic") => `<svg class="${cls}" viewBox="0 0 24 24">${P[n]}</svg>`;
 
 /* ---------- energy flow ---------- */
-function node(id, x, y, color, value, unit, caption, extra = "", capPos = "below") {
+function node(id, x, y, color, value, unit, caption, extra = "", capPos = "below", active = false) {
   const capY = capPos === "above" ? -42 : 50;
-  return `<g transform="translate(${x} ${y})">
-    <circle r="33" fill="var(--surface2)"/><circle r="33" fill="none" stroke="${color}" stroke-opacity=".55" stroke-width="1.4"/>${extra}
-    <g transform="translate(-10 -21) scale(.84)" style="color:${color}"><svg width="24" height="24" viewBox="0 0 24 24" class="ic" style="width:24px;height:24px">${P[id]}</svg></g>
+  return `<g transform="translate(${x} ${y})" class="node ${active ? "on" : ""}" style="--nc:${color}">
+    <circle r="40" class="halo"/><circle r="33" class="nbg"/><circle r="33" fill="none" stroke="${color}" stroke-opacity=".55" stroke-width="1.4"/>${extra}
+    <g transform="translate(-10 -21) scale(.84)" style="color:${color}"><svg width="24" height="24" viewBox="0 0 24 24" class="ic ${id === "sun" && active ? "spin" : ""}" style="width:24px;height:24px">${P[id]}</svg></g>
     <text class="n-val" y="17" id="v-${id}">${value}<tspan class="n-unit" id="u-${id}">${unit ? " " + unit : ""}</tspan></text>
     ${caption != null ? `<text class="n-cap" y="${capY}" id="c-${id}">${caption}</text>` : ""}</g>`;
 }
-function edge(d, w, color, reverse) {
-  const n = Math.abs(w || 0);
-  if (n < 30) return `<path class="base" d="${d}"/>`;
-  const dur = Math.max(0.8, Math.min(3.6, 3000 / n)).toFixed(2);
-  return `<path class="base" d="${d}"/><path class="beam ${reverse ? "rev" : ""}" d="${d}" style="stroke:${color};--d:${dur}s"/>`;
+function flowPaths(f) {
+  // Who feeds whom (W): the sun first to the house, then the car, the battery, the grid; the battery to the house and
+  // the car; the grid covers the rest.
+  const src = { pv: Math.max(0, f.pv || 0), batt: Math.max(0, -(f.battery ?? f.batt ?? 0)), grid: Math.max(0, f.grid || 0) };
+  const need = { house: Math.max(0, f.house || 0), ev: Math.max(0, f.ev || 0), batt: Math.max(0, f.battery ?? f.batt ?? 0), grid: Math.max(0, -(f.grid || 0)) };
+  const out = {};
+  for (const s of ["pv", "batt", "grid"]) {
+    for (const d of ["house", "ev", "batt", "grid"]) {
+      if (s === d || (s === "grid" && d === "grid")) continue;
+      const w = Math.min(src[s], need[d]);
+      if (w > 1) { out[`${s}>${d}`] = w; src[s] -= w; need[d] -= w; }
+    }
+  }
+  return out;
 }
+const FLOW_GEOM = {
+  "pv>house": "M180 74 L180 116", "pv>batt": "M156 58 Q86 70 64 122", "pv>grid": "M204 58 Q274 70 296 122", "pv>ev": "M204 66 Q262 150 204 236",
+  "batt>house": "M74 150 L146 150", "batt>ev": "M62 178 Q76 254 154 260", "batt>grid": "M66 172 Q180 236 294 172",
+  "grid>house": "M286 150 L214 150", "grid>ev": "M298 178 Q284 254 206 260", "grid>batt": "M294 128 Q180 70 66 128",
+};
+const FLOW_COLOR = { pv: "var(--sun)", batt: "var(--batt)", grid: "var(--grid)", house: "var(--house)" };
+function flowBeams(f, filterId) {
+  const paths = flowPaths(f), out = [];
+  for (const [key, w] of Object.entries(paths)) {
+    const [s] = key.split(">");
+    const d = FLOW_GEOM[key];
+    if (!d) continue;
+    const width = (1.6 + Math.min(3.2, w / 1200)).toFixed(1), dur = Math.max(0.7, Math.min(3.4, 2800 / w)).toFixed(2);
+    out.push(`<path class="lane" d="${d}" style="stroke:${FLOW_COLOR[s]}"/>
+      <path class="beam" d="${d}" style="stroke:${FLOW_COLOR[s]};stroke-width:${width};--d:${dur}s" filter="url(#${filterId})"/>`);
+  }
+  return out.join("");
+}
+
 function split(w) {
   if (w == null) return ["–", ""];
   const a = Math.abs(w);
@@ -324,20 +359,20 @@ function flowSvg(f) {
   const [pv, pvu] = split(f.pv), [ho, hou] = split(f.house), [gr, gru] = split(f.grid), [ev, evu] = split(f.ev);
   const battCap = f.battery > 30 ? `${T.charging}` : f.battery < -30 ? `${T.discharging}` : T.idle;
   return `<svg viewBox="-20 -20 400 352"><defs><filter id="glow" filterUnits="userSpaceOnUse" x="-40" y="-40" width="480" height="430"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-    ${h.pv ? edge("M180 73 L180 117", f.pv, "var(--sun)", false) : ""}
-    ${h.grid ? edge("M287 150 L213 150", f.grid, gridCol, (f.grid || 0) < 0) : ""}
-    ${h.battery ? edge("M73 150 L147 150", f.battery, "var(--batt)", (f.battery || 0) > 0) : ""}
-    ${h.ev ? edge("M180 183 L180 227", f.ev, "var(--car)", false) : ""}
-    ${h.pv ? node("sun", 180, 40, "var(--sun)", pv, pvu, T.sun.toUpperCase(), "", "above") : ""}
-    ${h.grid ? node("grid", 320, 150, gridCol, gr, gru, (f.grid < -30 ? T.sell : f.grid > 30 ? T.buy : T.grid).toUpperCase()) : ""}
-    ${node("house", 180, 150, "var(--house)", ho, hou, null)}
-    ${h.battery ? node("battery", 40, 150, "var(--batt)", `${num(f.soc, 0)}`, "%", `${battCap} ${f.battery && Math.abs(f.battery) > 30 ? kw(f.battery) : ""}`.trim().toUpperCase(), socRing) : ""}
-    ${h.ev ? node("car", 180, 260, "var(--car)", f.ev > 30 ? ev : "–", f.ev > 30 ? evu : "", (f.ev > 30 ? T.charging : f.plug ? T.plugged : T.notPlugged).toUpperCase()) : ""}
+    ${h.pv ? '<path class="base" d="M180 74 L180 116"/>' : ""}${h.grid ? '<path class="base" d="M286 150 L214 150"/>' : ""}
+    ${h.battery ? '<path class="base" d="M74 150 L146 150"/>' : ""}${h.ev ? '<path class="base" d="M180 184 L180 228"/>' : ""}
+    ${flowBeams(f, "glow")}
+    ${h.pv ? node("sun", 180, 40, "var(--sun)", pv, pvu, T.sun.toUpperCase(), "", "above", (f.pv || 0) > 30) : ""}
+    ${h.grid ? node("grid", 320, 150, gridCol, gr, gru, (f.grid < -30 ? T.sell : f.grid > 30 ? T.buy : T.grid).toUpperCase(), "", "below", Math.abs(f.grid || 0) > 30) : ""}
+    ${node("house", 180, 150, "var(--house)", ho, hou, null, "", "below", true)}
+    ${h.battery ? node("battery", 40, 150, "var(--batt)", `${num(f.soc, 0)}`, "%", `${battCap} ${f.battery && Math.abs(f.battery) > 30 ? kw(f.battery) : ""}`.trim().toUpperCase(), socRing, "below", Math.abs(f.battery || 0) > 30) : ""}
+    ${h.ev ? node("car", 180, 260, "var(--car)", f.ev > 30 ? ev : "–", f.ev > 30 ? evu : "", (f.ev > 30 ? T.charging : f.plug ? T.plugged : T.notPlugged).toUpperCase(), "", "below", (f.ev || 0) > 30) : ""}
   </svg>`;
 }
 function flowSig(f) {
   const b = (w) => w == null || Math.abs(w) < 30 ? 0 : (w > 0 ? 1 : -1) * (Math.abs(w) > 3000 ? 3 : Math.abs(w) > 1200 ? 2 : 1);
-  return [b(f.pv), b(f.grid), b(f.battery), b(f.ev), Object.values(f.has).join()].join("|");
+  const p = flowPaths(f);
+  return Object.keys(p).sort().map((k) => k + Math.min(3, Math.floor(p[k] / 1200))).join(",") + "|" + Object.values(f.has).join();
 }
 
 /* ---------- views ---------- */
