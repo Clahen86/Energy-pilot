@@ -6,107 +6,123 @@
 <title>Energipilot</title>
 <style>
   :root {
-    --bg:#0b0f1a; --bg2:#121829; --card:rgba(255,255,255,.055); --card2:rgba(255,255,255,.09); --line:rgba(255,255,255,.09);
-    --text:#eef2ff; --muted:#94a3b8; --sun:#fbbf24; --grid:#60a5fa; --sell:#34d399; --batt:#a78bfa; --car:#f472b6; --house:#e2e8f0;
-    --ok:#22c55e; --bad:#ef4444; --accent:#8b5cf6;
+    --bg:#06080d; --surface:#0d1118; --surface2:#131924; --line:rgba(255,255,255,.07); --line2:rgba(255,255,255,.12);
+    --text:#f3f5f9; --muted:#8b93a3; --faint:#5b6372;
+    --sun:#f5b544; --grid:#6ea8fe; --sell:#3ddc97; --batt:#a78bfa; --car:#f472b6; --house:#e8ebf1;
+    --ok:#3ddc97; --warn:#f5b544; --bad:#ff5d6c; --accent:#7c6cff;
   }
   @media (prefers-color-scheme: light) {
-    :root { --bg:#eef1f8; --bg2:#ffffff; --card:#ffffff; --card2:#f1f4fa; --line:#e3e8f0; --text:#0f172a; --muted:#64748b; --house:#334155; }
+    :root:not([data-theme=dark]) { --bg:#f4f6fa; --surface:#ffffff; --surface2:#f0f3f8; --line:rgba(15,23,42,.08); --line2:rgba(15,23,42,.14);
+      --text:#0b1220; --muted:#5d6676; --faint:#9aa3b2; --house:#1f2937; }
   }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html, body { margin:0; min-height:100%; }
-  body { background:radial-gradient(1200px 600px at 10% -10%, rgba(139,92,246,.25), transparent 60%),
-      radial-gradient(900px 500px at 110% 10%, rgba(59,130,246,.18), transparent 60%), var(--bg);
-    color:var(--text); font:15px/1.45 "Inter", system-ui, -apple-system, Roboto, sans-serif; background-attachment:fixed; }
-  main { max-width:920px; margin:0 auto; padding:14px 14px 90px; }
-  .top { display:flex; align-items:center; gap:10px; padding:4px 2px 12px; }
-  .top h1 { font-size:22px; margin:0; flex:1; letter-spacing:-.02em; }
-  .badge { font-size:12px; padding:4px 10px; border-radius:20px; background:var(--card2); color:var(--muted); white-space:nowrap; }
-  .badge.shadow { background:rgba(139,92,246,.2); color:#a78bfa; } .badge.live { background:rgba(34,197,94,.18); color:#16a34a; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:26px; padding:18px; margin-top:14px; backdrop-filter:blur(14px);
-    box-shadow:0 20px 50px -30px rgba(0,0,0,.6); }
-  h3 { margin:0 0 12px; font-size:16px; letter-spacing:-.01em; display:flex; align-items:center; gap:8px; }
+  html, body { margin:0; }
+  body { background:var(--bg); color:var(--text); font:15px/1.45 -apple-system, "SF Pro Text", "Inter", "Segoe UI", Roboto, system-ui, sans-serif;
+    -webkit-font-smoothing:antialiased; font-feature-settings:"tnum" 1, "cv11" 1; }
+  body::before { content:""; position:fixed; inset:0; pointer-events:none; z-index:-1;
+    background:radial-gradient(900px 420px at 50% -120px, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%); }
+  main { max-width:880px; margin:0 auto; padding:18px 16px 110px; }
+  .top { display:flex; align-items:center; gap:10px; padding:2px 2px 14px; }
+  .brand { display:flex; align-items:center; gap:10px; flex:1; }
+  .logo { width:30px; height:30px; border-radius:9px; display:grid; place-items:center; background:linear-gradient(135deg, var(--accent), #22d3ee); }
+  .logo svg { width:17px; height:17px; }
+  .top h1 { font-size:19px; margin:0; letter-spacing:-.02em; font-weight:650; }
+  .badge { font-size:12px; font-weight:600; padding:5px 11px; border-radius:20px; border:1px solid var(--line2); color:var(--muted); display:flex; align-items:center; gap:6px; }
+  .badge i { width:7px; height:7px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+  .badge.live i { background:var(--ok); box-shadow:0 0 0 3px color-mix(in srgb, var(--ok) 25%, transparent); animation:pulse 2s infinite; }
+  @keyframes pulse { 50% { box-shadow:0 0 0 6px transparent; } }
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:22px; padding:18px; margin-top:12px; }
+  .eyebrow { font-size:11px; font-weight:650; text-transform:uppercase; letter-spacing:.09em; color:var(--muted); margin:0 0 12px; display:flex; align-items:center; justify-content:space-between; }
   .muted { color:var(--muted); font-size:13px; }
+  .ic { width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; vertical-align:-3px; }
   /* flow */
-  .flow { position:relative; padding:6px 0 0; }
+  .flow { padding:8px 4px 2px; }
   .flow svg { width:100%; height:auto; display:block; overflow:visible; }
-  .node-label { font:800 13px system-ui, sans-serif; fill:var(--text); text-anchor:middle; letter-spacing:-.01em; }
-  .node-cap { font:600 12px system-ui, sans-serif; fill:var(--muted); text-anchor:middle; }
-  .edge { fill:none; stroke:var(--line); stroke-width:3; stroke-linecap:round; }
-  .dot { filter:url(#glow); }
-  /* decision */
-  .decision { position:relative; overflow:hidden; border-radius:26px; padding:20px; margin-top:14px; color:#fff; isolation:isolate;
-    background:linear-gradient(135deg, var(--d1), var(--d2)); box-shadow:0 24px 50px -24px var(--d1); }
-  .decision::after { content:""; position:absolute; width:260px; height:260px; border-radius:50%; right:-80px; top:-120px; background:rgba(255,255,255,.18);
-    filter:blur(10px); z-index:-1; animation:float 9s ease-in-out infinite; }
-  @keyframes float { 50% { transform:translate(-20px, 20px) scale(1.1); } }
-  .decision .k { font-size:12px; text-transform:uppercase; letter-spacing:.08em; opacity:.85; }
-  .decision h2 { margin:4px 0 6px; font-size:24px; letter-spacing:-.02em; }
-  .decision p { margin:0; opacity:.92; }
-  .decision details { margin-top:10px; font-size:12px; opacity:.8; } .decision summary { cursor:pointer; }
-  /* tiles */
-  .tiles { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-top:14px; }
-  .tile { background:var(--card); border:1px solid var(--line); border-radius:22px; padding:14px; position:relative; overflow:hidden; }
-  .tile .i { font-size:20px; } .tile b { display:block; font-size:24px; letter-spacing:-.02em; margin-top:6px; font-variant-numeric:tabular-nums; }
-  .tile span { font-size:12px; color:var(--muted); }
-  .tile .tag { position:absolute; right:10px; top:10px; font-size:11px; padding:2px 8px; border-radius:10px; font-weight:700; }
-  .cheap { background:rgba(34,197,94,.2); color:#4ade80; } .mid { background:rgba(234,179,8,.2); color:#facc15; } .dear { background:rgba(239,68,68,.2); color:#f87171; }
+  .n-val { font:650 17px -apple-system, "SF Pro Display", Inter, system-ui, sans-serif; fill:var(--text); text-anchor:middle; letter-spacing:-.02em; }
+  .n-unit { font:500 11px system-ui, sans-serif; fill:var(--muted); }
+  .n-cap { font:600 10.5px system-ui, sans-serif; fill:var(--muted); text-anchor:middle; letter-spacing:.08em; text-transform:uppercase; }
+  .base { fill:none; stroke:var(--line2); stroke-width:1.5; }
+  .beam { fill:none; stroke-width:2.2; stroke-linecap:round; stroke-dasharray:14 46; animation:beam var(--d) linear infinite; filter:url(#glow); }
+  .beam.rev { animation-direction:reverse; }
+  @keyframes beam { to { stroke-dashoffset:-60; } }
+  /* status */
+  .status { display:flex; gap:14px; align-items:flex-start; position:relative; overflow:hidden; }
+  .status::before { content:""; position:absolute; left:0; top:0; bottom:0; width:3px; border-radius:3px; background:var(--c); }
+  .dotc { width:38px; height:38px; flex:none; border-radius:12px; display:grid; place-items:center; color:var(--c); background:color-mix(in srgb, var(--c) 14%, transparent); margin-left:6px; }
+  .dotc svg { width:20px; height:20px; }
+  .status h2 { margin:0 0 3px; font-size:18px; font-weight:650; letter-spacing:-.015em; }
+  .status p { margin:0; color:var(--muted); font-size:14px; }
+  .status details { margin-top:8px; font-size:12px; color:var(--faint); } .status summary { cursor:pointer; }
+  /* metrics */
+  .metrics { display:grid; grid-template-columns:repeat(4, 1fr); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:22px; overflow:hidden; margin-top:12px; }
+  .metric { background:var(--surface); padding:16px; }
+  .metric .lbl { font-size:11px; font-weight:650; text-transform:uppercase; letter-spacing:.09em; color:var(--muted); display:flex; align-items:center; gap:6px; }
+  .metric .v { font-size:26px; font-weight:650; letter-spacing:-.03em; margin-top:8px; line-height:1.1; }
+  .metric .v small { font-size:13px; font-weight:500; color:var(--muted); margin-left:3px; letter-spacing:0; }
+  .metric .s { font-size:12px; color:var(--muted); margin-top:4px; }
+  .lvl { font-weight:650; } .lvl.cheap { color:var(--ok); } .lvl.mid { color:var(--warn); } .lvl.dear { color:var(--bad); }
+  .bar { height:4px; border-radius:2px; background:var(--surface2); margin-top:10px; overflow:hidden; } .bar span { display:block; height:100%; border-radius:2px; background:var(--batt); }
   /* plan */
-  .planwrap { overflow-x:auto; margin:0 -6px; padding:0 6px; scrollbar-width:none; } .planwrap::-webkit-scrollbar { display:none; }
-  .plan { display:block; height:200px; }
-  .legend { display:flex; gap:14px; flex-wrap:wrap; font-size:12px; color:var(--muted); margin-top:8px; }
-  .legend i { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; vertical-align:-1px; }
-  .chips { display:flex; gap:8px; flex-wrap:wrap; }
-  .chip { font-size:13px; padding:6px 12px; border-radius:14px; background:var(--card2); border:1px solid var(--line); }
-  .tip { min-height:20px; font-size:13px; margin-top:6px; color:var(--text); }
+  .planwrap { overflow-x:auto; margin:0 -18px; padding:0 18px; scrollbar-width:none; } .planwrap::-webkit-scrollbar { display:none; }
+  .plan { display:block; }
+  .axis { font:500 10px system-ui, sans-serif; fill:var(--faint); }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:var(--muted); margin-top:12px; }
+  .legend i { display:inline-block; width:14px; height:3px; border-radius:2px; margin-right:6px; vertical-align:3px; }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; }
+  .chip { font-size:12.5px; font-weight:600; padding:6px 11px; border-radius:10px; background:var(--surface2); border:1px solid var(--line); }
+  .chip.good { color:var(--ok); border-color:color-mix(in srgb, var(--ok) 30%, transparent); background:color-mix(in srgb, var(--ok) 8%, transparent); }
+  .tip { min-height:20px; font-size:13px; margin-top:4px; color:var(--muted); } .tip b { color:var(--text); }
   /* car */
   .car { display:flex; gap:16px; align-items:center; }
-  .car .pic { width:92px; height:60px; flex:none; }
-  .bigbtn { display:flex; align-items:center; justify-content:space-between; width:100%; margin-top:14px; padding:14px 16px; border-radius:18px; border:0;
-    font:inherit; font-weight:700; font-size:16px; color:var(--text); background:var(--card2); cursor:pointer; transition:.2s; }
-  .bigbtn.on { background:linear-gradient(135deg, #ec4899, #8b5cf6); color:#fff; box-shadow:0 14px 30px -14px #ec4899; }
-  .sw { width:48px; height:28px; border-radius:14px; background:rgba(148,163,184,.4); position:relative; flex:none; }
-  .sw::after { content:""; position:absolute; top:3px; left:3px; width:22px; height:22px; border-radius:50%; background:#fff; transition:.2s; }
-  .on .sw { background:rgba(255,255,255,.35); } .on .sw::after { left:23px; }
-  .row2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; }
-  .field { background:var(--card2); border-radius:18px; padding:12px 14px; }
-  .field label { font-size:12px; color:var(--muted); display:block; }
-  .field input[type=time] { font:700 22px system-ui; color:var(--text); background:transparent; border:0; width:100%; padding:2px 0; color-scheme:dark; }
-  .field input[type=range] { width:100%; accent-color:#ec4899; }
-  .field b { font-size:22px; }
+  .car svg.pic { width:120px; height:46px; flex:none; }
+  .car .st { font-size:18px; font-weight:650; letter-spacing:-.015em; }
+  .ctl { display:flex; align-items:center; justify-content:space-between; padding:14px 0; border-top:1px solid var(--line); margin-top:14px; }
+  .ctl + .ctl { margin-top:0; }
+  .ctl .t b { display:block; font-weight:600; } .ctl .t span { font-size:12.5px; color:var(--muted); }
+  .toggle { width:51px; height:31px; border-radius:16px; border:0; background:var(--surface2); position:relative; cursor:pointer; flex:none; transition:.25s; box-shadow:inset 0 0 0 1px var(--line2); }
+  .toggle::after { content:""; position:absolute; top:2px; left:2px; width:27px; height:27px; border-radius:50%; background:#fff; transition:.25s; box-shadow:0 2px 6px rgba(0,0,0,.3); }
+  .toggle.on { background:var(--car); box-shadow:none; } .toggle.on::after { left:22px; }
+  input[type=time] { font:650 20px system-ui; color:var(--text); background:var(--surface2); border:1px solid var(--line); border-radius:12px; padding:6px 10px; color-scheme:dark; }
+  @media (prefers-color-scheme: light) { input[type=time] { color-scheme:light; } }
+  .range { display:flex; align-items:center; gap:12px; min-width:52%; } .range input { flex:1; accent-color:var(--car); } .range b { min-width:62px; text-align:right; font-weight:650; }
   /* shadow */
-  .app { display:flex; align-items:center; gap:14px; padding:14px 0 6px; border-top:1px solid var(--line); flex-wrap:wrap; }
-  .app .seg { width:100%; justify-content:stretch; } .app .seg button { flex:1; }
-  .app:first-of-type { border-top:0; }
-  .ring { width:56px; height:56px; flex:none; position:relative; }
-  .ring svg { width:100%; height:100%; transform:rotate(-90deg); } .ring circle { fill:none; stroke-width:6; }
-  .ring b { position:absolute; inset:0; display:grid; place-items:center; font-size:13px; }
-  .app .t { flex:1; min-width:0; } .app .t b { display:block; }
-  .seg { display:inline-flex; background:var(--card2); border-radius:14px; padding:3px; gap:2px; flex-wrap:wrap; }
-  .seg button { border:0; background:transparent; color:var(--text); padding:8px 12px; border-radius:11px; font:inherit; font-size:13px; cursor:pointer; }
-  .seg button.on { background:var(--accent); color:#fff; } .seg button.on.control { background:var(--ok); } .seg button.on.off { background:#64748b; }
-  .stopall { width:100%; margin-top:12px; padding:14px; border-radius:16px; border:0; font:inherit; font-weight:700; background:rgba(239,68,68,.15); color:#f87171; cursor:pointer; }
-  details.more { margin-top:8px; } details.more summary { cursor:pointer; color:var(--muted); font-size:13px; }
-  table { width:100%; border-collapse:collapse; font-size:12px; } td, th { text-align:left; padding:5px 4px; border-top:1px solid var(--line); word-break:break-word; }
+  .app { display:grid; grid-template-columns:52px 1fr; gap:4px 14px; align-items:center; padding:16px 0; border-top:1px solid var(--line); }
+  .app:first-of-type { border-top:0; padding-top:4px; }
+  .ring { width:52px; height:52px; position:relative; grid-row:span 2; }
+  .ring svg { width:100%; height:100%; transform:rotate(-90deg); } .ring circle { fill:none; stroke-width:4; }
+  .ring b { position:absolute; inset:0; display:grid; place-items:center; font-size:12px; font-weight:650; }
+  .app .t b { font-weight:600; } .app .t span { display:block; font-size:12.5px; color:var(--muted); }
+  .seg { display:flex; background:var(--surface2); border-radius:11px; padding:3px; gap:2px; border:1px solid var(--line); }
+  .seg button { flex:1; border:0; background:transparent; color:var(--muted); padding:7px 10px; border-radius:8px; font:inherit; font-size:13px; font-weight:600; cursor:pointer; }
+  .seg button.on { background:var(--surface); color:var(--text); box-shadow:0 1px 4px rgba(0,0,0,.25); }
+  .seg button.on.control { color:var(--ok); } .seg button.on.shadow { color:var(--accent); }
+  .stopall { width:100%; margin-top:10px; padding:13px; border-radius:14px; border:1px solid color-mix(in srgb, var(--bad) 35%, transparent); font:inherit; font-weight:650;
+    background:color-mix(in srgb, var(--bad) 10%, transparent); color:var(--bad); cursor:pointer; }
+  details.more { margin:4px 0 0 66px; } details.more summary { cursor:pointer; color:var(--faint); font-size:12.5px; }
+  table { width:100%; border-collapse:collapse; font-size:12px; } td, th { text-align:left; padding:5px 4px; border-top:1px solid var(--line); word-break:break-word; color:var(--muted); } th { color:var(--faint); font-weight:600; }
   /* settings */
-  .group h4 { margin:16px 0 6px; font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
-  .set { display:flex; align-items:center; gap:10px; padding:8px 0; }
-  .set span { flex:1; } select { font:inherit; font-size:14px; padding:9px 10px; border-radius:12px; border:1px solid var(--line); background:var(--bg2); color:var(--text); max-width:60%; }
-  /* tabs */
-  nav { position:fixed; left:0; right:0; bottom:0; display:flex; justify-content:center; padding:8px 10px calc(8px + env(safe-area-inset-bottom));
-    background:linear-gradient(transparent, var(--bg) 40%); z-index:5; }
-  nav div { display:flex; gap:4px; background:var(--card2); border:1px solid var(--line); border-radius:22px; padding:5px; backdrop-filter:blur(16px); }
-  nav button { border:0; background:transparent; color:var(--muted); font:inherit; font-size:13px; font-weight:600; padding:9px 14px; border-radius:17px; cursor:pointer; }
-  nav button.on { background:var(--accent); color:#fff; }
-  .fade { animation:fade .35s ease both; } @keyframes fade { from { opacity:0; transform:translateY(6px); } }
-  @media (max-width:640px) { .tiles { grid-template-columns:repeat(2, 1fr); } .decision h2 { font-size:21px; } }
+  .group { margin-top:6px; } .group h4 { margin:18px 0 4px; font-size:11px; font-weight:650; text-transform:uppercase; letter-spacing:.09em; color:var(--muted); display:flex; align-items:center; gap:8px; }
+  .set { display:flex; align-items:center; gap:12px; padding:10px 0; border-top:1px solid var(--line); }
+  .set span { flex:1; font-size:14px; }
+  select { font:inherit; font-size:13.5px; padding:8px 10px; border-radius:10px; border:1px solid var(--line2); background:var(--surface2); color:var(--text); max-width:58%; }
+  /* tab bar */
+  nav { position:fixed; left:0; right:0; bottom:0; padding:10px 14px calc(10px + env(safe-area-inset-bottom)); z-index:5; display:flex; justify-content:center;
+    background:linear-gradient(transparent, var(--bg) 45%); }
+  nav div { display:flex; gap:2px; background:color-mix(in srgb, var(--surface) 82%, transparent); border:1px solid var(--line2); border-radius:18px; padding:5px;
+    backdrop-filter:blur(20px) saturate(1.4); -webkit-backdrop-filter:blur(20px) saturate(1.4); box-shadow:0 12px 30px -12px rgba(0,0,0,.5); }
+  nav button { border:0; background:transparent; color:var(--muted); font:inherit; font-size:11px; font-weight:600; padding:7px 14px 6px; border-radius:13px; cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; gap:3px; min-width:68px; }
+  nav button svg { width:21px; height:21px; } nav button.on { color:var(--text); background:var(--surface2); }
+  .fade { animation:fade .4s cubic-bezier(.2,.8,.2,1) both; } @keyframes fade { from { opacity:0; transform:translateY(8px); } }
+  @media (max-width:640px) { .metrics { grid-template-columns:repeat(2, 1fr); } }
   @media (prefers-reduced-motion: reduce) { * { animation:none !important; } }
 </style>
 </head>
 <body>
-<main id="root"><div class="muted" style="padding:40px;text-align:center">⚡ Indlæser…</div></main>
+<main id="root"><div class="muted" style="padding:40px;text-align:center">Indlæser…</div></main>
 <nav><div id="tabs"></div></nav>
 <script>
+if (new URLSearchParams(location.search).get("theme")) document.documentElement.dataset.theme = new URLSearchParams(location.search).get("theme");
 const L = (new URLSearchParams(location.search).get("lang") || navigator.language || "da").startsWith("en") ? "en" : "da";
 const T = {
   da: { title: "Energipilot", tabs: { home: "Nu", plan: "Plan", shadow: "Skygge", settings: "Indstillinger" },
@@ -114,11 +130,11 @@ const T = {
     priceNow: "Pris nu", sunToday: "Sol i dag", houseToday: "Hus i dag", target: "mål", cheap: "billig", mid: "normal", dear: "dyr",
     now: "Lige nu", why: "Hvorfor (teknisk)", planTitle: "Dagens plan", cheapest: "Billigste timer", tapHour: "Tryk på en time for detaljer",
     legPrice: "Pris", legSun: "Sol", legHouse: "Hus", legCharge: "Batteri lader", carTitle: "Bilen", plugged: "Sat i", notPlugged: "Ikke sat i",
-    chargeNow: "⚡ Lad nu", readyAt: "Klar kl.", atMost: "Højst", session: "denne opladning", shadowTitle: "Skygge eller styrer", shadowHint: "Skygge: regner og viser, styrer intet. Styrer: overtager. Sluk samme del i AppDaemon, før den styrer.",
-    agree: "enig", compare: "sammenligninger", errors: "fejl", stopAll: "⏹ Alt tilbage i skygge", modes: { shadow: "Skygge", control: "Styrer", off: "Fra" },
+    chargeNow: "Lad nu", readyAt: "Klar kl.", atMost: "Højst", session: "denne opladning", shadowTitle: "Skygge eller styrer", shadowHint: "Skygge: regner og viser, styrer intet. Styrer: overtager. Sluk samme del i AppDaemon, før den styrer.",
+    agree: "enig", compare: "sammenligninger", errors: "fejl", stopAll: "Sæt alt tilbage i skygge", modes: { shadow: "Skygge", control: "Styrer", off: "Fra" },
     names: { growatt_parallel: "Batteri og sol", ev_charge_controller: "Bilopladning", husmodel: "Husets forbrug" },
     setTitle: "Det du har", setHint: "Fundet automatisk. Vælg \"Har ikke\" for at skjule en del.", auto: "Automatisk", none: "Har ikke",
-    groups: { sun: "☀️ Sol", battery: "🔋 Batteri", grid: "🔌 Net og hus", car: "🚗 Bil", data: "📈 Priser og prognoser" },
+    groups: { sun: "Sol", battery: "Batteri", grid: "Net og hus", car: "Bil", data: "Priser og prognoser" },
     roles: { pv_power: "Solcelle-effekt", solar_today: "Solprognose i dag", solar_tomorrow: "Solprognose i morgen", battery_power: "Batteri-effekt", battery_soc: "Batteri-niveau",
       battery_plan: "Batteri-plan", grid_power: "Net-effekt", house_power: "Husets forbrug", house_forecast: "Forbrugsprognose", ev_power: "Ladeeffekt", ev_plug: "Stik",
       ev_session: "Opladet i alt", ev_manual: "Lad nu-knap", ev_ready: "Klar kl.", ev_cap: "Højst kWh", price: "Elpris" },
@@ -130,11 +146,11 @@ const T = {
     priceNow: "Price now", sunToday: "Sun today", houseToday: "Home today", target: "target", cheap: "cheap", mid: "normal", dear: "dear",
     now: "Right now", why: "Why (technical)", planTitle: "Today's plan", cheapest: "Cheapest hours", tapHour: "Tap an hour for details",
     legPrice: "Price", legSun: "Sun", legHouse: "Home", legCharge: "Battery charges", carTitle: "The car", plugged: "Plugged in", notPlugged: "Not plugged in",
-    chargeNow: "⚡ Charge now", readyAt: "Ready at", atMost: "At most", session: "this charge", shadowTitle: "Shadow or in control", shadowHint: "Shadow: plans and shows, controls nothing. In control: takes over. Switch the same part off in AppDaemon first.",
-    agree: "agree", compare: "comparisons", errors: "errors", stopAll: "⏹ Everything back to shadow", modes: { shadow: "Shadow", control: "Control", off: "Off" },
+    chargeNow: "Charge now", readyAt: "Ready at", atMost: "At most", session: "this charge", shadowTitle: "Shadow or in control", shadowHint: "Shadow: plans and shows, controls nothing. In control: takes over. Switch the same part off in AppDaemon first.",
+    agree: "agree", compare: "comparisons", errors: "errors", stopAll: "Put everything back in shadow", modes: { shadow: "Shadow", control: "Control", off: "Off" },
     names: { growatt_parallel: "Battery and sun", ev_charge_controller: "Car charging", husmodel: "House model" },
     setTitle: "What you have", setHint: "Found by itself. Pick \"Don't have\" to hide a part.", auto: "Automatic", none: "Don't have",
-    groups: { sun: "☀️ Sun", battery: "🔋 Battery", grid: "🔌 Grid and home", car: "🚗 Car", data: "📈 Prices and forecasts" },
+    groups: { sun: "Sun", battery: "Battery", grid: "Grid and home", car: "Car", data: "Prices and forecasts" },
     roles: { pv_power: "Solar power", solar_today: "Solar forecast today", solar_tomorrow: "Solar forecast tomorrow", battery_power: "Battery power", battery_soc: "Battery level",
       battery_plan: "Battery plan", grid_power: "Grid power", house_power: "House consumption", house_forecast: "Consumption forecast", ev_power: "Charging power", ev_plug: "Plug",
       ev_session: "Charged", ev_manual: "Charge now switch", ev_ready: "Ready at", ev_cap: "At most kWh", price: "Electricity price" },
@@ -155,47 +171,59 @@ const kr = (v) => v == null ? "–" : L === "da" ? `${num(v, 2)} kr` : `${num(v,
 const api = (p, body) => fetch(p.replace(/^\//, ""), body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}).then((r) => r.json());
 const clock = (iso) => { const d = new Date(iso); return `${String(d.getHours()).padStart(2, "0")}:00`; };
 
-/* ---------- energy flow ---------- */
-const ICONS = {
-  sun: `<g stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none"><circle cx="0" cy="0" r="7" fill="currentColor"/>${[0,45,90,135,180,225,270,315].map((a) => `<line x1="${Math.cos(a*Math.PI/180)*11}" y1="${Math.sin(a*Math.PI/180)*11}" x2="${Math.cos(a*Math.PI/180)*15}" y2="${Math.sin(a*Math.PI/180)*15}"/>`).join("")}</g>`,
-  grid: `<g stroke="currentColor" stroke-width="2.2" fill="none" stroke-linejoin="round"><path d="M0 -15 L-9 15 M0 -15 L9 15 M-6 -3 H6 M-8 6 H8 M-12 -9 H12"/></g>`,
-  house: `<g fill="currentColor"><path d="M-15 -1 L0 -15 L15 -1 L11 -1 L11 13 L3 13 L3 4 L-3 4 L-3 13 L-11 13 L-11 -1 Z"/></g>`,
-  battery: `<g><rect x="-9" y="-13" width="18" height="27" rx="4" fill="none" stroke="currentColor" stroke-width="2.4"/><rect x="-4" y="-17" width="8" height="4" rx="1.5" fill="currentColor"/></g>`,
-  car: `<g fill="currentColor"><path d="M-16 4 L-13 -4 Q-11 -9 -6 -9 L6 -9 Q11 -9 13 -4 L16 4 L16 10 L-16 10 Z" opacity=".95"/><circle cx="-9" cy="11" r="4" fill="var(--bg)" stroke="currentColor" stroke-width="2.5"/><circle cx="9" cy="11" r="4" fill="var(--bg)" stroke="currentColor" stroke-width="2.5"/></g>`,
+/* ---------- icons (line icons, 24 grid) ---------- */
+const P = {
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
+  grid: '<path d="M12 2 7 22M12 2l5 20M8.5 9h7M7.3 15h9.4M5 6h14"/>',
+  house: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/>',
+  battery: '<rect x="7" y="4" width="10" height="17" rx="2.5"/><path d="M10 2h4M10 14l2-4 2 4h-4"/>',
+  car: '<path d="M5 16h14M4 16v-3l2-5a2 2 0 0 1 1.9-1.4h8.2A2 2 0 0 1 18 8l2 5v3"/><circle cx="7.5" cy="16.5" r="1.8"/><circle cx="16.5" cy="16.5" r="1.8"/>',
+  bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+  chart: '<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>',
+  layers: '<path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/>',
+  sliders: '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
+  gauge: '<path d="M12 14l4-4"/><path d="M3.3 17a9 9 0 1 1 17.4 0"/>',
+  pause: '<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>',
+  arrowDown: '<path d="M12 5v14M5 12l7 7 7-7"/>', arrowUp: '<path d="M12 19V5M5 12l7-7 7 7"/>',
 };
-function node(id, x, y, color, value, caption, extra = "", capPos = "below") {
-  // The value sits inside the circle; the caption above or below it, where no line runs.
-  const capY = capPos === "above" ? -44 : 50;
-  return `<g transform="translate(${x} ${y})" style="color:${color}">
-    <circle r="36" fill="${color}" opacity=".13"/><circle r="36" fill="none" stroke="${color}" stroke-width="2" opacity=".6"/>${extra}
-    <g transform="translate(0 -9) scale(.8)">${ICONS[id]}</g>
-    <text class="node-label" y="21" id="v-${id}">${value}</text>
-    ${caption ? `<text class="node-cap" y="${capY}" id="c-${id}">${caption}</text>` : ""}</g>`;
+const icon = (n, cls = "ic") => `<svg class="${cls}" viewBox="0 0 24 24">${P[n]}</svg>`;
+
+/* ---------- energy flow ---------- */
+function node(id, x, y, color, value, unit, caption, extra = "", capPos = "below") {
+  const capY = capPos === "above" ? -42 : 50;
+  return `<g transform="translate(${x} ${y})">
+    <circle r="33" fill="var(--surface2)"/><circle r="33" fill="none" stroke="${color}" stroke-opacity=".55" stroke-width="1.4"/>${extra}
+    <g transform="translate(-10 -21) scale(.84)" style="color:${color}"><svg width="24" height="24" viewBox="0 0 24 24" class="ic" style="width:24px;height:24px">${P[id]}</svg></g>
+    <text class="n-val" y="17" id="v-${id}">${value}<tspan class="n-unit" id="u-${id}">${unit ? " " + unit : ""}</tspan></text>
+    ${caption != null ? `<text class="n-cap" y="${capY}" id="c-${id}">${caption}</text>` : ""}</g>`;
 }
-function edge(id, d, w, color, reverse) {
+function edge(d, w, color, reverse) {
   const n = Math.abs(w || 0);
-  if (n < 30) return `<path class="edge" d="${d}"/>`;
-  const dur = Math.max(0.9, Math.min(4.5, 3600 / n)).toFixed(2), count = n > 3000 ? 4 : n > 1200 ? 3 : 2;
-  const dots = Array.from({ length: count }, (_, i) => `<circle class="dot" r="${n > 2500 ? 5 : 4}" fill="${color}">
-    <animateMotion dur="${dur}s" repeatCount="indefinite" begin="-${(i * dur / count).toFixed(2)}s" ${reverse ? 'keyPoints="1;0" keyTimes="0;1" calcMode="linear"' : ""} path="${d}"/></circle>`).join("");
-  return `<path class="edge" d="${d}" style="stroke:${color};opacity:.35"/>${dots}`;
+  if (n < 30) return `<path class="base" d="${d}"/>`;
+  const dur = Math.max(0.8, Math.min(3.6, 3000 / n)).toFixed(2);
+  return `<path class="base" d="${d}"/><path class="beam ${reverse ? "rev" : ""}" d="${d}" style="stroke:${color};--d:${dur}s"/>`;
+}
+function split(w) {
+  if (w == null) return ["–", ""];
+  const a = Math.abs(w);
+  return a >= 1000 ? [num(a / 1000, a >= 10000 ? 0 : 1), "kW"] : [String(Math.round(a)), "W"];
 }
 function flowSvg(f) {
-  const h = f.has, C = { sun: "var(--sun)", grid: f.grid < 0 ? "var(--sell)" : "var(--grid)", batt: "var(--batt)", car: "var(--car)" };
-  const soc = f.soc ?? 0, r = 42, circ = 2 * Math.PI * r;
-  const socRing = `<circle r="${r}" fill="none" stroke="var(--batt)" stroke-width="5" stroke-linecap="round" stroke-dasharray="${circ}" stroke-dashoffset="${circ * (1 - soc / 100)}" transform="rotate(-90)" id="socring"/>`;
-  const H = [180, 150];
-  return `<svg viewBox="-16 -14 392 356"><defs><filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-    ${h.pv ? edge("sun", "M180 76 L180 112", f.pv, C.sun, false) : ""}
-    ${h.grid ? edge("grid", "M282 150 L218 150", f.grid, C.grid, (f.grid || 0) < 0) : ""}
-    ${h.battery ? edge("batt", "M80 150 L142 150", f.battery, C.batt, (f.battery || 0) > 0) : ""}
-    ${h.ev ? edge("car", "M180 188 L180 226", f.ev, C.car, false) : ""}
-    <circle cx="180" cy="150" r="46" fill="none" stroke="var(--house)" stroke-width="1.5" opacity=".25"><animate attributeName="r" values="38;50;38" dur="4s" repeatCount="indefinite"/><animate attributeName="opacity" values=".35;0;.35" dur="4s" repeatCount="indefinite"/></circle>
-    ${h.pv ? node("sun", 180, 40, "var(--sun)", kw(f.pv), T.sun, "", "above") : ""}
-    ${h.grid ? node("grid", 320, 150, C.grid, kw(f.grid), f.grid < -30 ? T.sell : f.grid > 30 ? T.buy : T.grid) : ""}
-    ${node("house", H[0], H[1], "var(--house)", kw(f.house), "")}
-    ${h.battery ? node("battery", 42, 150, "var(--batt)", `${num(f.soc, 0)} %`, f.battery > 30 ? `${T.charging} ${kw(f.battery)}` : f.battery < -30 ? `${T.discharging} ${kw(f.battery)}` : T.idle, socRing) : ""}
-    ${h.ev ? node("car", 180, 262, "var(--car)", f.ev > 30 ? kw(f.ev) : "", f.ev > 30 ? T.charging : f.plug ? T.plugged : T.notPlugged) : ""}
+  const h = f.has, gridCol = (f.grid || 0) < -30 ? "var(--sell)" : "var(--grid)";
+  const soc = f.soc ?? 0, r = 38, circ = 2 * Math.PI * r;
+  const socRing = `<circle r="${r}" fill="none" stroke="var(--batt)" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="${circ}" stroke-dashoffset="${circ * (1 - soc / 100)}" transform="rotate(-90)" id="socring"/>`;
+  const [pv, pvu] = split(f.pv), [ho, hou] = split(f.house), [gr, gru] = split(f.grid), [ev, evu] = split(f.ev);
+  const battCap = f.battery > 30 ? `${T.charging}` : f.battery < -30 ? `${T.discharging}` : T.idle;
+  return `<svg viewBox="-20 -20 400 352"><defs><filter id="glow" filterUnits="userSpaceOnUse" x="-40" y="-40" width="480" height="430"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+    ${h.pv ? edge("M180 73 L180 117", f.pv, "var(--sun)", false) : ""}
+    ${h.grid ? edge("M287 150 L213 150", f.grid, gridCol, (f.grid || 0) < 0) : ""}
+    ${h.battery ? edge("M73 150 L147 150", f.battery, "var(--batt)", (f.battery || 0) > 0) : ""}
+    ${h.ev ? edge("M180 183 L180 227", f.ev, "var(--car)", false) : ""}
+    ${h.pv ? node("sun", 180, 40, "var(--sun)", pv, pvu, T.sun.toUpperCase(), "", "above") : ""}
+    ${h.grid ? node("grid", 320, 150, gridCol, gr, gru, (f.grid < -30 ? T.sell : f.grid > 30 ? T.buy : T.grid).toUpperCase()) : ""}
+    ${node("house", 180, 150, "var(--house)", ho, hou, null)}
+    ${h.battery ? node("battery", 40, 150, "var(--batt)", `${num(f.soc, 0)}`, "%", `${battCap} ${f.battery && Math.abs(f.battery) > 30 ? kw(f.battery) : ""}`.trim().toUpperCase(), socRing) : ""}
+    ${h.ev ? node("car", 180, 260, "var(--car)", f.ev > 30 ? ev : "–", f.ev > 30 ? evu : "", (f.ev > 30 ? T.charging : f.plug ? T.plugged : T.notPlugged).toUpperCase()) : ""}
   </svg>`;
 }
 function flowSig(f) {
@@ -204,94 +232,103 @@ function flowSig(f) {
 }
 
 /* ---------- views ---------- */
-function priceTag(p, plan) {
-  if (p == null || plan.price_min == null) return "";
+function level(p, plan) {
+  if (p == null || plan.price_min == null) return null;
   const x = (p - plan.price_min) / Math.max(0.01, plan.price_max - plan.price_min);
-  return x < 0.33 ? `<span class="tag cheap">${T.cheap}</span>` : x < 0.66 ? `<span class="tag mid">${T.mid}</span>` : `<span class="tag dear">${T.dear}</span>`;
+  return x < 0.33 ? "cheap" : x < 0.66 ? "mid" : "dear";
 }
+const DECCOL = { discharge: "var(--batt)", charge: "var(--sun)", grid: "var(--grid)", hold: "var(--accent)" };
+const DECICON = { discharge: "arrowDown", charge: "arrowUp", grid: "bolt", hold: "pause" };
 function home() {
   const d = data, f = d.flow, dec = d.decision;
-  const [c1, c2] = DEC[dec?.kind || "hold"];
   const reason = dec ? T.reasons[dec.kind].replace("{p}", kr(d.price.now)) : "";
-  const ev = d.ev;
+  const lv = level(d.price.now, d.plan);
+  const metric = (ic, lbl, v, unit, sub, id, extra = "") => `<div class="metric"><div class="lbl">${icon(ic)}${lbl}</div><div class="v" ${id ? `id="${id}"` : ""}>${v}<small>${unit}</small></div>${sub ? `<div class="s">${sub}</div>` : ""}${extra}</div>`;
+  const metrics = [
+    d.price.now != null ? metric("bolt", T.priceNow, num(d.price.now, 2), "kr/kWh", lv ? `<span class="lvl ${lv}">${T[lv]}</span> ${L === "da" ? "i dag" : "today"}` : "", "t-price") : "",
+    d.solar.solar_today != null ? metric("sun", T.sunToday, num(d.solar.solar_today, 1), "kWh", d.solar.solar_tomorrow != null ? `${L === "da" ? "I morgen" : "Tomorrow"} ${num(d.solar.solar_tomorrow, 1)} kWh` : "") : "",
+    f.soc != null ? metric("battery", T.battery, num(f.soc, 0), "%", dec?.target != null ? `${T.target} ${num(dec.target, 0)} %` : "", "t-soc", `<div class="bar"><span id="t-socbar" style="width:${f.soc}%"></span></div>`) : "",
+    d.house_today != null ? metric("house", T.houseToday, num(d.house_today, 1), "kWh", L === "da" ? "forventet" : "expected") : "",
+  ].join("");
   return `<div class="card flow fade" id="flow">${flowSvg(f)}</div>
-    ${dec ? `<div class="decision fade" style="--d1:${c1};--d2:${c2}"><div class="k">${T.now}</div><h2>${esc(dec.text)}</h2><p>${esc(reason)}</p>
-      ${dec.reason ? `<details><summary>${T.why}</summary>${esc(dec.reason)}</details>` : ""}</div>` : ""}
-    <div class="tiles fade">
-      ${d.price.now != null ? `<div class="tile"><div class="i">💡</div>${priceTag(d.price.now, d.plan)}<b id="t-price">${kr(d.price.now)}</b><span>${T.priceNow}</span></div>` : ""}
-      ${d.solar.solar_today != null ? `<div class="tile"><div class="i">☀️</div><b>${num(d.solar.solar_today, 1)} kWh</b><span>${T.sunToday}</span></div>` : ""}
-      ${f.soc != null ? `<div class="tile"><div class="i">🔋</div><b id="t-soc">${num(f.soc, 0)} %</b><span>${T.battery}${dec?.target != null ? ` · ${T.target} ${num(dec.target, 0)} %` : ""}</span></div>` : ""}
-      ${d.house_today != null ? `<div class="tile"><div class="i">🏠</div><b>${num(d.house_today, 1)} kWh</b><span>${T.houseToday}</span></div>` : ""}
-    </div>
-    ${ev ? carCard(ev, f) : ""}
-    <div class="card fade"><h3>📈 ${T.planTitle}</h3>${planSvg(d.plan, true)}</div>`;
+    ${dec ? `<div class="card status fade" style="--c:${DECCOL[dec.kind]}"><div class="dotc">${icon(DECICON[dec.kind])}</div>
+      <div><h2>${esc(dec.text)}</h2><p>${esc(reason)}</p>${dec.reason ? `<details><summary>${T.why}</summary>${esc(dec.reason)}</details>` : ""}</div></div>` : ""}
+    <div class="metrics fade">${metrics}</div>
+    ${d.ev ? carCard(d.ev, f) : ""}
+    <div class="card fade"><div class="eyebrow"><span>${T.planTitle}</span></div>${planSvg(d.plan)}</div>`;
 }
+const CAR_ART = `<svg class="pic" viewBox="0 0 240 90" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M14 62c0-8 4-12 14-14l26-5 22-18c6-5 13-7 21-7h40c9 0 17 3 24 9l17 15 28 5c10 2 14 7 14 15v4c0 3-2 5-5 5h-11"/>
+  <path d="M60 71H90M150 71h22M14 66c0 3 2 5 5 5h12"/><path d="M80 43h58l-16-17c-3-3-7-4-11-4H96c-4 0-8 2-11 5z" opacity=".55"/>
+  <circle cx="45" cy="70" r="13"/><circle cx="45" cy="70" r="5" opacity=".6"/><circle cx="186" cy="70" r="13"/><circle cx="186" cy="70" r="5" opacity=".6"/></svg>`;
 function carCard(ev, f) {
   const charging = (f.ev || 0) > 30;
-  return `<div class="card fade"><h3>🚗 ${T.carTitle}</h3>
-    <div class="car"><svg class="pic" viewBox="-20 -14 40 30" style="color:${charging ? "var(--car)" : "var(--muted)"}">${ICONS.car}</svg>
-      <div><b style="font-size:20px">${charging ? `${T.charging} ${kw(f.ev)}` : f.plug ? T.plugged : T.notPlugged}</b>
-      ${ev.session_kwh != null ? `<div class="muted">${num(ev.session_kwh, 1)} kWh ${T.session}</div>` : ""}</div></div>
-    ${ev.manual != null ? `<button class="bigbtn ${ev.manual ? "on" : ""}" data-ev="manual">${T.chargeNow}<span class="sw"></span></button>` : ""}
-    <div class="row2">
-      ${ev.ready != null ? `<div class="field"><label>${T.readyAt}</label><input type="time" data-ev="ready" value="${esc(String(ev.ready).slice(0, 5))}"></div>` : ""}
-      ${ev.cap != null ? `<div class="field"><label>${T.atMost}</label><b id="capv">${num(ev.cap, 0)} kWh</b><input type="range" min="0" max="${ev.cap_max || 100}" step="1" value="${ev.cap}" data-ev="cap"></div>` : ""}
-    </div></div>`;
+  return `<div class="card fade"><div class="eyebrow"><span>${T.carTitle}</span>${ev.session_kwh != null ? `<span>${num(ev.session_kwh, 1)} kWh ${T.session}</span>` : ""}</div>
+    <div class="car"><span style="color:${charging ? "var(--car)" : "var(--faint)"}">${CAR_ART}</span>
+      <div><div class="st">${charging ? `${T.charging} ${kw(f.ev)}` : f.plug ? T.plugged : T.notPlugged}</div>
+      <div class="muted">${charging ? (L === "da" ? "Bilen lader nu" : "The car is charging") : f.plug ? (L === "da" ? "Venter på sol eller billig strøm" : "Waiting for sun or cheap power") : (L === "da" ? "Sæt bilen i for at lade" : "Plug in to charge")}</div></div></div>
+    ${ev.manual != null ? `<div class="ctl"><div class="t"><b>${T.chargeNow}</b><span>${L === "da" ? "Fuld fart nu, uanset pris" : "Full speed now, whatever the price"}</span></div><button class="toggle ${ev.manual ? "on" : ""}" data-ev="manual" aria-label="${T.chargeNow}"></button></div>` : ""}
+    ${ev.ready != null ? `<div class="ctl"><div class="t"><b>${T.readyAt}</b><span>${L === "da" ? "Opladet til denne tid" : "Charged by this time"}</span></div><input type="time" data-ev="ready" value="${esc(String(ev.ready).slice(0, 5))}"></div>` : ""}
+    ${ev.cap != null ? `<div class="ctl"><div class="t"><b>${T.atMost}</b><span>${L === "da" ? "Pr. opladning" : "Per charge"}</span></div><div class="range"><input type="range" min="0" max="${ev.cap_max || 100}" step="1" value="${ev.cap}" data-ev="cap"><b id="capv">${num(ev.cap, 0)} kWh</b></div></div>` : ""}
+  </div>`;
 }
-function planSvg(plan, compact) {
+function planSvg(plan) {
   const hrs = plan.hours.filter((h) => h.price != null || h.sun != null);
   if (!hrs.length) return `<div class="muted">–</div>`;
-  const W = 26, H = 170, top = 18, n = hrs.length, width = n * W;
-  const pmin = Math.min(0, plan.price_min ?? 0), pmax = plan.price_max || 1;
-  const sunMax = Math.max(1, ...hrs.map((h) => h.sun || 0), ...hrs.map((h) => h.house || 0));
-  const nowT = new Date(plan.now);
-  const col = (p) => { const x = (p - plan.price_min) / Math.max(0.01, plan.price_max - plan.price_min); return `hsl(${Math.round(130 - 130 * x)} 75% 52%)`; };
+  const W = 22, H = 210, top = 14, bottom = 22, n = hrs.length, width = n * W;
+  const pmin = Math.min(0, plan.price_min ?? 0), pmax = (plan.price_max || 1) * 1.08;
+  const eMax = Math.max(1, ...hrs.map((h) => h.sun || 0), ...hrs.map((h) => h.house || 0)) * 1.15;
+  const nowT = new Date(plan.now), y0 = H - bottom, ph = H - top - bottom;
+  const col = (p) => { const x = (p - plan.price_min) / Math.max(0.01, plan.price_max - plan.price_min); return `hsl(${Math.round(150 - 150 * x)} 70% ${x > .66 ? 60 : 52}%)`; };
+  const gridLines = [0.25, 0.5, 0.75, 1].map((g) => `<line x1="0" x2="${width}" y1="${y0 - g * ph}" y2="${y0 - g * ph}" stroke="var(--line)"/>`).join("");
   const bars = hrs.map((h, i) => {
-    const x = i * W, ph = h.price != null ? ((h.price - pmin) / (pmax - pmin)) * (H - top - 26) : 0;
-    const t = new Date(h.t), isNow = t.getHours() === nowT.getHours() && t.getDate() === nowT.getDate();
-    return `<g data-h="${i}" style="cursor:pointer"><rect x="${x + 4}" y="${H - 18 - ph}" width="${W - 8}" height="${ph}" rx="5" fill="${h.price != null ? col(h.price) : "transparent"}" opacity="${t < nowT && !isNow ? .35 : .9}"/>
-      ${h.charge ? `<circle cx="${x + W / 2}" cy="${H - 26 - ph}" r="5" fill="var(--batt)"/>` : ""}
-      ${t.getHours() % 3 === 0 ? `<text x="${x + W / 2}" y="${H - 3}" text-anchor="middle" font-size="10" fill="var(--muted)">${String(t.getHours()).padStart(2, "0")}</text>` : ""}
-      ${t.getHours() === 0 && i > 0 ? `<line x1="${x}" x2="${x}" y1="${top}" y2="${H - 16}" stroke="var(--line)" stroke-dasharray="3 3"/>` : ""}
+    const x = i * W, bh = h.price != null ? ((h.price - pmin) / (pmax - pmin)) * ph : 0, t = new Date(h.t);
+    const past = t < nowT && !(t.getHours() === nowT.getHours() && t.getDate() === nowT.getDate());
+    return `<g data-h="${i}" style="cursor:pointer">${h.price != null ? `<rect x="${x + 5}" y="${y0 - bh}" width="${W - 10}" height="${bh}" rx="3" fill="${col(h.price)}" opacity="${past ? .25 : .85}"/>` : ""}
+      ${h.charge ? `<rect x="${x + 5}" y="${y0 + 4}" width="${W - 10}" height="3" rx="1.5" fill="var(--batt)"/>` : ""}
+      ${t.getHours() % 3 === 0 ? `<text class="axis" x="${x + W / 2}" y="${H - 4}" text-anchor="middle">${String(t.getHours()).padStart(2, "0")}</text>` : ""}
+      ${t.getHours() === 0 && i > 0 ? `<line x1="${x}" x2="${x}" y1="${top}" y2="${y0}" stroke="var(--line2)" stroke-dasharray="2 4"/><text class="axis" x="${x + 4}" y="${top + 8}">${L === "da" ? "I morgen" : "Tomorrow"}</text>` : ""}
       <rect x="${x}" y="0" width="${W}" height="${H}" fill="transparent"/></g>`;
   }).join("");
-  const line = (key, color) => {
-    const pts = hrs.map((h, i) => h[key] != null ? `${i * W + W / 2},${H - 18 - (h[key] / sunMax) * (H - top - 30)}` : null).filter(Boolean);
-    return pts.length > 1 ? `<polyline points="${pts.join(" ")}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>` : "";
-  };
-  const sunArea = (() => {
-    const pts = hrs.map((h, i) => `${i * W + W / 2},${H - 18 - ((h.sun || 0) / sunMax) * (H - top - 30)}`);
-    return `<polygon points="${W / 2},${H - 18} ${pts.join(" ")} ${(n - 1) * W + W / 2},${H - 18}" fill="var(--sun)" opacity=".18"/>${line("sun", "var(--sun)")}`;
-  })();
-  const ni = hrs.findIndex((h) => { const t = new Date(h.t); return t.getHours() === nowT.getHours() && t.getDate() === nowT.getDate(); });
-  const nowX = ni >= 0 ? ni * W + (nowT.getMinutes() / 60) * W : null;
-  return `<div class="planwrap" id="planwrap"><svg class="plan" id="plansvg" width="${width}" viewBox="0 0 ${width} ${H}">${bars}${sunArea}${line("house", "var(--house)")}
-      ${nowX != null ? `<line x1="${nowX}" x2="${nowX}" y1="6" y2="${H - 16}" stroke="#ef4444" stroke-width="2"/><text x="${nowX}" y="10" text-anchor="middle" font-size="10" font-weight="700" fill="#ef4444">nu</text>` : ""}</svg></div>
+  const pts = (key) => hrs.map((h, i) => h[key] != null ? [i * W + W / 2, y0 - (h[key] / eMax) * ph] : null).filter(Boolean);
+  const smooth = (p) => p.length < 2 ? "" : p.map((q, i) => i ? `L${q[0].toFixed(1)} ${q[1].toFixed(1)}` : `M${q[0].toFixed(1)} ${q[1].toFixed(1)}`).join(" ");
+  const sun = pts("sun"), house = pts("house");
+  const sunPath = smooth(sun);
+  const nowI = hrs.findIndex((h) => { const t = new Date(h.t); return t.getHours() === nowT.getHours() && t.getDate() === nowT.getDate(); });
+  const nowX = nowI >= 0 ? nowI * W + (nowT.getMinutes() / 60) * W : null;
+  return `<div class="planwrap" id="planwrap"><svg class="plan" width="${width}" height="${H}" viewBox="0 0 ${width} ${H}">
+      <defs><linearGradient id="sung" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--sun)" stop-opacity=".35"/><stop offset="1" stop-color="var(--sun)" stop-opacity="0"/></linearGradient></defs>
+      ${gridLines}${bars}
+      ${sun.length > 1 ? `<path d="${sunPath} L${sun[sun.length - 1][0]} ${y0} L${sun[0][0]} ${y0}Z" fill="url(#sung)"/><path d="${sunPath}" fill="none" stroke="var(--sun)" stroke-width="2"/>` : ""}
+      ${house.length > 1 ? `<path d="${smooth(house)}" fill="none" stroke="var(--house)" stroke-width="1.6" stroke-dasharray="4 3" opacity=".8"/>` : ""}
+      ${nowX != null ? `<line x1="${nowX}" x2="${nowX}" y1="${top - 6}" y2="${y0}" stroke="var(--text)" stroke-width="1.5"/><circle cx="${nowX}" cy="${top - 6}" r="3" fill="var(--text)"/>` : ""}
+    </svg></div>
     <div class="tip" id="tip">${T.tapHour}</div>
-    <div class="legend"><span><i style="background:linear-gradient(90deg,hsl(130 75% 52%),hsl(0 75% 52%))"></i>${T.legPrice}</span><span><i style="background:var(--sun)"></i>${T.legSun}</span>
-      <span><i style="background:var(--house)"></i>${T.legHouse}</span><span><i style="background:var(--batt);border-radius:50%"></i>${T.legCharge}</span></div>
-    ${plan.cheapest.length ? `<div style="margin-top:12px" class="muted">${T.cheapest}</div><div class="chips" style="margin-top:6px">${plan.cheapest.map((t) => `<span class="chip">💚 ${clock(t)}</span>`).join("")}</div>` : ""}`;
+    <div class="legend"><span><i style="background:linear-gradient(90deg,hsl(150 70% 52%),hsl(0 70% 60%))"></i>${T.legPrice}</span><span><i style="background:var(--sun)"></i>${T.legSun}</span>
+      <span><i style="background:var(--house)"></i>${T.legHouse}</span><span><i style="background:var(--batt)"></i>${T.legCharge}</span></div>
+    ${plan.cheapest.length ? `<div class="eyebrow" style="margin:16px 0 8px"><span>${T.cheapest}</span></div><div class="chips">${plan.cheapest.map((t) => `<span class="chip good">${clock(t)}</span>`).join("")}</div>` : ""}`;
 }
-function planView() { return `<div class="card fade"><h3>📈 ${T.planTitle}</h3>${planSvg(data.plan)}</div>`; }
+function planView() { return `<div class="card fade"><div class="eyebrow"><span>${T.planTitle}</span></div>${planSvg(data.plan)}</div>`; }
 function ring(p) {
-  const r = 24, c = 2 * Math.PI * r, v = p ?? 0, color = p == null ? "var(--muted)" : p >= 95 ? "var(--ok)" : p >= 80 ? "#eab308" : "var(--bad)";
-  return `<div class="ring"><svg viewBox="0 0 56 56"><circle cx="28" cy="28" r="${r}" stroke="var(--line)"/><circle cx="28" cy="28" r="${r}" stroke="${color}" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - v / 100)}"/></svg><b>${p == null ? "–" : p + "%"}</b></div>`;
+  const r = 22, c = 2 * Math.PI * r, v = p ?? 0, color = p == null ? "var(--faint)" : p >= 95 ? "var(--ok)" : p >= 80 ? "var(--warn)" : "var(--bad)";
+  return `<div class="ring"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="${r}" stroke="var(--line2)"/><circle cx="26" cy="26" r="${r}" stroke="${color}" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - v / 100)}"/></svg><b>${p == null ? "–" : p + "%"}</b></div>`;
 }
 function shadowView() {
   if (!status) return `<div class="card">…</div>`;
   const control = status.apps.some((a) => a.mode === "control");
-  return `<div class="card fade"><h3>🌗 ${T.shadowTitle}</h3><div class="muted">${T.shadowHint}</div>
-    ${status.apps.map((a) => `<div class="app">${ring(a.agree)}<div class="t"><b>${T.names[a.name] || esc(a.name)}</b><span class="muted">${a.agree == null ? "–" : a.agree + " % " + T.agree} · ${a.checks} ${T.compare} · ${a.errors} ${T.errors}</span></div>
+  return `<div class="card fade"><div class="eyebrow"><span>${T.shadowTitle}</span></div><div class="muted" style="margin-bottom:10px">${T.shadowHint}</div>
+    ${status.apps.map((a) => `<div class="app">${ring(a.agree)}<div class="t"><b>${T.names[a.name] || esc(a.name)}</b><span>${a.agree == null ? "–" : a.agree + " % " + T.agree} · ${a.checks} ${T.compare} · ${a.errors} ${T.errors}</span></div>
       <div class="seg">${["shadow", "control", "off"].map((m) => `<button class="${m} ${a.mode === m ? "on" : ""}" data-app="${a.name}" data-mode="${m}">${T.modes[m]}</button>`).join("")}</div></div>
-      <details class="more"><summary>${T.names[a.name] || a.name} · detaljer</summary><table><tr><th>Sensor</th><th>Pilot</th><th>System</th></tr>
+      <details class="more"><summary>${L === "da" ? "Detaljer" : "Details"}</summary><table><tr><th>Sensor</th><th>Pilot</th><th>System</th></tr>
         ${a.entities.map((e) => `<tr><td>${esc(e.entity_id)}</td><td>${esc(e.mine_now)}</td><td>${esc(e.real ?? "–")}</td></tr>`).join("")}</table>
-        <table style="margin-top:8px"><tr><th>Ville gøre</th><th>Data</th></tr>${a.would.slice(0, 15).map((w) => `<tr><td>${esc(w.service)}</td><td>${esc(JSON.stringify(w.data)).slice(0, 120)}</td></tr>`).join("")}</table></details>`).join("")}
+        <table style="margin-top:8px"><tr><th>${L === "da" ? "Ville gøre" : "Would do"}</th><th>Data</th></tr>${a.would.slice(0, 15).map((w) => `<tr><td>${esc(w.service)}</td><td>${esc(JSON.stringify(w.data)).slice(0, 120)}</td></tr>`).join("")}</table></details>`).join("")}
     ${control ? `<button class="stopall" data-stopall>${T.stopAll}</button>` : ""}</div>`;
 }
+const GROUPICON = { sun: "sun", battery: "battery", grid: "house", car: "car", data: "chart" };
 function settingsView() {
   if (!settings) return `<div class="card">…</div>`;
-  return `<div class="card fade"><h3>🧩 ${T.setTitle}</h3><div class="muted">${T.setHint}</div>
-    ${Object.entries(GROUPS).map(([g, roles]) => `<div class="group"><h4>${T.groups[g]}</h4>${roles.map((r) => {
+  return `<div class="card fade"><div class="eyebrow"><span>${T.setTitle}</span></div><div class="muted">${T.setHint}</div>
+    ${Object.entries(GROUPS).map(([g, roles]) => `<div class="group"><h4>${icon(GROUPICON[g])}${T.groups[g]}</h4>${roles.map((r) => {
       const chosen = (settings.settings.roles || {})[r], foundId = settings.roles[r];
       const found = foundId ? ((settings.candidates[r] || []).find((c) => c.entity_id === foundId)?.name || foundId) : null;
       const opts = (settings.candidates[r] || []).map((c) => `<option value="${c.entity_id}" ${chosen === c.entity_id ? "selected" : ""}>${esc(c.name)}</option>`).join("");
@@ -306,25 +343,29 @@ function render() {
   if (!data) return;
   const control = (data.shadow || []).filter((a) => a.mode === "control").length;
   const body = tab === "plan" ? planView() : tab === "shadow" ? shadowView() : tab === "settings" ? settingsView() : home();
-  root.innerHTML = `<div class="top"><h1>⚡ ${T.title}</h1><span class="badge ${control ? "live" : "shadow"}">${control ? `● ${control} ${T.modes.control.toLowerCase()}` : `◐ ${T.modes.shadow}`}</span></div>${body}`;
-  $("#tabs").innerHTML = Object.entries(T.tabs).map(([k, v]) => `<button class="${tab === k ? "on" : ""}" data-tab="${k}">${v}</button>`).join("");
+  root.innerHTML = `<div class="top"><div class="brand"><span class="logo"><svg viewBox="0 0 24 24" fill="#fff"><path d="${"M13 2 4 14h7l-1 8 9-12h-7z"}"/></svg></span><h1>${T.title}</h1></div>
+    <span class="badge ${control ? "live" : ""}"><i></i>${control ? `${control} ${T.modes.control.toLowerCase()}` : T.modes.shadow}</span></div>${body}`;
+  const TABICON = { home: "gauge", plan: "chart", shadow: "layers", settings: "sliders" };
+  $("#tabs").innerHTML = Object.entries(T.tabs).map(([k, v]) => `<button class="${tab === k ? "on" : ""}" data-tab="${k}">${icon(TABICON[k])}<span>${v}</span></button>`).join("");
   flowKey = flowSig(data.flow);
   wire();
-  const pw = $("#planwrap"), now = pw?.querySelector("line[stroke='#ef4444']");
+  const pw = $("#planwrap"), now = pw?.querySelector("line[stroke='var(--text)']");
   if (pw && now) pw.scrollLeft = Math.max(0, Number(now.getAttribute("x1")) - pw.clientWidth / 3);
 }
 function patch() {
-  // Only the numbers - the animations keep running.
+  // Only the numbers - the beams keep running.
   const f = data.flow;
   if (flowSig(f) !== flowKey) { const el = $("#flow"); if (el) { el.innerHTML = flowSvg(f); flowKey = flowSig(f); } return; }
-  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-  set("v-sun", kw(f.pv)); set("v-house", kw(f.house)); set("v-grid", kw(f.grid)); set("v-battery", `${num(f.soc, 0)} %`);
-  set("c-battery", f.battery > 30 ? `${T.charging} ${kw(f.battery)}` : f.battery < -30 ? `${T.discharging} ${kw(f.battery)}` : T.idle);
-  set("v-car", f.ev > 30 ? kw(f.ev) : "");
-  set("c-car", f.ev > 30 ? T.charging : f.plug ? T.plugged : T.notPlugged);
-  set("t-price", kr(data.price.now)); set("t-soc", `${num(f.soc, 0)} %`);
+  const setv = (id, pair) => { const v = document.getElementById("v-" + id); if (v && v.firstChild) { v.firstChild.nodeValue = pair[0]; const u = document.getElementById("u-" + id); if (u) u.textContent = pair[1] ? " " + pair[1] : ""; } };
+  setv("sun", split(f.pv)); setv("house", split(f.house)); setv("grid", split(f.grid)); setv("battery", [num(f.soc, 0), "%"]);
+  if (f.ev > 30) setv("car", split(f.ev));
+  const c = document.getElementById("c-battery");
+  if (c) c.textContent = `${f.battery > 30 ? T.charging : f.battery < -30 ? T.discharging : T.idle} ${f.battery && Math.abs(f.battery) > 30 ? kw(f.battery) : ""}`.trim().toUpperCase();
+  const tp = document.getElementById("t-price"); if (tp && tp.firstChild) tp.firstChild.nodeValue = num(data.price.now, 2);
+  const ts = document.getElementById("t-soc"); if (ts && ts.firstChild) ts.firstChild.nodeValue = num(f.soc, 0);
+  const sb = document.getElementById("t-socbar"); if (sb) sb.style.width = `${f.soc}%`;
   const ring = document.getElementById("socring");
-  if (ring) ring.setAttribute("stroke-dashoffset", 2 * Math.PI * 42 * (1 - (f.soc || 0) / 100));
+  if (ring) ring.setAttribute("stroke-dashoffset", 2 * Math.PI * 38 * (1 - (f.soc || 0) / 100));
 }
 function wire() {
   document.querySelectorAll("[data-tab]").forEach((b) => b.onclick = async () => {
@@ -335,7 +376,7 @@ function wire() {
   });
   document.querySelectorAll("[data-h]").forEach((g) => g.onclick = () => {
     const h = data.plan.hours.filter((x) => x.price != null || x.sun != null)[Number(g.dataset.h)];
-    $("#tip").innerHTML = `<b>${clock(h.t)}</b> · ${kr(h.price)}${h.sun != null ? ` · ☀️ ${num(h.sun, 1)} kWh` : ""}${h.house != null ? ` · 🏠 ${num(h.house, 1)} kWh` : ""}${h.charge ? ` · 🔋 ${T.charging}` : ""}`;
+    $("#tip").innerHTML = `<b>${clock(h.t)}</b> · ${kr(h.price)}/kWh${h.sun != null ? ` · ${T.legSun} ${num(h.sun, 1)} kWh` : ""}${h.house != null ? ` · ${T.legHouse} ${num(h.house, 1)} kWh` : ""}${h.charge ? ` · ${T.legCharge}` : ""}`;
   });
   document.querySelectorAll("[data-mode]").forEach((b) => b.onclick = async () => {
     if (b.dataset.mode === "control" && !confirm(T.confirm)) return;
@@ -345,7 +386,7 @@ function wire() {
   document.querySelectorAll("[data-role]").forEach((s) => s.onchange = async () => {
     await api("/api/settings", { roles: { [s.dataset.role]: s.value === "__auto" ? null : s.value } }); settings = await api("/api/settings"); await load();
   });
-  $("[data-ev=manual]")?.addEventListener("click", async (e) => { const on = !e.currentTarget.classList.contains("on"); e.currentTarget.classList.toggle("on", on); await api("/api/ev", { manual: on }); });
+  $("[data-ev=manual]")?.addEventListener("click", async (e) => { const b = e.currentTarget, on = !b.classList.contains("on"); b.classList.toggle("on", on); await api("/api/ev", { manual: on }); });
   $("[data-ev=ready]")?.addEventListener("change", (e) => api("/api/ev", { ready: e.target.value + ":00" }));
   const cap = $("[data-ev=cap]");
   cap?.addEventListener("input", () => ($("#capv").textContent = `${cap.value} kWh`));
