@@ -74,6 +74,7 @@ class Overview:
         self.settings: dict[str, Any] = self._load()
         self.detected: dict[str, dict[str, str]] = {}
         self.engine: Any = None
+        self.controller: Any = None
 
     async def async_detect(self) -> None:
         from .detect import detect
@@ -98,7 +99,8 @@ class Overview:
             elif key in ("battery_kwh", "import_limit_kw", "language", "setup_done", "style", "price_area", "tariff", "markup", "price_source", "tou", "vat", "battery_min_soc", "grid_charge",
                          "sell", "sell_price", "battery_charge_kw", "battery_discharge_kw", "ev_mode", "charger_kw", "ev_need_kwh",
                          "quiet_from", "quiet_to", "quiet_battery", "quiet_car",
-                         "quiet_battery_from", "quiet_battery_to", "quiet_car_from", "quiet_car_to"):
+                         "quiet_battery_from", "quiet_battery_to", "quiet_car_from", "quiet_car_to",
+                         "control", "inverter_profile", "custom_profile", "battery_takeover", "ev_now", "charger_phases", "ev_ready"):
                 self.settings[key] = value
         self.file.write_text(json.dumps(self.settings, indent=2))
 
@@ -312,8 +314,10 @@ class Overview:
         def val(role: str) -> Any:
             return (st.get(r[role]) or {}).get("state") if r[role] else None
 
-        return {"manual": val("ev_manual") == "on" if r["ev_manual"] else None, "ready": val("ev_ready"),
-                "cap": _num(st.get(r["ev_cap"])) if r["ev_cap"] else None,
+        # Without helpers of its own, the car's buttons are Energy Pilot's (its settings).
+        return {"manual": val("ev_manual") == "on" if r["ev_manual"] else bool(self.settings.get("ev_now")),
+                "ready": val("ev_ready") if r["ev_ready"] else self.settings.get("ev_ready"),
+                "cap": _num(st.get(r["ev_cap"])) if r["ev_cap"] else self.settings.get("ev_need_kwh"),
                 "cap_max": ((st.get(r["ev_cap"]) or {}).get("attributes") or {}).get("max") if r["ev_cap"] else None,
                 "session_kwh": _num(st.get(r["ev_session"])) if r["ev_session"] else None,
                 "entities": {k: r[k] for k in ("ev_manual", "ev_ready", "ev_cap")}}

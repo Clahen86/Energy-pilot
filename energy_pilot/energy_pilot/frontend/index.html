@@ -137,6 +137,9 @@
   .sec-ic svg { width:19px; height:19px; } .sec-head b { display:block; font-size:16px; font-weight:650; } .sec-head span { font-size:12.5px; color:var(--muted); }
   .sec-card .ctl:first-of-type { margin-top:10px; }
   .ctl:has(.seg.wide) { flex-wrap:wrap; } .seg.wide { width:100%; }
+  .cpart { padding:14px 0; border-top:1px solid var(--line); } .cp-head { display:flex; gap:12px; align-items:center; margin-bottom:10px; }
+  .cp-head b { display:block; font-weight:650; } .cp-head span { font-size:12.5px; color:var(--muted); }
+  .seg button:disabled { opacity:.35; cursor:not-allowed; }
   /* tab bar */
   nav { position:fixed; left:0; right:0; bottom:0; padding:10px 14px calc(10px + env(safe-area-inset-bottom)); z-index:5; display:flex; justify-content:center;
     background:linear-gradient(transparent, var(--bg) 45%); }
@@ -183,6 +186,14 @@ const T = {
       secPrice: "Elpris", secPriceH: "Hvad strømmen koster", secGrid: "Elnettet", secGridH: "Køb og salg", secQuiet: "Stille timer",
       quietWhere: "Vælg under Husbatteri og Bil og lader, hvad der skal holde pause.",
       area: "Prisområde", areaH: "Vest (DK1) eller øst (DK2) for Storebælt", tariff: "Nettarif (lav · høj · spids)", tariffH: "Pr. kWh uden moms - se din elregning" },
+    ctl: { title: "Energipilots motor styrer", hint: "Skygge: viser hvad den ville sende. Styrer: sender det til inverteren og laderen.",
+      now: "Nu ville den", calls: "Det den sender", confirm: "Lad Energipilots motor styre? Sørg for at intet andet styrer det samme.",
+      batNormal: "Normal drift (batteriet dækker huset, ned til {m} %)", batHold: "Holde på strømmen (ikke under {s} %)", batCharge: "Lade fra nettet til {t} % ({p} kW)",
+      carCharge: "Lade bilen ({a} A)", carStop: "Ikke lade bilen nu",
+      blocked: { other_system: "Din AppDaemon styrer batteriet - motoren holder sig væk", no_profile: "Vælg inverter-styring under Indstillinger → Husbatteri", no_charger: "Fandt ingen lader-kontroller" },
+      profile: "Inverter-styring", profileH: "Hvordan motoren taler med din inverter", custom: "Selv valgt (alle mærker)",
+      intents: { normal: "Normal drift", hold: "Hold på strømmen", charge: "Lad fra nettet" }, pick: "Vælg kontrol…", valueH: "Værdi, fx Battery first eller {target}",
+      addStep: "Tilføj trin", customHint: "Værdier kan bruge {min_soc}, {soc}, {target}, {rate} (%) og {power_w}." },
     learn: { title: "Selvkontrol", week: "Denne uge", yesterday: "I går", first: "Første rapport kommer i morgen tidlig - den lærer af hver dag.",
       saved: "Batteriet sparede", without: "uden batteri", house: "Forbruget ramt", perHour: "pr. time", sunCloudy: "Sol, skyet", sunClear: "Sol, klart",
       ofForecast: "af prognosen", learned: "Det har den lært", biasCloudy: "Solkorrektion, skyet", biasClear: "Solkorrektion, klart",
@@ -227,6 +238,14 @@ const T = {
       secPrice: "Electricity price", secPriceH: "What power costs", secGrid: "The grid", secGridH: "Buying and selling", secQuiet: "Quiet hours",
       quietWhere: "Choose under House battery and Car and charger what should pause.",
       area: "Price area", areaH: "West (DK1) or east (DK2) of the Great Belt", tariff: "Grid tariff (low · high · peak)", tariffH: "Per kWh excl. VAT - see your bill" },
+    ctl: { title: "Energy Pilot's engine controls", hint: "Shadow: shows what it would send. Control: sends it to the inverter and the charger.",
+      now: "Now it would", calls: "What it sends", confirm: "Let Energy Pilot's engine control? Make sure nothing else controls the same.",
+      batNormal: "Run normally (battery covers the house, down to {m} %)", batHold: "Keep the power (not below {s} %)", batCharge: "Charge from the grid to {t} % ({p} kW)",
+      carCharge: "Charge the car ({a} A)", carStop: "Not charge the car now",
+      blocked: { other_system: "Your AppDaemon controls the battery - the engine stays away", no_profile: "Pick inverter control under Settings → House battery", no_charger: "No charger controls found" },
+      profile: "Inverter control", profileH: "How the engine talks to your inverter", custom: "Chosen by you (any brand)",
+      intents: { normal: "Normal", hold: "Keep the power", charge: "Charge from the grid" }, pick: "Pick a control…", valueH: "Value, e.g. Battery first or {target}",
+      addStep: "Add step", customHint: "Values can use {min_soc}, {soc}, {target}, {rate} (%) and {power_w}." },
     learn: { title: "Self-check", week: "This week", yesterday: "Yesterday", first: "The first report comes tomorrow morning - it learns from every day.",
       saved: "The battery saved", without: "without battery", house: "Use hit", perHour: "per hour", sunCloudy: "Sun, cloudy", sunClear: "Sun, clear",
       ofForecast: "of the forecast", learned: "What it has learned", biasCloudy: "Solar correction, cloudy", biasClear: "Solar correction, clear",
@@ -427,6 +446,29 @@ function ring(p) {
   const r = 22, c = 2 * Math.PI * r, v = p ?? 0, color = p == null ? "var(--faint)" : p >= 95 ? "var(--ok)" : p >= 80 ? "var(--warn)" : "var(--bad)";
   return `<div class="ring"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="${r}" stroke="var(--line2)"/><circle cx="26" cy="26" r="${r}" stroke="${color}" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - v / 100)}"/></svg><b>${p == null ? "–" : p + "%"}</b></div>`;
 }
+let control = null;
+function describe(part, want) {
+  const c = T.ctl;
+  if (!want) return "–";
+  if (part === "car") return want.intent === "charge" ? c.carCharge.replace("{a}", Math.round(want.ctx.current)) : c.carStop;
+  return want.intent === "charge" ? c.batCharge.replace("{t}", want.ctx.target).replace("{p}", num(want.ctx.power_w / 1000, 1))
+    : want.intent === "hold" ? c.batHold.replace("{s}", want.ctx.soc) : c.batNormal.replace("{m}", want.ctx.min_soc);
+}
+function controlView() {
+  if (!control || !control.battery) return "";
+  const c = T.ctl;
+  const part = (key, title, ic) => {
+    const st = control[key];
+    if (!st.now && !st.entities.length) return "";
+    return `<div class="cpart"><div class="cp-head"><span class="sec-ic" style="--sc:${key === "car" ? "var(--car)" : "var(--batt)"}">${icon(ic)}</span><div><b>${title}</b>
+        <span>${st.blocked ? c.blocked[st.blocked] : `${c.now}: ${describe(key, st.now)}`}</span></div></div>
+      <div class="seg">${["shadow", "control", "off"].map((m) => `<button class="${m} ${st.mode === m ? "on" : ""}" data-cpart="${key}" data-cmode="${m}" ${m === "control" && st.blocked ? "disabled" : ""}>${T.modes[m]}</button>`).join("")}</div>
+      ${st.calls.length ? `<details class="more"><summary>${c.calls} (${st.calls.length})</summary><table>${st.calls.map((x) => `<tr><td>${esc(x.domain + "." + x.service)}</td><td>${esc(JSON.stringify(x.data))}</td></tr>`).join("")}</table></details>` : ""}
+    </div>`;
+  };
+  return `<div class="eyebrow" style="margin-top:18px"><span>${c.title}</span>${control.profile?.name ? `<span>${esc(control.profile.name)}</span>` : ""}</div>
+    <div class="muted" style="margin-bottom:6px">${c.hint}</div>${part("battery", T.y.secBattery, "battery")}${part("car", T.y.secCar, "car")}`;
+}
 function shadowView() {
   if (!status) return `<div class="card">…</div>`;
   const control = status.apps.some((a) => a.mode === "control");
@@ -436,6 +478,7 @@ function shadowView() {
       <details class="more"><summary>${L === "da" ? "Detaljer" : "Details"}</summary><table><tr><th>Sensor</th><th>Pilot</th><th>System</th></tr>
         ${a.entities.map((e) => `<tr><td>${esc(e.entity_id)}</td><td>${esc(e.mine_now)}</td><td>${esc(e.real ?? "–")}</td></tr>`).join("")}</table>
         <table style="margin-top:8px"><tr><th>${L === "da" ? "Ville gøre" : "Would do"}</th><th>Data</th></tr>${a.would.slice(0, 15).map((w) => `<tr><td>${esc(w.service)}</td><td>${esc(JSON.stringify(w.data)).slice(0, 120)}</td></tr>`).join("")}</table></details>`).join("")}
+    ${controlView()}
     ${data?.engine && data.engine.checks ? `<div class="app">${ring(data.engine.agree)}<div class="t"><b>${T.engineName}</b><span>${T.engineHint.replace("{x}", kr(data.engine.saving))}</span></div></div>` : ""}
     ${control ? `<button class="stopall" data-stopall>${T.stopAll}</button>` : ""}</div>`;
 }
@@ -481,7 +524,11 @@ function styleView() {
       ${row(y.grid, y.gridH, tog("grid_charge", true))}
       ${row(y.size, settings.capacity_guess ? y.sizeH.replace("{x}", num(settings.capacity_guess, 1)) : "", numIn("battery_kwh", settings.capacity_guess ?? 10, "0.1", "kWh"))}
       ${row(y.power, y.powerH, numIn("battery_charge_kw", 3, "0.1", "kW"))}
-      ${quietRow("battery")}` : "")}
+      ${quietRow("battery")}
+      ${control?.profile ? row(T.ctl.profile, T.ctl.profileH, `<select data-iprof><option value="">${T.auto}${control.profile.key && control.profile.key !== "custom" && !v.inverter_profile ? ": " + esc(control.profile.choices[control.profile.key] || "") : ""}</option>
+        ${Object.entries(control.profile.choices).map(([k, n]) => `<option value="${k}" ${v.inverter_profile === k ? "selected" : ""}>${esc(n)}</option>`).join("")}
+        <option value="custom" ${v.inverter_profile === "custom" ? "selected" : ""}>${T.ctl.custom}</option></select>`) : ""}
+      ${v.inverter_profile === "custom" ? customEditor(v) : ""}` : "")}
     ${section("car", y.secCar, y.secCarH, hasCar ? `${row(y.carMode, "", `<div class="seg mini">${["cheapest", "solar"].map((m) => `<button class="${(v.ev_mode || "cheapest") === m ? "on" : ""}" data-evmode="${m}">${y.carModes[m]}</button>`).join("")}</div>`)}
       ${row(y.charger, y.chargerH, numIn("charger_kw", 7.4, "0.1", "kW"))}
       ${quietRow("car")}` : "")}
@@ -493,6 +540,16 @@ function styleView() {
       ${row(y.sell, y.sellH, tog("sell"))}
       ${v.sell ? row(y.sellPrice, "", numIn("sell_price", "0.5", "0.05", SYM())) : ""}`)}
 `;
+}
+function customEditor(v) {
+  const c = T.ctl, prof = v.custom_profile || {}, ents = control?.battery?.entities || [];
+  return `<div class="tou">${["normal", "hold", "charge"].map((intent) => `<div class="group"><h4>${c.intents[intent]}</h4>
+    ${(prof[intent] || []).map((st, i) => {
+      return `<div class="period"><select data-cent="${intent}:${i}"><option value="">${c.pick}</option>${ents.map((e) => `<option value="${e}" ${st.entity === e ? "selected" : ""}>${esc(e)}</option>`).join("")}</select>
+        ${st.entity && !st.entity.startsWith("switch.") ? `<input class="pname" data-cval="${intent}:${i}" value="${esc(st.value ?? "")}" placeholder="${c.valueH}">` : ""}
+        <button class="x" data-cdel="${intent}:${i}">✕</button></div>`;
+    }).join("")}<button class="ghostbtn" data-cadd="${intent}">+ ${c.addStep}</button></div>`).join("")}
+    <div class="muted" style="margin-top:8px">${c.customHint}</div></div>`;
 }
 function touEditor(v) {
   const y = T.y, plan = v.tou || { default: 0, periods: [] };
@@ -563,14 +620,28 @@ function patch() {
 function wire() {
   document.querySelectorAll("[data-tab]").forEach((b) => b.onclick = async () => {
     tab = b.dataset.tab; localStorage.setItem("ep_tab", tab);
-    if (tab === "shadow") status = await api("/api/status");
-    if (tab === "settings") settings = await api("/api/settings");
+    if (tab === "shadow") { status = await api("/api/status"); control = await api("/api/control"); }
+    if (tab === "settings") { settings = await api("/api/settings"); control = await api("/api/control"); }
     render(); window.scrollTo(0, 0);
   });
   document.querySelectorAll("[data-h]").forEach((g) => g.onclick = () => {
     const h = data.plan.hours.filter((x) => x.price != null || x.sun != null)[Number(g.dataset.h)];
     $("#tip").innerHTML = `<b>${clock(h.t)}</b> · ${kr(h.price)}/kWh${h.sun != null ? ` · ${T.legSun} ${num(h.sun, 1)} kWh` : ""}${h.house != null ? ` · ${T.legHouse} ${num(h.house, 1)} kWh` : ""}${h.soc != null ? ` · ${T.battery} ${num(h.soc, 0)} %` : ""}${h.charge ? ` · ${T.legCharge}` : ""}${h.car ? ` · ${T.legCar}` : ""}`;
   });
+  document.querySelectorAll("[data-cmode]").forEach((b) => b.onclick = async () => {
+    if (b.dataset.cmode === "control" && !confirm(T.ctl.confirm)) return;
+    control = await api("/api/control", { part: b.dataset.cpart, mode: b.dataset.cmode }); await load(); render();
+  });
+  $("[data-iprof]")?.addEventListener("change", async (e) => { await api("/api/settings", { inverter_profile: e.target.value || null }); settings = await api("/api/settings"); control = await api("/api/control"); render(); });
+  const cust = () => JSON.parse(JSON.stringify(settings.settings.custom_profile || { normal: [], hold: [], charge: [] }));
+  document.querySelectorAll("[data-cadd]").forEach((b) => b.onclick = async () => { const c = cust(); (c[b.dataset.cadd] ||= []).push({ entity: "", kind: "select", value: "" }); await api("/api/settings", { custom_profile: c }); settings = await api("/api/settings"); render(); });
+  document.querySelectorAll("[data-cent],[data-cval]").forEach((el) => el.onchange = async () => {
+    const c = cust(), [intent, i] = (el.dataset.cent || el.dataset.cval).split(":"), step = c[intent][Number(i)];
+    if (el.dataset.cent) { step.entity = el.value; step.kind = el.value.startsWith("select.") ? "select" : el.value.startsWith("number.") ? "number" : "on"; }
+    else step.value = el.value;
+    await api("/api/settings", { custom_profile: c }); settings = await api("/api/settings"); control = await api("/api/control"); render();
+  });
+  document.querySelectorAll("[data-cdel]").forEach((b) => b.onclick = async () => { const c = cust(), [intent, i] = b.dataset.cdel.split(":"); c[intent].splice(Number(i), 1); await api("/api/settings", { custom_profile: c }); settings = await api("/api/settings"); render(); });
   document.querySelectorAll("[data-mode]").forEach((b) => b.onclick = async () => {
     if (b.dataset.mode === "control" && !confirm(T.confirm)) return;
     await api("/api/mode", { app: b.dataset.app, mode: b.dataset.mode }); status = await api("/api/status"); await load(); render();
@@ -613,14 +684,14 @@ async function load() { data = await api("/api/overview?lang=" + L).catch(() => 
   await load();
   if (data && !data.setup_done) tab = "setup";
   if (tab === "setup") settings = await api("/api/settings");
-  if (tab === "shadow") status = await api("/api/status");
-  if (tab === "settings") settings = await api("/api/settings");
+  if (tab === "shadow") { status = await api("/api/status"); control = await api("/api/control"); }
+  if (tab === "settings") { settings = await api("/api/settings"); control = await api("/api/control"); }
   render();
   setInterval(async () => {
     if (document.hidden) return;
     await load();
     if (tab === "home") patch();
-    if (tab === "shadow") { status = await api("/api/status"); if (!document.querySelector("details[open]")) render(); }
+    if (tab === "shadow") { status = await api("/api/status"); control = await api("/api/control"); if (!document.querySelector("details[open]")) render(); }
   }, 4000);
   setInterval(() => { if (tab === "home" || tab === "plan") render(); }, 300000);
 })();

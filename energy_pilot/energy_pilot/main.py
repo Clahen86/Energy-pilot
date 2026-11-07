@@ -12,6 +12,7 @@ from aiohttp import web
 
 from .ha import HomeAssistant
 from .cards import Cards
+from .control import Controller
 from .engine import Engine
 from .overview import Overview
 from .runner import Runner
@@ -81,6 +82,8 @@ async def main() -> None:
     asyncio.create_task(detect_hourly())
     engine = Engine(ha, overview)
     overview.engine = engine
+    controller = Controller(ha, overview, engine)
+    overview.controller = controller
 
     async def run_engine() -> None:
         await ha.connected.wait()
@@ -94,6 +97,9 @@ async def main() -> None:
                 await engine.refresh_sources()
                 engine.run()
                 await engine.review()
+                if not controller.entities["battery"] and not controller.entities["car"] or int(asyncio.get_running_loop().time()) % 3600 < 300:
+                    await controller.discover()
+                await controller.tick()
             except Exception:  # noqa: BLE001 - tries again next round
                 logging.getLogger("energy_pilot.engine").warning("Engine round failed", exc_info=True)
             await asyncio.sleep(300)
