@@ -12,12 +12,13 @@ the user's own prices, so the plan always reaches as far as anything is known.
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-LIST_KEYS = ("prices", "raw_today", "raw_tomorrow", "today", "tomorrow", "forecast", "forecasts", "data", "prices_today",
-             "prices_tomorrow")  # "forecasts": Amber
+LIST_KEYS = ("prices", "raw_today", "raw_tomorrow", "today", "tomorrow", "forecast", "forecasts", "rates", "data", "prices_today",
+             "prices_tomorrow")  # "forecasts": Amber, "rates": Octopus Energy
 TIME_KEYS = ("start", "startsAt", "starts_at", "hour", "time", "from", "start_time", "valid_from")
 VALUE_KEYS = ("price", "value", "total", "price_inc_vat", "value_inc_vat", "price_ct_per_kwh", "per_kwh")
 
@@ -63,18 +64,42 @@ def parse(attrs: dict[str, Any], tz: ZoneInfo, day0: datetime) -> dict[datetime,
 
 
 def companions(states: dict[str, dict], entity_id: str) -> list[str]:
-    """The price entity and its "tomorrow" companions from the same integration (same name prefix)."""
+    """The price entity and its "tomorrow" companions from the same integration (same name prefix).
+
+    Octopus Energy keeps today's and tomorrow's rates on event entities (…_current_day_rates, …_next_day_rates)
+    beside the …_current_rate sensor; import and export are kept apart."""
     obj = entity_id.split(".", 1)[1]
     prefix = obj.split("_")[0]
+    export = "export" in obj
+    base = re.sub(r"_(?:current_rate|current_day_rates|next_day_rates|previous_day_rates)$", "", obj)
     out = [entity_id]
     for e, s in states.items():
         if e == entity_id:
             continue
         o = e.split(".", 1)[1]
-        if o.startswith(prefix + "_") and any(w in o for w in ("tomorrow", "i_morgen", "imorgen", "morgen")) and \
-                any(isinstance((s.get("attributes") or {}).get(k), list) for k in LIST_KEYS):
+        if ("export" in o) != export or not any(isinstance((s.get("attributes") or {}).get(k), list) for k in LIST_KEYS):
+            continue
+        tomorrow = o.startswith(prefix + "_") and any(w in o for w in ("tomorrow", "i_morgen", "imorgen", "morgen"))
+        octopus = o in (f"{base}_current_day_rates", f"{base}_next_day_rates")
+        if tomorrow or octopus:
             out.append(e)
     return out
+
+
+def now_price(states: dict[str, dict], entity_id: str | None, tz: ZoneInfo) -> float | None:
+    """The price now: the entity's state, or (an event entity like Octopus') the slot now from its rates."""
+    if not entity_id or not (s := states.get(entity_id)):
+        return None
+    try:
+        return float(s.get("state"))
+    except (TypeError, ValueError):
+        pass
+    now = datetime.now(tz)
+    prices: dict[datetime, float] = {}
+    for e in companions(states, entity_id):
+        prices.update(parse((states.get(e) or {}).get("attributes") or {}, tz, now.replace(hour=0, minute=0, second=0, microsecond=0)))
+    past = [k for k in prices if k <= now]
+    return prices[max(past)] if past else None
 
 
 def collect(states: dict[str, dict], entity_id: str | None, own: list[dict[str, Any]], tz: ZoneInfo) -> tuple[dict[datetime, float], dict[str, Any]]:

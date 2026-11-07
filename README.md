@@ -87,7 +87,7 @@ integration's controls, waiting for a beta tester with the hardware.
 |---|---|
 | **Inverter / battery** | ✅ Growatt SPH (SPA) · 🧪 Growatt MIN/MOD TL-XH · 🧪 Deye (Solarman) · 🧪 Victron (ESS) · 🧪 Huawei SUN2000/LUNA2000 · 🧪 SolaX · 🧪 Sungrow · 🧪 SolarEdge · 🧪 Fox ESS · 🧪 GivEnergy · any other by picking its controls yourself |
 | **EV charger** | ✅ KEBA · 🧪 Easee · 🧪 Zaptec · 🧪 go-e · 🧪 Wallbox · 🧪 OCPP · any with a switch and a current setting |
-| **Prices** | ✅ Strømligning · ✅ built-in spot prices · 🧪 Nord Pool · 🧪 Tibber · 🧪 Energi Data Service · tariff plans |
+| **Prices** | ✅ Strømligning · ✅ built-in spot prices · 🧪 Octopus Energy (import + export, Agile) · 🧪 Amber · 🧪 Nord Pool · 🧪 Tibber · 🧪 Energi Data Service · tariff plans |
 
 ![Cards](docs/cards.png)
 

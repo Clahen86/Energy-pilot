@@ -22,14 +22,15 @@ ROLES: dict[str, dict[str, Any]] = {
     "ev_power": {"known": ["sensor.keba_p30_charging_power"], "class": "power", "words": ["charging_power", "ladeeffekt", "wallbox", "charger"]},
     "ev_plug": {"known": ["binary_sensor.keba_p30_plug"], "class": "plug", "words": ["plug", "stik", "plugged"]},
     "ev_session": {"known": ["sensor.keba_p30_session_energy"], "class": "energy", "words": ["session_energy"]},
-    "price": {"known": ["sensor.stromligning_current_price_vat"], "class": None, "words": ["price", "pris", "nordpool", "spot"]},
+    "price": {"known": ["sensor.stromligning_current_price_vat"], "class": None,
+              "words": ["price", "pris", "nordpool", "spot", "current_rate", "day_rates", "tariff"]},
     "solar_today": {"known": ["sensor.solcast_pv_forecast_forecast_today"], "class": None, "words": ["forecast_today"]},
     "solar_tomorrow": {"known": ["sensor.solcast_pv_forecast_forecast_tomorrow"], "class": None, "words": ["forecast_tomorrow"]},
     "house_forecast": {"known": ["sensor.ml_forecast_appdaemon"], "class": None, "words": []},
     "battery_cost": {"known": ["sensor.batteri_gennemsnitlig_kostpris_dkk_kwh"], "class": None, "words": ["kostpris", "battery_cost", "stored_cost", "average_cost"]},
     "battery_plan": {"known": ["sensor.appdaemon_comparison_controller"], "class": None, "words": []},
     # A feed-in price that changes (Amber, Tibber export …) - instead of the fixed sell price. Only when chosen.
-    "sell_price": {"known": [], "class": None, "words": ["feed_in", "feedin", "export_price", "sell_price", "salgspris"]},
+    "sell_price": {"known": [], "class": None, "words": ["feed_in", "feedin", "export_price", "export_current", "export", "sell_price", "salgspris"]},
     "ev_manual": {"known": ["input_boolean.bil_lad_manuelt"], "class": None, "words": []},
     "ev_ready": {"known": ["input_datetime.bil_klar_tid"], "class": None, "words": []},
     "ev_cap": {"known": ["input_number.bil_lad_loft_kwh"], "class": None, "words": []},
@@ -109,6 +110,12 @@ class Overview:
         self.file.write_text(json.dumps(self.settings, indent=2))
 
     # ---------- finding the parts ----------
+
+    def _price_now_from_rates(self) -> float | None:
+        """An event entity (Octopus' current day rates) has no number as its state: the slot now from its rates."""
+        from .pricefeed import now_price
+
+        return now_price(self.ha.states, self.role("price"), ZoneInfo(self.ha.config.get("time_zone") or "UTC"))
 
     def battery_sign(self) -> int:
         """+1: positive battery power is charging (Growatt). -1: positive is discharging (Fox ESS). Chosen, or found."""
@@ -387,7 +394,8 @@ class Overview:
         house_e = self.role("house_forecast")
         return {
             "flow": self.flow(), "decision": self.decision(lang), "plan": self.plan(), "ev": self.ev(),
-            "price": {"now": _num(price), "unit": ((price or {}).get("attributes") or {}).get("unit_of_measurement")},
+            "price": {"now": _num(price) if _num(price) is not None else self._price_now_from_rates(),
+                      "unit": ((price or {}).get("attributes") or {}).get("unit_of_measurement")},
             # Home today: the engine's own (what the plan uses); another system's forecast is shown beside it.
             "solar": solar,
             "house_today": (self.engine.house_today() if self.engine else None)

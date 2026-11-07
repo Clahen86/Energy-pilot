@@ -451,10 +451,13 @@ class Engine:
         e = self.ov.role("sell_price")
         if not e or not (s := self.ha.states.get(e)):
             return {}
-        from .pricefeed import parse
+        from .pricefeed import companions, parse
 
         now = datetime.now(self.tz)
-        out = parse(s.get("attributes") or {}, self.tz, now.replace(hour=0, minute=0, second=0, microsecond=0))
+        out: dict[datetime, float] = {}
+        for c in companions(self.ha.states, e):  # Octopus: today's and tomorrow's export rates
+            out.update(parse((self.ha.states.get(c) or {}).get("attributes") or {}, self.tz,
+                             now.replace(hour=0, minute=0, second=0, microsecond=0)))
         try:
             cur = float(s.get("state"))
             out.setdefault(now.replace(minute=now.minute // 15 * 15, second=0, microsecond=0), cur)

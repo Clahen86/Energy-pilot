@@ -40,3 +40,20 @@ def test_missing_tomorrow_is_filled_at_the_users_level():
     own = [{"start": iso(DAY0 + timedelta(hours=h)), "price": 2.5} for h in range(48)]  # own spot prices, 0.5 lower
     prices, info = collect(states, "sensor.my_price", own, TZ)
     assert prices[T1 + timedelta(hours=8)] == 3.0 and info["filled"] == 24
+
+
+def test_octopus_rates_import_and_export_apart():
+    base = "octopus_energy_electricity_19l1234_2100"
+    t1 = DAY0 + timedelta(days=1)
+    rate = lambda d, h, v: {"start": iso(d + timedelta(minutes=30 * h)), "end": iso(d + timedelta(minutes=30 * h + 30)), "value_inc_vat": v}
+    states = {
+        f"event.{base}_current_day_rates": {"state": "2026-11-08T00:00:00", "attributes": {"rates": [rate(DAY0, h, 0.20) for h in range(48)]}},
+        f"event.{base}_next_day_rates": {"state": "x", "attributes": {"rates": [rate(t1, h, 0.10) for h in range(48)]}},
+        f"event.{base}_export_current_day_rates": {"state": "x", "attributes": {"rates": [rate(DAY0, h, 0.15) for h in range(48)]}},
+    }
+    prices, info = collect(states, f"event.{base}_current_day_rates", [], TZ)
+    assert prices[DAY0 + timedelta(minutes=30)] == 0.20 and prices[t1 + timedelta(hours=3)] == 0.10  # half hours, tomorrow too
+    assert 0.15 not in prices.values()  # export kept apart
+    from energy_pilot.pricefeed import now_price
+
+    assert now_price(states, f"event.{base}_current_day_rates", TZ) == 0.20  # an event entity's state isn't a price
