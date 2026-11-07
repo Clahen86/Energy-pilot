@@ -57,3 +57,27 @@ def test_octopus_rates_import_and_export_apart():
     from energy_pilot.pricefeed import now_price
 
     assert now_price(states, f"event.{base}_current_day_rates", TZ) == 0.20  # an event entity's state isn't a price
+
+
+def test_stromligning_tomorrow_spot_price_is_not_mixed_in():
+    """Bug: tomorrow's spot price alone (…_tomorrow_spotprice_vat) overwrote the full price."""
+    full = [{"start": iso(T1 + timedelta(hours=h)), "price": 4.8 if h == 18 else 2.4} for h in range(24)]
+    spot = [{"start": iso(T1 + timedelta(hours=h)), "price": 3.4 if h == 18 else 1.0} for h in range(24)]
+    exvat = [{"start": iso(T1 + timedelta(hours=h)), "price": 3.9 if h == 18 else 1.9} for h in range(24)]
+    states = {
+        "sensor.stromligning_current_price_vat": {"attributes": {"prices": [{"start": iso(DAY0), "price": 2.0}]}},
+        "binary_sensor.stromligning_tomorrow_available_vat": {"attributes": {"prices": full}},
+        "binary_sensor.stromligning_tomorrow_spotprice_vat": {"attributes": {"prices": spot}},
+        "binary_sensor.stromligning_tomorrow_available": {"attributes": {"prices": exvat}},  # without VAT
+    }
+    prices, _ = collect(states, "sensor.stromligning_current_price_vat", [], TZ)
+    assert prices[T1 + timedelta(hours=18)] == 4.8
+
+
+def test_amber_forecast_sensor_is_the_companion():
+    from energy_pilot.pricefeed import companions
+
+    states = {"sensor.amber_general_price": {"attributes": {}},
+              "sensor.amber_general_forecast": {"attributes": {"forecasts": [{"start_time": iso(T1), "per_kwh": 0.3}]}},
+              "sensor.amber_feed_in_forecast": {"attributes": {"forecasts": [{"start_time": iso(T1), "per_kwh": 0.1}]}}}
+    assert companions(states, "sensor.amber_general_price") == ["sensor.amber_general_price", "sensor.amber_general_forecast"]

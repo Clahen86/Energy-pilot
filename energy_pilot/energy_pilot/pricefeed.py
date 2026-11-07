@@ -64,25 +64,36 @@ def parse(attrs: dict[str, Any], tz: ZoneInfo, day0: datetime) -> dict[datetime,
 
 
 def companions(states: dict[str, dict], entity_id: str) -> list[str]:
-    """The price entity and its "tomorrow" companions from the same integration (same name prefix).
+    """The price entity and its "tomorrow" companion from the same integration - only one, of the same kind.
 
-    Octopus Energy keeps today's and tomorrow's rates on event entities (…_current_day_rates, …_next_day_rates)
-    beside the …_current_rate sensor; import and export are kept apart."""
+    An integration can have several entities for tomorrow: Strømligning has the full price (…_tomorrow_available_vat)
+    and the spot price alone (…_tomorrow_spotprice_vat), with and without VAT. Only the one that matches today's
+    entity is used (same markers: vat, spot, export, feed-in …), the most alike by name - never a mix.
+    Octopus Energy keeps the rates on event entities (…_current_day_rates, …_next_day_rates) beside the
+    …_current_rate sensor; Amber keeps the coming prices on a …_forecast sensor beside the …_price one."""
     obj = entity_id.split(".", 1)[1]
     prefix = obj.split("_")[0]
-    export = "export" in obj
     base = re.sub(r"_(?:current_rate|current_day_rates|next_day_rates|previous_day_rates)$", "", obj)
+
+    def marks(o: str) -> frozenset:
+        return frozenset(m for m in ("vat", "spot", "export", "feed", "ex_vat", "excl", "incl", "raw") if m in o)
+
+    def has_list(s: dict) -> bool:
+        return any(isinstance((s.get("attributes") or {}).get(k), list) for k in LIST_KEYS)
+
     out = [entity_id]
+    exact = {f"{base}_current_day_rates", f"{base}_next_day_rates", obj.replace("_price", "_forecast")} - {obj}
     for e, s in states.items():
-        if e == entity_id:
-            continue
-        o = e.split(".", 1)[1]
-        if ("export" in o) != export or not any(isinstance((s.get("attributes") or {}).get(k), list) for k in LIST_KEYS):
-            continue
-        tomorrow = o.startswith(prefix + "_") and any(w in o for w in ("tomorrow", "i_morgen", "imorgen", "morgen"))
-        octopus = o in (f"{base}_current_day_rates", f"{base}_next_day_rates")
-        if tomorrow or octopus:
-            out.append(e)
+        if e != entity_id and e.split(".", 1)[1] in exact and has_list(s):
+            out.append(e)  # Octopus / Amber: the known pair
+    if len(out) == 1:
+        tomorrow = [e for e, s in states.items() if e != entity_id and has_list(s)
+                    and (o := e.split(".", 1)[1]).startswith(prefix + "_")
+                    and any(w in o for w in ("tomorrow", "i_morgen", "imorgen", "morgen")) and marks(o) == marks(obj)]
+        if tomorrow:
+            from difflib import SequenceMatcher
+
+            out.append(max(tomorrow, key=lambda e: SequenceMatcher(None, e.split(".", 1)[1], obj).ratio()))
     return out
 
 
