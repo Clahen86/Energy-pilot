@@ -289,10 +289,11 @@ class Overview:
         for t in (res.get("car") or {}).get("hours", []):
             if (h := slot(datetime.fromisoformat(t))) is not None:
                 h["car"] = True
-        if not self.role("house_forecast"):
-            for row in res.get("house", []):
-                if (h := slot(datetime.fromisoformat(row["t"]))) is not None:
-                    h.setdefault("house", row["kwh"])
+        # The engine's own forecast covers every planned hour: it fills what another forecast doesn't reach
+        # (an AppDaemon forecast that only covers today).
+        for row in res.get("house", []):
+            if (h := slot(datetime.fromisoformat(row["t"]))) is not None:
+                h.setdefault("house", row["kwh"])
         rows = sorted(hours.values(), key=lambda h: h["t"])
         prices = [h["price"] for h in rows if "price" in h]
         cheapest = sorted((h for h in rows if "price" in h and h["t"] >= now.replace(minute=0, second=0, microsecond=0).isoformat()),
