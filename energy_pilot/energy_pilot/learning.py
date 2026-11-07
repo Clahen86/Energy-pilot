@@ -134,7 +134,7 @@ class Learning:
         week = reports[-7:]
         return {
             "yesterday": reports[-1] if reports else None,
-            "week_saving": round(sum(r.get("saving", 0) for r in week), 2) if week else None,
+            "week_saving": round(sum(r.get("saving", 0) for r in week), 2) if any("saving" in r for r in week) else None,
             "solar_bias": self.state["solar_bias"], "house_margin": self.margin, "end_factor": self.end_factor,
             "days": len(reports),
         }

@@ -62,14 +62,16 @@ async def main() -> None:
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     opts = options()
     apps_dir = Path(os.environ.get("APPS_DIR") or opts.get("apps_dir") or "/config/apps")
-    data_dir = Path(os.environ.get("DATA_DIR") or opts.get("data_dir") or "/config")
+    data_dir = Path(os.environ.get("DATA_DIR") or opts.get("data_dir") or ("/config" if os.environ.get("SUPERVISOR_TOKEN") else "/data"))
     data_dir.mkdir(parents=True, exist_ok=True)
     source = opts.get("seed_from") or os.environ.get("SEED_FROM")
     seed(data_dir, Path(source) if source else None,
          opts.get("seed_files") or ["growatt_*", "ev_session_state.json", "husmodel_state.json", "husmodel"],
          opts.get("shared") or ["indeklima_varme_data"])
     ha = HomeAssistant()
-    runner = Runner(ha, apps_dir, data_dir, opts.get("apps") or DEFAULT_APPS)
+    # Your own AppDaemon apps run only when they are there (in Docker and for most homes: none - the engine plans).
+    apps = [a for a in (opts.get("apps") or DEFAULT_APPS) if (apps_dir / f"{a['module']}.py").is_file()]
+    runner = Runner(ha, apps_dir, data_dir, apps)
     asyncio.create_task(ha.run())
     overview = Overview(ha, data_dir)
 

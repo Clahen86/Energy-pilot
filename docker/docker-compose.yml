@@ -1,0 +1,15 @@
+# Energipilot in Docker (Home Assistant Container / Core). Open the panel on http://<host>:8099
+services:
+  energy-pilot:
+    image: ghcr.io/clahen86/energy-pilot:latest
+    container_name: energy-pilot
+    restart: unless-stopped
+    ports:
+      - "8099:8099"
+    environment:
+      HA_URL: "http://homeassistant.local:8123"   # your Home Assistant
+      HA_TOKEN: "paste a long-lived access token"  # Profile -> Security -> Long-lived access tokens
+      TZ: "Europe/Copenhagen"
+    volumes:
+      - ./energy-pilot-data:/data            # what it learns and your settings
+      - /path/to/homeassistant/config:/homeassistant   # optional: installs the cards and the companion integration

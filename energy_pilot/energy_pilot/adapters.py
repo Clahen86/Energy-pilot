@@ -22,7 +22,7 @@ from typing import Any
 # step: (pattern on the entity id, service, value). Service: "select" | "number" | "on" | "off" | "press" | "<domain>.<service>"
 PROFILES: dict[str, dict[str, Any]] = {
     "growatt": {
-        "name": "Growatt (SPH/SPA, lokal styring)",
+        "name": "Growatt (SPH/SPA)",
         "match": r"growatt",
         "normal": [(r"select\..*work_mode_priority$", "select", "Load first"), (r"number\..*load_first_stop_discharge$", "number", "{min_soc}"),
                    (r"select\..*battery_first_grid_charge$", "select", "Disabled")],
