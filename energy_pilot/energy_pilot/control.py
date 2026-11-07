@@ -9,6 +9,7 @@ Safety:
 - Starts in shadow, one part at a time.
 - Won't take the battery while another system plans it (your AppDaemon), unless you say so.
 - "Everything back to shadow" puts the battery back to normal before letting go.
+- Won't control if a control the profile needs is missing (another model, renamed, disabled) - never half a command.
 """
 
 from __future__ import annotations
@@ -32,6 +33,8 @@ class Controller:
         self.ha, self.ov, self.engine = ha, overview, engine
         self.entities: dict[str, list[str]] = {"battery": [], "car": []}
         self.platforms: dict[str, str | None] = {"battery": None, "car": None}
+        self.model: str | None = None
+        self.services: set[str] | None = None
         self.last: dict[str, dict[str, Any]] = {}
         self.log: dict[str, deque] = {"battery": deque(maxlen=60), "car": deque(maxlen=60)}
 
@@ -52,6 +55,8 @@ class Controller:
             return "other_system"  # another system plans the battery: never two at once
         if part == "battery" and not self.profile_steps():
             return "no_profile"
+        if part == "battery" and adapters.missing(self.check()):
+            return "missing_controls"
         if part == "car" and not self.entities["car"] and self.platforms["car"] not in adapters.CHARGER_SERVICES:
             return "no_charger"
         return None
@@ -65,6 +70,17 @@ class Controller:
         except Exception:  # noqa: BLE001
             return
         by_id = {e["entity_id"]: e for e in entities}
+        try:
+            devices = {d["id"]: d for d in await self.ha.command({"type": "config/device_registry/list"})}
+            dev = devices.get((by_id.get(self.ov.role("battery_soc") or "") or {}).get("device_id") or "") or {}
+            self.model = " ".join(x for x in (dev.get("model"), dev.get("model_id"), dev.get("name")) if x) or None
+        except Exception:  # noqa: BLE001
+            self.model = None
+        try:
+            svc = await self.ha.command({"type": "get_services"})
+            self.services = {f"{d}.{n}" for d, names in svc.items() for n in names}
+        except Exception:  # noqa: BLE001
+            self.services = None
         for part, role in (("battery", "battery_soc"), ("car", "ev_power")):
             anchor = self.ov.role(role) or (self.ov.role("ev_plug") if part == "car" else None)
             dev = (by_id.get(anchor) or {}).get("device_id")
@@ -80,7 +96,7 @@ class Controller:
         chosen = self.ov.settings.get("inverter_profile")
         if chosen:
             return chosen
-        return adapters.guess_profile(self.entities["battery"], {self.platforms["battery"] or ""})
+        return adapters.guess_profile(self.entities["battery"], {self.platforms["battery"] or ""}, self.model)
 
     def profile_steps(self) -> dict[str, list] | None:
         key = self.profile_key()
@@ -90,6 +106,17 @@ class Controller:
             return steps if any(steps.values()) else None
         p = adapters.PROFILES.get(key or "")
         return {i: p[i] for i in ("normal", "hold", "charge")} if p else None
+
+    def check(self) -> dict[str, dict]:
+        """Which of the profile's controls were found on the inverter, and which are missing."""
+        steps = self.profile_steps() or {}
+        key = self.profile_key()
+        optional = (adapters.PROFILES.get(key or "") or {}).get("optional") or []
+        return adapters.check(steps, self._pool(), optional, self.services) if steps else {}
+
+    def _pool(self) -> list[str]:
+        """Built-in profiles look only at the inverter's own controls; a custom one may pick any entity."""
+        return self.entities["battery"] + (list(self.ha.states) if self.profile_key() == "custom" else [])
 
     # ---------- deciding and acting ----------
 
@@ -121,7 +148,7 @@ class Controller:
     def calls(self, part: str, want: dict[str, Any]) -> list[dict[str, Any]]:
         if part == "battery":
             steps = self.profile_steps() or {}
-            return adapters.resolve(steps.get(want["intent"], []), self.entities["battery"], want["ctx"])
+            return adapters.resolve(steps.get(want["intent"], []), self._pool(), want["ctx"])
         return adapters.charger_calls(want["intent"], self.entities["car"], self.platforms["car"], want["ctx"]["current"])
 
     async def tick(self) -> None:
@@ -195,6 +222,8 @@ class Controller:
                 "entities": self.entities[part],
             }
         key = self.profile_key()
-        out["profile"] = {"key": key, "name": (adapters.PROFILES.get(key or "") or {}).get("name") or ("custom" if key == "custom" else None),
-                          "choices": {k: p["name"] for k, p in adapters.PROFILES.items()}}
+        prof = adapters.PROFILES.get(key or "") or {}
+        out["profile"] = {"key": key, "name": prof.get("name") or ("custom" if key == "custom" else None),
+                          "choices": {k: p["name"] for k, p in adapters.PROFILES.items()},
+                          "model": self.model, "tested": bool(prof.get("tested")) if key != "custom" else None, "check": self.check()}
         return out

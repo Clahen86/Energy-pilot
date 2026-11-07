@@ -41,3 +41,27 @@ def test_chargers():
     assert keba[0] == {"domain": "keba", "service": "set_current", "data": {"current": 10}}
     paused = adapters.charger_calls("charge", ["switch.charger_pause"], None, 16)
     assert paused[0]["service"] == "turn_off"  # a "pause" switch is turned off to charge
+
+
+def test_model_picks_the_variant():
+    tlxh = ["select.growatt_inverter_priority", "number.growatt_discharge_stop_soc", "switch.growatt_ac_charge",
+            "number.growatt_charge_stop_soc", "number.growatt_charge_power_rate"]
+    assert adapters.guess_profile(tlxh, {"growatt_local"}, "MOD 10KTL3-XH") == "growatt_tlxh"
+    assert adapters.guess_profile(GROWATT, {"mqtt"}, "SPH 6000TL3 BH") == "growatt"
+    charge = adapters.resolve(adapters.PROFILES["growatt_tlxh"]["charge"], tlxh, CTX)
+    assert {"domain": "switch", "service": "turn_on", "data": {"entity_id": "switch.growatt_ac_charge"}} in charge
+
+
+def test_missing_control_is_found_and_never_half():
+    p = adapters.PROFILES["growatt"]
+    steps = {i: p[i] for i in ("normal", "hold", "charge")}
+    assert adapters.missing(adapters.check(steps, GROWATT)) == []
+    partial = [e for e in GROWATT if "stop_charge" not in e]
+    res = adapters.check(steps, partial)
+    assert adapters.missing(res) == [r"number\..*battery_first_stop_charge$"]
+    # optional controls may be missing; a service that isn't there is missing
+    h = adapters.PROFILES["huawei_solar"]
+    hs = {i: h[i] for i in ("normal", "hold", "charge")}
+    found = ["number.huawei_maximum_discharging_power"]
+    assert adapters.missing(adapters.check(hs, found, h["optional"], {"huawei_solar.forcible_charge_soc"})) == []
+    assert adapters.missing(adapters.check(hs, found, h["optional"], set())) == ["huawei_solar.forcible_charge_soc"]

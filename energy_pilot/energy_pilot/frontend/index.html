@@ -147,6 +147,8 @@
   .cpart { padding:14px 0; border-top:1px solid var(--line); } .cp-head { display:flex; gap:12px; align-items:center; margin-bottom:10px; }
   .cp-head b { display:block; font-weight:650; } .cp-head span { font-size:12.5px; color:var(--muted); }
   .seg button:disabled { opacity:.35; cursor:not-allowed; }
+  .chk { margin:6px 0 10px; } .chk.bad summary { color:var(--warn); } .chk.good summary { color:var(--ok, #3fb950); }
+  .chk-i { margin-top:8px; } .chk-i table td:first-child { width:18px; } .muted.warn { color:var(--warn); }
   .pnote { font-size:12.5px; color:var(--muted); margin:-4px 0 10px; } .pnote.warn { color:var(--warn); }
   /* tab bar */
   nav { position:fixed; left:0; right:0; bottom:0; padding:10px 14px calc(10px + env(safe-area-inset-bottom)); z-index:5; display:flex; justify-content:center;
@@ -198,7 +200,11 @@ const T = {
       now: "Nu ville den", calls: "Det den sender", confirm: "Lad Energipilots motor styre? Sørg for at intet andet styrer det samme.",
       batNormal: "Normal drift (batteriet dækker huset, ned til {m} %)", batHold: "Holde på strømmen (ikke under {s} %)", batCharge: "Lade fra nettet til {t} % ({p} kW)",
       carCharge: "Lade bilen ({a} A)", carStop: "Ikke lade bilen nu",
-      blocked: { other_system: "Din AppDaemon styrer batteriet - motoren holder sig væk", no_profile: "Vælg inverter-styring under Indstillinger → Husbatteri", no_charger: "Fandt ingen lader-kontroller" },
+      blocked: { other_system: "Din AppDaemon styrer batteriet - motoren holder sig væk", no_profile: "Vælg inverter-styring under Indstillinger → Husbatteri", no_charger: "Fandt ingen lader-kontroller",
+        missing_controls: "Der mangler kontroller - motoren styrer ikke, før de findes" },
+      checkOk: "Test: alle kontroller fundet", checkMissing: "Test: {n} kontroller mangler", model: "Model", optional: "valgfri",
+      untested: "Denne profil er lavet ud fra mærkets kendte kontroller, men ikke prøvet på et rigtigt anlæg - lad den køre i skygge først.",
+      missingHint: "Vælg en anden profil under Indstillinger → Husbatteri, eller \"Selv valgt\" og peg på kontrollerne selv.",
       profile: "Inverter-styring", profileH: "Hvordan motoren taler med din inverter", custom: "Selv valgt (alle mærker)",
       intents: { normal: "Normal drift", hold: "Hold på strømmen", charge: "Lad fra nettet" }, pick: "Vælg kontrol…", valueH: "Værdi, fx Battery first eller {target}",
       addStep: "Tilføj trin", customHint: "Værdier kan bruge {min_soc}, {soc}, {target}, {rate} (%) og {power_w}." },
@@ -251,7 +257,11 @@ const T = {
       now: "Now it would", calls: "What it sends", confirm: "Let Energy Pilot's engine control? Make sure nothing else controls the same.",
       batNormal: "Run normally (battery covers the house, down to {m} %)", batHold: "Keep the power (not below {s} %)", batCharge: "Charge from the grid to {t} % ({p} kW)",
       carCharge: "Charge the car ({a} A)", carStop: "Not charge the car now",
-      blocked: { other_system: "Your AppDaemon controls the battery - the engine stays away", no_profile: "Pick inverter control under Settings → House battery", no_charger: "No charger controls found" },
+      blocked: { other_system: "Your AppDaemon controls the battery - the engine stays away", no_profile: "Pick inverter control under Settings → House battery", no_charger: "No charger controls found",
+        missing_controls: "Controls are missing - the engine won't control until they're found" },
+      checkOk: "Test: every control found", checkMissing: "Test: {n} controls missing", model: "Model", optional: "optional",
+      untested: "This profile is built from the brand's known controls but not yet tried on a real system - run it in shadow first.",
+      missingHint: "Pick another profile under Settings → House battery, or \"Chosen by you\" and point to the controls yourself.",
       profile: "Inverter control", profileH: "How the engine talks to your inverter", custom: "Chosen by you (any brand)",
       intents: { normal: "Normal", hold: "Keep the power", charge: "Charge from the grid" }, pick: "Pick a control…", valueH: "Value, e.g. Battery first or {target}",
       addStep: "Add step", customHint: "Values can use {min_soc}, {soc}, {target}, {rate} (%) and {power_w}." },
@@ -498,6 +508,17 @@ function describe(part, want) {
   return want.intent === "charge" ? c.batCharge.replace("{t}", want.ctx.target).replace("{p}", num(want.ctx.power_w / 1000, 1))
     : want.intent === "hold" ? c.batHold.replace("{s}", want.ctx.soc) : c.batNormal.replace("{m}", want.ctx.min_soc);
 }
+function checkView() {
+  const pr = control.profile, c = T.ctl;
+  if (!pr?.check || !Object.keys(pr.check).length) return "";
+  const miss = Object.values(pr.check).reduce((n, r) => n + r.missing.length, 0);
+  const row = (x, ok) => `<tr><td>${ok ? "✓" : "✗"}</td><td>${esc(x.entity || x.control)}${x.optional && !x.entity ? ` <span class="muted">(${c.optional})</span>` : ""}</td></tr>`;
+  return `<details class="more chk ${miss ? "bad" : "good"}" ${miss ? "open" : ""}><summary>${miss ? c.checkMissing.replace("{n}", miss) : c.checkOk}</summary>
+    ${pr.model ? `<div class="muted">${c.model}: ${esc(pr.model)}</div>` : ""}
+    ${pr.tested === false ? `<div class="muted warn">${c.untested}</div>` : ""}
+    ${Object.entries(pr.check).map(([i, r]) => `<div class="chk-i"><b>${c.intents[i] || i}</b><table>${r.found.map((x) => row(x, true)).join("")}${r.missing.map((x) => row(x, false)).join("")}</table></div>`).join("")}
+    ${miss ? `<div class="muted">${c.missingHint}</div>` : ""}</details>`;
+}
 function controlView() {
   if (!control || !control.battery) return "";
   const c = T.ctl;
@@ -511,7 +532,7 @@ function controlView() {
     </div>`;
   };
   return `<div class="eyebrow" style="margin-top:18px"><span>${c.title}</span>${control.profile?.name ? `<span>${esc(control.profile.name)}</span>` : ""}</div>
-    <div class="muted" style="margin-bottom:6px">${c.hint}</div>${part("battery", T.y.secBattery, "battery")}${part("car", T.y.secCar, "car")}`;
+    <div class="muted" style="margin-bottom:6px">${c.hint}</div>${part("battery", T.y.secBattery, "battery")}${checkView()}${part("car", T.y.secCar, "car")}`;
 }
 function shadowView() {
   if (!status) return `<div class="card">…</div>`;

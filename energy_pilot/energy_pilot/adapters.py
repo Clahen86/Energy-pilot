@@ -12,6 +12,13 @@ entities by pattern (select.*work_mode_priority …), so one profile fits every 
 A brand that isn't built in gets a profile the user makes in the panel: pick the control and value for each intent.
 
 Values may use {min_soc}, {soc}, {target}, {rate} (% of max power), {power_w} and {current}.
+
+Models: one integration can cover inverter models that are controlled differently (Growatt SPH/SPA work with
+"battery first" time slots, MIN/MOD TL-XH with a priority mode). A profile can name the models it is for ("models",
+matched on the device's model in Home Assistant), and the profile for the model found is chosen.
+
+Safety: every control a profile names is required, unless it is listed under "optional". If one is missing for an
+intent, the engine won't control at all and says what is missing - never half a command.
 """
 
 from __future__ import annotations
@@ -24,6 +31,8 @@ PROFILES: dict[str, dict[str, Any]] = {
     "growatt": {
         "name": "Growatt (SPH/SPA)",
         "match": r"growatt",
+        "models": r"SPH|SPA",
+        "tested": True,
         "normal": [(r"select\..*work_mode_priority$", "select", "Load first"), (r"number\..*load_first_stop_discharge$", "number", "{min_soc}"),
                    (r"select\..*battery_first_grid_charge$", "select", "Disabled")],
         "hold": [(r"select\..*work_mode_priority$", "select", "Load first"), (r"number\..*load_first_stop_discharge$", "number", "{soc}"),
@@ -32,6 +41,22 @@ PROFILES: dict[str, dict[str, Any]] = {
                    (r"select\..*battery_first_slot_1_end$", "select", "23:59"), (r"number\..*battery_first_charge_rate$", "number", "{rate}"),
                    (r"number\..*battery_first_stop_charge$", "number", "{target}"), (r"select\..*battery_first_grid_charge$", "select", "Enabled"),
                    (r"select\..*work_mode_priority$", "select", "Battery first")],
+    },
+    "growatt_tlxh": {
+        "name": "Growatt (MIN/MOD TL-XH)",
+        "match": r"growatt",
+        "models": r"TL-?XH|\bMIN\b|\bMOD\b|\bMID\b",
+        "normal": [(r"select\..*(work_mode_priority|priority_mode|inverter_priority)$", "select", "Load first"),
+                   (r"number\..*(load_first_stop_discharge|discharge_stop_soc)$", "number", "{min_soc}"),
+                   (r"(select|switch)\..*(ac_charge|grid_charge).*$", "off", None)],
+        "hold": [(r"select\..*(work_mode_priority|priority_mode|inverter_priority)$", "select", "Load first"),
+                 (r"number\..*(load_first_stop_discharge|discharge_stop_soc)$", "number", "{soc}"),
+                 (r"(select|switch)\..*(ac_charge|grid_charge).*$", "off", None)],
+        "charge": [(r"number\..*(battery_first_stop_charge|charge_stop_soc)$", "number", "{target}"),
+                   (r"number\..*(battery_first_charge_rate|charge_power_rate)$", "number", "{rate}"),
+                   (r"(select|switch)\..*(ac_charge|grid_charge).*$", "on", None),
+                   (r"select\..*(work_mode_priority|priority_mode|inverter_priority)$", "select", "Battery first")],
+        "optional": [r"number\..*(battery_first_charge_rate|charge_power_rate)$"],
     },
     "huawei_solar": {
         "name": "Huawei SUN2000 / LUNA2000",
@@ -42,6 +67,7 @@ PROFILES: dict[str, dict[str, Any]] = {
                  (r"number\..*maximum_discharging_power$", "number", "0")],
         "charge": [(r"number\..*maximum_discharging_power$", "number", "{max_power_w}"),
                    ("huawei_solar.forcible_charge_soc", "service", {"target_soc": "{target}", "power": "{power_w}"})],
+        "optional": [r"select\..*storage_working_mode.*$"],  # not on every battery model
     },
     "solax_modbus": {
         "name": "SolaX (Modbus)",
@@ -104,6 +130,35 @@ def fill(value: Any, ctx: dict[str, Any]) -> Any:
     return value
 
 
+def _find(pattern: str, entities: list[str]) -> str | None:
+    if "." in pattern and not any(c in pattern for c in "\\*^$[(+"):
+        return pattern if pattern in entities else None  # an exact entity (custom profiles)
+    return next((e for e in entities if re.search(pattern, e)), None)
+
+
+def check(steps: dict[str, list], entities: list[str], optional: list[str] | None = None,
+          services: set[str] | None = None) -> dict[str, dict[str, Any]]:
+    """For each intent: the controls found, and the required ones that are missing."""
+    out = {}
+    for intent, items in steps.items():
+        found, missing = [], []
+        for pattern, kind, _value in items:
+            if kind == "service":
+                ok = services is None or pattern in services
+                (found if ok else missing).append({"control": pattern, "entity": pattern if ok else None, "optional": False})
+                continue
+            entity = _find(pattern, entities)
+            opt = pattern in (optional or [])
+            row = {"control": pattern, "entity": entity, "optional": opt}
+            (found if entity or opt else missing).append(row)
+        out[intent] = {"found": found, "missing": missing}
+    return out
+
+
+def missing(result: dict[str, dict[str, Any]]) -> list[str]:
+    return [m["control"] for r in result.values() for m in r["missing"]]
+
+
 def resolve(steps: list, entities: list[str], ctx: dict[str, Any]) -> list[dict[str, Any]]:
     """The service calls a list of steps means for these entities (steps whose control isn't there are left out)."""
     calls = []
@@ -112,10 +167,7 @@ def resolve(steps: list, entities: list[str], ctx: dict[str, Any]) -> list[dict[
             domain, service = pattern.split(".", 1)
             calls.append({"domain": domain, "service": service, "data": fill(value, ctx)})
             continue
-        if "." in pattern and not any(c in pattern for c in "\\*^$[(+"):
-            entity = pattern if pattern in entities else None  # an exact entity (custom profiles)
-        else:
-            entity = next((e for e in entities if re.search(pattern, e)), None)
+        entity = _find(pattern, entities)
         if entity is None:
             continue
         domain = entity.split(".")[0]
@@ -123,6 +175,8 @@ def resolve(steps: list, entities: list[str], ctx: dict[str, Any]) -> list[dict[
             calls.append({"domain": domain, "service": "select_option", "data": {"entity_id": entity, "option": fill(value, ctx)}})
         elif kind == "number":
             calls.append({"domain": domain, "service": "set_value", "data": {"entity_id": entity, "value": fill(value, ctx)}})
+        elif kind in ("on", "off") and domain == "select":
+            calls.append({"domain": domain, "service": "select_option", "data": {"entity_id": entity, "option": "Enabled" if kind == "on" else "Disabled"}})
         elif kind in ("on", "off"):
             calls.append({"domain": domain, "service": f"turn_{kind}", "data": {"entity_id": entity}})
         elif kind == "press":
@@ -130,8 +184,13 @@ def resolve(steps: list, entities: list[str], ctx: dict[str, Any]) -> list[dict[
     return calls
 
 
-def guess_profile(entities: list[str], platforms: set[str]) -> str | None:
-    """The built-in profile for the inverter in this home, from its integration or its entity names."""
+def guess_profile(entities: list[str], platforms: set[str], model: str | None = None) -> str | None:
+    """The built-in profile for the inverter in this home: its model first, then its integration or entity names."""
+    if model:
+        for key, p in PROFILES.items():
+            if p.get("models") and re.search(p["models"], model, re.I) and \
+                    (any(re.search(p["match"], e) for e in entities) or key.split("_")[0] in platforms or any(key.startswith(x) for x in platforms if x)):
+                return key
     for key, p in PROFILES.items():
         if key in platforms:
             return key
