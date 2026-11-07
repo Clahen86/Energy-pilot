@@ -1,46 +1,93 @@
 # Energipilot · Energy Pilot
 
-**Your home battery, solar panels and electric car - planned hour by hour for the lowest price, in one beautiful app
-for Home Assistant.** It always starts in *shadow*: it shows what it would do, but controls nothing until you say so.
+**Your home battery, solar panels and electric car – planned for the lowest price, in one app for Home Assistant
+that learns your home and gets better every night.** It always starts in *shadow*: it shows what it would do, but
+controls nothing until you say so.
+
+> 🧪 **Beta testers wanted.** Any setup counts – just an EV charger, just solar, or battery + solar + car. I especially
+> need people with other inverters and chargers than mine. [Open an issue](https://github.com/Clahen86/Energy-pilot/issues)
+> and tell me what you have.
 
 ![Energy Pilot](docs/screens_en.png)
 
-## What it does
+## Set up in two minutes
 
-- **Live energy flow** – every real path (sun → battery, grid → battery, battery → car …), with light beams that follow
-  the power. Colour shows the source, thickness the power.
-- **A plan for today and tomorrow** – it charges the battery when power is cheap or the sun gives too much, and uses it
-  when power is expensive. The car charges on sun first, then in the cheapest hours before it must be ready.
-- **What the battery saved – measured** – today, this month, this year and in all, from what you really bought and sold
-  against the same house and sun without the battery. It also knows what the power in the battery cost (a weighted
-  average: grid power at the price paid, solar power free or at the sell price - your choice).
-- **Gets better by itself** – a simple forecast works from day one, and an ML model trained every night on your own
-  data takes over as it proves better: for house use, for the sun (sunlight, cloud, temperature, time of year) and for
-  tomorrow's prices before they're out (wind, sun, weekday, recent prices). If the ML model starts to miss (a new heat
-  pump, a new car), the simple one takes over again. The panel shows who decides and how well each one hits.
-- **Learns your home** – every night it checks yesterday with the real numbers and adjusts the solar correction and the
-  margins. It learns the battery's real efficiency and the car's habits (when it leaves, how much it takes) - what you
-  set yourself always wins.
-- **Your choice of style** – *Cheapest*, *Most sun*, *Safety* (keeps 30 % for power cuts), *Car first* or *Battery first*,
-  plus fine-tuning: battery minimum, grid charging, selling, main fuse, quiet hours for battery and car.
-- **Finds what you have** – from the Energy dashboard, known integrations and names. Shows only what you have.
-- **Needs almost nothing** – weather (Open-Meteo), spot prices (Energi Data Service / energy-charts.info for 26 European
-  countries), its own solar forecast and holidays are built in. Your own Strømligning, Nord Pool, Tibber, Energi Data
-  Service or Solcast is used when you have it - today's and tomorrow's prices, whatever shape they come in. Hours
-  your integration doesn't have yet are filled in, so the plan always reaches as far as anything is known. No spot
-  price where you live (USA, UK…)? Enter your tariff plan or start from a template.
-- **Controls many brands** – inverters: Growatt (SPH/SPA and MIN/MOD TL-XH, picked by model), Huawei, SolaX, Sungrow,
-  SolarEdge, Fox ESS, GivEnergy, or any other by picking the controls yourself. Chargers: KEBA, Easee, Zaptec, go-e,
-  Wallbox, OCPP and more.
-- **Never half a command** – if a control the inverter profile needs is missing, it won't control at all and tells you
-  what's missing. A test in *Shadow* shows every control it found before you let it take over.
-- **Shadow first, always** – each part (battery, car) can be *Shadow*, *In control* or *Off*. One tap puts everything
-  back in shadow. It never fights another system that controls the same battery.
-- **Dashboard cards** – energy flow, plan, car, battery or everything, under *Add card → Energipilot*.
-- **Buttons in Home Assistant** – *Charge now*, *Ready at*, *At most*, *Battery minimum*, *Style*, and sensors for the
-  decision, price, battery target, *Saved today / this month / this year / in all* and *Battery power cost* - for your
-  own automations.
-- **Already have an energy system in AppDaemon?** Energy Pilot can run it unchanged, in shadow, and compare.
+1. Add the repository and install the app (see [Install](#install)).
+2. Open **Energipilot** in the sidebar. It has already looked through your Home Assistant – the Energy dashboard,
+   known integrations and sensor names – and shows what it found: solar, battery, grid, house, car, prices.
+3. Fix anything that's wrong with a tap, and press **Get started**.
+
+No YAML, no files to edit, no templates to write. Weather, spot prices for 26 European countries, a solar forecast and
+holidays are built in, so it works even if you have nothing but a power sensor.
+
+## How it works
+
+1. **It finds what you have** and only shows that. No battery? No battery screens.
+2. **It makes a plan** for today and tomorrow: when to charge the battery (cheap power or too much sun), when to use
+   it (dear power), and when to charge the car (sun first, then the cheapest slots before it must be ready).
+3. **It runs in shadow** next to whatever you use today and shows what it would send to your inverter and charger.
+4. **It learns every night** from what really happened (see below).
+5. **You switch it on** part by part – battery, car – when you trust it. One tap puts everything back in shadow.
+
+## It learns your home
+
+Most energy planners use a fixed formula. Energy Pilot uses two ways of forecasting side by side, and lets the better
+one decide:
+
+- **From day one:** a simple forecast – the average for each hour and weekday from your own history, adjusted for
+  temperature and holidays. Good enough to start, so new users aren't waiting for a model to train.
+- **As it earns it:** ML models trained every night on *your* data, in your home:
+  - **house use** – hour, weekday, day off, temperature
+  - **solar** – sunlight, cloud, temperature and time of year, so it learns your panels, their direction and shade
+  - **tomorrow's prices before they're out** (around 13:00) – wind, sun, weekday and recent prices
+- **Every night** both are checked against what really happened. The ML model's share moves towards what it has
+  earned: nothing until it has three weeks of data, half when the two hit equally well, more when it's better. If it
+  starts to miss – a new heat pump, a new car – its share goes down again by itself.
+- **It also learns** how far off the solar forecast usually is on cloudy and clear days, a safety margin for the dear
+  hours, the battery's real efficiency, and the car's habits (when it leaves, how much it takes). What you set
+  yourself always wins.
+
+The panel shows who decides right now and how well each one hits:
+
+![Who makes the forecast](docs/plan_en.png)
+
+## What only Energy Pilot does
+
+- **Simple and ML, blended by results** – works from day one and gets better on its own, instead of either a fixed
+  formula or a model that needs months before it's useful.
+- **Quarter-hour planning** – Europe's prices change every 15 minutes since October 2025. Energy Pilot plans in the
+  market's own slots (quarter hours in Europe, half hours on UK Agile, hours elsewhere), so the battery and car use the
+  cheapest quarters inside an hour.
+- **What the battery really saved** – measured from what you bought and sold, against the same house and sun without
+  the battery. And what the power in the battery cost (grid power at the price paid, solar free or at the sell price).
+- **Never half a command** – if a control your inverter profile needs is missing, it won't control at all and tells you
+  what's missing. A control test in *Shadow* shows every control it found.
+- **The car is never counted twice** – if your house sensor includes the car, it notices from the hours the car charged
+  and takes it out, so the house forecast and the battery plan stay right.
+- **Runs your own system in shadow** – already have an energy setup in AppDaemon? Energy Pilot can run it unchanged next
+  to its own engine and show how often they agree.
+- **Lives inside Home Assistant** – a sidebar panel, dashboard cards, and buttons and sensors (*Charge now*, *Ready at*,
+  *Saved today*, *Battery power cost* …) for your own automations.
+- **No telemetry** – nothing about you or your home ever leaves your house.
+
+## What you need
+
+| | |
+|---|---|
+| **Required** | Home Assistant, and a sensor for the house's power use (W) – most homes already have one |
+| **Prices** | Nothing – spot prices for 26 European countries are built in. Strømligning, Nord Pool, Tibber or Energi Data Service are used if you have them. No spot price (USA, UK…)? Enter your tariff plan or start from a template. |
+| **Optional** | Solar panels, a home battery, an EV charger – any of them, all of them, or none |
+
+## Brands
+
+Everything goes through the device's own Home Assistant integration. ✅ runs in real use · 🧪 built from the
+integration's controls, waiting for a beta tester with the hardware.
+
+| | |
+|---|---|
+| **Inverter / battery** | ✅ Growatt SPH (SPA) · 🧪 Growatt MIN/MOD TL-XH · 🧪 Huawei SUN2000/LUNA2000 · 🧪 SolaX · 🧪 Sungrow · 🧪 SolarEdge · 🧪 Fox ESS · 🧪 GivEnergy · any other by picking its controls yourself |
+| **EV charger** | ✅ KEBA · 🧪 Easee · 🧪 Zaptec · 🧪 go-e · 🧪 Wallbox · 🧪 OCPP · any with a switch and a current setting |
+| **Prices** | ✅ Strømligning · ✅ built-in spot prices · 🧪 Nord Pool · 🧪 Tibber · 🧪 Energi Data Service · tariff plans |
 
 ![Cards](docs/cards.png)
 
@@ -49,48 +96,57 @@ for Home Assistant.** It always starts in *shadow*: it shows what it would do, b
 **Home Assistant OS / Supervised (recommended):**
 1. *Settings → Apps → App store → ⋮ → Repositories* → add `https://github.com/Clahen86/Energy-pilot`
 2. Install **Energipilot** and start it. It appears in the sidebar.
-3. The guide shows what it found - fix what's wrong and press *Get started*.
+3. The guide shows what it found – fix what's wrong and press *Get started*.
 4. Restart Home Assistant once: *Energipilot found* appears under *Devices & services* (buttons and sensors).
 
-**Docker (Home Assistant Container/Core):** see [`docker/docker-compose.yml`](docker/docker-compose.yml) - give it your
+**Docker (Home Assistant Container/Core):** see [`docker/docker-compose.yml`](docker/docker-compose.yml) – give it your
 Home Assistant address and a long-lived access token, open `http://<host>:8099`. Mount your Home Assistant config at
 `/homeassistant` to get the cards and the companion integration installed automatically.
 
-## Privacy
+## FAQ
 
-Everything runs in your home, the ML models too. It only fetches public data: weather (Open-Meteo), spot prices
-(Energi Data Service, energy-charts.info) and exchange rates (ECB via frankfurter.dev).
+**Can it run next to the system I use today?** Yes – that's what shadow is for. It never controls a part another
+system controls, and it never takes the battery while your own system plans it, unless you tell it to.
+
+**Does it send any data?** No. Everything runs in your home, the ML models too. It only fetches public data: weather
+(Open-Meteo), spot prices (Energi Data Service, energy-charts.info) and exchange rates (ECB via frankfurter.dev).
+
+**What if the internet goes down?** It keeps planning with the prices and weather it already has, and your inverter
+keeps running as normal.
+
+**Do I need a battery?** No. With just solar it plans and shows your day; with just an EV charger it charges in the
+cheapest slots.
+
+**How good are the forecasts at first?** The simple forecast works from day one. The ML models need about three weeks
+of data before they get a say, and only take over when they're better.
 
 ## Good to know
 
-- The inverter profiles for brands other than Growatt SPH are built from their known controls but not yet tried on real
-  systems - run them in shadow first, check the control test, and report back.
+- The 🧪 profiles are built from each integration's known controls but not yet tried on real systems – run them in
+  shadow first, check the control test, and tell me how it goes.
+- The panel is in English and Danish for now.
 
 ---
 
 ## Dansk
 
-**Husbatteri, solceller og elbil – planlagt time for time til den laveste pris, i én flot app til Home Assistant.**
-Den starter altid i *skygge*: den viser, hvad den ville gøre, men styrer intet, før du siger til.
+**Husbatteri, solceller og elbil – planlagt til den laveste pris, i én app til Home Assistant, der lærer dit hjem og
+bliver bedre hver nat.** Den starter altid i *skygge*: den viser, hvad den ville gøre, men styrer intet, før du siger til.
+
+> 🧪 **Vi søger betatestere** – alle opsætninger tæller, også hvis du kun har en elbil-lader eller kun solceller.
 
 ![Energipilot](docs/screens_da.png)
 
-- **Levende energiflow** med de rigtige strømveje (sol → batteri, net → batteri, batteri → bil …) og **dagens og
-  morgendagens plan**.
-- **Batteriet har sparet – målt**: i dag, måned, år og i alt, ud fra det du faktisk har købt og solgt. Den kender også
-  batteriets kostpris (solstrøm gratis eller til salgsprisen – du vælger).
-- **Bliver selv bedre**: en simpel prognose virker fra dag ét, og en ML-model, der trænes hver nat på dine egne data,
-  overtager efterhånden som den rammer bedre – for forbrug, sol og morgendagens priser før kl. 13. Rammer den ved
-  siden af, tager den simple over igen. Panelet viser, hvem der bestemmer.
-- **Lærer dit hjem**: gennemgår hver nat gårsdagen, lærer batteriets rigtige virkningsgrad og bilens vaner – det du
-  selv indstiller, vinder altid.
-- **Priser fra alle pris-integrationer** (Strømligning, Nord Pool, Tibber, Energi Data Service), i dag og i morgen.
-- **Din stil**: Billigst muligt, Mest sol, Tryghed, Bilen først eller Batteriet først – plus finjustering.
-- **Finder selv det du har** og viser kun det. Vejr, spotpriser, solprognose og helligdage er indbygget.
-- **Aldrig en halv kommando**: mangler en kontrol, styrer den ikke, og en test i skygge viser, hvad den fandt.
-- **Styrer mange mærker**: Growatt (SPH/SPA og MIN/MOD TL-XH, efter model), Huawei, SolaX, Sungrow, SolarEdge, Fox ESS, GivEnergy og alle andre via selvvalgte
-  kontroller; ladere fra KEBA, Easee, Zaptec, go-e, Wallbox, OCPP m.fl.
-- **Altid skygge først**, kort til dashboards og knapper i Home Assistant.
+- **Sat op på to minutter:** den finder selv dine ting i Home Assistant. Du trykker bare *Kom i gang* – ingen YAML.
+- **Lærer dit hus:** en simpel prognose fra dag ét, og ML-modeller, der trænes hver nat på dine egne data, overtager
+  efterhånden som de rammer bedre – for forbrug, sol og morgendagens priser før kl. 13. Rammer de ved siden af, tager den
+  simple over igen.
+- **Planlægger i kvarterer**, så batteri og bil bruger de billigste kvarterer.
+- **Målt besparelse** og batteriets kostpris.
+- **Aldrig en halv kommando:** mangler en kontrol, styrer den ikke, og en test i skygge viser, hvad den fandt.
+- **Bilen tælles aldrig to gange**, og den kan køre din egen AppDaemon i skygge og sammenligne.
+- **Ingen telemetri** – intet forlader dit hjem.
+- **Styrer mange mærker** – se tabellen ovenfor (✅ testet, 🧪 venter på en betatester).
 
 **Installation:** *Indstillinger → Apps → Butik → ⋮ → Repositories* → tilføj
 `https://github.com/Clahen86/Energy-pilot`, installér **Energipilot**, start den, og følg guiden.
