@@ -153,6 +153,11 @@
   .stile { background:var(--card2, rgba(127,127,127,.08)); border-radius:12px; padding:8px 10px; } .stile span { display:block; font-size:12px; color:var(--muted); }
   .stile b { font-size:17px; } .stile b.bad { color:var(--warn); }
   @media (max-width:420px) { .stiles { grid-template-columns:repeat(2,1fr); } }
+  .set .extra { display: flex; gap: 6px; margin-top: 6px; } .set .extra select { flex: 1; min-width: 0; }
+  .set .del { border: none; background: none; color: var(--muted); font-size: 20px; cursor: pointer; padding: 0 6px; }
+  .rolemore { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
+  .rolefind { flex: 1; min-width: 160px; font: inherit; font-size: 13px; padding: 7px 10px; border-radius: 10px;
+    border: 1px solid var(--line, rgba(127,127,127,.25)); background: transparent; color: inherit; }
   .pnote { font-size:12.5px; color:var(--muted); margin:-4px 0 10px; } .pnote.warn { color:var(--warn); }
   /* tab bar */
   nav { position:fixed; left:0; right:0; bottom:0; padding:10px 14px calc(10px + env(safe-area-inset-bottom)); z-index:5; display:flex; justify-content:center;
@@ -182,7 +187,7 @@ const T = {
     chargeNow: "Lad nu", readyAt: "Klar kl.", atMost: "Højst", session: "denne opladning", shadowTitle: "Skygge eller styrer", shadowHint: "Skygge: regner og viser, styrer intet. Styrer: overtager. Sluk samme del i AppDaemon, før den styrer.",
     agree: "enig", compare: "sammenligninger", errors: "fejl", stopAll: "Sæt alt tilbage i skygge", modes: { shadow: "Skygge", control: "Styrer", off: "Fra" },
     names: { growatt_parallel: "Batteri og sol", ev_charge_controller: "Bilopladning", husmodel: "Husets forbrug" },
-    src: { energy: "Energi-dashboard", name: "Fundet ud fra navnet", known: "Dit eget", chosen: "Valgt af dig", computed: "Beregnet", own: "Hentes af Energipilot" }, notFound: "Ikke fundet",
+    src: { energy: "Energi-dashboard", name: "Fundet ud fra navnet", known: "Dit eget", chosen: "Valgt af dig", computed: "Beregnet", own: "Hentes af Energipilot" }, notFound: "Ikke fundet", addArray: "Tilføj endnu et anlæg", findSensor: "Søg efter en sensor…", pick: "Vælg…", remove: "Fjern",
     findAgain: "Find igen", runGuide: "Kør guiden igen", looksRight: "Det ser rigtigt ud", start: "Kom i gang", back: "Tilbage",
     y: { style: "Din stil", fine: "Finjustering",
       styles: { cheapest: ["Billigst muligt", "Flytter forbruget til de billige timer"], solar: ["Mest sol", "Lader aldrig batteriet fra nettet"],
@@ -250,7 +255,7 @@ const T = {
     chargeNow: "Charge now", readyAt: "Ready at", atMost: "At most", session: "this charge", shadowTitle: "Shadow or in control", shadowHint: "Shadow: plans and shows, controls nothing. In control: takes over. Switch the same part off in AppDaemon first.",
     agree: "agree", compare: "comparisons", errors: "errors", stopAll: "Put everything back in shadow", modes: { shadow: "Shadow", control: "Control", off: "Off" },
     names: { growatt_parallel: "Battery and sun", ev_charge_controller: "Car charging", husmodel: "House model" },
-    src: { energy: "Energy dashboard", name: "Found by name", known: "Your own", chosen: "Chosen by you", computed: "Calculated", own: "Fetched by Energy Pilot" }, notFound: "Not found",
+    src: { energy: "Energy dashboard", name: "Found by name", known: "Your own", chosen: "Chosen by you", computed: "Calculated", own: "Fetched by Energy Pilot" }, notFound: "Not found", addArray: "Add another array", findSensor: "Search for a sensor…", pick: "Pick…", remove: "Remove",
     findAgain: "Find again", runGuide: "Run the guide again", looksRight: "Looks right", start: "Get started", back: "Back",
     y: { style: "Your style", fine: "Fine-tuning",
       styles: { cheapest: ["Cheapest", "Moves use to the cheap hours"], solar: ["Most sun", "Never charges the battery from the grid"],
@@ -610,15 +615,33 @@ function sourceLabel(src) {
   if (src.startsWith("integration:")) { const p = src.split(":")[1]; return PLATNAME[p] || p; }
   return { energy: T.src.energy, name: T.src.name, known: T.src.known, chosen: T.src.chosen, computed: T.src.computed, own: T.src.own }[src] || src;
 }
+// Solar can be several arrays (and forecasts): they are added up.
+const MULTI = ["pv_power", "solar_today", "solar_tomorrow"];
+let roleAdd = {};
+function roleList(r) {
+  const c = (settings.settings.roles || {})[r];
+  return Array.isArray(c) ? c : c ? [c] : [];
+}
 function roleRows(roles) {
+  const sensors = `<datalist id="ep-all">${(settings.all_sensors || []).map((c) => `<option value="${esc(c.entity_id)}">${esc(c.name)}</option>`).join("")}</datalist>`;
   return roles.map((r) => {
-    const chosen = (settings.settings.roles || {})[r], foundId = settings.roles[r], src = settings.sources?.[r];
-    const found = foundId ? ((settings.candidates[r] || []).find((c) => c.entity_id === foundId)?.name || foundId) : null;
-    const opts = (settings.candidates[r] || []).map((c) => `<option value="${c.entity_id}" ${chosen === c.entity_id ? "selected" : ""}>${esc(c.name)}</option>`).join("");
+    const raw = (settings.settings.roles || {})[r], list = roleList(r);
+    const chosen = Array.isArray(raw) ? raw[0] : raw, foundId = settings.roles[r], src = settings.sources?.[r];
+    const name = (id) => (settings.candidates[r] || []).find((c) => c.entity_id === id)?.name || (settings.all_sensors || []).find((c) => c.entity_id === id)?.name || id;
+    const found = foundId ? name(foundId) : null;
+    const opts = (sel) => (settings.candidates[r] || []).map((c) => `<option value="${c.entity_id}" ${sel === c.entity_id ? "selected" : ""}>${esc(c.name)}</option>`).join("")
+      + (sel && !(settings.candidates[r] || []).some((c) => c.entity_id === sel) ? `<option value="${esc(sel)}" selected>${esc(name(sel))}</option>` : "");
+    const multi = MULTI.includes(r);
+    const extra = multi ? list.slice(1).map((e, i) => `<div class="extra"><select data-roleextra="${r}" data-i="${i + 1}"><option value="">${T.none}</option>${opts(e)}</select>
+      <button class="del" data-roledel="${r}" data-i="${i + 1}" aria-label="${T.remove}">×</button></div>`).join("") : "";
+    const adding = multi && roleAdd[r] ? `<div class="extra"><select data-roleextra="${r}" data-i="${Math.max(1, list.length)}"><option value="">${T.pick}</option>${opts(null)}</select></div>` : "";
     return `<div class="set"><span><b class="rl">${T.roles[r]}</b>${src ? `<em class="src ${src.split(":")[0]}">${esc(sourceLabel(src))}</em>` : `<em class="src none">${T.notFound}</em>`}</span>
       <select data-role="${r}"><option value="__auto" ${chosen == null ? "selected" : ""}>${found ? esc(found) : T.auto}</option>
-      <option value="" ${chosen === "" ? "selected" : ""}>${T.none}</option>${opts}</select></div>`;
-  }).join("");
+      <option value="" ${chosen === "" ? "selected" : ""}>${T.none}</option>${opts(chosen)}</select>
+      ${extra}${adding}
+      <div class="rolemore">${multi && (list.length || foundId) ? `<button class="link" data-roleadd="${r}">+ ${T.addArray}</button>` : ""}
+        <input class="rolefind" list="ep-all" data-rolefind="${r}" placeholder="${T.findSensor}"></div></div>`;
+  }).join("") + sensors;
 }
 const STYLES = [["cheapest", "bolt"], ["solar", "sun"], ["safe", "battery"], ["car_first", "car"], ["battery_first", "layers"]];
 function styleView() {
@@ -773,8 +796,27 @@ function wire() {
     await api("/api/mode", { app: b.dataset.app, mode: b.dataset.mode }); status = await api("/api/status"); await load(); render();
   });
   $("[data-stopall]")?.addEventListener("click", async () => { await api("/api/shadow_all", {}); status = await api("/api/status"); await load(); render(); });
-  document.querySelectorAll("[data-role]").forEach((s) => s.onchange = async () => {
-    await api("/api/settings", { roles: { [s.dataset.role]: s.value === "__auto" ? null : s.value } }); settings = await api("/api/settings"); await load(); render();
+  const saveRole = async (r, v) => { await api("/api/settings", { roles: { [r]: v } }); roleAdd = {}; settings = await api("/api/settings"); await load(); render(); };
+  const base = (r) => { const l = roleList(r); return l.length ? l : (settings.roles[r] ? [settings.roles[r]] : []); };
+  document.querySelectorAll("[data-role]").forEach((s) => s.onchange = () => {
+    const r = s.dataset.role, l = roleList(r);
+    if (MULTI.includes(r) && l.length > 1 && s.value && s.value !== "__auto") return saveRole(r, [s.value, ...l.slice(1)]);
+    saveRole(r, s.value === "__auto" ? null : s.value);
+  });
+  document.querySelectorAll("[data-roleextra]").forEach((s) => s.onchange = () => {
+    const r = s.dataset.roleextra, l = [...base(r)], i = Number(s.dataset.i);
+    if (s.value) l[i] = s.value; else l.splice(i, 1);
+    saveRole(r, [...new Set(l.filter(Boolean))]);
+  });
+  document.querySelectorAll("[data-roledel]").forEach((b) => b.onclick = () => {
+    const r = b.dataset.roledel, l = [...roleList(r)]; l.splice(Number(b.dataset.i), 1);
+    saveRole(r, l.length > 1 ? l : (l[0] ?? null));
+  });
+  document.querySelectorAll("[data-roleadd]").forEach((b) => b.onclick = () => { roleAdd[b.dataset.roleadd] = true; render(); });
+  document.querySelectorAll("[data-rolefind]").forEach((i) => i.onchange = () => {
+    const r = i.dataset.rolefind, v = i.value.trim();
+    if (!(settings.all_sensors || []).some((c) => c.entity_id === v)) return;
+    saveRole(r, MULTI.includes(r) && roleAdd[r] ? [...new Set([...base(r), v])] : v);
   });
   const saveSet = async (obj) => { await api("/api/settings", obj); settings = await api("/api/settings"); await load(); render(); };
   document.querySelectorAll("[data-style]").forEach((b) => b.onclick = () => saveSet({ style: b.dataset.style }));

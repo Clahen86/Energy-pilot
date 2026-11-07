@@ -321,6 +321,14 @@ class Engine:
             rows.append((when, float(mean) / (1 if unit == "kw" else 1000)))
         return rows
 
+    async def _hourly_sum(self, entities: list[str], days: int) -> dict[datetime, float]:
+        """Hourly kW of several sensors added up (two solar arrays)."""
+        total: dict[datetime, float] = {}
+        for e in entities:
+            for w, kw in await self._hourly_kw(e, days):
+                total[w] = total.get(w, 0.0) + kw
+        return total
+
     async def learn(self) -> None:
         """Once a day: weather for the past weeks, the house model, and what the solar panels make of sunlight."""
         from .sources import Weather, learn_solar
@@ -352,8 +360,8 @@ class Engine:
                     self.house_model.train(rows, self.weather if self.weather and self.weather.hours else None, now)
                 except Exception:  # noqa: BLE001 - the profile is used instead
                     _LOGGER.warning("House model failed", exc_info=True)
-        if (e := self.ov.role("pv_power")) and self.weather and self.weather.hours:
-            pv = dict(await self._hourly_kw(e, 60))
+        if self.ov.role_all("pv_power") and self.weather and self.weather.hours:
+            pv = await self._hourly_sum(self.ov.role_all("pv_power"), 60)
             self.solar_factors = learn_solar(pv, self.weather)
             try:
                 self.solar_model.train(pv, self.weather)
@@ -439,7 +447,7 @@ class Engine:
 
             house_rows = evsplit.subtract(house_rows, await self._hourly_kw(ev_e, 2))  # as the forecast was made
         house = by_hour(house_rows)
-        pv = by_hour(await self._hourly_kw(self.ov.role("pv_power"), 2)) if self.ov.role("pv_power") else {}
+        pv = by_hour(list((await self._hourly_sum(self.ov.role_all("pv_power"), 2)).items())) if self.ov.role_all("pv_power") else {}
         prices = {k: v["price"] for k, v in self.learning._expected(day.strftime("%Y-%m-%d")).items() if v.get("price") is not None}
         soc_start = None
         if self.ov.role("battery_soc"):

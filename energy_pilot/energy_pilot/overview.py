@@ -108,11 +108,21 @@ class Overview:
 
     # ---------- finding the parts ----------
 
+    def role_all(self, name: str) -> list[str]:
+        """Every entity for a part - solar can be several arrays (and forecasts), added up."""
+        chosen = (self.settings.get("roles") or {}).get(name)
+        if isinstance(chosen, list):
+            return [e for e in chosen if e in self.ha.states]
+        one = self.role(name)
+        return [one] if one else []
+
     def role(self, name: str) -> str | None:
         if name == "price" and self.settings.get("price_source") in ("tou", "spot"):
             return None  # the user picked Energy Pilot's own prices
         chosen = (self.settings.get("roles") or {}).get(name)
         states = self.ha.states
+        if isinstance(chosen, list):  # several (solar arrays): the first stands for them where only one fits
+            chosen = next((e for e in chosen if e in states), None)
         if chosen == "":
             return None  # switched off by the user
         if chosen and chosen in states:
@@ -154,30 +164,44 @@ class Overview:
                 a = s.get("attributes") or {}
                 cls = spec["class"]
                 domain = e.split(".")[0]
-                if cls == "power" and a.get("device_class") != "power":
+                unit = str(a.get("unit_of_measurement") or "").lower()
+                dc = a.get("device_class")
+                # The right kind by device class, or by unit when a template or integration doesn't set one
+                # (Victron, templates that add two solar arrays together …).
+                if cls == "power" and not (dc == "power" or (domain == "sensor" and not dc and unit in ("w", "kw"))):
                     continue
-                if cls == "battery" and a.get("device_class") != "battery":
+                if cls == "battery" and not (dc == "battery" or (domain == "sensor" and not dc and unit == "%")):
                     continue
-                if cls == "plug" and (domain != "binary_sensor" or a.get("device_class") not in ("plug", "power", None)):
+                if cls == "plug" and (domain != "binary_sensor" or dc not in ("plug", "power", None)):
                     continue
-                if cls == "energy" and a.get("device_class") != "energy":
+                if cls == "energy" and not (dc == "energy" or (domain == "sensor" and not dc and unit in ("kwh", "wh"))):
                     continue
-                if cls is None and e not in spec["known"] and not any(w in e for w in spec["words"]):
+                guess = e in spec["known"] or any(w in e for w in spec["words"])
+                if cls is None and not guess:
                     continue
-                if spec["words"] and cls is not None and not any(w in e for w in spec["words"]) and e not in spec["known"]:
-                    continue
-                rows.append({"entity_id": e, "name": a.get("friendly_name") or e})
+                rows.append({"entity_id": e, "name": a.get("friendly_name") or e, "guess": guess})
             found = self.role(name)
             if found and not any(r["entity_id"] == found for r in rows):
                 rows.append({"entity_id": found, "name": (self.ha.states[found].get("attributes") or {}).get("friendly_name") or found})
-            out[name] = sorted(rows, key=lambda r: r["name"].lower())[:40]
+            for e in self.role_all(name):
+                if not any(r["entity_id"] == e for r in rows):
+                    rows.append({"entity_id": e, "name": (self.ha.states[e].get("attributes") or {}).get("friendly_name") or e, "guess": True})
+            # Best guesses first, then the rest by name.
+            out[name] = sorted(rows, key=lambda r: (not r["guess"], r["name"].lower()))[:150]
         return out
+
+    def all_sensors(self) -> list[dict[str, str]]:
+        """Every sensor, for the search field - for whoever can't find theirs in the list."""
+        return sorted(({"entity_id": e, "name": (s.get("attributes") or {}).get("friendly_name") or e}
+                       for e, s in self.ha.states.items() if e.split(".")[0] in ("sensor", "binary_sensor")),
+                      key=lambda r: r["name"].lower())
 
     # ---------- now ----------
 
     def flow(self) -> dict[str, Any]:
         r, st = self.roles(), self.ha.states
-        pv = _watts(st.get(r["pv_power"])) if r["pv_power"] else None
+        arrays = [w for e in self.role_all("pv_power") if (w := _watts(st.get(e))) is not None]
+        pv = sum(arrays) if arrays else None  # several arrays are added up
         house = _watts(st.get(r["house_power"])) if r["house_power"] else None
         batt = _watts(st.get(r["battery_power"])) if r["battery_power"] else None
         soc = _num(st.get(r["battery_soc"])) if r["battery_soc"] else None
@@ -260,7 +284,9 @@ class Overview:
                         h["price"], h["est"] = round(v, 3), True
                 self.price_info["estimated"] = len(est)
         for role in ("solar_today", "solar_tomorrow"):
-            if (e := self.role(role)) and (s := self.ha.states.get(e)):
+            for e in self.role_all(role):
+                if not (s := self.ha.states.get(e)):
+                    continue
                 for p in (s.get("attributes") or {}).get("detailedHourly") or []:
                     try:
                         dt = datetime.fromisoformat(str(p.get("period_start")))
@@ -268,7 +294,7 @@ class Overview:
                     except (TypeError, ValueError):
                         continue
                     if (h := slot(dt)) is not None:
-                        h["sun"] = round(kwh, 2)
+                        h["sun"] = round(h.get("sun", 0.0) + kwh, 2)  # several forecasts (arrays) add up
         if not self.role("solar_today") and self.engine and self.engine.own_solar:
             for when, kwh in self.engine.own_solar.items():
                 if (h := slot(when)) is not None:
@@ -343,7 +369,8 @@ class Overview:
             cur = [p for p in self.engine.own_prices if datetime.fromisoformat(p["start"]) <= now < datetime.fromisoformat(p["end"])]
             if cur:
                 price = {"state": cur[0]["price"], "attributes": {"unit_of_measurement": "kr/kWh"}}
-        solar = {k: _num(self.ha.states.get(self.role(k))) if self.role(k) else None for k in ("solar_today", "solar_tomorrow")}
+        solar = {k: (sum(v for e in self.role_all(k) if (v := _num(self.ha.states.get(e))) is not None) if self.role_all(k) else None)
+                 for k in ("solar_today", "solar_tomorrow")}
         house_e = self.role("house_forecast")
         return {
             "flow": self.flow(), "decision": self.decision(lang), "plan": self.plan(), "ev": self.ev(),

@@ -60,7 +60,9 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
                                   "zones": ZONES.get(country, []), "tou_presets": __import__("energy_pilot.sources", fromlist=["TOU_PRESETS"]).TOU_PRESETS, "country": country, "currency": runner.ha.config.get("currency"),
                                   "sources": {r: overview.source(r) for r in overview.roles()},
                                   "candidates": overview.candidates(),
-                                  "ev_detected": overview.engine.ev_detected if overview.engine else None})
+                                  "ev_detected": overview.engine.ev_detected if overview.engine else None,
+                                  "all_sensors": overview.all_sensors(),
+                                  "roles_all": {r: overview.role_all(r) for r in ("pv_power", "solar_today", "solar_tomorrow")}})
 
     async def redetect(_req: web.Request) -> web.Response:
         await overview.async_detect()

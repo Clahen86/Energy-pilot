@@ -88,7 +88,10 @@ class EnergipilotCard extends HTMLElement {
   get t() { return TX[lang(this._hass)]; }
   _n(v, d = 1) { return v == null || isNaN(v) ? "–" : Number(v).toFixed(d).replace(".", lang(this._hass) === "da" ? "," : "."); }
   _num(e) { const s = e && this._hass.states[e]; const v = s ? parseFloat(s.state) : NaN; return isNaN(v) ? null : v; }
-  _w(e) { const v = this._num(e); if (v == null) return null; return String(this._hass.states[e].attributes.unit_of_measurement || "W").toLowerCase() === "kw" ? v * 1000 : v; }
+  _w(e) {
+    if (Array.isArray(e)) { const all = e.map((x) => this._w(x)).filter((x) => x != null); return all.length ? all.reduce((a, b) => a + b, 0) : null; }  // several solar arrays
+    const v = this._num(e); if (v == null) return null; return String(this._hass.states[e].attributes.unit_of_measurement || "W").toLowerCase() === "kw" ? v * 1000 : v;
+  }
   _split(w) { if (w == null) return ["–", ""]; const a = Math.abs(w); return a >= 1000 ? [this._n(a / 1000, a >= 10000 ? 0 : 1), "kW"] : [String(Math.round(a)), "W"]; }
 
   _flow() {
