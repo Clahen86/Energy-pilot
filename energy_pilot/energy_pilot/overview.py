@@ -193,12 +193,12 @@ class Overview:
                 rows.append({"entity_id": e, "name": a.get("friendly_name") or e, "guess": guess})
             found = self.role(name)
             if found and not any(r["entity_id"] == found for r in rows):
-                rows.append({"entity_id": found, "name": (self.ha.states[found].get("attributes") or {}).get("friendly_name") or found})
+                rows.append({"entity_id": found, "name": (self.ha.states[found].get("attributes") or {}).get("friendly_name") or found, "guess": True})
             for e in self.role_all(name):
                 if not any(r["entity_id"] == e for r in rows):
                     rows.append({"entity_id": e, "name": (self.ha.states[e].get("attributes") or {}).get("friendly_name") or e, "guess": True})
             # Best guesses first, then the rest by name.
-            out[name] = sorted(rows, key=lambda r: (not r["guess"], r["name"].lower()))[:150]
+            out[name] = sorted(rows, key=lambda r: (not r.get("guess"), str(r["name"]).lower()))[:150]
         return out
 
     def all_sensors(self) -> list[dict[str, str]]:

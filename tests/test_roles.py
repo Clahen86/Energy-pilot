@@ -76,3 +76,10 @@ def test_amber_feed_in_forecast_is_read():
     attrs = {"forecasts": [{"start_time": (t0 + timedelta(minutes=30 * i)).isoformat(), "per_kwh": 0.05 + i * 0.01} for i in range(4)]}
     p = parse(attrs, tz, t0.replace(hour=0))
     assert p[t0 + timedelta(minutes=60)] == 0.07
+
+
+def test_a_chosen_sensor_outside_the_filters_does_not_break_the_list(tmp_path):
+    """Crash report: a found sensor that the filters leave out was added without its 'guess' flag."""
+    o = make(tmp_path, {"battery_power": "sensor.humidity"})  # chosen, but not a power sensor
+    c = o.candidates()
+    assert c["battery_power"][0]["entity_id"] == "sensor.humidity"
