@@ -26,6 +26,20 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
         data["setup_done"] = bool(overview.settings.get("setup_done"))
         data["currency"] = runner.ha.config.get("currency") or "EUR"
         data["price_info"] = overview.price_info
+        if overview.engine:
+            from datetime import datetime as _dt
+            from zoneinfo import ZoneInfo as _Z
+
+            other = None
+            if (e := overview.role("battery_cost")) and (stc := runner.ha.states.get(e)):
+                try:
+                    other = float(stc.get("state"))
+                except (TypeError, ValueError):
+                    other = None
+            data["ledger"] = overview.engine.ledger.summary(_dt.now(_Z(runner.ha.config.get("time_zone") or "UTC")), other)
+            soc = (overview.flow() or {}).get("soc")
+            if soc is not None:
+                data["ledger"]["battery_kwh"] = round(soc / 100 * overview.engine.settings().capacity_kwh, 1)
         eng = overview.engine
         if eng and eng.result:
             b = eng.result.get("battery") or {}

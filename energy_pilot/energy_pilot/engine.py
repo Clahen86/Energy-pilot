@@ -196,6 +196,9 @@ class Engine:
 
         self.ha, self.ov = ha, overview
         self.learning = Learning(overview.file.parent)
+        from .ledger import Ledger
+
+        self.ledger = Ledger(overview.file.parent)
         self.weather: Any = None
         self.house_model = HouseModel()
         self.solar_factors: dict[int, float] = {}

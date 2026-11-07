@@ -26,6 +26,7 @@ ROLES: dict[str, dict[str, Any]] = {
     "solar_today": {"known": ["sensor.solcast_pv_forecast_forecast_today"], "class": None, "words": ["forecast_today"]},
     "solar_tomorrow": {"known": ["sensor.solcast_pv_forecast_forecast_tomorrow"], "class": None, "words": ["forecast_tomorrow"]},
     "house_forecast": {"known": ["sensor.ml_forecast_appdaemon"], "class": None, "words": []},
+    "battery_cost": {"known": ["sensor.batteri_gennemsnitlig_kostpris_dkk_kwh"], "class": None, "words": ["kostpris", "battery_cost", "stored_cost", "average_cost"]},
     "battery_plan": {"known": ["sensor.appdaemon_comparison_controller"], "class": None, "words": []},
     "ev_manual": {"known": ["input_boolean.bil_lad_manuelt"], "class": None, "words": []},
     "ev_ready": {"known": ["input_datetime.bil_klar_tid"], "class": None, "words": []},
@@ -98,7 +99,7 @@ class Overview:
             if key == "roles":
                 self.settings.setdefault("roles", {}).update({k: v for k, v in value.items() if k in ROLES})
             elif key in ("battery_kwh", "import_limit_kw", "language", "setup_done", "style", "price_area", "tariff", "markup", "price_source", "tou", "vat", "battery_min_soc", "grid_charge",
-                         "sell", "sell_price", "battery_charge_kw", "battery_discharge_kw", "ev_mode", "charger_kw", "ev_need_kwh",
+                         "sell", "sell_price", "solar_value", "battery_charge_kw", "battery_discharge_kw", "ev_mode", "charger_kw", "ev_need_kwh",
                          "quiet_from", "quiet_to", "quiet_battery", "quiet_car",
                          "quiet_battery_from", "quiet_battery_to", "quiet_car_from", "quiet_car_to",
                          "control", "inverter_profile", "custom_profile", "battery_takeover", "ev_now", "charger_phases", "ev_ready"):

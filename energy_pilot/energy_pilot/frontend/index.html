@@ -149,6 +149,10 @@
   .seg button:disabled { opacity:.35; cursor:not-allowed; }
   .chk { margin:6px 0 10px; } .chk.bad summary { color:var(--warn); } .chk.good summary { color:var(--ok, #3fb950); }
   .chk-i { margin-top:8px; } .chk-i table td:first-child { width:18px; } .muted.warn { color:var(--warn); }
+  .stiles { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:10px; }
+  .stile { background:var(--card2, rgba(127,127,127,.08)); border-radius:12px; padding:8px 10px; } .stile span { display:block; font-size:12px; color:var(--muted); }
+  .stile b { font-size:17px; } .stile b.bad { color:var(--warn); }
+  @media (max-width:420px) { .stiles { grid-template-columns:repeat(2,1fr); } }
   .pnote { font-size:12.5px; color:var(--muted); margin:-4px 0 10px; } .pnote.warn { color:var(--warn); }
   /* tab bar */
   nav { position:fixed; left:0; right:0; bottom:0; padding:10px 14px calc(10px + env(safe-area-inset-bottom)); z-index:5; display:flex; justify-content:center;
@@ -212,6 +216,10 @@ const T = {
       saved: "Batteriet sparede", without: "uden batteri", house: "Forbruget ramt", perHour: "pr. time", sunCloudy: "Sol, skyet", sunClear: "Sol, klart",
       ofForecast: "af prognosen", learned: "Det har den lært", biasCloudy: "Solkorrektion, skyet", biasClear: "Solkorrektion, klart",
       margin: "Margin i dyre timer", marginH: "så batteriet ikke løber tør", endValue: "Værdi af strøm til senere", endValueH: "af medianprisen" },
+    ledger: { title: "Batteriet har sparet", since: "målt siden", today: "I dag", month: "Måned", year: "År", total: "I alt",
+      inBattery: "I batteriet", costs: "kostede {p}/kWh", fromOther: "fra din AppDaemon",
+      hint: "Målt på det, du faktisk har købt og solgt, sammenlignet med samme hus og sol uden batteri.",
+      solarValue: "Solstrøm i batteriet", solarValueH: "Hvad en kWh fra solen tæller som i batteriets kostpris", sv: { free: "Gratis", sell: "Salgsprisen" } },
     priceMissing: "Morgendagens priser er ikke kommet endnu - planen stopper ved midnat.", priceFilled: "Morgendagens priser er skønnet ud fra spotprisen, indtil din pris-integration har dem.",
     legSoc: "Batteri-niveau (plan)", legCar: "Bilen lader", saves: "Planen sparer cirka {x} de næste timer.",
     engineName: "Energipilots egen motor", engineHint: "Sammenlignet med din AppDaemon · sparer ca. {x} de næste timer",
@@ -269,6 +277,10 @@ const T = {
       saved: "The battery saved", without: "without battery", house: "Use hit", perHour: "per hour", sunCloudy: "Sun, cloudy", sunClear: "Sun, clear",
       ofForecast: "of the forecast", learned: "What it has learned", biasCloudy: "Solar correction, cloudy", biasClear: "Solar correction, clear",
       margin: "Margin in dear hours", marginH: "so the battery doesn't run dry", endValue: "Value of power for later", endValueH: "of the median price" },
+    ledger: { title: "The battery has saved", since: "measured since", today: "Today", month: "Month", year: "Year", total: "In all",
+      inBattery: "In the battery", costs: "cost {p}/kWh", fromOther: "from your AppDaemon",
+      hint: "Measured on what you really bought and sold, against the same house and sun without the battery.",
+      solarValue: "Solar power in the battery", solarValueH: "What a kWh from the sun counts as in the battery's cost", sv: { free: "Free", sell: "The sell price" } },
     priceMissing: "Tomorrow's prices aren't out yet - the plan ends at midnight.", priceFilled: "Tomorrow's prices are estimated from the spot price until your price integration has them.",
     legSoc: "Battery level (plan)", legCar: "Car charges", saves: "The plan saves about {x} over the coming hours.",
     engineName: "Energy Pilot's own engine", engineHint: "Compared with your AppDaemon · saves about {x} over the coming hours",
@@ -412,8 +424,18 @@ function home() {
       <div><h2>${esc(dec.text)}</h2><p>${esc(reason)}</p>${dec.engine && dec.saving > 0 ? `<p class="save">${T.saves.replace("{x}", kr(dec.saving))}</p>` : ""}
       ${dec.reason ? `<details><summary>${T.why}</summary>${esc(dec.reason)}</details>` : ""}</div></div>` : ""}
     <div class="metrics fade">${metrics}</div>
+    ${savedCard()}
     ${d.ev ? carCard(d.ev, f) : ""}
     <div class="card fade"><div class="eyebrow"><span>${T.planTitle}</span></div>${priceNote()}${planSvg(d.plan)}</div>`;
+}
+function savedCard() {
+  const g = data.ledger, k = T.ledger;
+  if (!g || !data.flow?.has?.battery) return "";
+  const tile = (label, v) => `<div class="stile"><span>${label}</span><b class="${v < 0 ? "bad" : "good"}">${kr(v)}</b></div>`;
+  return `<div class="card fade"><div class="eyebrow"><span>${k.title}</span>${g.since ? `<span>${k.since} ${new Date(g.since).toLocaleDateString(L === "da" ? "da-DK" : "en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>` : ""}</div>
+    <div class="stiles">${tile(k.today, g.today)}${tile(k.month, g.month)}${tile(k.year, g.year)}${tile(k.total, g.total)}</div>
+    ${g.avg_cost != null ? `<div class="lrow"><span>${k.inBattery}</span><b>${num(g.battery_kwh ?? g.stored_kwh, 1)} kWh</b><em>${k.costs.replace("{p}", kr(g.avg_cost))}${g.avg_source === "other" ? " · " + k.fromOther : ""}</em></div>` : ""}
+    <div class="muted" style="margin-top:6px">${k.hint}</div></div>`;
 }
 const CAR_ART = `<svg class="pic" viewBox="0 0 240 90" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <path d="M14 62c0-8 4-12 14-14l26-5 22-18c6-5 13-7 21-7h40c9 0 17 3 24 9l17 15 28 5c10 2 14 7 14 15v4c0 3-2 5-5 5h-11"/>
@@ -603,7 +625,8 @@ function styleView() {
         ${row(y.tariff, y.tariffH, `<span class="times2">${["low", "high", "peak"].map((k) => `<input class="numin sm" type="number" step="0.01" data-tariff="${k}" value="${(v.tariff || {})[k] ?? ""}" placeholder="${settings.country === "DK" ? { low: 0.115, high: 0.346, peak: 1.038 }[k] : 0}">`).join("")}</span>`)}` : ""}`)}
     ${section("grid", y.secGrid, y.secGridH, `${row(y.fuse, y.fuseH, numIn("import_limit_kw", 10, "1", "kW"))}
       ${row(y.sell, y.sellH, tog("sell"))}
-      ${v.sell ? row(y.sellPrice, "", numIn("sell_price", "0.5", "0.05", SYM())) : ""}`)}
+      ${v.sell ? row(y.sellPrice, "", numIn("sell_price", "0.5", "0.05", SYM())) : ""}
+      ${row(T.ledger.solarValue, T.ledger.solarValueH, `<div class="seg mini">${["free", "sell"].map((m) => `<button class="${(v.solar_value || "free") === m ? "on" : ""}" data-sval="${m}">${T.ledger.sv[m]}</button>`).join("")}</div>`)}`)}
 `;
 }
 function customEditor(v) {
@@ -722,6 +745,7 @@ function wire() {
   document.querySelectorAll("[data-text]").forEach((i) => i.onchange = () => saveSet({ [i.dataset.text]: i.value || null }));
   document.querySelectorAll("[data-range]").forEach((i) => { i.oninput = () => ($("#r-" + i.dataset.range).textContent = `${i.value} %`); i.onchange = () => saveSet({ [i.dataset.range]: Number(i.value) }); });
   document.querySelectorAll("[data-psrc]").forEach((b) => b.onclick = () => saveSet({ price_source: b.dataset.psrc === "auto" ? null : b.dataset.psrc }));
+  document.querySelectorAll("[data-sval]").forEach((b) => b.onclick = () => saveSet({ solar_value: b.dataset.sval }));
   const tou = () => JSON.parse(JSON.stringify(settings.settings.tou || { default: 0, periods: [] }));
   $("[data-tou-preset]")?.addEventListener("change", (e) => { const p = settings.tou_presets[e.target.value]; if (p) saveSet({ tou: { default: p.default, periods: p.periods } }); });
   $("[data-tou-default]")?.addEventListener("change", (e) => { const t = tou(); t.default = Number(e.target.value.replace(",", ".")); saveSet({ tou: t }); });

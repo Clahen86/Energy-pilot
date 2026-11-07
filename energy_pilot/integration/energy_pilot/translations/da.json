@@ -42,6 +42,21 @@
       },
       "saved_yesterday": {
         "name": "Sparet i går"
+      },
+      "saved_today": {
+        "name": "Sparet i dag"
+      },
+      "saved_month": {
+        "name": "Sparet denne måned"
+      },
+      "saved_year": {
+        "name": "Sparet i år"
+      },
+      "saved_total": {
+        "name": "Sparet i alt"
+      },
+      "battery_cost": {
+        "name": "Batteriets kostpris"
       }
     },
     "switch": {

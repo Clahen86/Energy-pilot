@@ -42,6 +42,21 @@
       },
       "saved_yesterday": {
         "name": "Saved yesterday"
+      },
+      "saved_today": {
+        "name": "Saved today"
+      },
+      "saved_month": {
+        "name": "Saved this month"
+      },
+      "saved_year": {
+        "name": "Saved this year"
+      },
+      "saved_total": {
+        "name": "Saved in all"
+      },
+      "battery_cost": {
+        "name": "Battery power cost"
       }
     },
     "switch": {

@@ -107,6 +107,32 @@ async def main() -> None:
             await asyncio.sleep(300)
 
     asyncio.create_task(run_engine())
+
+    async def run_ledger() -> None:
+        """Every half minute: what the battery holds and what it cost, and what it saved."""
+        from datetime import datetime as _dt
+        from zoneinfo import ZoneInfo as _Z
+
+        from .pricefeed import collect
+
+        await ha.connected.wait()
+        await asyncio.sleep(30)
+        while True:
+            try:
+                tz = _Z(ha.config.get("time_zone") or "UTC")
+                now = _dt.now(tz)
+                prices, _ = collect(ha.states, overview.role("price"), engine.own_prices or [], tz)
+                past = [k for k in prices if k <= now]
+                price = prices[max(past)] if past else None
+                st, b = overview.settings, engine.settings()
+                sell = float(st.get("sell_price") or 0) if st.get("sell") else 0.0
+                engine.ledger.tick(now, overview.flow(), price, sell, b.capacity_kwh, b.min_soc, b.efficiency,
+                                   st.get("solar_value") or "free")
+            except Exception:  # noqa: BLE001
+                logging.getLogger("energy_pilot.ledger").debug("Ledger round failed", exc_info=True)
+            await asyncio.sleep(30)
+
+    asyncio.create_task(run_ledger())
     asyncio.create_task(Cards(ha, overview, os.environ.get("BUILD_VERSION", "dev")).run())
 
     async def companion_setup() -> None:
