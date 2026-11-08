@@ -120,3 +120,17 @@ def test_deye_esphome_klatremis():
     charge = adapters.resolve(p["charge"], d, CTX)
     assert {"entity_id": "number.deye_time_point_3_capacity", "value": 90} in [c["data"] for c in charge]
     assert {"domain": "switch", "service": "turn_on", "data": {"entity_id": "switch.deye_time_point_6_charge_enable"}} in charge
+
+
+def test_sofar_passive_mode():
+    so = ["select.inverter_storage_control_mode", "number.inverter_passive_minimum_battery_power",
+          "number.inverter_passive_maximum_battery_power", "select.inverter_timed_control"]
+    assert adapters.guess_profile(so, {"solarman"}) == "sofar"
+    p = adapters.PROFILES["sofar"]
+    steps = {i: p[i] for i in ("normal", "hold", "charge")}
+    assert adapters.missing(adapters.check(steps, so)) == []
+    charge = adapters.resolve(p["charge"], so, CTX)
+    assert [c["data"].get("value", c["data"].get("option")) for c in charge] == [2400, 2400, "Passive"]
+    hold = adapters.resolve(p["hold"], so, {**CTX, "max_charge_w": 3000})
+    assert [c["data"].get("value", c["data"].get("option")) for c in hold] == [0, 3000, "Passive"]
+    assert adapters.resolve(p["normal"], so, CTX)[0]["data"]["option"] == "Self Use"

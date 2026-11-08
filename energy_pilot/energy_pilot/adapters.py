@@ -91,6 +91,21 @@ PROFILES: dict[str, dict[str, Any]] = {
         + [(rf"number\..*time_point_{n}_capacity$", "number", "{target}") for n in range(1, 7)]
         + [(rf"switch\..*time_point_{n}_charge_enable$", "on", None) for n in range(1, 7)],
     },
+    # Sofar hybrid (HYD, ESI …) via Solarman (sofar_g3hyd definition). Normal is "Self Use"; hold and charge use
+    # "Passive", where the battery's power is kept between a minimum and a maximum (positive = charging):
+    # hold = 0 … max (no discharging, the sun may still fill it), charge = exactly the planned power.
+    "sofar": {
+        "name": "Sofar (Solarman)",
+        "match": r"sofar|storage_control_mode",
+        "models": r"sofar|\bHYD\b|\bESI\b",
+        "normal": [(r"select\..*storage_control_mode$", "select", "Self Use")],
+        "hold": [(r"number\..*passive_minimum_battery_power$", "number", "0"),
+                 (r"number\..*passive_maximum_battery_power$", "number", "{max_charge_w}"),
+                 (r"select\..*storage_control_mode$", "select", "Passive")],
+        "charge": [(r"number\..*passive_maximum_battery_power$", "number", "{power_w}"),
+                   (r"number\..*passive_minimum_battery_power$", "number", "{power_w}"),
+                   (r"select\..*storage_control_mode$", "select", "Passive")],
+    },
     # Victron ESS (GX via Modbus). The grid setpoint is left alone, so the owner's own setting stays.
     "victron": {
         "name": "Victron (ESS)",
@@ -253,8 +268,13 @@ def guess_profile(entities: list[str], platforms: set[str], model: str | None = 
             if p.get("models") and re.search(p["models"], model, re.I) and \
                     (any(re.search(p["match"], e) for e in entities) or key.split("_")[0] in platforms or any(key.startswith(x) for x in platforms if x)):
                 return key
+    def fits(p: dict) -> bool:
+        hits = [s for steps in (p["normal"], p["hold"], p["charge"]) for s in steps if s[1] != "service"]
+        return sum(1 for pat, _k, _v in hits if any(re.search(pat, e) for e in entities)) >= max(1, len(hits) // 2)
+
     for key, p in PROFILES.items():
-        if key in platforms:
+        # The integration's name only counts when its controls are there too: Solarman serves Deye and Sofar alike.
+        if key in platforms and fits(p):
             return key
     for key, p in PROFILES.items():
         hits = [s for steps in (p["normal"], p["hold"], p["charge"]) for s in steps if s[1] != "service"]
