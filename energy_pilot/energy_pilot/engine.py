@@ -248,6 +248,7 @@ class Engine:
         self.house_model = HouseModel()
         self.solar_factors: dict[int, float] = {}
         self.own_prices: list[dict[str, Any]] = []
+        self.service_prices: list[dict[str, Any]] = []  # from an integration's action (Nord Pool, Tibber …)
         self.own_solar: dict[datetime, float] = {}
         self._prices_at = 0.0
         self.profile: dict[tuple[bool, int], float] = {}
@@ -383,6 +384,53 @@ class Engine:
             self.price_days = self.price_model.train(self.weather, self.tz)
         except Exception:  # noqa: BLE001
             _LOGGER.warning("Price model failed", exc_info=True)
+
+    async def refresh_service_prices(self) -> None:
+        """Integrations that give the coming prices only through an action (Nord Pool and Tibber built into Home
+        Assistant, EnergyZero, easyEnergy): asked every half hour for today and tomorrow."""
+        e = self.ov.role("price")
+        if not e or time.time() - getattr(self, "_svc_at", 0.0) < 1800 or self.ha.session is None:
+            return
+        try:
+            reg = await self.ha.command({"type": "config/entity_registry/get", "entity_id": e})
+        except Exception:  # noqa: BLE001
+            return
+        platform, entry = reg.get("platform"), reg.get("config_entry_id")
+        if platform not in ("nordpool", "tibber", "energyzero", "easyenergy"):
+            self.service_prices = []
+            return
+        self._svc_at = time.time()
+        now = datetime.now(self.tz)
+        day0 = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        rows: list[dict[str, Any]] = []
+
+        async def ask(domain: str, service: str, data: dict[str, Any]) -> Any:
+            try:
+                res = await self.ha.call_service(domain, service, data, response=True)
+            except Exception:  # noqa: BLE001 - tomorrow not out yet, or the action failed
+                _LOGGER.debug("%s.%s failed", domain, service, exc_info=True)
+                return None
+            return (res or {}).get("response", res)
+
+        if platform == "nordpool":
+            for d in (day0, day0 + timedelta(days=1)):
+                r = await ask("nordpool", "get_prices_for_date", {"config_entry": entry, "date": d.date().isoformat()}) or {}
+                area = next((v for v in r.values() if isinstance(v, list)), [])
+                rows += [{"start": x.get("start"), "price": x.get("price")} for x in area]
+            vals = sorted(x["price"] for x in rows if isinstance(x.get("price"), (int, float)))
+            if vals and vals[len(vals) // 2] > 20:  # per MWh, as the exchange gives it
+                rows = [{**x, "price": x["price"] / 1000} for x in rows if isinstance(x.get("price"), (int, float))]
+        elif platform == "tibber":
+            r = await ask("tibber", "get_prices", {"start": day0.isoformat(), "end": (day0 + timedelta(days=2)).isoformat()}) or {}
+            homes = (r.get("prices") or {}) if isinstance(r, dict) else {}
+            home = next(iter(homes.values()), []) if homes else []
+            rows = [{"start": x.get("start_time"), "price": x.get("price")} for x in home]
+        else:
+            service = "get_energy_prices" if platform == "energyzero" else "get_energy_usage_prices"
+            r = await ask(platform, service, {"config_entry": entry, "incl_vat": True, "start": day0.isoformat(),
+                                               "end": (day0 + timedelta(days=2)).isoformat()}) or {}
+            rows = [{"start": x.get("start") or x.get("timestamp"), "price": x.get("price")} for x in (r.get("prices") or [])]
+        self.service_prices = [x for x in rows if x.get("start") and isinstance(x.get("price"), (int, float))]
 
     async def refresh_sources(self) -> None:
         """Every few minutes: weather (hourly), and own prices/solar forecast where the home has none."""

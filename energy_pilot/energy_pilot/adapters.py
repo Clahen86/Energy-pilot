@@ -283,9 +283,37 @@ PROFILES: dict[str, dict[str, Any]] = {
 # Chargers: almost every integration has a switch to start/stop and a number for the current.
 CHARGER_SWITCH = r"switch\..*(charg|enable|is_enabled|charge_control|charging_allowed|start_stop|pause|resume)"
 CHARGER_CURRENT = r"number\..*(current|ampere|amp|charging_limit|dynamic_limit)"
+# Chargers by integration - from each integration's own source code. The current is in amps; {device_id} is the
+# charger's device in Home Assistant. Not on the list: the generic switch + number above.
 CHARGER_SERVICES = {
     "keba": {"charge": [("keba.set_current", "service", {"current": "{current}"}), ("keba.enable", "service", {})],
              "stop": [("keba.disable", "service", {})]},
+    # Easee (nordicopen/easee_hass): actions with the charger's device
+    "easee": {"charge": [("easee.set_charger_dynamic_limit", "service", {"device_id": "{device_id}", "current": "{current}"}),
+                         ("easee.action_command", "service", {"device_id": "{device_id}", "action_command": "resume"})],
+              "stop": [("easee.action_command", "service", {"device_id": "{device_id}", "action_command": "pause"})]},
+    # Zaptec (custom-components/zaptec): "Available current" and the Resume/Stop charging buttons
+    "zaptec": {"charge": [(r"number\..*available_current$", "number", "{current}"), (r"button\..*resume_charging$", "press", None)],
+               "stop": [(r"button\..*stop_charging$", "press", None)]},
+    # go-e (marq24/ha-goecharger-api2): "Requested current" and "Force state" (2 = charge, 1 = don't charge)
+    "goecharger_api2": {"charge": [(r"number\..*_amp$", "number", "{current}"), (r"select\..*_frc$", "select", "2")],
+                        "stop": [(r"select\..*_frc$", "select", "1")]},
+    # Wallbox (built in): "Maximum charging current" and "Pause/resume" (on = charging)
+    "wallbox": {"charge": [(r"number\..*maximum_charging_current$", "number", "{current}"), (r"switch\..*pause_resume$", "on", None)],
+                "stop": [(r"switch\..*pause_resume$", "off", None)]},
+    # Peblar (built in): "Charge limit" and "Charge"
+    "peblar": {"charge": [(r"number\..*charge_limit$", "number", "{current}"), (r"switch\..*_charge$", "on", None)],
+               "stop": [(r"switch\..*_charge$", "off", None)]},
+    # OCPP (lbbrhzn/ocpp): "Maximum Current" and "Charge Control"
+    "ocpp": {"charge": [(r"number\..*maximum_current$", "number", "{current}"), (r"switch\..*charge_control$", "on", None)],
+             "stop": [(r"switch\..*charge_control$", "off", None)]},
+    # Alfen (leeyuentuen/alfen_wallbox): the socket's max current; 0 A pauses
+    "alfen_wallbox": {"charge": [(r"number\..*power_connector_max_current_socket_1$", "number", "{current}")],
+                      "stop": [(r"number\..*power_connector_max_current_socket_1$", "number", "0")]},
+    # Ohme (built in): no current control - "Charge mode" max charge / paused
+    "ohme": {"charge": [(r"select\..*charge_mode$", "select", "max_charge")], "stop": [(r"select\..*charge_mode$", "select", "paused")]},
+    # myenergi zappi (CJNE/ha-myenergi): "Charge Mode" Fast / Stopped (no current control)
+    "myenergi": {"charge": [(r"select\..*charge_mode$", "select", "Fast")], "stop": [(r"select\..*charge_mode$", "select", "Stopped")]},
 }
 
 
@@ -345,7 +373,7 @@ def resolve(steps: list, entities: list[str], ctx: dict[str, Any]) -> list[dict[
             continue
         domain = entity.split(".")[0]
         if kind == "select":
-            calls.append({"domain": domain, "service": "select_option", "data": {"entity_id": entity, "option": fill(value, ctx)}})
+            calls.append({"domain": domain, "service": "select_option", "data": {"entity_id": entity, "option": str(fill(value, ctx))}})
         elif kind == "number":
             calls.append({"domain": domain, "service": "set_value", "data": {"entity_id": entity, "value": fill(value, ctx)}})
         elif kind in ("on", "off") and domain == "select":
@@ -382,9 +410,10 @@ def guess_profile(entities: list[str], platforms: set[str], model: str | None = 
     return None
 
 
-def charger_calls(intent: str, entities: list[str], platform: str | None, current: float) -> list[dict[str, Any]]:
-    """Start at a current, or stop - by the charger's own services where known, else its switch and number."""
-    ctx = {"current": round(current)}
+def charger_calls(intent: str, entities: list[str], platform: str | None, current: float,
+                  device_id: str | None = None) -> list[dict[str, Any]]:
+    """Start at a current, or stop - by the charger integration's own way where known, else its switch and number."""
+    ctx = {"current": round(current), "device_id": device_id or ""}
     if platform in CHARGER_SERVICES:
         return resolve(CHARGER_SERVICES[platform][intent], entities, ctx)
     switch = next((e for e in entities if re.search(CHARGER_SWITCH, e)), None)

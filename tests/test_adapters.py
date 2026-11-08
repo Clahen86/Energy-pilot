@@ -33,10 +33,10 @@ def test_other_brands_and_custom():
 
 
 def test_chargers():
-    easee = ["switch.easee_is_enabled", "number.easee_dynamic_limit"]
-    calls = adapters.charger_calls("charge", easee, "easee", 16)
-    assert calls[0]["data"] == {"entity_id": "number.easee_dynamic_limit", "value": 16} and calls[1]["service"] == "turn_on"
-    assert adapters.charger_calls("stop", easee, "easee", 16)[0]["service"] == "turn_off"
+    generic = ["switch.mycharger_is_enabled", "number.mycharger_dynamic_limit"]
+    calls = adapters.charger_calls("charge", generic, "some_charger", 16)
+    assert calls[0]["data"] == {"entity_id": "number.mycharger_dynamic_limit", "value": 16} and calls[1]["service"] == "turn_on"
+    assert adapters.charger_calls("stop", generic, "some_charger", 16)[0]["service"] == "turn_off"
     keba = adapters.charger_calls("charge", [], "keba", 10)
     assert keba[0] == {"domain": "keba", "service": "set_current", "data": {"current": 10}}
     paused = adapters.charger_calls("charge", ["switch.charger_pause"], None, 16)
@@ -190,3 +190,23 @@ def test_givenergy_solis_alphaess_from_their_code():
 
 def test_service_only_profile_is_found_by_its_integration():
     assert adapters.guess_profile(["sensor.alphaess_soc"], {"alphaess"}) == "alphaess"
+
+
+
+def test_chargers_from_their_integrations_code():
+    easee = adapters.charger_calls("charge", [], "easee", 16, "devE")
+    assert easee[0] == {"domain": "easee", "service": "set_charger_dynamic_limit", "data": {"device_id": "devE", "current": 16}}
+    assert adapters.charger_calls("stop", [], "easee", 16, "devE")[0]["data"]["action_command"] == "pause"
+    z = ["number.zaptec_installation_available_current", "button.zaptec_go_resume_charging", "button.zaptec_go_stop_charging"]
+    assert [c["service"] for c in adapters.charger_calls("charge", z, "zaptec", 10)] == ["set_value", "press"]
+    assert adapters.charger_calls("stop", z, "zaptec", 10)[0]["data"]["entity_id"] == "button.zaptec_go_stop_charging"
+    goe = ["number.goe_123_amp", "select.goe_123_frc", "number.goe_123_lot_amp"]
+    assert [c["data"].get("option", c["data"].get("value")) for c in adapters.charger_calls("charge", goe, "goecharger_api2", 12)] == [12, "2"]
+    wb = ["number.wallbox_pulsar_maximum_charging_current", "switch.wallbox_pulsar_pause_resume"]
+    assert adapters.charger_calls("stop", wb, "wallbox", 16)[0]["service"] == "turn_off"  # off = paused for Wallbox
+    oc = ["number.charger_maximum_current", "switch.charger_charge_control"]
+    assert adapters.charger_calls("charge", oc, "ocpp", 16)[1]["service"] == "turn_on"
+    al = ["number.alfen_power_connector_max_current_socket_1"]
+    assert adapters.charger_calls("stop", al, "alfen_wallbox", 16)[0]["data"]["value"] == 0
+    assert adapters.charger_calls("charge", ["select.ohme_epod_charge_mode"], "ohme", 16)[0]["data"]["option"] == "max_charge"
+    assert adapters.charger_calls("stop", ["select.myenergi_zappi_charge_mode"], "myenergi", 16)[0]["data"]["option"] == "Stopped"

@@ -110,3 +110,23 @@ def test_edf_tempo_from_colours():
     assert p[d + timedelta(days=1, hours=9)] == 0.7060  # tomorrow red, peak
     prices, _ = collect(states, "sensor.tarif_actuel_tempo_6kva_ttc", [], TZ)
     assert max(prices.values()) == 0.7060
+
+
+def test_more_price_integrations_formats():
+    """ENTSO-E, Frank Energie, Zonneplan and Energi Data Service, as their source code writes them."""
+    entsoe = parse({"prices_today": [{"time": iso(DAY0), "price": 0.21}], "prices_tomorrow": [{"time": iso(T1), "price": 0.19}]}, TZ, DAY0)
+    assert entsoe[DAY0] == 0.21 and entsoe[T1] == 0.19
+    frank = parse({"prices": [{"from": iso(DAY0), "till": iso(DAY0 + timedelta(hours=1)), "price": 0.31}]}, TZ, DAY0)
+    assert frank[DAY0] == 0.31
+    zonneplan = parse({"forecast": [{"datetime": iso(T1), "electricity_price": 2512345}]}, TZ, DAY0)
+    assert abs(zonneplan[T1] - 0.2512345) < 1e-9  # tenths of a micro-euro
+    eds = parse({"raw_today": [{"hour": iso(DAY0), "price": 1.9}], "raw_tomorrow": [{"hour": iso(T1), "price": 1.7}]}, TZ, DAY0)
+    assert eds[T1] == 1.7
+
+
+def test_prices_from_an_integrations_action():
+    """Nord Pool/Tibber built into Home Assistant give the coming prices only through an action."""
+    states = {"sensor.nord_pool_dk1_current_price": {"state": "0.32", "attributes": {}}}
+    service = [{"start": iso(DAY0 + timedelta(hours=h)), "price": 0.3 + h / 100} for h in range(48)]
+    prices, info = collect(states, "sensor.nord_pool_dk1_current_price", [], TZ, service)
+    assert len(prices) == 48 and prices[T1 + timedelta(hours=2)] == 0.3 + 26 / 100 and not info["tomorrow_missing"]

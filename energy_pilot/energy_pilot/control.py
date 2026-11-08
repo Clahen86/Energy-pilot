@@ -94,6 +94,8 @@ class Controller:
                 prefix = anchor.split(".", 1)[1].split("_")[0]
                 found = [e for e in self.ha.states if e.split(".")[0] in ("select", "number", "switch") and e.split(".", 1)[1].startswith(prefix + "_")]
             self.entities[part], self.platforms[part] = sorted(found), plat
+            if part == "car":
+                self.car_device = dev  # Easee's actions want the charger's device
             if part == "battery":
                 self.battery_device = dev  # for services that want the device (Huawei, GivEnergy)
                 d = (devices or {}).get(dev or "") if "devices" in dir() else None
@@ -170,7 +172,8 @@ class Controller:
         if part == "battery":
             steps = self.profile_steps() or {}
             return self._clamp(adapters.resolve(steps.get(want["intent"], []), self._pool(), want["ctx"]))
-        return adapters.charger_calls(want["intent"], self.entities["car"], self.platforms["car"], want["ctx"]["current"])
+        return self._clamp(adapters.charger_calls(want["intent"], self.entities["car"], self.platforms["car"], want["ctx"]["current"],
+                                                  getattr(self, "car_device", None)))
 
     def _clamp(self, calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Numbers within the control's own min/max - Home Assistant refuses a value outside them."""

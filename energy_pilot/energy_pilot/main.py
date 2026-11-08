@@ -97,6 +97,7 @@ async def main() -> None:
                     await engine.learn()
                     learned = asyncio.get_running_loop().time()
                 await engine.refresh_sources()
+                await engine.refresh_service_prices()
                 await engine.refresh_house_today()
                 engine.run()
                 await engine.review()
@@ -136,7 +137,7 @@ async def main() -> None:
             try:
                 tz = _Z(ha.config.get("time_zone") or "UTC")
                 now = _dt.now(tz)
-                prices, _ = collect(ha.states, overview.role("price"), engine.own_prices or [], tz)
+                prices, _ = collect(ha.states, overview.role("price"), engine.own_prices or [], tz, engine.service_prices or [])
                 past = [k for k in prices if k <= now]
                 price = prices[max(past)] if past else None
                 st, b = overview.settings, engine.settings()

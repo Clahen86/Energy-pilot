@@ -19,8 +19,8 @@ from zoneinfo import ZoneInfo
 
 LIST_KEYS = ("prices", "raw_today", "raw_tomorrow", "today", "tomorrow", "forecast", "forecasts", "rates", "data", "prices_today",
              "prices_tomorrow")  # "forecasts": Amber, "rates": Octopus Energy
-TIME_KEYS = ("start", "startsAt", "starts_at", "hour", "time", "from", "start_time", "valid_from")
-VALUE_KEYS = ("price", "value", "total", "price_inc_vat", "value_inc_vat", "price_ct_per_kwh", "per_kwh")
+TIME_KEYS = ("start", "startsAt", "starts_at", "hour", "time", "from", "start_time", "valid_from", "datetime", "timestamp")
+VALUE_KEYS = ("price", "value", "total", "price_inc_vat", "value_inc_vat", "price_ct_per_kwh", "per_kwh", "electricity_price")
 
 
 def _when(value: Any, tz: ZoneInfo) -> datetime | None:
@@ -57,8 +57,11 @@ def parse(attrs: dict[str, Any], tz: ZoneInfo, day0: datetime) -> dict[datetime,
             value = next((item[k] for k in VALUE_KEYS if isinstance(item.get(k), (int, float))), None)
             if start is None or value is None:
                 continue
-            if "ct" in next((k for k in VALUE_KEYS if k in item), ""):
+            used = next((k for k in VALUE_KEYS if k in item), "")
+            if used.endswith("ct_per_kwh"):  # cents (not "ct" inside "electricity")
                 value = value / 100
+            elif used == "electricity_price" and abs(value) > 100:
+                value = value / 10_000_000  # Zonneplan gives tenths of a micro-euro
             out[start.astimezone(tz)] = float(value) / (1000 if per_mwh else 1)
     return out
 
@@ -113,7 +116,8 @@ def now_price(states: dict[str, dict], entity_id: str | None, tz: ZoneInfo) -> f
     return prices[max(past)] if past else None
 
 
-def collect(states: dict[str, dict], entity_id: str | None, own: list[dict[str, Any]], tz: ZoneInfo) -> tuple[dict[datetime, float], dict[str, Any]]:
+def collect(states: dict[str, dict], entity_id: str | None, own: list[dict[str, Any]], tz: ZoneInfo,
+            service: list[dict[str, Any]] | None = None) -> tuple[dict[datetime, float], dict[str, Any]]:
     """All known prices from the integration, with the missing hours filled from Energy Pilot's own prices.
     Returns (prices, info) - info says what was filled and if tomorrow is still missing."""
     now = datetime.now(tz)
@@ -122,6 +126,10 @@ def collect(states: dict[str, dict], entity_id: str | None, own: list[dict[str, 
     if entity_id:
         for e in companions(states, entity_id):
             prices.update(parse((states.get(e) or {}).get("attributes") or {}, tz, day0))
+        for p in service or []:  # prices an integration gives through its action
+            when = _when(p.get("start"), tz)
+            if when is not None:
+                prices[when.astimezone(tz)] = float(p["price"])
         if "tempo" in entity_id:
             from . import tempo  # EDF Tempo: the prices come from the day colours
 
