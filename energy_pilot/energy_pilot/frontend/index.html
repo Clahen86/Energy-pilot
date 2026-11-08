@@ -234,7 +234,8 @@ const T = {
       checkOk: "Test: alle kontroller fundet", checkMissing: "Test: {n} kontroller mangler", model: "Model", optional: "valgfri",
       untested: "Denne profil er lavet ud fra mærkets kendte kontroller, men ikke prøvet på et rigtigt anlæg - lad den køre i skygge først.",
       missingHint: "Vælg en anden profil under Indstillinger → Husbatteri, eller \"Selv valgt\" og peg på kontrollerne selv.",
-      profile: "Inverter-styring", profileH: "Hvordan motoren taler med din inverter", custom: "Selv valgt (alle mærker)",
+      profile: "Inverter-styring", profileH: "Hvordan motoren taler med din inverter",
+      found: "Fundet", allFound: "alle kontroller fundet", missingN: "{n} kontroller mangler", notTested: "ikke testet på rigtigt anlæg endnu", custom: "Selv valgt (alle mærker)",
       intents: { normal: "Normal drift", hold: "Hold på strømmen", charge: "Lad fra nettet" }, pick: "Vælg kontrol…", valueH: "Værdi, fx Battery first eller {target}",
       addStep: "Tilføj trin", customHint: "Værdier kan bruge {min_soc}, {soc}, {target}, {rate} (%) og {power_w}." },
     learn: { title: "Selvkontrol", week: "Denne uge", yesterday: "I går", first: "Første rapport kommer i morgen tidlig - den lærer af hver dag.",
@@ -312,7 +313,8 @@ const T = {
       checkOk: "Test: every control found", checkMissing: "Test: {n} controls missing", model: "Model", optional: "optional",
       untested: "This profile is built from the brand's known controls but not yet tried on a real system - run it in shadow first.",
       missingHint: "Pick another profile under Settings → House battery, or \"Chosen by you\" and point to the controls yourself.",
-      profile: "Inverter control", profileH: "How the engine talks to your inverter", custom: "Chosen by you (any brand)",
+      profile: "Inverter control", profileH: "How the engine talks to your inverter",
+      found: "Found", allFound: "every control found", missingN: "{n} controls missing", notTested: "not yet tested on a real system", custom: "Chosen by you (any brand)",
       intents: { normal: "Normal", hold: "Keep the power", charge: "Charge from the grid" }, pick: "Pick a control…", valueH: "Value, e.g. Battery first or {target}",
       addStep: "Add step", customHint: "Values can use {min_soc}, {soc}, {target}, {rate} (%) and {power_w}." },
     learn: { title: "Self-check", week: "This week", yesterday: "Yesterday", first: "The first report comes tomorrow morning - it learns from every day.",
@@ -672,6 +674,12 @@ function roleRows(roles) {
           : `<button class="link" data-rolesearch="${r}">${T.findOther}</button>`}</div></div>`;
   }).join("") + sensors;
 }
+function foundLine() {
+  const p = control?.profile, c = T.ctl;
+  if (!p?.key || p.key === "custom") return c.profileH;
+  const miss = Object.values(p.check || {}).reduce((n, r) => n + r.missing.length, 0);
+  return `${c.found}: <b>${esc(p.choices[p.key] || p.key)}</b>${p.model ? ` (${esc(p.model)})` : ""} – ${miss ? c.missingN.replace("{n}", miss) : c.allFound}${p.tested === false ? ` · 🧪 ${c.notTested}` : ""}`;
+}
 function capHint(v) {
   const y = T.y, l = settings.capacity_learned;
   if (l && v.battery_kwh && Math.abs(v.battery_kwh - l) / l > 0.05) return y.sizeDiff.replace("{x}", num(l, 1)).replace("{y}", num(v.battery_kwh, 1));
@@ -707,8 +715,8 @@ function styleView() {
       ${row(y.sign, settings.battery_sign_found === -1 ? y.signRev : settings.battery_sign_found === 1 ? y.signNorm : y.signUnknown,
         `<div class="seg mini">${[["auto", null], ["norm", 1], ["rev", -1]].map(([k, val]) => `<button class="${(v.battery_sign ?? null) === val ? "on" : ""}" data-bsign="${k}">${y.signs[k]}</button>`).join("")}</div>`)}
       ${quietRow("battery")}
-      ${control?.profile ? row(T.ctl.profile, T.ctl.profileH, `<select data-iprof><option value="">${T.auto}${control.profile.key && control.profile.key !== "custom" && !v.inverter_profile ? ": " + esc(control.profile.choices[control.profile.key] || "") : ""}</option>
-        ${Object.entries(control.profile.choices).map(([k, n]) => `<option value="${k}" ${v.inverter_profile === k ? "selected" : ""}>${esc(n)}</option>`).join("")}
+      ${control?.profile ? row(T.ctl.profile, foundLine(), `<select data-iprof><option value="">${T.auto}${control.profile.key && control.profile.key !== "custom" && !v.inverter_profile ? ": " + esc(control.profile.choices[control.profile.key] || "") : ""}</option>
+        ${Object.entries(control.profile.choices).map(([k, n]) => `<option value="${k}" ${v.inverter_profile === k ? "selected" : ""}>${(control.profile.tested_keys || []).includes(k) ? "✅" : "🧪"} ${esc(n)}</option>`).join("")}
         <option value="custom" ${v.inverter_profile === "custom" ? "selected" : ""}>${T.ctl.custom}</option></select>`) : ""}
       ${v.inverter_profile === "custom" ? customEditor(v) : ""}` : "")}
     ${section("car", y.secCar, y.secCarH, hasCar ? `${row(y.carMode, "", `<div class="seg mini">${["cheapest", "solar"].map((m) => `<button class="${(v.ev_mode || "cheapest") === m ? "on" : ""}" data-evmode="${m}">${y.carModes[m]}</button>`).join("")}</div>`)}

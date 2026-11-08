@@ -254,7 +254,8 @@ class Controller:
         key = self.profile_key()
         prof = adapters.PROFILES.get(key or "") or {}
         out["profile"] = {"key": key, "name": prof.get("name") or ("custom" if key == "custom" else None),
-                          "choices": {k: p["name"] for k, p in adapters.PROFILES.items()},
+                          "choices": {k: p["name"] for k, p in sorted(adapters.PROFILES.items(), key=lambda kv: kv[1]["name"].lower())},
+                          "tested_keys": [k for k, p in adapters.PROFILES.items() if p.get("tested")],
                           "model": self.model, "tested": bool(prof.get("tested")) if key != "custom" else None, "check": self.check()}
         # For "Chosen by you": every control in Home Assistant - the inverter's own first - not only the device
         # the battery level was found on (that could be the wrong one, e.g. a car).
