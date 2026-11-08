@@ -105,6 +105,10 @@ PROFILES: dict[str, dict[str, Any]] = {
         "charge": [(r"number\..*passive_maximum_battery_power$", "number", "{power_w}"),
                    (r"number\..*passive_minimum_battery_power$", "number", "{power_w}"),
                    (r"select\..*storage_control_mode$", "select", "Passive")],
+        # Selling from the battery (only when the user turns it on): checked in the integration's source.
+        "export": [(r"number\..*passive_minimum_battery_power$", "number", "-{power_w}"),
+                   (r"number\..*passive_maximum_battery_power$", "number", "-{power_w}"),
+                   (r"select\..*storage_control_mode$", "select", "Passive")],
     },
     # Sigenergy (TypQxQ/Sigenergy-Local-Modbus): Remote EMS on, then its control mode; limits in kW.
     "sigen": {
@@ -128,6 +132,10 @@ PROFILES: dict[str, dict[str, Any]] = {
                  (r"select\..*energy_storage_mode$", "select", "Passive Mode")],
         "charge": [(r"number\..*passive_mode_battery_power_max$", "number", "{power_w}"),
                    (r"number\..*passive_mode_battery_power_min$", "number", "{power_w}"),
+                   (r"select\..*energy_storage_mode$", "select", "Passive Mode")],
+        # Selling from the battery (only when the user turns it on): checked in the integration's source.
+        "export": [(r"number\..*passive_mode_battery_power_min$", "number", "-{power_w}"),
+                   (r"number\..*passive_mode_battery_power_max$", "number", "-{power_w}"),
                    (r"select\..*energy_storage_mode$", "select", "Passive Mode")],
     },
     # Tesla Powerwall (Teslemetry / Tesla Fleet): charging is done by raising the backup reserve with grid charging
@@ -204,6 +212,9 @@ PROFILES: dict[str, dict[str, Any]] = {
         "normal": [(r"select\..*charger_use_mode$", "select", "Self Use Mode")],
         "hold": [(r"select\..*charger_use_mode$", "select", "Manual Mode"), (r"select\..*manual_mode_select$", "select", "Stop Charge and Discharge")],
         "charge": [(r"select\..*charger_use_mode$", "select", "Manual Mode"), (r"select\..*manual_mode_select$", "select", "Force Charge")],
+        # Selling from the battery (only when the user turns it on): checked in the integration's source.
+        "export": [(r"select\..*charger_use_mode$", "select", "Manual Mode"),
+                   (r"select\..*manual_mode_select$", "select", "Force Discharge")],
     },
     "sungrow": {
         "name": "Sungrow (Modbus)",
@@ -212,6 +223,10 @@ PROFILES: dict[str, dict[str, Any]] = {
         "hold": [(r"select\..*ems_mode.*$", "select", "Forced mode"), (r"select\..*battery_forced_charge_discharge.*$", "select", "Stop (default)")],
         "charge": [(r"select\..*ems_mode.*$", "select", "Forced mode"), (r"number\..*forced_charge_discharge_power.*$", "number", "{power_w}"),
                    (r"select\..*battery_forced_charge_discharge.*$", "select", "Forced charge")],
+        # Selling from the battery (only when the user turns it on): checked in the integration's source.
+        "export": [(r"select\..*ems_mode.*$", "select", "Forced mode"),
+                   (r"number\..*forced_charge_discharge_power.*$", "number", "{power_w}"),
+                   (r"select\..*battery_forced_charge_discharge.*$", "select", "Forced discharge")],
     },
     "solaredge_modbus_multi": {
         "name": "SolarEdge (Modbus Multi)",
@@ -232,6 +247,9 @@ PROFILES: dict[str, dict[str, Any]] = {
         "hold": [(r"select\..*work_mode$", "select", "Back-up")],
         "charge": [(r"number\..*force_charge_power$", "number", "{power_w}"), (r"number\..*force_charge_max_soc$", "number", "{target}"),
                    (r"select\..*work_mode$", "select", "Force Charge")],
+        # Selling from the battery (only when the user turns it on): checked in the integration's source.
+        "export": [(r"number\..*force_discharge_power$", "number", "{power_w}"),
+                   (r"select\..*work_mode$", "select", "Force Discharge")],
         "optional": [r"number\..*force_charge_power$", r"number\..*force_charge_max_soc$"],
         "source": "integration",
     },

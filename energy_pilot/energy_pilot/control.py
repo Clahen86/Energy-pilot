@@ -141,9 +141,11 @@ class Controller:
         if b and b.get("steps"):
             step = b["steps"][0]
             bat = self.engine.settings()
-            intent = {"charge_grid": "charge", "hold": "hold"}.get(step["action"], "normal")
+            intent = {"charge_grid": "charge", "hold": "hold", "export": "export"}.get(step["action"], "normal")
             slot_h = (b.get("slot_min") or 60) / 60  # the step is one price slot (a quarter of an hour in Europe)
             charge_kw = min(bat.max_charge_kw, max(0.5, (step["soc"] - (f["soc"] or 0)) / 100 * bat.capacity_kwh / slot_h))
+            if intent == "export":  # the battery's discharge power: the house's share and what is sold
+                charge_kw = min(bat.max_discharge_kw, max(0.5, ((f["soc"] or 0) - step["soc"]) / 100 * bat.capacity_kwh / slot_h))
             out["battery"] = {"intent": intent, "ctx": {
                 "min_soc": round(bat.min_soc), "soc": round(f["soc"] or bat.min_soc), "target": round(b.get("target") or step["soc"]),
                 "rate": round(100 * charge_kw / bat.max_charge_kw), "power_w": round(charge_kw * 1000),
@@ -183,7 +185,8 @@ class Controller:
             return [{"domain": e.split(".")[0], "service": "turn_on" if want["intent"] == "run" else "turn_off", "data": {"entity_id": e}}]
         if part == "battery":
             steps = self.profile_steps() or {}
-            return self._clamp(adapters.resolve(steps.get(want["intent"], []), self._pool(), want["ctx"]))
+            # A profile without a way to sell runs normally instead (the plan doesn't sell then anyway).
+            return self._clamp(adapters.resolve(steps.get(want["intent"]) or steps.get("normal", []), self._pool(), want["ctx"]))
         return self._clamp(adapters.charger_calls(want["intent"], self.entities["car"], self.platforms["car"], want["ctx"]["current"],
                                                   getattr(self, "car_device", None)))
 

@@ -44,49 +44,49 @@ DECISIONS = {
         "FREE_DISCHARGE": ("Batteriet forsyner huset", "discharge"), "DISCHARGE": ("Batteriet forsyner huset", "discharge"),
         "FREE_CHARGE": ("Batteriet lader", "charge"), "CHARGE": ("Batteriet lader", "charge"),
         "GRID_CHARGE": ("Lader batteriet med billig strøm", "grid"), "FREE_GRID_CHARGE": ("Lader batteriet med billig strøm", "grid"),
-        "FREE_HOLD": ("Gemmer strømmen til senere", "hold"), "HOLD": ("Gemmer strømmen til senere", "hold"),
+        "FREE_HOLD": ("Gemmer strømmen til senere", "hold"), "FREE_EXPORT": ("Sælger strøm fra batteriet", "export"), "HOLD": ("Gemmer strømmen til senere", "hold"),
         "NOOP": ("Alt kører som planlagt", "hold"),
     },
     "en": {
         "FREE_DISCHARGE": ("The battery powers the house", "discharge"), "DISCHARGE": ("The battery powers the house", "discharge"),
         "FREE_CHARGE": ("The battery is charging", "charge"), "CHARGE": ("The battery is charging", "charge"),
         "GRID_CHARGE": ("Charging the battery with cheap power", "grid"), "FREE_GRID_CHARGE": ("Charging the battery with cheap power", "grid"),
-        "FREE_HOLD": ("Saving the power for later", "hold"), "HOLD": ("Saving the power for later", "hold"),
+        "FREE_HOLD": ("Saving the power for later", "hold"), "FREE_EXPORT": ("Selling power from the battery", "export"), "HOLD": ("Saving the power for later", "hold"),
         "NOOP": ("Everything runs as planned", "hold"),
     },
     "de": {
         "FREE_DISCHARGE": ("Die Batterie versorgt das Haus", "discharge"), "DISCHARGE": ("Die Batterie versorgt das Haus", "discharge"),
         "FREE_CHARGE": ("Die Batterie lädt", "charge"), "CHARGE": ("Die Batterie lädt", "charge"),
         "GRID_CHARGE": ("Lädt die Batterie mit günstigem Strom", "grid"), "FREE_GRID_CHARGE": ("Lädt die Batterie mit günstigem Strom", "grid"),
-        "FREE_HOLD": ("Hebt den Strom für später auf", "hold"), "HOLD": ("Hebt den Strom für später auf", "hold"),
+        "FREE_HOLD": ("Hebt den Strom für später auf", "hold"), "FREE_EXPORT": ("Verkauft Strom aus der Batterie", "export"), "HOLD": ("Hebt den Strom für später auf", "hold"),
         "NOOP": ("Alles läuft nach Plan", "hold"),
     },
     "fr": {
         "FREE_DISCHARGE": ("La batterie alimente la maison", "discharge"), "DISCHARGE": ("La batterie alimente la maison", "discharge"),
         "FREE_CHARGE": ("La batterie charge", "charge"), "CHARGE": ("La batterie charge", "charge"),
         "GRID_CHARGE": ("Charge la batterie avec de l'électricité bon marché", "grid"), "FREE_GRID_CHARGE": ("Charge la batterie avec de l'électricité bon marché", "grid"),
-        "FREE_HOLD": ("Garde l'énergie pour plus tard", "hold"), "HOLD": ("Garde l'énergie pour plus tard", "hold"),
+        "FREE_HOLD": ("Garde l'énergie pour plus tard", "hold"), "FREE_EXPORT": ("Vend l'énergie de la batterie", "export"), "HOLD": ("Garde l'énergie pour plus tard", "hold"),
         "NOOP": ("Tout se déroule comme prévu", "hold"),
     },
     "nl": {
         "FREE_DISCHARGE": ("De batterij voedt het huis", "discharge"), "DISCHARGE": ("De batterij voedt het huis", "discharge"),
         "FREE_CHARGE": ("De batterij laadt", "charge"), "CHARGE": ("De batterij laadt", "charge"),
         "GRID_CHARGE": ("Laadt de batterij met goedkope stroom", "grid"), "FREE_GRID_CHARGE": ("Laadt de batterij met goedkope stroom", "grid"),
-        "FREE_HOLD": ("Bewaart de stroom voor later", "hold"), "HOLD": ("Bewaart de stroom voor later", "hold"),
+        "FREE_HOLD": ("Bewaart de stroom voor later", "hold"), "FREE_EXPORT": ("Verkoopt stroom uit de batterij", "export"), "HOLD": ("Bewaart de stroom voor later", "hold"),
         "NOOP": ("Alles loopt volgens plan", "hold"),
     },
     "sv": {
         "FREE_DISCHARGE": ("Batteriet försörjer huset", "discharge"), "DISCHARGE": ("Batteriet försörjer huset", "discharge"),
         "FREE_CHARGE": ("Batteriet laddar", "charge"), "CHARGE": ("Batteriet laddar", "charge"),
         "GRID_CHARGE": ("Laddar batteriet med billig ström", "grid"), "FREE_GRID_CHARGE": ("Laddar batteriet med billig ström", "grid"),
-        "FREE_HOLD": ("Sparar strömmen till senare", "hold"), "HOLD": ("Sparar strömmen till senare", "hold"),
+        "FREE_HOLD": ("Sparar strömmen till senare", "hold"), "FREE_EXPORT": ("Säljer ström från batteriet", "export"), "HOLD": ("Sparar strömmen till senare", "hold"),
         "NOOP": ("Allt går som planerat", "hold"),
     },
     "nb": {
         "FREE_DISCHARGE": ("Batteriet forsyner huset", "discharge"), "DISCHARGE": ("Batteriet forsyner huset", "discharge"),
         "FREE_CHARGE": ("Batteriet lader", "charge"), "CHARGE": ("Batteriet lader", "charge"),
         "GRID_CHARGE": ("Lader batteriet med billig strøm", "grid"), "FREE_GRID_CHARGE": ("Lader batteriet med billig strøm", "grid"),
-        "FREE_HOLD": ("Sparer strømmen til senere", "hold"), "HOLD": ("Sparer strømmen til senere", "hold"),
+        "FREE_HOLD": ("Sparer strømmen til senere", "hold"), "FREE_EXPORT": ("Selger strøm fra batteriet", "export"), "HOLD": ("Sparer strømmen til senere", "hold"),
         "NOOP": ("Alt går som planlagt", "hold"),
     },
 }
@@ -141,6 +141,7 @@ class Overview:
                 self.settings.setdefault("roles", {}).update({k: v for k, v in value.items() if k in ROLES})
             elif key in ("battery_kwh", "import_limit_kw", "language", "setup_done", "style", "price_area", "tariff", "markup", "price_source", "tou", "vat", "battery_min_soc", "grid_charge",
                          "sell", "sell_price", "solar_value", "ev_in_house", "battery_sign", "ev_follow_sun", "ev_fuse_guard",
+                         "battery_export", "battery_wear", "export_limit_kw",
                          "offgrid", "reserve_soc", "emergency_soc", "gen_stop_soc", "gen_charge_kw", "gen_min_run_h",
                          "quiet_gen_from", "quiet_gen_to", "battery_charge_kw", "battery_discharge_kw", "ev_mode", "charger_kw", "ev_need_kwh",
                          "quiet_from", "quiet_to", "quiet_battery", "quiet_car",
@@ -285,7 +286,7 @@ class Overview:
         b = ((self.engine.result if self.engine else None) or {}).get("battery")
         if not b:
             return None
-        key = {"discharge": "FREE_DISCHARGE", "charge": "FREE_CHARGE", "grid": "GRID_CHARGE", "hold": "FREE_HOLD"}[b["now"]]
+        key = {"discharge": "FREE_DISCHARGE", "charge": "FREE_CHARGE", "grid": "GRID_CHARGE", "hold": "FREE_HOLD", "export": "FREE_EXPORT"}[b["now"]]
         text, kind = DECISIONS.get(lang, DECISIONS["en"])[key]
         return {"key": key, "text": text, "kind": kind, "reason": None, "target": b["target"], "plan": [], "engine": True,
                 "saving": b["saving"]}

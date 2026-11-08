@@ -80,6 +80,8 @@ The panel shows who decides right now and how well each one hits:
 - **Off-grid too** – no grid and no prices? The generator becomes the "grid": it runs before the battery would fall
   below your reserve (using the sun and house forecast ahead), in long runs, not in the quiet hours unless it must, and
   always at the emergency level.
+- **Sells from the battery when it pays** (optional) – with a great export rate it sells what the house doesn't need,
+  keeps enough for the dear hours, and counts the battery's wear (worked out for you), losses and your export limit.
 - **7 languages** – English, Danish, German, French, Dutch, Swedish and Norwegian, following Home Assistant's language.
 
 ## What you need
@@ -165,6 +167,7 @@ bliver bedre hver nat.** Den starter altid i *skygge*: den viser, hvad den ville
 - **Ingen telemetri** – intet forlader dit hjem.
 - **Også off-grid:** uden elnet styrer den generatoren – den starter, før batteriet når reserven, kører længe ad gangen
   og altid ved nødgrænsen.
+- **Sælger fra batteriet, når det betaler sig** (valgfrit) – med tab, slid og eksportgrænse regnet med.
 - **7 sprog:** dansk, engelsk, tysk, fransk, hollandsk, svensk og norsk – følger Home Assistants sprog.
 - **Styrer mange mærker** – se tabellen ovenfor (✅ testet, 🧪 venter på en betatester).
 

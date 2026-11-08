@@ -64,6 +64,9 @@ class Battery:
     grid_charge: bool = True  # may charge from the grid when it pays
     import_limit_kw: float | None = None  # main fuse: never buy more than this in an hour
     quiet: frozenset = frozenset()  # hours (0-23) the battery must not charge
+    export: bool = False  # may sell from the battery when it pays (off unless the user turns it on)
+    wear: float = 0.0  # what one kWh through the battery wears it (money per kWh) - only counted for selling
+    export_limit_kw: float | None = None  # what may be sent to the grid
 
 
 @dataclass
@@ -160,18 +163,25 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
                     if -delta > b.max_discharge_kw * h.length + 1e-9:
                         continue
                     need = max(0.0, h.house - h.sun)
-                    if out > need + 1e-9:
-                        if k != j - 1 or need <= 0:
-                            continue  # no exporting from the battery
-                        out = need  # the smallest step is more than the house needs: it covers the house, no more
-                    grid = h.house - h.sun - out
                     action = "discharge"
+                    if out > need + 1e-9:
+                        if b.export and h.sell > 0:
+                            action = "export"  # sells what the house doesn't use
+                        elif k != j - 1 or need <= 0:
+                            continue  # no exporting from the battery
+                        else:
+                            out = need  # the smallest step is more than the house needs: it covers the house, no more
+                    grid = h.house - h.sun - out
+                    if action == "export" and b.export_limit_kw is not None and -grid > b.export_limit_kw * h.length + 1e-9:
+                        continue  # more than may go out on the grid
                 else:
                     grid = h.house - h.sun
                     action = "hold"
                 if b.import_limit_kw is not None and grid > b.import_limit_kw * h.length + 1e-9 and delta > 0:
                     continue  # charging would trip the main fuse
                 cost = grid * h.price if grid > 0 else grid * h.sell
+                if action == "export":
+                    cost += (out - need) * b.wear  # selling wears the battery: only worth it with a clear gain
                 total = cost + best[i + 1][k]
                 if total < best[i][j] - 1e-12:
                     best[i][j] = total
@@ -244,7 +254,12 @@ def split_slots(hours: list[Hour], prices: dict[datetime, float], now: datetime,
 
 # ---------- running it ----------
 
-ACTION_KIND = {"discharge": "discharge", "charge_sun": "charge", "charge_grid": "grid", "hold": "hold"}
+ACTION_KIND = {"discharge": "discharge", "charge_sun": "charge", "charge_grid": "grid", "hold": "hold", "export": "export"}
+
+# What a kWh through a battery wears it, by currency: an LFP battery of about 3000 DKK per kWh lasts about 6000
+# cycles - about 0.5 DKK per kWh. Users don't know this, so it isn't asked; it can be changed under advanced.
+WEAR = {"DKK": 0.5, "NOK": 0.75, "SEK": 0.75, "EUR": 0.07, "GBP": 0.06, "USD": 0.08, "AUD": 0.11, "NZD": 0.12,
+        "CAD": 0.1, "PLN": 0.3, "CHF": 0.065, "CZK": 1.7, "HUF": 27.0}
 
 
 class Engine:
@@ -304,7 +319,24 @@ class Engine:
             min_soc=min_soc, grid_charge=grid, import_limit_kw=float(s["import_limit_kw"]) if s.get("import_limit_kw") else None,
             quiet=frozenset(self.quiet_hours("battery")),
             efficiency=self.batt_learn.efficiency(0.92),  # the datasheet's, until it has seen the real one
+            export=self.can_export(),
+            wear=self.wear(),
+            export_limit_kw=float(s["export_limit_kw"]) if s.get("export_limit_kw") else None,
         )
+
+    def can_export(self) -> bool:
+        """Selling from the battery: when the user turned it on - and the inverter profile can (if one is chosen)."""
+        if not self.ov.settings.get("battery_export"):
+            return False
+        ctl = getattr(self.ov, "controller", None)
+        steps = ctl.profile_steps() if ctl is not None else None
+        return steps is None or bool(steps.get("export"))
+
+    def wear(self) -> float:
+        s = self.ov.settings
+        if s.get("battery_wear") not in (None, ""):
+            return float(s["battery_wear"])
+        return WEAR.get(str(self.ha.config.get("currency") or "EUR").upper(), 0.07)
 
     def quiet_hours(self, what: str) -> list[int]:
         """The hours the battery or the car must not charge - each has its own (older settings: one shared period)."""
