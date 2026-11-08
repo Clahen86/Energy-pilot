@@ -150,7 +150,7 @@ class Controller:
                 "min_soc": round(bat.min_soc), "soc": round(f["soc"] or bat.min_soc), "target": round(b.get("target") or step["soc"]),
                 "rate": round(100 * charge_kw / bat.max_charge_kw), "power_w": round(charge_kw * 1000),
                 "max_power_w": round(bat.max_discharge_kw * 1000), "max_charge_w": round(bat.max_charge_kw * 1000),
-                "power_kw": round(charge_kw, 2), "max_charge_kw": round(bat.max_charge_kw, 2),
+                "power_kw": round(charge_kw, 2), "max_charge_kw": round(bat.max_charge_kw, 2), "max_power_kw": round(bat.max_discharge_kw, 2),
                 "device_id": getattr(self, "battery_device", None) or "", "serial": getattr(self, "battery_serial", "") or ""}}
             if "{house_w}" in str(self.profile_steps() or {}):
                 # Only for profiles that use it (EcoFlow), rounded - so others aren't re-sent at every small change.

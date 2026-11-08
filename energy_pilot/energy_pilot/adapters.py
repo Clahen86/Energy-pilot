@@ -113,13 +113,18 @@ PROFILES: dict[str, dict[str, Any]] = {
     # Sigenergy (TypQxQ/Sigenergy-Local-Modbus): Remote EMS on, then its control mode; limits in kW.
     "sigen": {
         "name": "Sigenergy (local Modbus)",
+        "optional": [r"number\..*ess_max_discharging_limit$"],
         "match": r"sigen",
         "source": "integration",
-        "normal": [(r"switch\..*remote_ems.*$", "on", None), (r"select\..*remote_ems_control_mode$", "select", "Maximum Self Consumption")],
+        "normal": [(r"number\..*ess_max_discharging_limit$", "number", "{max_power_kw}"), (r"switch\..*remote_ems.*$", "on", None), (r"select\..*remote_ems_control_mode$", "select", "Maximum Self Consumption")],
         "hold": [(r"switch\..*remote_ems.*$", "on", None), (r"select\..*remote_ems_control_mode$", "select", "Command Charging (PV First)"),
                  (r"number\..*ess_max_charging_limit$", "number", "{max_charge_kw}")],
         "charge": [(r"switch\..*remote_ems.*$", "on", None), (r"number\..*ess_max_charging_limit$", "number", "{power_kw}"),
                    (r"select\..*remote_ems_control_mode$", "select", "Command Charging (Grid First)")],
+        # Selling from the battery (only when the user turns it on): checked in the integration's source.
+        "export": [(r"switch\..*remote_ems.*$", "on", None),
+                   (r"number\..*ess_max_discharging_limit$", "number", "{power_kw}"),
+                   (r"select\..*remote_ems_control_mode$", "select", "Command Discharging (ESS First)")],
     },
     # Sofar via SolaX Modbus (wills106): "Energy Storage Mode" and its passive mode battery power min/max.
     "sofar_solax": {
@@ -204,6 +209,9 @@ PROFILES: dict[str, dict[str, Any]] = {
                  (r"number\..*maximum_discharging_power$", "number", "0")],
         "charge": [(r"number\..*maximum_discharging_power$", "number", "{max_power_w}"),
                    ("huawei_solar.forcible_charge_soc", "service", {"device_id": "{device_id}", "target_soc": "{target}", "power": "{power_w}"})],
+        # Selling from the battery (only when the user turns it on): checked in the integration's source.
+        "export": [(r"number\..*maximum_discharging_power$", "number", "{max_power_w}"),
+                   ("huawei_solar.forcible_discharge_soc", "service", {"device_id": "{device_id}", "target_soc": "{target}", "power": "{power_w}"})],
         "optional": [r"select\..*(?<!emma_)working_mode(_settings)?$", r"button\..*stop_forcible_charge$"],
     },
     "solax_modbus": {
@@ -238,6 +246,11 @@ PROFILES: dict[str, dict[str, Any]] = {
         "charge": [(r"select\..*ac_charge_policy$", "select", "Always Allowed"), (r"select\..*storage_control_mode$", "select", "Remote Control"),
                    (r"number\..*storage_command_timeout$", "number", "3600"), (r"number\..*storage_charge_limit$", "number", "{power_w}"),
                    (r"select\..*storage_command_mode$", "select", "Charge from Solar Power and Grid")],
+        # Selling from the battery (only when the user turns it on): checked in the integration's source.
+        "export": [(r"select\..*storage_control_mode$", "select", "Remote Control"),
+                   (r"number\..*storage_command_timeout$", "number", "3600"),
+                   (r"number\..*storage_discharge_limit$", "number", "{power_w}"),
+                   (r"select\..*storage_command_mode$", "select", "Discharge to Maximize Export")],
         "optional": [r"number\..*storage_command_timeout$", r"select\..*ac_charge_policy$"],
     },
     "foxess_modbus": {
@@ -259,14 +272,17 @@ PROFILES: dict[str, dict[str, Any]] = {
         "name": "GivEnergy (GivEnergy Local)",
         "match": r"givenergy|givtcp",
         "source": "integration",
-        "normal": [("givenergy_local.disable_timed_charge", "service", {"device_id": "{device_id}"}),
+        "normal": [("givenergy_local.activate_mode_eco", "service", {"device_id": "{device_id}"}), ("givenergy_local.disable_timed_charge", "service", {"device_id": "{device_id}"}),
                    (r"select\..*battery_pause_mode$", "select", "Not Paused")],
-        "hold": [("givenergy_local.disable_timed_charge", "service", {"device_id": "{device_id}"}),
+        "hold": [("givenergy_local.activate_mode_eco", "service", {"device_id": "{device_id}"}), ("givenergy_local.disable_timed_charge", "service", {"device_id": "{device_id}"}),
                  (r"select\..*battery_pause_mode$", "select", "Pause Discharge")],
         "charge": [(r"select\..*battery_pause_mode$", "select", "Not Paused"),
                    (r"number\..*battery_charge_power_limit$", "number", "{power_w}"),
                    ("givenergy_local.enable_timed_charge", "service",
                     {"device_id": "{device_id}", "start_time": "00:00", "end_time": "23:59", "charge_target": "{target}"})],
+        # Selling from the battery (only when the user turns it on): checked in the integration's source.
+        "export": [(r"select\..*battery_pause_mode$", "select", "Not Paused"),
+                   ("givenergy_local.activate_mode_timed_export", "service", {"device_id": "{device_id}", "start_time": "00:00", "end_time": "23:59"})],
         "optional": [r"number\..*battery_charge_power_limit$"],
     },
     # Solis (Pho3niX90/solis_modbus): remote-control force charge with its power and timeout (1-30 min, so it is
@@ -281,6 +297,10 @@ PROFILES: dict[str, dict[str, Any]] = {
                  (r"number\..*rc_force_battery_charge_power$", "number", "0"), (r"number\..*rc_timeout$", "number", "30")],
         "charge": [(r"select\..*rc_force_charge_discharge$", "select", "Solis RC Force Battery Charge"),
                    (r"number\..*rc_force_battery_charge_power$", "number", "{power_w}"), (r"number\..*rc_timeout$", "number", "30")],
+        # Selling from the battery (only when the user turns it on): checked in the integration's source.
+        "export": [(r"select\..*rc_force_charge_discharge$", "select", "Solis RC Force Battery Discharge"),
+                   (r"number\..*rc_force_battery_discharge_power$", "number", "{power_w}"),
+                   (r"number\..*rc_timeout$", "number", "30")],
     },
     # Alpha ESS (Poshy163/homeassistant-alphaESS, cloud): charge and discharge windows by service, with the serial.
     "alphaess": {
@@ -375,7 +395,9 @@ def check(steps: dict[str, list], entities: list[str], optional: list[str] | Non
 
 
 def missing(result: dict[str, dict[str, Any]]) -> list[str]:
-    return [m["control"] for r in result.values() for m in r["missing"]]
+    """Required controls that are missing. Selling is extra: without its controls the battery is still controlled,
+    it just doesn't sell."""
+    return [m["control"] for intent, r in result.items() if intent != "export" for m in r["missing"]]
 
 
 def resolve(steps: list, entities: list[str], ctx: dict[str, Any]) -> list[dict[str, Any]]:

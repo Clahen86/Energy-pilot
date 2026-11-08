@@ -330,7 +330,14 @@ class Engine:
             return False
         ctl = getattr(self.ov, "controller", None)
         steps = ctl.profile_steps() if ctl is not None else None
-        return steps is None or bool(steps.get("export"))
+        if steps is None:
+            return True  # no inverter chosen yet: the plan shows what selling would do
+        if not steps.get("export"):
+            return False
+        try:
+            return not ctl.check().get("export", {}).get("missing")  # its controls are there
+        except Exception:  # noqa: BLE001
+            return True
 
     def wear(self) -> float:
         s = self.ov.settings
