@@ -127,7 +127,7 @@ of data before they get a say, and only take over when they're better.
 
 - The 🧪 profiles are built from each integration's known controls but not yet tried on real systems – run them in
   shadow first, check the control test, and tell me how it goes.
-- The panel is in English and Danish for now.
+- Languages: English, Danish, German, French, Dutch, Swedish and Norwegian – it follows Home Assistant's language. Corrections from native speakers are very welcome.
 
 ---
 
