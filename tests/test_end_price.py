@@ -24,3 +24,12 @@ def test_uses_the_morning_and_covers_the_evening_without_buying_late():
     assert by[7].action == "discharge"
     assert all(by[h].action == "discharge" for h in (17, 18, 19))
     assert by[21].action != "charge_grid"
+
+
+def test_quarter_hours_can_use_the_battery_for_a_small_house():
+    # 0.8 kWh an hour = 0.2 kWh a quarter: less than a 2 % step of 13 kWh - the battery must still cover it
+    q = [Hour(h.start + timedelta(minutes=15 * i), h.price, 0.0, 0.2, 0.0, 0.25) for h in HOURS for i in range(4)]
+    p = plan_battery(q, 90, B, end_value=end_price(q, B))
+    morning = [s for s in p.steps if s.start.day == 9 and s.start.hour in (7, 8, 9)]
+    assert any(s.action == "discharge" for s in morning)
+    assert all(s.grid_kwh >= -1e-9 for s in p.steps)  # never exports from the battery

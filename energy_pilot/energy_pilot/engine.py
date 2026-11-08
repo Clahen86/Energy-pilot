@@ -113,10 +113,14 @@ def end_price(hours: list[Hour], b: Battery) -> float:
     return prices[int(len(prices) * 0.1)] / eff
 
 
-def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float | None = None, step_pct: float = 2.0) -> Plan:
+def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float | None = None, step_pct: float | None = None) -> Plan:
     """The cheapest way through the hours, starting at soc_now (%)."""
     if not hours:
         return Plan()
+    if step_pct is None:
+        # Small enough that one step is less than the house uses in a slot - else a quarter hour where the house
+        # takes 0.2 kWh can't use the battery at all (one 2 % step of 13 kWh is 0.26 kWh).
+        step_pct = 2.0 if min(h.length for h in hours) >= 1 else 1.0
     eff = math.sqrt(b.efficiency)
     levels = [round(b.min_soc + i * step_pct, 4) for i in range(int((b.max_soc - b.min_soc) / step_pct) + 1)]
     if levels[-1] < b.max_soc:
@@ -157,7 +161,9 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
                         continue
                     need = max(0.0, h.house - h.sun)
                     if out > need + 1e-9:
-                        continue  # no exporting from the battery
+                        if k != j - 1 or need <= 0:
+                            continue  # no exporting from the battery
+                        out = need  # the smallest step is more than the house needs: it covers the house, no more
                     grid = h.house - h.sun - out
                     action = "discharge"
                 else:
