@@ -48,6 +48,20 @@ def test_saved_is_measured(tmp_path):
 def test_empty_battery_starts_over_and_other_system_wins(tmp_path):
     led = Ledger(tmp_path)
     run(led, [{"battery": 3000, "pv": 0, "house": 0, "soc": 50}] * 30, 2.0)
-    run(led, [{"battery": -100, "pv": 0, "house": 100, "soc": 10}] * 2, 2.0)
+    run(led, [{"battery": -100, "pv": 0, "house": 100, "soc": 10}] * 7, 2.0)  # empty for a few minutes
     assert led.state["stored_kwh"] == 0
     assert led.summary(T, other_avg=1.99)["avg_cost"] == 1.99
+
+
+def test_one_wrong_low_reading_keeps_the_cost():
+    from datetime import datetime, timedelta
+    from energy_pilot.ledger import Ledger
+    import tempfile, pathlib
+    led = Ledger(pathlib.Path(tempfile.mkdtemp()))
+    t = datetime(2026, 11, 8, 12)
+    led.state.update(stored_kwh=9.0, stored_cost=23.0)
+    flow = {"house": 500, "pv": 0, "battery": 0, "soc": 80, "grid": 500, "ev": 0}
+    led.tick(t, flow, 2.5, 0.0, 11.7, 10, 0.92)
+    led.tick(t + timedelta(minutes=1), {**flow, "soc": 0}, 2.5, 0.0, 11.7, 10, 0.92)   # a glitch
+    led.tick(t + timedelta(minutes=2), flow, 2.5, 0.0, 11.7, 10, 0.92)
+    assert round(led.state["stored_cost"], 1) == 23.0

@@ -70,11 +70,24 @@ class Ledger:
                 s["stored_cost"] *= keep
             if soc is not None and capacity_kwh:
                 if soc <= min_soc + 1:
-                    s["stored_kwh"] = s["stored_cost"] = 0.0  # empty: a new round
-                elif s["stored_kwh"] > soc / 100 * capacity_kwh * 1.05:  # never more than the battery holds
-                    keep = soc / 100 * capacity_kwh / s["stored_kwh"]
-                    s["stored_kwh"] *= keep
-                    s["stored_cost"] *= keep
+                    # Empty: a new round - but only after a few minutes, so one wrong reading (0 % for a moment
+                    # when the inverter reconnects) doesn't throw away what the power in the battery cost.
+                    since = s.get("low_since") or now.isoformat()
+                    s["low_since"] = since
+                    if (now - datetime.fromisoformat(since)).total_seconds() >= 300:
+                        s["stored_kwh"] = s["stored_cost"] = 0.0
+                else:
+                    s.pop("low_since", None)
+                over = soc > min_soc + 1 and s["stored_kwh"] > soc / 100 * capacity_kwh * 1.05
+                if over:  # never more than the battery holds - when the level has said so for a few minutes
+                    since = s.get("over_since") or now.isoformat()
+                    s["over_since"] = since
+                    if (now - datetime.fromisoformat(since)).total_seconds() >= 300:
+                        keep = soc / 100 * capacity_kwh / s["stored_kwh"]
+                        s["stored_kwh"] *= keep
+                        s["stored_cost"] *= keep
+                else:
+                    s.pop("over_since", None)
         # Saved: the grid with the battery against the grid without it.
         if grid is None:
             grid = house + ev + (batt or 0.0) - pv
