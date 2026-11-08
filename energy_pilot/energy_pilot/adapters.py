@@ -106,6 +106,55 @@ PROFILES: dict[str, dict[str, Any]] = {
                    (r"number\..*passive_minimum_battery_power$", "number", "{power_w}"),
                    (r"select\..*storage_control_mode$", "select", "Passive")],
     },
+    # Sigenergy (TypQxQ/Sigenergy-Local-Modbus): Remote EMS on, then its control mode; limits in kW.
+    "sigen": {
+        "name": "Sigenergy (local Modbus)",
+        "match": r"sigen",
+        "source": "integration",
+        "normal": [(r"switch\..*remote_ems.*$", "on", None), (r"select\..*remote_ems_control_mode$", "select", "Maximum Self Consumption")],
+        "hold": [(r"switch\..*remote_ems.*$", "on", None), (r"select\..*remote_ems_control_mode$", "select", "Command Charging (PV First)"),
+                 (r"number\..*ess_max_charging_limit$", "number", "{max_charge_kw}")],
+        "charge": [(r"switch\..*remote_ems.*$", "on", None), (r"number\..*ess_max_charging_limit$", "number", "{power_kw}"),
+                   (r"select\..*remote_ems_control_mode$", "select", "Command Charging (Grid First)")],
+    },
+    # Sofar via SolaX Modbus (wills106): "Energy Storage Mode" and its passive mode battery power min/max.
+    "sofar_solax": {
+        "name": "Sofar (SolaX Modbus)",
+        "match": r"sofar|energy_storage_mode",
+        "source": "integration",
+        "normal": [(r"select\..*energy_storage_mode$", "select", "Self Use")],
+        "hold": [(r"number\..*passive_mode_battery_power_min$", "number", "0"),
+                 (r"number\..*passive_mode_battery_power_max$", "number", "{max_charge_w}"),
+                 (r"select\..*energy_storage_mode$", "select", "Passive Mode")],
+        "charge": [(r"number\..*passive_mode_battery_power_max$", "number", "{power_w}"),
+                   (r"number\..*passive_mode_battery_power_min$", "number", "{power_w}"),
+                   (r"select\..*energy_storage_mode$", "select", "Passive Mode")],
+    },
+    # Tesla Powerwall (Teslemetry / Tesla Fleet): charging is done by raising the backup reserve with grid charging
+    # allowed; hold keeps the reserve at today's level.
+    "tesla": {
+        "name": "Tesla Powerwall (Teslemetry / Fleet)",
+        "match": r"powerwall|backup_reserve",
+        "source": "integration",
+        "normal": [(r"switch\..*(allow_charging_from_grid|grid_charging)$", "off", None), (r"number\..*backup_reserve$", "number", "{min_soc}"),
+                   (r"select\..*operation_mode$", "select", "self_consumption")],
+        "hold": [(r"number\..*backup_reserve$", "number", "{soc}"), (r"select\..*operation_mode$", "select", "self_consumption")],
+        "charge": [(r"switch\..*(allow_charging_from_grid|grid_charging)$", "on", None), (r"number\..*backup_reserve$", "number", "{target}"),
+                   (r"select\..*operation_mode$", "select", "self_consumption")],
+        "optional": [r"select\..*operation_mode$"],
+    },
+    # Enphase IQ Battery (Envoy, built-in integration): storage mode, reserve level and "Charge from grid".
+    "enphase_envoy": {
+        "name": "Enphase IQ Battery (Envoy)",
+        "match": r"enpower|enphase|envoy",
+        "source": "integration",
+        "normal": [(r"switch\..*charge_from_grid$", "off", None), (r"number\..*reserve.*(level|soc)$", "number", "{min_soc}"),
+                   (r"select\..*storage_mode$", "select", "self_consumption")],
+        "hold": [(r"number\..*reserve.*(level|soc)$", "number", "{soc}"), (r"select\..*storage_mode$", "select", "self_consumption")],
+        "charge": [(r"switch\..*charge_from_grid$", "on", None), (r"number\..*reserve.*(level|soc)$", "number", "{target}"),
+                   (r"select\..*storage_mode$", "select", "self_consumption")],
+        "optional": [r"select\..*storage_mode$"],
+    },
     # Victron ESS (GX via Modbus). The grid setpoint is left alone, so the owner's own setting stays.
     "victron": {
         "name": "Victron (ESS)",
@@ -133,16 +182,21 @@ PROFILES: dict[str, dict[str, Any]] = {
         "charge": [(r"number\..*custom_load_power.*$", "number", "0"),
                    (r"number\..*max_charge_level$", "number", "{target}")],
     },
+    # Huawei (wlcrs/huawei_solar): "Working Mode" ("Maximise self consumption"), maximum discharging power, and the
+    # forcible_charge_soc service (needs the battery's device_id); "Stop forcible charge" ends a charge.
     "huawei_solar": {
         "name": "Huawei SUN2000 / LUNA2000",
-        "match": r"huawei|sun2000|luna",
-        "normal": [(r"select\..*storage_working_mode.*$", "select", "Maximise Self Consumption"),
+        "match": r"huawei|sun2000|luna|batteries_",
+        "source": "integration",
+        "normal": [(r"button\..*stop_forcible_charge$", "press", None),
+                   (r"select\..*(?<!emma_)working_mode(_settings)?$", "select", "Maximise self consumption"),
                    (r"number\..*maximum_discharging_power$", "number", "{max_power_w}")],
-        "hold": [(r"select\..*storage_working_mode.*$", "select", "Maximise Self Consumption"),
+        "hold": [(r"button\..*stop_forcible_charge$", "press", None),
+                 (r"select\..*(?<!emma_)working_mode(_settings)?$", "select", "Maximise self consumption"),
                  (r"number\..*maximum_discharging_power$", "number", "0")],
         "charge": [(r"number\..*maximum_discharging_power$", "number", "{max_power_w}"),
-                   ("huawei_solar.forcible_charge_soc", "service", {"target_soc": "{target}", "power": "{power_w}"})],
-        "optional": [r"select\..*storage_working_mode.*$"],  # not on every battery model
+                   ("huawei_solar.forcible_charge_soc", "service", {"device_id": "{device_id}", "target_soc": "{target}", "power": "{power_w}"})],
+        "optional": [r"select\..*(?<!emma_)working_mode(_settings)?$", r"button\..*stop_forcible_charge$"],
     },
     "solax_modbus": {
         "name": "SolaX (Modbus)",
@@ -163,16 +217,23 @@ PROFILES: dict[str, dict[str, Any]] = {
         "name": "SolarEdge (Modbus Multi)",
         "match": r"solaredge",
         "normal": [(r"select\..*storage_control_mode$", "select", "Maximize Self Consumption")],
-        "hold": [(r"select\..*storage_control_mode$", "select", "Remote Control"), (r"select\..*storage_command_mode$", "select", "Solar Power Only (Off)")],
-        "charge": [(r"select\..*storage_control_mode$", "select", "Remote Control"), (r"number\..*storage_charge_limit$", "number", "{power_w}"),
+        "source": "integration",
+        "hold": [(r"select\..*storage_control_mode$", "select", "Remote Control"), (r"number\..*storage_command_timeout$", "number", "3600"),
+                 (r"select\..*storage_command_mode$", "select", "Charge from Solar Power")],
+        "charge": [(r"select\..*ac_charge_policy$", "select", "Always Allowed"), (r"select\..*storage_control_mode$", "select", "Remote Control"),
+                   (r"number\..*storage_command_timeout$", "number", "3600"), (r"number\..*storage_charge_limit$", "number", "{power_w}"),
                    (r"select\..*storage_command_mode$", "select", "Charge from Solar Power and Grid")],
+        "optional": [r"number\..*storage_command_timeout$", r"select\..*ac_charge_policy$"],
     },
     "foxess_modbus": {
         "name": "Fox ESS (Modbus)",
         "match": r"foxess|fox_",
         "normal": [(r"select\..*work_mode$", "select", "Self Use")],
         "hold": [(r"select\..*work_mode$", "select", "Back-up")],
-        "charge": [(r"select\..*work_mode$", "select", "Force Charge")],
+        "charge": [(r"number\..*force_charge_power$", "number", "{power_w}"), (r"number\..*force_charge_max_soc$", "number", "{target}"),
+                   (r"select\..*work_mode$", "select", "Force Charge")],
+        "optional": [r"number\..*force_charge_power$", r"number\..*force_charge_max_soc$"],
+        "source": "integration",
     },
     "givenergy_local": {
         "name": "GivEnergy",
@@ -197,7 +258,7 @@ def fill(value: Any, ctx: dict[str, Any]) -> Any:
     if isinstance(value, str) and re.fullmatch(r"-?\d+(?:\.\d+)?", value):
         return float(value) if "." in value else int(value)  # a plain number in a profile ("0")
     if isinstance(value, str) and "{" in value:
-        out = value.format(**{k: (round(v) if isinstance(v, float) else v) for k, v in ctx.items()})
+        out = value.format(**{k: (round(v, 2) if isinstance(v, float) else v) for k, v in ctx.items()})
         try:
             return float(out) if "." in out else int(out)
         except ValueError:

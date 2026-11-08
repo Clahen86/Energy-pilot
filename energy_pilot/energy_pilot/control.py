@@ -94,6 +94,8 @@ class Controller:
                 prefix = anchor.split(".", 1)[1].split("_")[0]
                 found = [e for e in self.ha.states if e.split(".")[0] in ("select", "number", "switch") and e.split(".", 1)[1].startswith(prefix + "_")]
             self.entities[part], self.platforms[part] = sorted(found), plat
+            if part == "battery":
+                self.battery_device = dev  # for services that want the device (Huawei forcible charge)
 
     def profile_key(self) -> str | None:
         chosen = self.ov.settings.get("inverter_profile")
@@ -137,7 +139,9 @@ class Controller:
             out["battery"] = {"intent": intent, "ctx": {
                 "min_soc": round(bat.min_soc), "soc": round(f["soc"] or bat.min_soc), "target": round(b.get("target") or step["soc"]),
                 "rate": round(100 * charge_kw / bat.max_charge_kw), "power_w": round(charge_kw * 1000),
-                "max_power_w": round(bat.max_discharge_kw * 1000), "max_charge_w": round(bat.max_charge_kw * 1000)}}
+                "max_power_w": round(bat.max_discharge_kw * 1000), "max_charge_w": round(bat.max_charge_kw * 1000),
+                "power_kw": round(charge_kw, 2), "max_charge_kw": round(bat.max_charge_kw, 2),
+                "device_id": getattr(self, "battery_device", None) or ""}}
             if "{house_w}" in str(self.profile_steps() or {}):
                 # Only for profiles that use it (EcoFlow), rounded - so others aren't re-sent at every small change.
                 out["battery"]["ctx"]["house_w"] = int(round((f.get("house") or 0.0) / 50) * 50)

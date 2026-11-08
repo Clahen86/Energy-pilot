@@ -25,8 +25,8 @@ def test_other_brands_and_custom():
     assert adapters.guess_profile(solax, {"solax_modbus"}) == "solax_modbus"
     hold = adapters.resolve(adapters.PROFILES["solax_modbus"]["hold"], solax, CTX)
     assert [c["data"]["option"] for c in hold] == ["Manual Mode", "Stop Charge and Discharge"]
-    huawei = adapters.resolve(adapters.PROFILES["huawei_solar"]["charge"], [], CTX)
-    assert huawei == [{"domain": "huawei_solar", "service": "forcible_charge_soc", "data": {"target_soc": 90, "power": 2400}}]
+    huawei = adapters.resolve(adapters.PROFILES["huawei_solar"]["charge"], [], {**CTX, "device_id": "abc123"})
+    assert huawei == [{"domain": "huawei_solar", "service": "forcible_charge_soc", "data": {"device_id": "abc123", "target_soc": 90, "power": 2400}}]
     custom = adapters.resolve([("select.my_inverter_mode", "select", "Force"), ("number.my_target", "number", "{target}")],
                               ["select.my_inverter_mode", "number.my_target"], CTX)
     assert custom[1]["data"] == {"entity_id": "number.my_target", "value": 90}
@@ -62,7 +62,7 @@ def test_missing_control_is_found_and_never_half():
     # optional controls may be missing; a service that isn't there is missing
     h = adapters.PROFILES["huawei_solar"]
     hs = {i: h[i] for i in ("normal", "hold", "charge")}
-    found = ["number.huawei_maximum_discharging_power"]
+    found = ["number.batteries_maximum_discharging_power"]
     assert adapters.missing(adapters.check(hs, found, h["optional"], {"huawei_solar.forcible_charge_soc"})) == []
     assert adapters.missing(adapters.check(hs, found, h["optional"], set())) == ["huawei_solar.forcible_charge_soc"]
 
@@ -134,3 +134,34 @@ def test_sofar_passive_mode():
     hold = adapters.resolve(p["hold"], so, {**CTX, "max_charge_w": 3000})
     assert [c["data"].get("value", c["data"].get("option")) for c in hold] == [0, 3000, "Passive"]
     assert adapters.resolve(p["normal"], so, CTX)[0]["data"]["option"] == "Self Use"
+
+
+
+def test_profiles_from_the_integrations_own_names():
+    """Entity names as the integrations create them (from their source code)."""
+    cases = {
+        "huawei_solar": (["select.batteries_working_mode", "number.batteries_maximum_discharging_power", "button.batteries_stop_forcible_charge",
+                          "select.emma_ess_control_mode"], "hold", "select.batteries_working_mode", "Maximise self consumption"),
+        "solaredge_modbus_multi": (["select.solaredge_b1_storage_control_mode", "select.solaredge_b1_storage_command_mode", "select.solaredge_b1_ac_charge_policy",
+                                    "number.solaredge_b1_storage_charge_limit", "number.solaredge_b1_storage_command_timeout"],
+                                   "charge", "select.solaredge_b1_ac_charge_policy", "Always Allowed"),
+        "foxess_modbus": (["select.work_mode", "number.force_charge_power", "number.force_charge_max_soc"], "charge", "number.force_charge_max_soc", 90),
+        "sigen": (["switch.sigen_plant_remote_ems_controlled_by_home_assistant", "select.sigen_plant_remote_ems_control_mode",
+                   "number.sigen_plant_ess_max_charging_limit"], "charge", "number.sigen_plant_ess_max_charging_limit", 2.4),
+        "sofar_solax": (["select.sofar_energy_storage_mode", "number.sofar_passive_mode_battery_power_min", "number.sofar_passive_mode_battery_power_max"],
+                        "charge", "select.sofar_energy_storage_mode", "Passive Mode"),
+        "tesla": (["number.my_home_backup_reserve", "switch.my_home_allow_charging_from_grid", "select.my_home_operation_mode"],
+                  "charge", "number.my_home_backup_reserve", 90),
+        "enphase_envoy": (["select.enpower_482_storage_mode", "number.enpower_482_reserve_battery_level", "switch.enpower_482_charge_from_grid"],
+                          "hold", "number.enpower_482_reserve_battery_level", 62),
+    }
+    ctx = {**CTX, "power_kw": 2.4, "max_charge_kw": 3.0, "max_charge_w": 3000, "device_id": "d1"}
+    for key, (ents, intent, entity, want) in cases.items():
+        p = adapters.PROFILES[key]
+        steps = {i: p[i] for i in ("normal", "hold", "charge")}
+        assert adapters.missing(adapters.check(steps, ents, p.get("optional"), {"huawei_solar.forcible_charge_soc"})) == [], key
+        calls = adapters.resolve(p[intent], ents, ctx)
+        got = {c["data"].get("entity_id"): c["data"].get("option", c["data"].get("value")) for c in calls}
+        assert got.get(entity) == want, (key, got)
+    # emma's control mode is not the battery's working mode
+    assert "select.emma_ess_control_mode" not in str(adapters.resolve(adapters.PROFILES["huawei_solar"]["hold"], cases["huawei_solar"][0], ctx))
