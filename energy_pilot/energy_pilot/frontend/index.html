@@ -277,7 +277,10 @@ const T_ALL = {
     legSoc: "Batteri-niveau (plan)", legCar: "Bilen lader", legExport: "Batteriet sælger", saves: "Planen sparer cirka {x} de næste timer.", otherSays: "AppDaemon: {x}",
     bat: { n: "Batteri {n}", add: "+ Tilføj batteri", name: "Navn", soc: "Batteriniveau", power: "Batterieffekt", remove: "Fjern batteriet",
       hint: "Planen ser alle batterierne som ét – størrelser og effekter lægges sammen.", each: "Hvert batteri", pick: "Vælg sensor…" },
+    chg: { n: "Lader {n}", add: "+ Tilføj ladeboks", name: "Navn", power: "Ladeeffekt", plug: "Stik", session: "Ladet", remove: "Fjern ladeboksen",
+      shadow: "Kun skygge – planen viser, hvornår bilen ville lade", planned: "Lader kl. {x}", none: "Ingen opladning planlagt", car: "Bil" },
     chk: { title: "Tjek af indstillinger", fix: "Ret det", show: "Vis mig", no: "Nej tak",
+      charger_found: "Fandt en ladeboks mere: {name}. Skal den med i planen?",
       battery_found: "Fandt et batteri mere: {name}. Skal det med i planen?", adv: "Avanceret", diag: "Hent diagnosefil", diagH: "Send filen, hvis noget ser forkert ud – den indeholder ingen adgangskoder.",
       fuse_blocks: "Importgrænsen på {limit} kW forhindrer batteriet i at lade i de billige timer – det koster ca. {x} i planen. Er den rigtig? Brug det, hovedsikringen tillader, eller fjern grænsen.",
       fuse_low: "Huset har købt {peak} kW fra nettet, mere end importgrænsen på {limit} kW. Er grænsen for lav?",
@@ -377,7 +380,10 @@ const T_ALL = {
     legSoc: "Battery level (plan)", legCar: "Car charges", legExport: "Battery sells", saves: "The plan saves about {x} over the coming hours.", otherSays: "AppDaemon: {x}",
     bat: { n: "Battery {n}", add: "+ Add a battery", name: "Name", soc: "Battery level", power: "Battery power", remove: "Remove this battery",
       hint: "The plan sees all the batteries as one – sizes and powers are added up.", each: "Each battery", pick: "Pick a sensor…" },
+    chg: { n: "Charger {n}", add: "+ Add a charger", name: "Name", power: "Charging power", plug: "Plug", session: "Charged", remove: "Remove this charger",
+      shadow: "Shadow only – the plan shows when the car would charge", planned: "Charges at {x}", none: "No charging planned", car: "Car" },
     chk: { title: "Settings check", fix: "Fix it", show: "Show me", no: "No thanks",
+      charger_found: "Found another charger: {name}. Add it to the plan?",
       battery_found: "Found another battery: {name}. Add it to the plan?", adv: "Advanced", diag: "Download diagnostics", diagH: "Send the file if something looks wrong – it holds no passwords.",
       fuse_blocks: "The import limit of {limit} kW stops the battery charging in the cheap hours – it costs about {x} in the plan. Is it right? Use what your main fuse allows, or remove the limit.",
       fuse_low: "The house has bought {peak} kW from the grid, more than the import limit of {limit} kW. Is the limit too low?",
@@ -551,6 +557,7 @@ function home() {
     ${genCard()}
     ${savedCard()}
     ${d.ev ? carCard(d.ev, f) : ""}
+    ${moreCars()}
     <div class="card fade"><div class="eyebrow"><span>${T.planTitle}</span></div>${priceNote()}${planSvg(d.plan)}</div>`;
 }
 function genCard() {
@@ -775,6 +782,34 @@ function capHint(v) {
   if (l) return y.sizeLearned.replace("{x}", num(l, 1));
   return settings.capacity_guess ? y.sizeH.replace("{x}", num(settings.capacity_guess, 1)) : y.sizeLearning;
 }
+function chargerList(v, row) {
+  const c = T.chg, list = v.chargers || [];
+  const pick = (i, key, role) => `<select data-chg="${i}:${key}"><option value="">${T.bat.pick}</option>${(settings.candidates[role] || []).map((x) =>
+    `<option value="${esc(x.entity_id)}" ${list[i][key] === x.entity_id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>`;
+  return `${list.map((x, i) => `<div class="batbox"><h4 class="bathead">${c.n.replace("{n}", i + 2)}${x.name ? ` · ${esc(x.name)}` : ""}</h4>
+      ${row(c.name, "", `<input class="pname" data-chgt="${i}:name" value="${esc(x.name || "")}">`)}
+      ${row(c.power, "", pick(i, "power", "ev_power"))}
+      ${row(c.plug, "", pick(i, "plug", "ev_plug"))}
+      ${row(c.session, "", pick(i, "session", "ev_session"))}
+      ${row(T.y.charger, T.y.chargerH, `<span class="unitin"><input class="numin" type="number" inputmode="decimal" step="0.1" data-chgn="${i}:charger_kw" value="${x.charger_kw ?? ""}" placeholder="7.4"><i>kW</i></span>`)}
+      <button class="link" data-chgdel="${i}">${c.remove}</button></div>`).join("")}
+    <button class="ghostbtn" data-chgadd>${c.add}</button>`;
+}
+function moreCars() {
+  const list = data?.flow?.cars || [], plans = data?.engine?.cars || [], conf = data?.settings?.chargers || [], c = T.chg;
+  return list.map((x, i) => {
+    const p = plans[i] || {}, cf = conf[i] || {}, charging = (x.power || 0) > 100;
+    const hrs = (p.hours || []).map((t) => clock(t)).filter((v, j, a) => a.indexOf(v) === j);
+    return `<div class="card fade"><div class="eyebrow"><span>${esc(x.name || c.car + " " + (i + 2))}</span>${x.session_kwh != null ? `<span>${num(x.session_kwh, 1)} kWh ${T.session}</span>` : ""}</div>
+    <div class="car"><span style="color:${charging ? "var(--car)" : "var(--faint)"}">${CAR_ART}</span>
+      <div><div class="st">${charging ? `${T.charging} ${kw(x.power)}` : x.plug ? T.plugged : T.notPlugged}</div>
+      <div class="muted">${x.plug ? (hrs.length ? c.planned.replace("{x}", hrs.join(", ")) : c.none) : T.xPlugIn}</div></div></div>
+    <div class="ctl"><div class="t"><b>${T.chargeNow}</b><span>${T.xFullSpeed}</span></div><button class="toggle car ${cf.now ? "on" : ""}" data-chgnow="${i}"></button></div>
+    <div class="ctl"><div class="t"><b>${T.readyAt}</b><span>${T.xChargedBy}</span></div><input type="time" data-chgready="${i}" value="${esc(cf.ready || "")}"></div>
+    <div class="ctl"><div class="t"><b>${T.atMost}</b><span>${T.xPerCharge}</span></div><span class="unitin"><input class="numin" type="number" step="1" data-chgcap="${i}" value="${cf.need_kwh ?? ""}" placeholder="20"><i>kWh</i></span></div>
+    <div class="muted" style="margin-top:6px">${c.shadow}</div></div>`;
+  }).join("");
+}
 function batteryList(v, row, numIn) {
   const b = T.bat, list = v.batteries || [];
   const pick = (i, key, role) => `<select data-bat="${i}:${key}"><option value="">${b.pick}</option>${(settings.candidates[role] || []).map((c) =>
@@ -829,13 +864,14 @@ function styleView() {
         <option value="custom" ${v.inverter_profile === "custom" ? "selected" : ""}>${T.ctl.custom}</option></select>`) : ""}
       ${v.inverter_profile === "custom" ? customEditor(v) : ""}
       ${batteryList(v, row, numIn)}` : "")}
-    ${section("car", y.secCar, y.secCarH, hasCar ? `${row(y.carMode, "", `<div class="seg mini">${["cheapest", "solar"].map((m) => `<button class="${(v.ev_mode || "cheapest") === m ? "on" : ""}" data-evmode="${m}">${y.carModes[m]}</button>`).join("")}</div>`)}
+    ${section("car", y.secCar, y.secCarH, hasCar ? `${(v.chargers || []).length ? `<h4 class="bathead">${T.chg.n.replace("{n}", 1)}</h4>` : ""}${row(y.carMode, "", `<div class="seg mini">${["cheapest", "solar"].map((m) => `<button class="${(v.ev_mode || "cheapest") === m ? "on" : ""}" data-evmode="${m}">${y.carModes[m]}</button>`).join("")}</div>`)}
       ${row(y.charger, y.chargerH, numIn("charger_kw", 7.4, "0.1", "kW"))}
       ${adv("car", `${settings.roles.pv_power ? row(y.followSun, y.followSunH, tog("ev_follow_sun", true)) : ""}
       ${v.import_limit_kw ? row(y.fuseGuard, y.fuseGuardH.replace("{x}", num(v.import_limit_kw, 0)), tog("ev_fuse_guard", true)) : ""}
       ${quietRow("car")}
       ${row(y.evInHouse, settings.ev_detected == null ? y.evInHouseUnknown : settings.ev_detected ? y.evInHouseYes : y.evInHouseNo,
-        `<div class="seg mini">${[["auto", null], ["yes", true], ["no", false]].map(([k, val]) => `<button class="${(v.ev_in_house ?? null) === val ? "on" : ""}" data-evhouse="${k}">${y.evHouse[k]}</button>`).join("")}</div>`)}`)}` : "")}
+        `<div class="seg mini">${[["auto", null], ["yes", true], ["no", false]].map(([k, val]) => `<button class="${(v.ev_in_house ?? null) === val ? "on" : ""}" data-evhouse="${k}">${y.evHouse[k]}</button>`).join("")}</div>`)}`)}
+      ${chargerList(v, row)}` : "")}
     ${section("bolt", y.secPrice, y.secPriceH, `${row(y.source, y.sourceH, `<div class="seg mini wide">${["auto", "spot", "tou"].map((m) => `<button class="${(v.price_source || "auto") === m ? "on" : ""}" data-psrc="${m}">${y.sources[m]}</button>`).join("")}</div>`)}
       ${v.price_source === "tou" ? touEditor(v) : ""}
       ${!settings.roles.price && v.price_source !== "tou" && (settings.zones || []).length ? `${row(y.area, settings.country === "DK" ? y.areaH : "", `<div class="seg mini">${(settings.zones || ["DK1", "DK2"]).map((a) => `<button class="${(v.price_area || settings.area_guess) === a ? "on" : ""}" data-area="${a}">${a}</button>`).join("")}</div>`)}
@@ -1010,6 +1046,18 @@ function wire() {
     l[Number(i)][key] = el.dataset.batn ? (el.value === "" ? null : Number(el.value.replace(",", "."))) : el.value || null;
     saveBats(l);
   });
+  const chgs = () => JSON.parse(JSON.stringify((settings?.settings || data.settings).chargers || []));
+  const saveChgs = async (l) => { await api("/api/settings", { chargers: l }); settings = await api("/api/settings"); await load(); render(); };
+  $("[data-chgadd]")?.addEventListener("click", () => saveChgs([...chgs(), { name: "", power: "", plug: "" }]));
+  document.querySelectorAll("[data-chgdel]").forEach((x) => x.onclick = () => { const l = chgs(); l.splice(Number(x.dataset.chgdel), 1); saveChgs(l); });
+  document.querySelectorAll("[data-chg],[data-chgn],[data-chgt]").forEach((el) => el.onchange = () => {
+    const [i, key] = (el.dataset.chg || el.dataset.chgn || el.dataset.chgt).split(":"), l = chgs();
+    l[Number(i)][key] = el.dataset.chgn ? (el.value === "" ? null : Number(el.value.replace(",", "."))) : el.value || null;
+    saveChgs(l);
+  });
+  document.querySelectorAll("[data-chgnow]").forEach((b) => b.onclick = () => { const l = chgs(), i = Number(b.dataset.chgnow); l[i].now = !l[i].now; saveChgs(l); });
+  document.querySelectorAll("[data-chgready]").forEach((el) => el.onchange = () => { const l = chgs(); l[Number(el.dataset.chgready)].ready = el.value || null; saveChgs(l); });
+  document.querySelectorAll("[data-chgcap]").forEach((el) => el.onchange = () => { const l = chgs(); l[Number(el.dataset.chgcap)].need_kwh = el.value === "" ? null : Number(el.value); saveChgs(l); });
   document.querySelectorAll("[data-fix]").forEach((b) => b.onclick = async () => { await api("/api/settings", JSON.parse(b.dataset.fix)); settings = await api("/api/settings"); await load(); render(); });
   document.querySelectorAll("[data-goto]").forEach((b) => b.onclick = async () => {
     const g = b.dataset.goto; if (["battery", "car", "grid"].includes(g)) advOpen.add(g);

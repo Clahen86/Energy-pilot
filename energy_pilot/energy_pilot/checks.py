@@ -93,7 +93,20 @@ def run(engine: Any, hours: list, b: Any, plan: Any, end_value: float) -> list[d
                         "fix": {"batteries": list(st.get("batteries") or []) + [new]},
                         "dismiss": {"battery_dismissed": list(st.get("battery_dismissed") or []) + [cand["soc"]]}, "goto": "battery"})
 
-    # 6. Things it can't see.
+    # 6. Another charger in Home Assistant that isn't set up.
+    from . import chargers
+
+    if engine.ov.role("ev_power") or engine.ov.role("ev_plug"):
+        more = chargers.extras(st)
+        taken = [x for c in more for x in (c.get("power"), c.get("plug"))]
+        for cand in chargers.find(engine.ha.states, engine.ov.role("ev_power"), engine.ov.role("ev_plug"), taken,
+                                  list(st.get("charger_dismissed") or []))[:1]:
+            new = {k: cand[k] for k in ("name", "power", "plug", "session")}
+            out.append({"key": "charger_found", "level": "info", "vals": {"name": cand["name"]},
+                        "fix": {"chargers": list(st.get("chargers") or []) + [new]},
+                        "dismiss": {"charger_dismissed": list(st.get("charger_dismissed") or []) + [cand["power"]]}, "goto": "car"})
+
+    # 7. Things it can't see.
     if f.get("soc") is None and not st.get("offgrid"):
         out.append({"key": "no_soc", "level": "warn", "vals": {}, "goto": "roles"})
     return out

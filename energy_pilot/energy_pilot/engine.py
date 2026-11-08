@@ -811,6 +811,7 @@ class Engine:
             car_plan = self._car(hours, now, f, skip)
         if car_plan:
             result["car"] = {"hours": car_plan["hours"], "need_kwh": car_plan["need"], "slot_min": slot_min}
+        result["cars"] = self._more_cars(hours, now, f, car_plan, slot_min)
         self.result = result
         self._compare()
         return result
@@ -841,6 +842,41 @@ class Engine:
         chosen = plan_car(hours, max(0.0, need), float(st.get("charger_kw") or 7.4), ready, now,
                           solar_only=st.get("ev_mode") == "solar", skip=skip)
         return {"hours": [t.isoformat() for t in chosen], "set": set(chosen), "need": round(max(0.0, need), 1)}
+
+    def _more_cars(self, hours: list[Hour], now: datetime, f: dict[str, Any], car_plan: dict[str, Any] | None,
+                   slot_min: int) -> list[dict[str, Any]] | None:
+        """The other chargers: each car planned on its own - the cars before it and the main fuse taken into account."""
+        from . import chargers
+
+        more = chargers.extras(self.ov.settings)
+        if not more:
+            return None
+        st = self.ov.settings
+        limit = float(st["import_limit_kw"]) if st.get("import_limit_kw") else None
+        load = {h.start: 0.0 for h in hours}  # what the cars already planned draw in each slot (kW)
+        if car_plan:
+            for t in car_plan["set"]:
+                load[t] = load.get(t, 0.0) + float(st.get("charger_kw") or 7.4)
+        quiet = self.quiet_hours("car")
+        out = []
+        for c, now_c in zip(more, f.get("cars") or [{}] * len(more)):
+            kw = float(c.get("charger_kw") or 7.4)
+            entry = {"name": c.get("name") or "", "plug": bool(now_c.get("plug")), "hours": [], "need_kwh": 0.0, "slot_min": slot_min}
+            if now_c.get("plug"):
+                need = max(0.0, float(c.get("need_kwh") or 20) - float(now_c.get("session_kwh") or 0))
+                if c.get("now"):
+                    ready = now + timedelta(hours=need / kw + 0.25)  # charge now: straight away, whatever the price
+                else:
+                    ready = chargers.ready_at(c, now)
+                skip = {h.start for h in hours if h.start.hour in quiet}
+                if limit is not None:  # never more than the main fuse: house + the other cars + this one
+                    skip |= {h.start for h in hours if h.house / h.length + load.get(h.start, 0.0) + kw > limit + 1e-9}
+                chosen = plan_car(hours, need, kw, ready, now, solar_only=c.get("mode") == "solar", skip=skip)
+                for t in chosen:
+                    load[t] = load.get(t, 0.0) + kw
+                entry.update(hours=[t.isoformat() for t in chosen], need_kwh=round(need, 1))
+            out.append(entry)
+        return out
 
     def _compare(self) -> None:
         """How often the engine agrees with the system that controls today (when there is one)."""

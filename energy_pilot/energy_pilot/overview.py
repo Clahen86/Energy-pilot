@@ -147,7 +147,7 @@ class Overview:
                          "quiet_from", "quiet_to", "quiet_battery", "quiet_car",
                          "quiet_battery_from", "quiet_battery_to", "quiet_car_from", "quiet_car_to",
                          "control", "inverter_profile", "custom_profile", "battery_takeover", "ev_now", "charger_phases", "ev_ready",
-                         "batteries", "battery_dismissed"):
+                         "batteries", "battery_dismissed", "chargers", "charger_dismissed"):
                 self.settings[key] = value
         self.file.write_text(json.dumps(self.settings, indent=2))
 
@@ -284,6 +284,11 @@ class Overview:
         grid = _watts(st.get(r["grid_power"])) if r["grid_power"] else None
         ev = _watts(st.get(r["ev_power"])) if r["ev_power"] else None
         plug = (st.get(r["ev_plug"]) or {}).get("state") == "on" if r["ev_plug"] else None
+        from . import chargers
+
+        cars = [chargers.read(st, c) for c in chargers.extras(self.settings)] or None
+        if cars and any(c["power"] is not None for c in cars):
+            ev = (ev or 0.0) + sum(c["power"] or 0.0 for c in cars)  # all the chargers: shown and taken out of the house together
         # Positive battery = charging (Growatt reports discharge as negative). Grid: positive = buying.
         if house is not None and ev and self.engine and self.engine.ev_in_house():
             house = max(0.0, house - ev)  # the car is in the house's sensor: it is shown (and planned) on its own
@@ -292,7 +297,7 @@ class Overview:
         if house is None and None not in (pv, grid):
             house = max(0.0, (pv or 0) + (grid or 0) - (batt or 0) - (ev or 0))  # what's left is the house
         return {
-            "pv": pv, "house": house, "battery": batt, "soc": soc, "grid": grid, "ev": ev, "plug": plug, "batteries": packs,
+            "pv": pv, "house": house, "battery": batt, "soc": soc, "grid": grid, "ev": ev, "plug": plug, "batteries": packs, "cars": cars,
             "has": {"pv": pv is not None, "battery": soc is not None or batt is not None, "grid": grid is not None,
                     "ev": r["ev_power"] is not None or r["ev_plug"] is not None},
         }
