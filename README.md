@@ -68,6 +68,8 @@ The panel shows who decides right now and how well each one hits:
   to its own engine and show how often they agree.
 - **Lives inside Home Assistant** – a sidebar panel, dashboard cards, and buttons and sensors (*Charge now*, *Ready at*,
   *Saved today*, *Battery power cost* …) for your own automations.
+- **Runs on a Raspberry Pi** – right next to Home Assistant, no cloud, no subscription. Even the ML models are trained
+  at home, in a few seconds a night (about 180 MB RAM).
 - **No telemetry** – nothing about you or your home ever leaves your house.
 
 ## What you need
@@ -145,6 +147,7 @@ bliver bedre hver nat.** Den starter altid i *skygge*: den viser, hvad den ville
 - **Målt besparelse** og batteriets kostpris.
 - **Aldrig en halv kommando:** mangler en kontrol, styrer den ikke, og en test i skygge viser, hvad den fandt.
 - **Bilen tælles aldrig to gange**, og den kan køre din egen AppDaemon i skygge og sammenligne.
+- **Kører på en Raspberry Pi** ved siden af Home Assistant – ingen cloud, intet abonnement.
 - **Ingen telemetri** – intet forlader dit hjem.
 - **Styrer mange mærker** – se tabellen ovenfor (✅ testet, 🧪 venter på en betatester).
 
