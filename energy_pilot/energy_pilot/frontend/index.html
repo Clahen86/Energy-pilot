@@ -267,7 +267,7 @@ const T_ALL = {
       solarValue: "Solstrøm i batteriet", solarValueH: "Hvad en kWh fra solen tæller som i batteriets kostpris", sv: { free: "Gratis", sell: "Salgsprisen" } },
     priceEstimated: "Morgendagens priser er skønnet, indtil de rigtige kommer (ca. kl. 13).",
     priceMissing: "Morgendagens priser er ikke kommet endnu - planen stopper ved midnat.", priceFilled: "Morgendagens priser er skønnet ud fra spotprisen, indtil din pris-integration har dem.",
-    legSoc: "Batteri-niveau (plan)", legCar: "Bilen lader", saves: "Planen sparer cirka {x} de næste timer.",
+    legSoc: "Batteri-niveau (plan)", legCar: "Bilen lader", saves: "Planen sparer cirka {x} de næste timer.", otherSays: "AppDaemon: {x}",
     engineName: "Energipilots egen motor", engineHint: "Sammenlignet med din AppDaemon · sparer ca. {x} de næste timer",
     g1title: "Velkommen til Energipilot", g1text: "Vi har kigget dit hjem igennem og fundet {n} ting. Ret det, der er forkert - resten klarer den selv.",
     g2title: "Altid i skygge først", g2text: "Energipilot rører ingenting, før du siger til.",
@@ -353,7 +353,7 @@ const T_ALL = {
       solarValue: "Solar power in the battery", solarValueH: "What a kWh from the sun counts as in the battery's cost", sv: { free: "Free", sell: "The sell price" } },
     priceEstimated: "Tomorrow's prices are estimated until the real ones are out (around 13:00).",
     priceMissing: "Tomorrow's prices aren't out yet - the plan ends at midnight.", priceFilled: "Tomorrow's prices are estimated from the spot price until your price integration has them.",
-    legSoc: "Battery level (plan)", legCar: "Car charges", saves: "The plan saves about {x} over the coming hours.",
+    legSoc: "Battery level (plan)", legCar: "Car charges", saves: "The plan saves about {x} over the coming hours.", otherSays: "AppDaemon: {x}",
     engineName: "Energy Pilot's own engine", engineHint: "Compared with your AppDaemon · saves about {x} over the coming hours",
     g1title: "Welcome to Energy Pilot", g1text: "We looked through your home and found {n} things. Fix what's wrong - it handles the rest.",
     g2title: "Always in shadow first", g2text: "Energy Pilot touches nothing until you say so.",
@@ -500,6 +500,7 @@ function home() {
   return `<div class="card flow fade" id="flow">${flowSvg(f)}</div>
     ${dec ? `<div class="card status fade" style="--c:${DECCOL[dec.kind]}"><div class="dotc">${icon(DECICON[dec.kind])}</div>
       <div><h2>${esc(dec.text)}</h2><p>${esc(reason)}</p>${dec.engine && dec.saving > 0 ? `<p class="save">${T.saves.replace("{x}", kr(dec.saving))}</p>` : ""}
+      ${dec.other ? `<p class="muted">${esc(T.otherSays.replace("{x}", dec.other.text.toLowerCase()))}</p>` : ""}
       ${dec.reason ? `<details><summary>${T.why}</summary>${esc(dec.reason)}</details>` : ""}</div></div>` : ""}
     <div class="metrics fade">${metrics}</div>
     ${genCard()}

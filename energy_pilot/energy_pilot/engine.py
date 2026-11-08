@@ -97,6 +97,22 @@ class Plan:
         return round(self.cost_without - self.cost, 2)
 
 
+def end_price(hours: list[Hour], b: Battery) -> float:
+    """What a kWh still in the battery when the plan ends is worth (per kWh stored).
+
+    It's what filling it again costs: the cheap hours, not the average of an expensive day - else the plan keeps
+    power it could use in the morning, and even buys at 21:00 to have some left. Only when the plan sees at least
+    18 hours (a night with its cheap hours) and the battery may charge from the grid; otherwise the median as before."""
+    prices = sorted(h.price for h in hours)
+    if not prices:
+        return 0.0
+    eff = math.sqrt(b.efficiency)
+    span = (hours[-1].start - hours[0].start).total_seconds() / 3600 if len(hours) > 1 else 0
+    if span < 18 or not b.grid_charge:
+        return median(prices) * eff
+    return prices[int(len(prices) * 0.1)] / eff
+
+
 def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float | None = None, step_pct: float = 2.0) -> Plan:
     """The cheapest way through the hours, starting at soc_now (%)."""
     if not hours:
@@ -667,7 +683,7 @@ class Engine:
             result["generator"] = self._generator(now, f, [(t, house[i], sun[i]) for i, t in enumerate(times)])
         if f["soc"] is not None and not offgrid:
             b = self.settings()
-            end_value = median(h.price for h in hours) * math.sqrt(b.efficiency) * L.end_factor
+            end_value = end_price(hours, b) * L.end_factor
             p = plan_battery(hours, f["soc"], b, end_value=end_value)
             # The target: where the current action leads (not just the end of this quarter).
             run = 0
@@ -720,7 +736,7 @@ class Engine:
     def _compare(self) -> None:
         """How often the engine agrees with the system that controls today (when there is one)."""
         mine = ((self.result or {}).get("battery") or {}).get("now")
-        theirs = self.ov.decision("en")
+        theirs = self.ov.other_decision("en")
         if mine and theirs and self.ov.role("battery_plan"):
             self.agree["checks"] += 1
             self.agree["same"] += int(mine == theirs["kind"])

@@ -291,10 +291,21 @@ class Overview:
                 "saving": b["saving"]}
 
     def decision(self, lang: str) -> dict[str, Any] | None:
+        """Energy Pilot's own decision - the same plan as the curve below it. Another system (AppDaemon) that
+        plans the battery is shown beside it, so the two can be compared."""
+        own, other = self.engine_decision(lang), self.other_decision(lang)
+        if not own:
+            return other
+        if other:
+            own = {**own, "other": {"text": other["text"], "kind": other["kind"]}}
+        return own
+
+    def other_decision(self, lang: str) -> dict[str, Any] | None:
+        """What another system planning the battery (AppDaemon) decided - None when there is none."""
         e = self.role("battery_plan")
         s = self.ha.states.get(e) if e else None
         if not s:
-            return self.engine_decision(lang)
+            return None
         a = s.get("attributes") or {}
         key = str(s.get("state"))
         text, kind = DECISIONS.get(lang, DECISIONS["en"]).get(key, (key.replace("_", " ").capitalize(), "hold"))
@@ -373,22 +384,12 @@ class Overview:
                             h["house"] = round(float(kwh), 2)
                     except (TypeError, ValueError):
                         continue
-        if (d := self.decision("da")):
-            for p in d["plan"]:
-                try:
-                    hour = int(p.get("hour"))
-                except (TypeError, ValueError):
-                    continue
-                dt = start + timedelta(hours=hour)
-                if dt.hour < now.hour - 1:
-                    dt += timedelta(days=1)
-                if (h := slot(dt)) is not None:
-                    h["charge"] = p.get("charge_pct")
+        # The plan shows Energy Pilot's own charging; another system's plan (AppDaemon) is only compared.
         res = (self.engine.result if self.engine else None) or {}
         for st in (res.get("battery") or {}).get("steps", []):
             if (h := slot(datetime.fromisoformat(st["t"]))) is not None:
                 h["soc"] = st["soc"]
-                if not self.role("battery_plan") and st["action"] in ("charge_grid", "charge_sun"):
+                if st["action"] in ("charge_grid", "charge_sun"):
                     h["charge"] = True
         for t in (res.get("car") or {}).get("hours", []):
             if (h := slot(datetime.fromisoformat(t))) is not None:

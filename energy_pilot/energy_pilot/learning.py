@@ -108,7 +108,9 @@ class Learning:
         hours = [Hour(datetime.fromisoformat(h + ":00:00").replace(tzinfo=day.tzinfo), prices[h], 0.0, house[h], pv.get(h, 0.0))
                  for h in sorted(house) if h in prices]
         if len(hours) >= 18 and soc_start is not None:
-            base = sorted(prices[h] for h in prices)[len(prices) // 2]
+            from .engine import end_price
+
+            base = end_price(hours, battery)
             costs = {f: plan_battery(hours, soc_start, battery, end_value=base * f).cost for f in FACTORS}
             best = min(costs, key=costs.get)
             self.state["end_factor"] = round(0.75 * self.end_factor + 0.25 * best, 3)
