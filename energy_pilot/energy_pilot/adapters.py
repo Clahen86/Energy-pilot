@@ -76,6 +76,21 @@ PROFILES: dict[str, dict[str, Any]] = {
         + [(rf"number\..*program_{n}_soc$", "number", "{target}") for n in range(1, 7)]
         + [(rf"select\..*program_{n}_charging$", "select", "Grid") for n in range(1, 7)],
     },
+    # Deye via ESPHome and local Modbus (klatremis/esphome-for-deye): the six "Time point" programmes, set alike.
+    "deye_esphome": {
+        "name": "Deye (ESPHome, local Modbus)",
+        "match": r"deye|time_point_\d",
+        "models": r"esphome|SG04LP3",
+        "normal": [(r"switch\..*time_of_use$", "on", None), (r"switch\..*grid_charge$", "off", None)]
+        + [(rf"number\..*time_point_{n}_capacity$", "number", "{min_soc}") for n in range(1, 7)]
+        + [(rf"switch\..*time_point_{n}_charge_enable$", "off", None) for n in range(1, 7)],
+        "hold": [(r"switch\..*time_of_use$", "on", None), (r"switch\..*grid_charge$", "off", None)]
+        + [(rf"number\..*time_point_{n}_capacity$", "number", "{soc}") for n in range(1, 7)]
+        + [(rf"switch\..*time_point_{n}_charge_enable$", "off", None) for n in range(1, 7)],
+        "charge": [(r"switch\..*time_of_use$", "on", None), (r"switch\..*grid_charge$", "on", None)]
+        + [(rf"number\..*time_point_{n}_capacity$", "number", "{target}") for n in range(1, 7)]
+        + [(rf"switch\..*time_point_{n}_charge_enable$", "on", None) for n in range(1, 7)],
+    },
     # Victron ESS (GX via Modbus). The grid setpoint is left alone, so the owner's own setting stays.
     "victron": {
         "name": "Victron (ESS)",

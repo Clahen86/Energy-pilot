@@ -256,4 +256,9 @@ class Controller:
         out["profile"] = {"key": key, "name": prof.get("name") or ("custom" if key == "custom" else None),
                           "choices": {k: p["name"] for k, p in adapters.PROFILES.items()},
                           "model": self.model, "tested": bool(prof.get("tested")) if key != "custom" else None, "check": self.check()}
+        # For "Chosen by you": every control in Home Assistant - the inverter's own first - not only the device
+        # the battery level was found on (that could be the wrong one, e.g. a car).
+        own = set(self.entities["battery"])
+        everything = [e for e in self.ha.states if e.split(".")[0] in ("select", "number", "switch", "button", "time")]
+        out["profile"]["all_controls"] = sorted(own) + sorted(e for e in everything if e not in own)
         return out

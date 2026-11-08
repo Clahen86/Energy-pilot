@@ -29,7 +29,13 @@ INVERTERS = ("growatt_server", "huawei_solar", "solaredge", "solaredge_modbus_mu
              "enphase_envoy", "goodwe", "sma", "deye", "solarman", "sunsynk", "growatt_local", "huawei_solar_modbus")
 # Platforms whose "battery" is a phone's or a sensor's, never a home battery.
 NOT_HOME_BATTERY = ("mobile_app", "zha", "matter", "mqtt_room", "ble_monitor", "bthome", "switchbot", "homekit_controller",
-                    "eufy_security", "roborock", "ecovacs", "xiaomi_ble", "tado", "netatmo", "nest", "ring", "hue")
+                    "eufy_security", "roborock", "ecovacs", "xiaomi_ble", "tado", "netatmo", "nest", "ring", "hue",
+                    # Cars: their battery level is not the house battery (an ID. Buzz was taken for one)
+                    "volkswagen_we_connect_id", "volkswagencarnet", "tesla", "tesla_fleet", "teslemetry", "tessie",
+                    "bmw_connected_drive", "renault", "kia_uvo", "hyundai_kia_connect", "mercedes_me", "mbapi2020",
+                    "polestar_api", "myskoda", "skodaconnect", "audiconnect", "nissan_leaf", "fordpass", "toyota",
+                    "volvo", "volvooncall", "stellantis_vehicles", "smartcar", "seatconnect", "cupra_we_connect",
+                    "jlrincontrol", "porscheconnect", "zoe", "leaf", "evcc_intg")
 
 WORDS = {
     "pv_power": [r"\bpv\b|pv_power|pv_effekt|solar_power|solar_production|sol_produktion|input_power|photovoltaic"],

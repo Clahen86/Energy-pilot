@@ -730,7 +730,7 @@ function styleView() {
 `;
 }
 function customEditor(v) {
-  const c = T.ctl, prof = v.custom_profile || {}, ents = control?.battery?.entities || [];
+  const c = T.ctl, prof = v.custom_profile || {}, ents = control?.profile?.all_controls || control?.battery?.entities || [];
   return `<div class="tou">${["normal", "hold", "charge"].map((intent) => `<div class="group"><h4>${c.intents[intent]}</h4>
     ${(prof[intent] || []).map((st, i) => {
       return `<div class="period"><select data-cent="${intent}:${i}"><option value="">${c.pick}</option>${ents.map((e) => `<option value="${e}" ${st.entity === e ? "selected" : ""}>${esc(e)}</option>`).join("")}</select>

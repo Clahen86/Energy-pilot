@@ -108,3 +108,15 @@ def test_ecoflow_powerstream_gives_the_house_its_watts():
     assert {"entity_id": "number.powerstream_rooster_custom_load_power_settings", "value": 450} in [c["data"] for c in normal]
     hold = adapters.resolve(p["hold"], eco, CTX)
     assert {"entity_id": "number.powerstream_rooster_custom_load_power_settings", "value": 0} in [c["data"] for c in hold]
+
+
+def test_deye_esphome_klatremis():
+    d = (["switch.deye_time_of_use", "switch.deye_grid_charge", "switch.deye_solar_sell", "select.deye_energy_priority"]
+         + [f"number.deye_time_point_{n}_capacity" for n in range(1, 7)] + [f"switch.deye_time_point_{n}_charge_enable" for n in range(1, 7)])
+    assert adapters.guess_profile(d, {"esphome"}) == "deye_esphome"
+    p = adapters.PROFILES["deye_esphome"]
+    steps = {i: p[i] for i in ("normal", "hold", "charge")}
+    assert adapters.missing(adapters.check(steps, d)) == []
+    charge = adapters.resolve(p["charge"], d, CTX)
+    assert {"entity_id": "number.deye_time_point_3_capacity", "value": 90} in [c["data"] for c in charge]
+    assert {"domain": "switch", "service": "turn_on", "data": {"entity_id": "switch.deye_time_point_6_charge_enable"}} in charge
