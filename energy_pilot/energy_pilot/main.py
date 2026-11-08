@@ -157,6 +157,7 @@ async def main() -> None:
                 ev = overview.ev() or {}
                 engine.habits.see(now, f.get("plug"), ev.get("session_kwh"))
                 engine.batt_learn.see(f.get("battery"), f.get("soc"), 30 / 3600)
+                engine.grid_peak.see(now, f.get("grid"))
                 if now.minute % 10 == 0 and now.second < 30:
                     engine.learning.save()
             except Exception:  # noqa: BLE001

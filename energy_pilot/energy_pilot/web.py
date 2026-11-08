@@ -54,7 +54,7 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
             data["engine"] = {"saving": b.get("saving"), "now": b.get("now"), "capacity": b.get("capacity"),
                               "agree": round(100 * a["same"] / a["checks"]) if a["checks"] else None, "checks": a["checks"],
                               "profile": bool(eng.profile), "car": eng.result.get("car"), "generator": eng.result.get("generator"), "sources": eng.sources_used(), "learning": eng.learning.summary(), "blend": eng.blend_info(),
-                              "decision": overview.engine_decision(lang(req))}
+                              "decision": overview.engine_decision(lang(req)), "selfcheck": eng.checks}
         return web.json_response(data)
 
     async def get_settings(_req: web.Request) -> web.Response:
@@ -127,6 +127,42 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
             await overview.controller.release()
         return web.json_response({"ok": True})
 
+    async def diagnostics(req: web.Request) -> web.Response:
+        """One file to send when something looks wrong: what it sees, what it planned and why - no tokens or passwords."""
+        import os
+        from datetime import datetime as _dt
+
+        eng = overview.engine
+        roles = overview.roles()
+        ents = sorted({e for v in roles.values() for e in (v if isinstance(v, list) else [v]) if e})
+        secret = ("token", "password", "api_key", "apikey", "secret")
+        settings = {k: v for k, v in overview.settings.items() if not any(w in k.lower() for w in secret)}
+        out = {
+            "made": _dt.now().isoformat(timespec="seconds"),
+            "version": os.environ.get("BUILD_VERSION", "dev"),
+            "ha": {k: runner.ha.config.get(k) for k in ("version", "country", "currency", "time_zone", "unit_system")},
+            "settings": settings,
+            "roles": roles,
+            "states": {e: {"state": (runner.ha.states.get(e) or {}).get("state"),
+                           "attributes": {k: v for k, v in ((runner.ha.states.get(e) or {}).get("attributes") or {}).items()
+                                          if not any(w in k.lower() for w in secret)}} for e in ents},
+            "flow": overview.flow(),
+            "plan": overview.plan(),
+            "price_info": overview.price_info,
+            "engine": None,
+            "control": overview.controller.status() if overview.controller else None,
+        }
+        if eng:
+            b = eng.settings()
+            out["engine"] = {"battery": {k: (sorted(v) if isinstance(v, frozenset) else v) for k, v in b.__dict__.items()},
+                             "result": eng.result, "checks": eng.checks, "learning": eng.learning.summary(),
+                             "blend": eng.blend_info(), "sources": eng.sources_used(), "grid_peak_kw": eng.grid_peak.kw(),
+                             "sell_prices": {k.isoformat(): v for k, v in sorted(eng.sell_prices().items())}}
+        name = f"energy_pilot_diagnostics_{_dt.now():%Y%m%d_%H%M}.json"
+        return web.json_response(out, dumps=lambda o: __import__("json").dumps(o, default=str, indent=1),
+                                 headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+    app.router.add_get("/api/diagnostics", diagnostics)
     app.router.add_get("/", index)
     app.router.add_get("/api/status", status)
     app.router.add_get("/api/overview", get_overview)

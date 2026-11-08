@@ -284,6 +284,10 @@ class Engine:
         self.price_days = 0
         self.habits = Habits(self.learning.state)
         self.batt_learn = BatteryLearner(self.learning.state)
+        from .checks import GridPeak
+
+        self.grid_peak = GridPeak(self.learning.state)  # the most the house has really bought
+        self.checks: list[dict[str, Any]] = []
         self.weather: Any = None
         self.house_model = HouseModel()
         self.solar_factors: dict[int, float] = {}
@@ -783,6 +787,13 @@ class Engine:
                 "now": ACTION_KIND[p.steps[0].action] if p.steps else "hold", "target": p.steps[run].soc_end if p.steps else None,
                 "cost": p.cost, "cost_without": p.cost_without, "saving": p.saving, "capacity": b.capacity_kwh,
             }
+        try:
+            from . import checks
+
+            self.checks = checks.run(self, hours, self.settings(), p if f["soc"] is not None and not offgrid else None,
+                                     end_value if f["soc"] is not None and not offgrid else 0.0)
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug("Self-check failed", exc_info=True)
         if car_plan is None:
             skip = set()
             if st.get("style") == "battery_first" and result.get("battery"):
