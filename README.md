@@ -144,6 +144,7 @@ bliver bedre hver nat.** Den starter altid i *skygge*: den viser, hvad den ville
 - **Lærer dit hus:** en simpel prognose fra dag ét, og ML-modeller, der trænes hver nat på dine egne data, overtager
   efterhånden som de rammer bedre – for forbrug, sol og morgendagens priser før kl. 13. Rammer de ved siden af, tager den
   simple over igen.
+- **Lærer batteriet at kende:** den rigtige brugbare kapacitet og virkningsgrad – navneværdien er ofte højere, og batterier slides.
 - **Planlægger i kvarterer**, så batteri og bil bruger de billigste kvarterer.
 - **Målt besparelse** og batteriets kostpris.
 - **Aldrig en halv kommando:** mangler en kontrol, styrer den ikke, og en test i skygge viser, hvad den fandt.
