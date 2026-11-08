@@ -201,7 +201,9 @@ const T = {
         safe: ["Tryghed", "Holder altid 30 % til strømafbrud - sparer lidt mindre"], car_first: ["Bilen først", "Solen går til bilen før batteriet"],
         battery_first: ["Batteriet først", "Bilen får solen, når batteriet er fuldt"] },
       minSoc: "Batteri-minimum", minSocH: "Går aldrig under dette", grid: "Må lade fra nettet", gridH: "Når strømmen er billig nok til at betale sig",
-      size: "Batteriets størrelse", sizeH: "Fundet: {x} kWh", power: "Ladeeffekt", powerH: "Hvor hurtigt batteriet kan lade",
+      size: "Batteriets størrelse", sizeH: "Fundet: {x} kWh",
+      sizeLearned: "Lært: {x} kWh brugbart – bruges, når feltet er tomt", sizeDiff: "Lært: {x} kWh brugbart, du har sat {y}. Navneværdien er ofte højere end det brugbare.",
+      sizeLearning: "Lærer den brugbare kapacitet af op- og afladningerne", useLearned: "Brug det lærte", power: "Ladeeffekt", powerH: "Hvor hurtigt batteriet kan lade",
       powerOut: "Afladeeffekt", powerOutH: "Hvor hurtigt det kan aflade – tomt = som ladeeffekten",
       sell: "Må sælge til nettet", sellH: "Overskud fra solen sælges, når det betaler sig", sellPrice: "Du får pr. kWh", fuse: "Importloft", fuseH: "Hovedsikringen - køb aldrig mere",
       carMode: "Bilen lader", carModes: { cheapest: "Billigst", solar: "Kun sol" }, charger: "Laderens effekt", chargerH: "Typisk 3,7 / 7,4 / 11 kW",
@@ -240,7 +242,7 @@ const T = {
       ofForecast: "af prognosen", learned: "Det har den lært", biasCloudy: "Solkorrektion, skyet", biasClear: "Solkorrektion, klart",
       margin: "Margin i dyre timer", marginH: "så batteriet ikke løber tør", endValue: "Værdi af strøm til senere", endValueH: "af medianprisen" },
     blend: { title: "Hvem bestemmer prognosen", house: "Forbrug", sun: "Sol", price: "Priser før kl. 13", simple: "simpel",
-      training: "Træner ({d}/{n} dage)", eff: "Batteriets virkningsgrad", effSeen: "lært af {n} runder", datasheet: "databladets, lærer stadig",
+      training: "Træner ({d}/{n} dage)", eff: "Batteriets virkningsgrad", cap: "Brugbar kapacitet", capH: "lært af op- og afladninger", effSeen: "lært af {n} runder", datasheet: "databladets, lærer stadig",
       car: "Bilens vaner", carDays: "kender {n} ugedage", carNone: "lærer stadig", carNeed: "{n} opladninger set" },
     ledger: { title: "Batteriet har sparet", since: "målt siden", today: "I dag", month: "Måned", year: "År", total: "I alt",
       inBattery: "I batteriet", costs: "kostede {p}/kWh", fromOther: "fra din AppDaemon",
@@ -277,7 +279,9 @@ const T = {
         safe: ["Safety", "Always keeps 30 % for power cuts - saves a little less"], car_first: ["Car first", "The sun goes to the car before the battery"],
         battery_first: ["Battery first", "The car gets the sun once the battery is full"] },
       minSoc: "Battery minimum", minSocH: "Never goes below this", grid: "May charge from the grid", gridH: "When power is cheap enough to pay off",
-      size: "Battery size", sizeH: "Found: {x} kWh", power: "Charge power", powerH: "How fast the battery can charge",
+      size: "Battery size", sizeH: "Found: {x} kWh",
+      sizeLearned: "Learned: {x} kWh usable – used when the field is empty", sizeDiff: "Learned: {x} kWh usable, you set {y}. The label is often higher than what's usable.",
+      sizeLearning: "Learning the usable capacity from charging and discharging", useLearned: "Use the learned", power: "Charge power", powerH: "How fast the battery can charge",
       powerOut: "Discharge power", powerOutH: "How fast it can discharge – empty = same as charge",
       sell: "May sell to the grid", sellH: "Solar surplus is sold when it pays", sellPrice: "You get per kWh", fuse: "Import limit", fuseH: "The main fuse - never buy more",
       carMode: "The car charges", carModes: { cheapest: "Cheapest", solar: "Sun only" }, charger: "Charger power", chargerH: "Typically 3.7 / 7.4 / 11 kW",
@@ -316,7 +320,7 @@ const T = {
       ofForecast: "of the forecast", learned: "What it has learned", biasCloudy: "Solar correction, cloudy", biasClear: "Solar correction, clear",
       margin: "Margin in dear hours", marginH: "so the battery doesn't run dry", endValue: "Value of power for later", endValueH: "of the median price" },
     blend: { title: "Who makes the forecast", house: "House use", sun: "Sun", price: "Prices before 13:00", simple: "simple",
-      training: "Training ({d}/{n} days)", eff: "Battery efficiency", effSeen: "learned from {n} rounds", datasheet: "datasheet's, still learning",
+      training: "Training ({d}/{n} days)", eff: "Battery efficiency", cap: "Usable capacity", capH: "learned from charging and discharging", effSeen: "learned from {n} rounds", datasheet: "datasheet's, still learning",
       car: "The car's habits", carDays: "knows {n} weekdays", carNone: "still learning", carNeed: "{n} charges seen" },
     ledger: { title: "The battery has saved", since: "measured since", today: "Today", month: "Month", year: "Year", total: "In all",
       inBattery: "In the battery", costs: "cost {p}/kWh", fromOther: "from your AppDaemon",
@@ -555,6 +559,7 @@ function blendRows() {
   const car = b.car || {}, days = Object.values(car.leave || {}).filter(Boolean).length;
   return `<div class="eyebrow" style="margin:16px 0 6px"><span>${k.title}</span></div>
     ${who(b.house, "house", "kWh/t")}${who(b.sun, "sun", "kWh/t")}${who(b.price, "price", SYM() + "/kWh")}
+    ${b.battery.capacity ? `<div class="lrow"><span>${k.cap}</span><b>${num(b.battery.capacity, 1)} kWh</b><em>${k.capH}</em></div>` : ""}
     <div class="lrow"><span>${k.eff}</span><b>${Math.round(b.battery.efficiency * 100)} %</b><em>${b.battery.seen ? k.effSeen.replace("{n}", b.battery.seen) : k.datasheet}</em></div>
     ${data.ev ? `<div class="lrow"><span>${k.car}</span><b>${days ? k.carDays.replace("{n}", days) : k.carNone}</b><em>${car.need_seen ? k.carNeed.replace("{n}", car.need_seen) : ""}</em></div>` : ""}`;
 }
@@ -667,6 +672,12 @@ function roleRows(roles) {
           : `<button class="link" data-rolesearch="${r}">${T.findOther}</button>`}</div></div>`;
   }).join("") + sensors;
 }
+function capHint(v) {
+  const y = T.y, l = settings.capacity_learned;
+  if (l && v.battery_kwh && Math.abs(v.battery_kwh - l) / l > 0.05) return y.sizeDiff.replace("{x}", num(l, 1)).replace("{y}", num(v.battery_kwh, 1));
+  if (l) return y.sizeLearned.replace("{x}", num(l, 1));
+  return settings.capacity_guess ? y.sizeH.replace("{x}", num(settings.capacity_guess, 1)) : y.sizeLearning;
+}
 const STYLES = [["cheapest", "bolt"], ["solar", "sun"], ["safe", "battery"], ["car_first", "car"], ["battery_first", "layers"]];
 function styleView() {
   const v = settings.settings, style = v.style || "cheapest", y = T.y;
@@ -688,7 +699,9 @@ function styleView() {
         ${icon(ic)}<b>${y.styles[k][0]}</b><span>${y.styles[k][1]}</span></button>`).join("")}</div></div>
     ${section("battery", y.secBattery, y.secBatteryH, hasBatt ? `${row(y.minSoc, y.minSocH, `<div class="range"><input type="range" min="5" max="60" step="5" value="${v.battery_min_soc ?? 10}" data-range="battery_min_soc"><b id="r-battery_min_soc">${v.battery_min_soc ?? 10} %</b></div>`)}
       ${row(y.grid, y.gridH, tog("grid_charge", true))}
-      ${row(y.size, settings.capacity_guess ? y.sizeH.replace("{x}", num(settings.capacity_guess, 1)) : "", numIn("battery_kwh", settings.capacity_guess ?? 10, "0.1", "kWh"))}
+      ${row(y.size, capHint(v), `<span class="capbox">${numIn("battery_kwh", settings.capacity_learned ?? settings.capacity_guess ?? 10, "0.1", "kWh")}${
+        settings.capacity_learned && v.battery_kwh && Math.abs(v.battery_kwh - settings.capacity_learned) / settings.capacity_learned > 0.05
+          ? `<button class="link" data-uselearned="${settings.capacity_learned}">${y.useLearned}</button>` : ""}</span>`)}
       ${row(y.power, y.powerH, numIn("battery_charge_kw", 3, "0.1", "kW"))}
       ${row(y.powerOut, y.powerOutH, numIn("battery_discharge_kw", v.battery_charge_kw ?? 3, "0.1", "kW"))}
       ${row(y.sign, settings.battery_sign_found === -1 ? y.signRev : settings.battery_sign_found === 1 ? y.signNorm : y.signUnknown,
@@ -859,6 +872,7 @@ function wire() {
   document.querySelectorAll("[data-range]").forEach((i) => { i.oninput = () => ($("#r-" + i.dataset.range).textContent = `${i.value} %`); i.onchange = () => saveSet({ [i.dataset.range]: Number(i.value) }); });
   document.querySelectorAll("[data-psrc]").forEach((b) => b.onclick = () => saveSet({ price_source: b.dataset.psrc === "auto" ? null : b.dataset.psrc }));
   document.querySelectorAll("[data-sval]").forEach((b) => b.onclick = () => saveSet({ solar_value: b.dataset.sval }));
+  document.querySelectorAll("[data-uselearned]").forEach((b) => b.onclick = () => saveSet({ battery_kwh: null }));
   document.querySelectorAll("[data-bsign]").forEach((b) => b.onclick = () => saveSet({ battery_sign: { auto: null, norm: 1, rev: -1 }[b.dataset.bsign] }));
   const tou = () => JSON.parse(JSON.stringify(settings.settings.tou || { default: 0, periods: [] }));
   $("[data-tou-preset]")?.addEventListener("change", (e) => { const p = settings.tou_presets[e.target.value]; if (p) saveSet({ tou: { default: p.default, periods: p.periods } }); });

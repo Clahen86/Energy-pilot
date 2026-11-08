@@ -284,22 +284,32 @@ class Habits:
 # ---------- the battery's real efficiency ----------
 
 class BatteryLearner:
-    """Efficiency from what goes in and out against what the level shows; the datasheet until it has seen enough."""
+    """The battery's real usable capacity and efficiency - from what goes in and out against what the level shows.
+
+    Each run of charging (or discharging) of at least 10 points is written down as kWh per percent point:
+    charging takes capacity/100 / charge-efficiency per point, discharging gives capacity/100 x discharge-efficiency.
+    So their ratio is the round trip, and their geometric mean the capacity - neither needs the other to be known.
+    Many write the label's kWh (13), while the level only spans what is usable (~11.5); and batteries wear.
+    """
 
     def __init__(self, state: dict[str, Any]) -> None:
-        self.s = state.setdefault("battery_learned", {"in": [], "out": [], "seg": None})
+        self.s = state.setdefault("battery_learned", {})
+        self.s.setdefault("in_pp", [])
+        self.s.setdefault("out_pp", [])
+        self.s.setdefault("seg", None)
 
-    def see(self, batt_w: float | None, soc: float | None, hours: float, capacity: float) -> None:
-        if batt_w is None or soc is None or not capacity:
+    def see(self, batt_w: float | None, soc: float | None, hours: float, capacity: float | None = None) -> None:
+        if batt_w is None or soc is None:
             return
         seg = self.s.get("seg")
         way = "in" if batt_w > 50 else "out" if batt_w < -50 else None
-        if seg and (way != seg["way"]):
-            moved = abs(soc - seg["soc"]) / 100 * capacity
-            if abs(soc - seg["soc"]) >= 10 and seg["kwh"] > 0.5:
-                ratio = moved / seg["kwh"] if seg["way"] == "in" else seg["kwh"] / moved
-                if 0.7 <= ratio <= 1.0:
-                    self.s[seg["way"]] = (self.s.get(seg["way"]) or [])[-19:] + [round(ratio, 3)]
+        if seg and way != seg["way"]:
+            moved = abs(soc - seg["soc"])
+            if moved >= 10 and seg["kwh"] > 0.5:
+                per = seg["kwh"] / moved  # kWh per percent point
+                if 0.02 <= per <= 1.0:  # 2 - 100 kWh batteries
+                    key = seg["way"] + "_pp"
+                    self.s[key] = (self.s.get(key) or [])[-19:] + [round(per, 4)]
             seg = None
         if way and seg is None:
             seg = {"way": way, "soc": soc, "kwh": 0.0}
@@ -307,13 +317,28 @@ class BatteryLearner:
             seg["kwh"] += abs(batt_w) / 1000 * hours
         self.s["seg"] = seg
 
+    def _medians(self) -> tuple[float, float, int] | None:
+        a, b = self.s.get("in_pp") or [], self.s.get("out_pp") or []
+        if len(a) < 3 or len(b) < 3:
+            return None
+        return median(a), median(b), min(len(a), len(b))
+
+    def capacity(self) -> float | None:
+        """Usable kWh, once it has seen at least three runs each way."""
+        m = self._medians()
+        if not m:
+            return None
+        cap = (m[0] * m[1]) ** 0.5 * 100
+        return round(cap, 1) if 2 <= cap <= 100 else None
+
     def efficiency(self, datasheet: float) -> float:
-        a, b = self.s.get("in") or [], self.s.get("out") or []
-        if not a or not b:
+        m = self._medians()
+        if not m:
             return datasheet
-        learned = median(a) * median(b)
-        w = min(1.0, min(len(a), len(b)) / 10)
+        learned = min(1.0, max(0.7, m[1] / m[0]))
+        w = min(1.0, m[2] / 10)
         return round((1 - w) * datasheet + w * learned, 3)
 
     def info(self, datasheet: float) -> dict[str, Any]:
-        return {"efficiency": self.efficiency(datasheet), "seen": min(len(self.s.get("in") or []), len(self.s.get("out") or []))}
+        m = self._medians()
+        return {"efficiency": self.efficiency(datasheet), "capacity": self.capacity(), "seen": m[2] if m else 0}

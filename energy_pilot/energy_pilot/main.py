@@ -154,7 +154,7 @@ async def main() -> None:
                 engine.price_model.remember(prices, now)
                 ev = overview.ev() or {}
                 engine.habits.see(now, f.get("plug"), ev.get("session_kwh"))
-                engine.batt_learn.see(f.get("battery"), f.get("soc"), 30 / 3600, b.capacity_kwh)
+                engine.batt_learn.see(f.get("battery"), f.get("soc"), 30 / 3600)
                 if now.minute % 10 == 0 and now.second < 30:
                     engine.learning.save()
             except Exception:  # noqa: BLE001

@@ -74,14 +74,19 @@ def test_car_habits_and_need():
     assert 12 < h.need(20) < 20  # four charges of 12 kWh pull the setting down
 
 
-def test_battery_efficiency_learned():
+def test_battery_capacity_and_efficiency_learned():
+    """A 13 kWh label, 11.5 kWh usable, 95 % each way: both are found from kWh per percent point."""
     b = BatteryLearner({})
-    for _ in range(10):
+    cap, eta = 11.5, 0.95
+    for _ in range(6):
         soc = 20.0
-        for _ in range(60):  # charge 5 kW for 1 h: 5 kWh in, 4.75 stored -> 95 %
-            b.see(5000, soc, 1 / 60, 10)
-            soc += 47.5 / 60
-        for _ in range(60):  # discharge 4.5 kWh out of 4.75 stored -> ~95 %
-            b.see(-4500, soc, 1 / 60, 10)
-            soc -= 47.5 / 60
-    assert 0.85 < b.efficiency(0.92) < 0.92
+        for _ in range(60):  # charge 60 points in an hour
+            b.see(cap * 0.60 / eta * 1000, soc, 1 / 60)
+            soc += 1.0
+        for _ in range(60):  # discharge them again
+            b.see(-cap * 0.60 * eta * 1000, soc, 1 / 60)
+            soc -= 1.0
+    b.see(0, soc, 1 / 60)
+    assert abs(b.capacity() - 11.5) < 0.3
+    assert abs(b.efficiency(0.92) - 0.92) < 0.02  # learned 0.9025, blended in as it gains weight
+    assert BatteryLearner({}).capacity() is None  # nothing seen: not used

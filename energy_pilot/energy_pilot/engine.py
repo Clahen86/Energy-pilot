@@ -267,7 +267,8 @@ class Engine:
             min_soc = max(min_soc, 30.0)
         grid = bool(s.get("grid_charge", True)) and style != "solar"
         return Battery(
-            capacity_kwh=float(s.get("battery_kwh") or self._guess_capacity() or 10),
+            # What the user set wins; then the capacity it has learned (the usable kWh); then a guess.
+            capacity_kwh=float(s.get("battery_kwh") or self.batt_learn.capacity() or self._guess_capacity() or 10),
             # Discharge as charge unless set on its own (extra chargers can make charging faster).
             max_charge_kw=float(s.get("battery_charge_kw") or 3),
             max_discharge_kw=float(s.get("battery_discharge_kw") or s.get("battery_charge_kw") or 3),
