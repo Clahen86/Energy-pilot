@@ -23,7 +23,7 @@ ROLES: dict[str, dict[str, Any]] = {
     "ev_plug": {"known": ["binary_sensor.keba_p30_plug"], "class": "plug", "words": ["plug", "stik", "plugged"]},
     "ev_session": {"known": ["sensor.keba_p30_session_energy"], "class": "energy", "words": ["session_energy"]},
     "price": {"known": ["sensor.stromligning_current_price_vat"], "class": None,
-              "words": ["price", "pris", "nordpool", "spot", "current_rate", "day_rates", "tariff"]},
+              "words": ["price", "pris", "nordpool", "spot", "current_rate", "day_rates", "tariff", "tarif_actuel"]},
     "solar_today": {"known": ["sensor.solcast_pv_forecast_forecast_today"], "class": None, "words": ["forecast_today"]},
     "solar_tomorrow": {"known": ["sensor.solcast_pv_forecast_forecast_tomorrow"], "class": None, "words": ["forecast_tomorrow"]},
     "house_forecast": {"known": ["sensor.ml_forecast_appdaemon"], "class": None, "words": []},

@@ -81,3 +81,32 @@ def test_amber_forecast_sensor_is_the_companion():
               "sensor.amber_general_forecast": {"attributes": {"forecasts": [{"start_time": iso(T1), "per_kwh": 0.3}]}},
               "sensor.amber_feed_in_forecast": {"attributes": {"forecasts": [{"start_time": iso(T1), "per_kwh": 0.1}]}}}
     assert companions(states, "sensor.amber_general_price") == ["sensor.amber_general_price", "sensor.amber_general_forecast"]
+
+
+def test_edf_tempo_from_colours():
+    """Tempo: a day runs 06-06, off-peak 22-06; tomorrow red -> tonight is still today's colour, tomorrow is dear."""
+    from datetime import datetime
+
+    from energy_pilot import tempo
+
+    st = lambda v: {"state": v, "attributes": {}}
+    states = {
+        "sensor.tarif_actuel_tempo_6kva_ttc": st("0.1612"),
+        "sensor.tarif_tempo_couleur_aujourd_hui": st("Bleu"),
+        "sensor.tarif_tempo_couleur_demain": st("Rouge"),
+        "sensor.tarif_tempo_couleur_hier": st("Blanc"),
+        "sensor.tarif_bleu_tempo_heures_creuses_ttc": st("0.1325"),
+        "sensor.tarif_bleu_tempo_heures_pleines_ttc": st("0.1612"),
+        "sensor.tarif_blanc_tempo_heures_creuses_ttc": st("0.1499"),
+        "sensor.tarif_blanc_tempo_heures_pleines_ttc": st("0.1871"),
+        "sensor.tarif_rouge_tempo_heures_creuses_ttc": st("0.1575"),
+        "sensor.tarif_rouge_tempo_heures_pleines_ttc": st("0.7060"),
+    }
+    now = datetime(2026, 11, 8, 13, tzinfo=TZ)
+    p = tempo.prices(states, TZ, now)
+    d = now.replace(hour=0)
+    assert p[d + timedelta(hours=3)] == 0.1499  # 03:00 belongs to yesterday's (white) Tempo day
+    assert p[d + timedelta(hours=14)] == 0.1612 and p[d + timedelta(hours=23)] == 0.1325  # today blue
+    assert p[d + timedelta(days=1, hours=9)] == 0.7060  # tomorrow red, peak
+    prices, _ = collect(states, "sensor.tarif_actuel_tempo_6kva_ttc", [], TZ)
+    assert max(prices.values()) == 0.7060

@@ -122,6 +122,12 @@ def collect(states: dict[str, dict], entity_id: str | None, own: list[dict[str, 
     if entity_id:
         for e in companions(states, entity_id):
             prices.update(parse((states.get(e) or {}).get("attributes") or {}, tz, day0))
+        if "tempo" in entity_id:
+            from . import tempo  # EDF Tempo: the prices come from the day colours
+
+            if tempo.found(states):
+                prices.update(tempo.prices(states, tz, now))
+                own = []  # spot prices say nothing about tomorrow's colour - don't fill with them
     mine = {}
     for p in own or []:
         when = _when(p.get("start"), tz)
