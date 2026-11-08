@@ -77,6 +77,9 @@ The panel shows who decides right now and how well each one hits:
 - **Runs on a Raspberry Pi** – right next to Home Assistant, no cloud, no subscription. Even the ML models are trained
   at home, in a few seconds a night (about 180 MB RAM).
 - **No telemetry** – nothing about you or your home ever leaves your house.
+- **Off-grid too** – no grid and no prices? The generator becomes the "grid": it runs before the battery would fall
+  below your reserve (using the sun and house forecast ahead), in long runs, not in the quiet hours unless it must, and
+  always at the emergency level.
 - **7 languages** – English, Danish, German, French, Dutch, Swedish and Norwegian, following Home Assistant's language.
 
 ## What you need
@@ -160,6 +163,8 @@ bliver bedre hver nat.** Den starter altid i *skygge*: den viser, hvad den ville
   skiftende salgspris kan komme fra en sensor. Kan du ikke finde din sensor, kan du søge efter den.
 - **Kører på en Raspberry Pi** ved siden af Home Assistant – ingen cloud, intet abonnement.
 - **Ingen telemetri** – intet forlader dit hjem.
+- **Også off-grid:** uden elnet styrer den generatoren – den starter, før batteriet når reserven, kører længe ad gangen
+  og altid ved nødgrænsen.
 - **7 sprog:** dansk, engelsk, tysk, fransk, hollandsk, svensk og norsk – følger Home Assistants sprog.
 - **Styrer mange mærker** – se tabellen ovenfor (✅ testet, 🧪 venter på en betatester).
 

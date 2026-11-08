@@ -30,6 +30,9 @@ ROLES: dict[str, dict[str, Any]] = {
     "battery_cost": {"known": ["sensor.batteri_gennemsnitlig_kostpris_dkk_kwh"], "class": None, "words": ["kostpris", "battery_cost", "stored_cost", "average_cost"]},
     "battery_plan": {"known": ["sensor.appdaemon_comparison_controller"], "class": None, "words": []},
     # A feed-in price that changes (Amber, Tibber export …) - instead of the fixed sell price. Only when chosen.
+    # Off-grid: the generator's on/off control and (optionally) whether it is running. Only when chosen.
+    "generator_switch": {"known": [], "class": None, "words": ["generator", "genset"]},
+    "generator_running": {"known": [], "class": None, "words": ["generator", "genset"]},
     "sell_price": {"known": [], "class": None, "words": ["feed_in", "feedin", "export_price", "export_current", "export", "sell_price", "salgspris"]},
     "ev_manual": {"known": ["input_boolean.bil_lad_manuelt"], "class": None, "words": []},
     "ev_ready": {"known": ["input_datetime.bil_klar_tid"], "class": None, "words": []},
@@ -137,7 +140,9 @@ class Overview:
             if key == "roles":
                 self.settings.setdefault("roles", {}).update({k: v for k, v in value.items() if k in ROLES})
             elif key in ("battery_kwh", "import_limit_kw", "language", "setup_done", "style", "price_area", "tariff", "markup", "price_source", "tou", "vat", "battery_min_soc", "grid_charge",
-                         "sell", "sell_price", "solar_value", "ev_in_house", "battery_sign", "ev_follow_sun", "ev_fuse_guard", "battery_charge_kw", "battery_discharge_kw", "ev_mode", "charger_kw", "ev_need_kwh",
+                         "sell", "sell_price", "solar_value", "ev_in_house", "battery_sign", "ev_follow_sun", "ev_fuse_guard",
+                         "offgrid", "reserve_soc", "emergency_soc", "gen_stop_soc", "gen_charge_kw", "gen_min_run_h",
+                         "quiet_gen_from", "quiet_gen_to", "battery_charge_kw", "battery_discharge_kw", "ev_mode", "charger_kw", "ev_need_kwh",
                          "quiet_from", "quiet_to", "quiet_battery", "quiet_car",
                          "quiet_battery_from", "quiet_battery_to", "quiet_car_from", "quiet_car_to",
                          "control", "inverter_profile", "custom_profile", "battery_takeover", "ev_now", "charger_phases", "ev_ready"):
@@ -172,7 +177,7 @@ class Overview:
             return None  # the user picked Energy Pilot's own prices
         chosen = (self.settings.get("roles") or {}).get(name)
         states = self.ha.states
-        if name == "sell_price" and not chosen:
+        if name in ("sell_price", "generator_switch", "generator_running") and not chosen:
             return None  # a changing feed-in price only when the user picks one
         if isinstance(chosen, list):  # several (solar arrays): the first stands for them where only one fits
             chosen = next((e for e in chosen if e in states), None)

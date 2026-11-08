@@ -586,6 +586,23 @@ class Engine:
         if report:
             _LOGGER.info("Learned from %s: %s", report["day"], report)
 
+    def _generator(self, now: datetime, f: dict[str, Any], hours: list[tuple[datetime, float, float]]) -> dict[str, Any]:
+        """Off-grid: should the generator run now? (see generator.py)"""
+        from .generator import GenSettings, decide
+
+        st, b = self.ov.settings, self.settings()
+        gs = GenSettings(capacity_kwh=b.capacity_kwh, efficiency=b.efficiency,
+                         reserve_soc=float(st.get("reserve_soc") or 30), emergency_soc=float(st.get("emergency_soc") or 20),
+                         stop_soc=float(st.get("gen_stop_soc") or 90), charge_kw=float(st.get("gen_charge_kw") or 5),
+                         min_run_h=float(st.get("gen_min_run_h") or 2), quiet=frozenset(self.quiet_hours("gen")))
+        e = self.ov.role("generator_running") or self.ov.role("generator_switch")
+        running = str((self.ha.states.get(e) or {}).get("state")) == "on" if e else False
+        if running and not getattr(self, "_gen_since", None):
+            self._gen_since = now
+        if not running:
+            self._gen_since = None
+        return decide(now, f.get("soc"), running, self._gen_since, hours, gs)
+
     def blend_info(self) -> dict[str, Any]:
         """Who decides now, and how well each one hits."""
         return {"house": self.mixer.info("house"), "sun": self.mixer.info("sun"), "price": self.mixer.info("price"),
@@ -603,6 +620,10 @@ class Engine:
         tz = ZoneInfo(self.ha.config.get("time_zone") or "UTC")
         now = datetime.now(tz)
         start = now.replace(minute=0, second=0, microsecond=0)
+        offgrid = bool(self.ov.settings.get("offgrid"))
+        if offgrid:
+            for h in plan["hours"]:
+                h.setdefault("price", 0.0)  # no grid, no prices: the battery and the generator are all there is
         rows = [h for h in plan["hours"] if "price" in h and datetime.fromisoformat(h["t"]) >= start]
         if not rows:
             return None
@@ -642,7 +663,9 @@ class Engine:
             for h in hours:
                 if h.start in car_plan["set"]:
                     h.house += charger * h.length  # the car gets the sun first: what's left goes to the battery
-        if f["soc"] is not None:
+        if offgrid:
+            result["generator"] = self._generator(now, f, [(t, house[i], sun[i]) for i, t in enumerate(times)])
+        if f["soc"] is not None and not offgrid:
             b = self.settings()
             end_value = median(h.price for h in hours) * math.sqrt(b.efficiency) * L.end_factor
             p = plan_battery(hours, f["soc"], b, end_value=end_value)

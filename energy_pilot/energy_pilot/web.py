@@ -53,7 +53,7 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
             a = eng.agree
             data["engine"] = {"saving": b.get("saving"), "now": b.get("now"), "capacity": b.get("capacity"),
                               "agree": round(100 * a["same"] / a["checks"]) if a["checks"] else None, "checks": a["checks"],
-                              "profile": bool(eng.profile), "car": eng.result.get("car"), "sources": eng.sources_used(), "learning": eng.learning.summary(), "blend": eng.blend_info(),
+                              "profile": bool(eng.profile), "car": eng.result.get("car"), "generator": eng.result.get("generator"), "sources": eng.sources_used(), "learning": eng.learning.summary(), "blend": eng.blend_info(),
                               "decision": overview.engine_decision(lang(req))}
         return web.json_response(data)
 
@@ -140,7 +140,7 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
     async def control_mode(req: web.Request) -> web.Response:
         body = await req.json()
         c = overview.controller
-        if not c or body.get("part") not in ("battery", "car") or body.get("mode") not in ("shadow", "control", "off"):
+        if not c or body.get("part") not in ("battery", "car", "generator") or body.get("mode") not in ("shadow", "control", "off"):
             return web.json_response({"error": "bad request"}, status=400)
         c.set_mode(body["part"], body["mode"])
         await c.tick()

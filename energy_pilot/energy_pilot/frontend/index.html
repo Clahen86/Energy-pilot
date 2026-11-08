@@ -237,8 +237,8 @@ const T_ALL = {
     ctl: { title: "Energipilots motor styrer", hint: "Skygge: viser hvad den ville sende. Styrer: sender det til inverteren og laderen.",
       now: "Nu ville den", calls: "Det den sender", confirm: "Lad Energipilots motor styre? Sørg for at intet andet styrer det samme.",
       batNormal: "Normal drift (batteriet dækker huset, ned til {m} %)", batHold: "Holde på strømmen (ikke under {s} %)", batCharge: "Lade fra nettet til {t} % ({p} kW)",
-      carCharge: "Lade bilen ({a} A)", carStop: "Ikke lade bilen nu",
-      blocked: { other_system: "Dit eget system styrer – motoren sender intet", no_profile: "Vælg inverter-styring under Indstillinger → Husbatteri", no_charger: "Fandt ingen lader-kontroller",
+      carCharge: "Lade bilen ({a} A)", carStop: "Ikke lade bilen nu", genRun: "Køre generatoren", genOff: "Lade generatoren hvile",
+      blocked: { other_system: "Dit eget system styrer – motoren sender intet", no_profile: "Vælg inverter-styring under Indstillinger → Husbatteri", no_charger: "Fandt ingen lader-kontroller", offgrid: "Off-grid: inverteren styrer batteriet", no_generator: "Vælg generatorens kontakt under Indstillinger → Off-grid",
         missing_controls: "Der mangler kontroller - motoren styrer ikke, før de findes" },
       checkOk: "Test: alle kontroller fundet", checkMissing: "Test: {n} kontroller mangler", model: "Model", optional: "valgfri",
       untested: "Denne profil er lavet ud fra mærkets kendte kontroller, men ikke prøvet på et rigtigt anlæg - lad den køre i skygge først.",
@@ -254,6 +254,13 @@ const T_ALL = {
     blend: { title: "Hvem bestemmer prognosen", house: "Forbrug", sun: "Sol", price: "Priser før kl. 13", simple: "simpel",
       training: "Træner ({d}/{n} dage)", eff: "Batteriets virkningsgrad", cap: "Brugbar kapacitet", capH: "lært af op- og afladninger", effSeen: "lært af {n} runder", datasheet: "databladets, lærer stadig",
       car: "Bilens vaner", carDays: "kender {n} ugedage", carNone: "lærer stadig", carNeed: "{n} opladninger set" },
+    gen: { title: "Generator", secOff: "Off-grid", secOffH: "Uden elnet – batteri og generator", offgrid: "Off-grid (intet elnet)", offgridH: "Generatoren fylder batteriet, når solen ikke slår til",
+      reserve: "Reserve", reserveH: "Planen går aldrig under", emergency: "Nødgrænse", emergencyH: "Generatoren starter altid her – også om natten",
+      stop: "Fyld til", stopH: "En kørsel stopper her", charge: "Ladeeffekt fra generator", chargeH: "Hvad inverterens lader kan tage",
+      minRun: "Mindste køretid", minRunH: "Lange kørsler i stedet for mange korte", runNow: "kører nu", restNow: "hviler",
+      whyL: "Fordi", lowAt: "Batteriet når reserven", needKwh: "mangler {x} kWh", startAt: "Starter", noLow: "Solen og batteriet klarer sig i prognosens tid.",
+      why: { emergency: "batteriet er ved nødgrænsen", before_low: "batteriet når ellers reserven", min_run: "mindste køretid", filling: "fylder batteriet",
+        full: "batteriet er fyldt", sun_carries: "solen klarer resten", not_needed: "ikke nødvendig", later: "senere", quiet: "stille timer", no_soc: "intet batteriniveau" } },
     ledger: { title: "Batteriet har sparet", since: "målt siden", today: "I dag", month: "Måned", year: "År", total: "I alt",
       inBattery: "I batteriet", costs: "kostede {p}/kWh", fromOther: "fra din AppDaemon",
       hint: "Målt på det, du faktisk har købt og solgt, sammenlignet med samme hus og sol uden batteri.",
@@ -268,7 +275,7 @@ const T_ALL = {
     g2c: "Styrer", g2cT: "Når du er tryg, slår du styring til - én del ad gangen. Ét tryk sætter alt tilbage.",
     setTitle: "Det du har", setHint: "Fundet automatisk. Vælg \"Har ikke\" for at skjule en del.", auto: "Automatisk", none: "Har ikke",
     groups: { sun: "Sol", battery: "Batteri", grid: "Net og hus", car: "Bil", data: "Priser og prognoser" },
-    roles: { sell_price: "Salgspris (sensor)", pv_power: "Solcelle-effekt", solar_today: "Solprognose i dag", solar_tomorrow: "Solprognose i morgen", battery_power: "Batteri-effekt", battery_soc: "Batteri-niveau",
+    roles: { generator_switch: "Generatorens kontakt", generator_running: "Generatoren kører", sell_price: "Salgspris (sensor)", pv_power: "Solcelle-effekt", solar_today: "Solprognose i dag", solar_tomorrow: "Solprognose i morgen", battery_power: "Batteri-effekt", battery_soc: "Batteri-niveau",
       battery_plan: "Batteri-plan", grid_power: "Net-effekt", house_power: "Husets forbrug", house_forecast: "Forbrugsprognose", ev_power: "Ladeeffekt", ev_plug: "Stik",
       ev_session: "Opladet i alt", ev_manual: "Lad nu-knap", ev_ready: "Klar kl.", ev_cap: "Højst kWh", price: "Elpris" },
     confirm: "Lad Energipilot styre denne del? Sluk den samme app i AppDaemon først, så kun én styrer.", saved: "Gemt ✓",
@@ -316,8 +323,8 @@ const T_ALL = {
     ctl: { title: "Energy Pilot's engine controls", hint: "Shadow: shows what it would send. Control: sends it to the inverter and the charger.",
       now: "Now it would", calls: "What it sends", confirm: "Let Energy Pilot's engine control? Make sure nothing else controls the same.",
       batNormal: "Run normally (battery covers the house, down to {m} %)", batHold: "Keep the power (not below {s} %)", batCharge: "Charge from the grid to {t} % ({p} kW)",
-      carCharge: "Charge the car ({a} A)", carStop: "Not charge the car now",
-      blocked: { other_system: "Your own system controls it – the engine sends nothing", no_profile: "Pick inverter control under Settings → House battery", no_charger: "No charger controls found",
+      carCharge: "Charge the car ({a} A)", carStop: "Not charge the car now", genRun: "Run the generator", genOff: "Let the generator rest",
+      blocked: { other_system: "Your own system controls it – the engine sends nothing", no_profile: "Pick inverter control under Settings → House battery", no_charger: "No charger controls found", offgrid: "Off-grid: the inverter runs the battery", no_generator: "Pick the generator's switch under Settings → Off-grid",
         missing_controls: "Controls are missing - the engine won't control until they're found" },
       checkOk: "Test: every control found", checkMissing: "Test: {n} controls missing", model: "Model", optional: "optional",
       untested: "This profile is built from the brand's known controls but not yet tried on a real system - run it in shadow first.",
@@ -333,6 +340,13 @@ const T_ALL = {
     blend: { title: "Who makes the forecast", house: "House use", sun: "Sun", price: "Prices before 13:00", simple: "simple",
       training: "Training ({d}/{n} days)", eff: "Battery efficiency", cap: "Usable capacity", capH: "learned from charging and discharging", effSeen: "learned from {n} rounds", datasheet: "datasheet's, still learning",
       car: "The car's habits", carDays: "knows {n} weekdays", carNone: "still learning", carNeed: "{n} charges seen" },
+    gen: { title: "Generator", secOff: "Off-grid", secOffH: "No grid – battery and generator", offgrid: "Off-grid (no grid)", offgridH: "The generator fills the battery when the sun isn't enough",
+      reserve: "Reserve", reserveH: "The plan never goes below", emergency: "Emergency level", emergencyH: "The generator always starts here – at night too",
+      stop: "Fill to", stopH: "A run stops here", charge: "Charge power from generator", chargeH: "What the inverter's charger can take",
+      minRun: "Minimum run time", minRunH: "Long runs instead of many short ones", runNow: "running", restNow: "resting",
+      whyL: "Because", lowAt: "Battery reaches the reserve", needKwh: "{x} kWh short", startAt: "Starts", noLow: "Sun and battery last through the forecast.",
+      why: { emergency: "battery at the emergency level", before_low: "battery would reach the reserve", min_run: "minimum run time", filling: "filling the battery",
+        full: "battery full", sun_carries: "the sun does the rest", not_needed: "not needed", later: "later", quiet: "quiet hours", no_soc: "no battery level" } },
     ledger: { title: "The battery has saved", since: "measured since", today: "Today", month: "Month", year: "Year", total: "In all",
       inBattery: "In the battery", costs: "cost {p}/kWh", fromOther: "from your AppDaemon",
       hint: "Measured on what you really bought and sold, against the same house and sun without the battery.",
@@ -347,7 +361,7 @@ const T_ALL = {
     g2c: "Control", g2cT: "When you're confident, switch control on - one part at a time. One tap puts everything back.",
     setTitle: "What you have", setHint: "Found by itself. Pick \"Don't have\" to hide a part.", auto: "Automatic", none: "Don't have",
     groups: { sun: "Sun", battery: "Battery", grid: "Grid and home", car: "Car", data: "Prices and forecasts" },
-    roles: { sell_price: "Feed-in price (sensor)", pv_power: "Solar power", solar_today: "Solar forecast today", solar_tomorrow: "Solar forecast tomorrow", battery_power: "Battery power", battery_soc: "Battery level",
+    roles: { generator_switch: "Generator switch", generator_running: "Generator running", sell_price: "Feed-in price (sensor)", pv_power: "Solar power", solar_today: "Solar forecast today", solar_tomorrow: "Solar forecast tomorrow", battery_power: "Battery power", battery_soc: "Battery level",
       battery_plan: "Battery plan", grid_power: "Grid power", house_power: "House consumption", house_forecast: "Consumption forecast", ev_power: "Charging power", ev_plug: "Plug",
       ev_session: "Charged", ev_manual: "Charge now switch", ev_ready: "Ready at", ev_cap: "At most kWh", price: "Electricity price" },
     confirm: "Let Energy Pilot control this part? Switch the same app off in AppDaemon first, so only one controls.", saved: "Saved ✓",
@@ -488,9 +502,19 @@ function home() {
       <div><h2>${esc(dec.text)}</h2><p>${esc(reason)}</p>${dec.engine && dec.saving > 0 ? `<p class="save">${T.saves.replace("{x}", kr(dec.saving))}</p>` : ""}
       ${dec.reason ? `<details><summary>${T.why}</summary>${esc(dec.reason)}</details>` : ""}</div></div>` : ""}
     <div class="metrics fade">${metrics}</div>
+    ${genCard()}
     ${savedCard()}
     ${d.ev ? carCard(d.ev, f) : ""}
     <div class="card fade"><div class="eyebrow"><span>${T.planTitle}</span></div>${priceNote()}${planSvg(d.plan)}</div>`;
+}
+function genCard() {
+  const g = data.engine?.generator, k = T.gen;
+  if (!g || !(data.settings || {}).offgrid && !g) return "";
+  const t = (iso) => iso ? new Date(iso).toLocaleString(LOCALE, { weekday: "short", hour: "2-digit", minute: "2-digit" }) : "";
+  return `<div class="card fade"><div class="eyebrow"><span>${k.title}</span><span>${g.run ? k.runNow : k.restNow}</span></div>
+    <div class="lrow"><span>${k.whyL}</span><b>${k.why[g.why] || g.why}</b><em></em></div>
+    ${g.low_at ? `<div class="lrow"><span>${k.lowAt}</span><b>${t(g.low_at)}</b><em>${k.needKwh.replace("{x}", num(g.need_kwh, 1))}</em></div>` : `<div class="muted">${k.noLow}</div>`}
+    ${!g.run && g.start_at ? `<div class="lrow"><span>${k.startAt}</span><b>${t(g.start_at)}</b><em></em></div>` : ""}</div>`;
 }
 function savedCard() {
   const g = data.ledger, k = T.ledger;
@@ -609,6 +633,7 @@ function describe(part, want) {
   const c = T.ctl;
   if (!want) return "–";
   if (part === "car") return want.intent === "charge" ? c.carCharge.replace("{a}", Math.round(want.ctx.current)) : c.carStop;
+  if (part === "generator") return `${want.intent === "run" ? c.genRun : c.genOff} (${T.gen.why[want.ctx.why] || want.ctx.why})`;
   return want.intent === "charge" ? c.batCharge.replace("{t}", want.ctx.target).replace("{p}", num(want.ctx.power_w / 1000, 1))
     : want.intent === "hold" ? c.batHold.replace("{s}", want.ctx.soc) : c.batNormal.replace("{m}", want.ctx.min_soc);
 }
@@ -636,7 +661,7 @@ function controlView() {
     </div>`;
   };
   return `<div class="eyebrow" style="margin-top:18px"><span>${c.title}</span>${control.profile?.name ? `<span>${esc(control.profile.name)}</span>` : ""}</div>
-    <div class="muted" style="margin-bottom:6px">${c.hint}</div>${part("battery", T.y.secBattery, "battery")}${checkView()}${part("car", T.y.secCar, "car")}`;
+    <div class="muted" style="margin-bottom:6px">${c.hint}</div>${part("battery", T.y.secBattery, "battery")}${checkView()}${part("car", T.y.secCar, "car")}${part("generator", T.gen.title, "bolt")}`;
 }
 function shadowView() {
   if (!status) return `<div class="card">…</div>`;
@@ -745,6 +770,14 @@ function styleView() {
       ${v.price_source === "tou" ? touEditor(v) : ""}
       ${!settings.roles.price && v.price_source !== "tou" && (settings.zones || []).length ? `${row(y.area, settings.country === "DK" ? y.areaH : "", `<div class="seg mini">${(settings.zones || ["DK1", "DK2"]).map((a) => `<button class="${(v.price_area || settings.area_guess) === a ? "on" : ""}" data-area="${a}">${a}</button>`).join("")}</div>`)}
         ${row(y.tariff, y.tariffH, `<span class="times2">${["low", "high", "peak"].map((k) => `<input class="numin sm" type="number" step="0.01" data-tariff="${k}" value="${(v.tariff || {})[k] ?? ""}" placeholder="${settings.country === "DK" ? { low: 0.115, high: 0.346, peak: 1.038 }[k] : 0}">`).join("")}</span>`)}` : ""}`)}
+    ${section("bolt", T.gen.secOff, T.gen.secOffH, `${row(T.gen.offgrid, T.gen.offgridH, tog("offgrid"))}
+      ${v.offgrid ? `${row(T.gen.reserve, T.gen.reserveH, numIn("reserve_soc", 30, "5", "%"))}
+        ${row(T.gen.emergency, T.gen.emergencyH, numIn("emergency_soc", 20, "5", "%"))}
+        ${row(T.gen.stop, T.gen.stopH, numIn("gen_stop_soc", 90, "5", "%"))}
+        ${row(T.gen.charge, T.gen.chargeH, numIn("gen_charge_kw", 5, "0.5", "kW"))}
+        ${row(T.gen.minRun, T.gen.minRunH, numIn("gen_min_run_h", 2, "0.5", "h"))}
+        ${quietRow("gen")}
+        ${roleRows(["generator_switch", "generator_running"])}` : ""}`)}
     ${section("grid", y.secGrid, y.secGridH, `${row(y.fuse, y.fuseH, numIn("import_limit_kw", 10, "1", "kW"))}
       ${row(y.sell, y.sellH, tog("sell"))}
       ${v.sell ? row(y.sellPrice, settings.roles.sell_price ? y.sellFromSensor : "", numIn("sell_price", "0.5", "0.05", SYM())) : ""}

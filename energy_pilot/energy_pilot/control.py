@@ -36,7 +36,7 @@ class Controller:
         self.model: str | None = None
         self.services: set[str] | None = None
         self.last: dict[str, dict[str, Any]] = {}
-        self.log: dict[str, deque] = {"battery": deque(maxlen=60), "car": deque(maxlen=60)}
+        self.log: dict[str, deque] = {"battery": deque(maxlen=60), "car": deque(maxlen=60), "generator": deque(maxlen=60)}
         self._sun_on = False  # the car is charging on the sun's surplus (for the start/stop margin)
         self.car_why = ""
 
@@ -59,6 +59,10 @@ class Controller:
             return "no_profile"
         if part == "battery" and adapters.missing(self.check()):
             return "missing_controls"
+        if part == "battery" and self.ov.settings.get("offgrid"):
+            return "offgrid"  # no grid to charge from: the inverter runs the battery, the engine runs the generator
+        if part == "generator" and not self.ov.role("generator_switch"):
+            return "no_generator"
         if part == "car" and not self.entities["car"] and self.platforms["car"] not in adapters.CHARGER_SERVICES:
             return "no_charger"
         return None
@@ -149,6 +153,9 @@ class Controller:
             if "{house_w}" in str(self.profile_steps() or {}):
                 # Only for profiles that use it (EcoFlow), rounded - so others aren't re-sent at every small change.
                 out["battery"]["ctx"]["house_w"] = int(round((f.get("house") or 0.0) / 50) * 50)
+        g = res.get("generator")
+        if g and self.ov.settings.get("offgrid"):
+            out["generator"] = {"intent": "run" if g.get("run") else "off", "ctx": {"why": g.get("why")}}
         if self.ov.ev() is not None:
             tz = ZoneInfo(self.ha.config.get("time_zone") or "UTC")
             car = res.get("car") or {}
@@ -169,6 +176,11 @@ class Controller:
         return out
 
     def calls(self, part: str, want: dict[str, Any]) -> list[dict[str, Any]]:
+        if part == "generator":
+            e = self.ov.role("generator_switch")
+            if not e:
+                return []
+            return [{"domain": e.split(".")[0], "service": "turn_on" if want["intent"] == "run" else "turn_off", "data": {"entity_id": e}}]
         if part == "battery":
             steps = self.profile_steps() or {}
             return self._clamp(adapters.resolve(steps.get(want["intent"], []), self._pool(), want["ctx"]))
@@ -189,7 +201,7 @@ class Controller:
                 d["value"] = int(v) if float(v).is_integer() else v
         return calls
 
-    async def tick(self, parts: tuple[str, ...] = ("battery", "car")) -> None:
+    async def tick(self, parts: tuple[str, ...] = ("battery", "car", "generator")) -> None:
         for part, want in self.intents().items():
             if part not in parts:
                 continue
@@ -248,19 +260,19 @@ class Controller:
             want = self.intents().get("battery")
             if want:
                 await self._send(self.calls("battery", {**want, "intent": "normal"}))
-        modes = {p: "shadow" for p in ("battery", "car")}
+        modes = {p: "shadow" for p in ("battery", "car", "generator")}
         self.ov.save({"control": modes})
         self.last.clear()
 
     def status(self) -> dict[str, Any]:
         wants = self.intents()
         out = {}
-        for part in ("battery", "car"):
+        for part in ("battery", "car", "generator"):
             want = wants.get(part)
             out[part] = {
                 "mode": self.mode(part), "blocked": self.blocked(part), "now": want,
                 "calls": self.calls(part, want) if want else [], "log": list(self.log[part])[:20],
-                "entities": self.entities[part],
+                "entities": self.entities.get(part, []),
             }
         key = self.profile_key()
         prof = adapters.PROFILES.get(key or "") or {}
