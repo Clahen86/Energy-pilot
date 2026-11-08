@@ -42,6 +42,13 @@ PROFILES: dict[str, dict[str, Any]] = {
                    (r"select\..*battery_first_slot_1_end$", "select", "23:59"), (r"number\..*battery_first_charge_rate$", "number", "{rate}"),
                    (r"number\..*battery_first_stop_charge$", "number", "{target}"), (r"select\..*battery_first_grid_charge$", "select", "Enabled"),
                    (r"select\..*work_mode_priority$", "select", "Battery first")],
+        # Selling from the battery (only when the user turns it on).
+        "export": [(r"switch\..*grid_first_slot_1_enabled$", "on", None),
+                   (r"select\..*grid_first_slot_1_start$", "select", "00:00"),
+                   (r"select\..*grid_first_slot_1_end$", "select", "23:59"),
+                   (r"number\..*grid_first_discharge_rate$", "number", "{rate}"),
+                   (r"number\..*grid_first_stop_discharge$", "number", "{target}"),
+                   (r"select\..*work_mode_priority$", "select", "Grid first")],
     },
     "growatt_tlxh": {
         "name": "Growatt (MIN/MOD TL-XH)",
@@ -57,6 +64,10 @@ PROFILES: dict[str, dict[str, Any]] = {
                    (r"number\..*(battery_first_charge_rate|charge_power_rate)$", "number", "{rate}"),
                    (r"(select|switch)\..*(ac_charge|grid_charge).*$", "on", None),
                    (r"select\..*(work_mode_priority|priority_mode|inverter_priority)$", "select", "Battery first")],
+        # Selling from the battery (only when the user turns it on).
+        "export": [(r"number\..*(grid_first_stop_discharge|discharge_stop_soc)$", "number", "{target}"),
+                   (r"number\..*(grid_first_discharge_rate|discharge_power_rate)$", "number", "{rate}"),
+                   (r"select\..*(work_mode_priority|priority_mode|inverter_priority)$", "select", "Grid first")],
         "optional": [r"number\..*(battery_first_charge_rate|charge_power_rate)$"],
     },
     # Deye hybrid (also Sunsynk-built) via the Solarman integration (davidrapan/ha-solarman). Deye works with six
@@ -75,6 +86,15 @@ PROFILES: dict[str, dict[str, Any]] = {
         "charge": [(r"select\..*time_of_use$", "select", "Week"), (r"switch\..*battery_grid_charging$", "on", None)]
         + [(rf"number\..*program_{n}_soc$", "number", "{target}") for n in range(1, 7)]
         + [(rf"select\..*program_{n}_charging$", "select", "Grid") for n in range(1, 7)],
+        # Selling from the battery (davidrapan/ha-solarman deye_hybrid): Work Mode "Export First" with its
+        # "Export Surplus Power", every programme down to the target.
+        "export": [(r"select\..*time_of_use$", "select", "Week"), (r"switch\..*battery_grid_charging$", "off", None)]
+        + [(rf"number\..*program_{n}_soc$", "number", "{target}") for n in range(1, 7)]
+        + [(rf"select\..*program_{n}_charging$", "select", "Disabled") for n in range(1, 7)]
+        + [(r"number\..*export_surplus_power$", "number", "{power_w}"),
+           (r"select\..*(?<!energy_pattern_)work_mode$", "select", "Export First")],
+        # The owner's own work mode (Zero Export To CT …) and export power are put back after selling.
+        "restore": [r"select\..*(?<!energy_pattern_)work_mode$", r"number\..*export_surplus_power$"],
     },
     # Deye via ESPHome and local Modbus (klatremis/esphome-for-deye): the six "Time point" programmes, set alike.
     "deye_esphome": {
@@ -179,6 +199,12 @@ PROFILES: dict[str, dict[str, Any]] = {
                  (r"number\..*ess_maximum_discharge_power$", "number", "0")],
         "charge": [(r"number\..*ess_maximum_charge_power$", "number", "{power_w}"),
                    (r"switch\..*ess_force_charge$", "on", None)],
+        # Selling from the battery (only when the user turns it on).
+        "export": [(r"switch\..*ess_force_charge$", "off", None),
+                   (r"number\..*ess_maximum_discharge_power$", "number", "{max_power_w}"),
+                   (r"number\..*(grid_set_?point|acpowersetpoint)$", "number", "-{export_w}")],
+        # The owner's own grid setpoint is remembered before selling and put back after.
+        "restore": [r"number\..*(grid_set_?point|acpowersetpoint)$"],
     },
     # EcoFlow PowerStream (EcoFlow Cloud integration): a micro-inverter that gives the house the watts it is told
     # ("custom load"), from a Delta/River power station. It can't charge from the grid - that's the station's own AC

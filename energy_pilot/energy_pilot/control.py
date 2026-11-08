@@ -144,13 +144,15 @@ class Controller:
             intent = {"charge_grid": "charge", "hold": "hold", "export": "export"}.get(step["action"], "normal")
             slot_h = (b.get("slot_min") or 60) / 60  # the step is one price slot (a quarter of an hour in Europe)
             charge_kw = min(bat.max_charge_kw, max(0.5, (step["soc"] - (f["soc"] or 0)) / 100 * bat.capacity_kwh / slot_h))
+            export_w = 0
             if intent == "export":  # the battery's discharge power: the house's share and what is sold
                 charge_kw = min(bat.max_discharge_kw, max(0.5, ((f["soc"] or 0) - step["soc"]) / 100 * bat.capacity_kwh / slot_h))
+                export_w = int(round(max(0.0, -(step.get("grid") or 0.0)) / slot_h * 1000 / 50) * 50)
             out["battery"] = {"intent": intent, "ctx": {
                 "min_soc": round(bat.min_soc), "soc": round(f["soc"] or bat.min_soc), "target": round(b.get("target") or step["soc"]),
                 "rate": round(100 * charge_kw / bat.max_charge_kw), "power_w": round(charge_kw * 1000),
                 "max_power_w": round(bat.max_discharge_kw * 1000), "max_charge_w": round(bat.max_charge_kw * 1000),
-                "power_kw": round(charge_kw, 2), "max_charge_kw": round(bat.max_charge_kw, 2), "max_power_kw": round(bat.max_discharge_kw, 2),
+                "power_kw": round(charge_kw, 2), "max_charge_kw": round(bat.max_charge_kw, 2), "max_power_kw": round(bat.max_discharge_kw, 2), "export_w": export_w,
                 "device_id": getattr(self, "battery_device", None) or "", "serial": getattr(self, "battery_serial", "") or ""}}
             if "{house_w}" in str(self.profile_steps() or {}):
                 # Only for profiles that use it (EcoFlow), rounded - so others aren't re-sent at every small change.
@@ -220,12 +222,46 @@ class Controller:
                 continue
             entry = {"t": time.time(), "intent": want["intent"], "ctx": want["ctx"], "calls": calls, "mode": mode}
             if mode == "control" and not self.blocked(part):
+                calls = calls + self._restore(part, want["intent"])
+                entry["calls"] = calls
                 entry["result"] = await self._send(calls)
+                if entry["result"] == "ok" and want["intent"] != "export" and part == "battery":
+                    self.ov.save({"restore_values": {}})  # the owner's settings are back
             elif mode == "control":
                 entry["blocked"] = self.blocked(part)
             self.last[part] = entry
             if changed:
                 self.log[part].appendleft(entry)
+
+    def _restore(self, part: str, intent: str) -> list[dict[str, Any]]:
+        """Settings that are the owner's own (Victron's grid setpoint, Deye's work mode): remembered before selling,
+        put back when selling stops - kept on disk, so a restart in between doesn't lose them."""
+        pats = (adapters.PROFILES.get(self.profile_key() or "") or {}).get("restore") or []
+        if part != "battery" or not pats:
+            return []
+        saved = dict(self.ov.settings.get("restore_values") or {})
+        if intent == "export":
+            if not saved:
+                pool = self._pool()
+                for p in pats:
+                    e = adapters._find(p, pool)
+                    st = (self.ha.states.get(e) or {}).get("state") if e else None
+                    if e and st not in (None, "unknown", "unavailable"):
+                        saved[e] = st
+                if saved:
+                    self.ov.save({"restore_values": saved})
+            return []
+        out = []
+        for e, v in saved.items():
+            if e.startswith("select."):
+                out.append({"domain": "select", "service": "select_option", "data": {"entity_id": e, "option": v}})
+            else:
+                try:
+                    num = float(v)
+                except ValueError:
+                    continue
+                out.append({"domain": e.split(".")[0], "service": "set_value", "data": {"entity_id": e, "value": int(num) if num.is_integer() else num}})
+        return out
 
     async def _send(self, calls: list[dict[str, Any]]) -> str:
         """Send the calls - only those whose value isn't already set (some links, like Solarman, drop writes now
