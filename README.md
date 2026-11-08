@@ -88,7 +88,7 @@ integration's own source code (entity names and values checked), waiting for a b
 
 | | |
 |---|---|
-| **Inverter / battery** | ✅ Growatt SPH (SPA) · 🧪 Growatt MIN/MOD TL-XH · 🧪 Deye (Solarman or ESPHome/local Modbus) · 🧪 Sofar (Solarman or SolaX Modbus) · 🧪 Sigenergy · 🧪 Tesla Powerwall · 🧪 Enphase IQ Battery · 🧪 Victron (ESS) · 🧪 EcoFlow PowerStream · 🧪 Huawei SUN2000/LUNA2000 · 🧪 SolaX · 🧪 Sungrow · 🧪 SolarEdge · 🧪 Fox ESS · 🧪 GivEnergy · any other by picking its controls yourself |
+| **Inverter / battery** | ✅ Growatt SPH (SPA) · 🧪 Growatt MIN/MOD TL-XH · 🧪 Deye (Solarman or ESPHome/local Modbus) · 🧪 Sofar (Solarman or SolaX Modbus) · 🧪 Sigenergy · 🧪 Tesla Powerwall · 🧪 Enphase IQ Battery · 🧪 Victron (ESS) · 🧪 EcoFlow PowerStream · 🧪 Huawei SUN2000/LUNA2000 · 🧪 SolaX · 🧪 Sungrow · 🧪 SolarEdge · 🧪 Fox ESS · 🧪 GivEnergy · 🧪 Solis (Solis Modbus) · 🧪 Alpha ESS (cloud) · any other by picking its controls yourself |
 | **EV charger** | ✅ KEBA · 🧪 Easee · 🧪 Zaptec · 🧪 go-e · 🧪 Wallbox · 🧪 OCPP · any with a switch and a current setting |
 | **Prices** | ✅ Strømligning · ✅ built-in spot prices · 🧪 Octopus Energy (import + export, Agile) · 🧪 EDF Tempo (day colours) · 🧪 Amber · 🧪 Nord Pool · 🧪 Tibber · 🧪 Energi Data Service · tariff plans |
 

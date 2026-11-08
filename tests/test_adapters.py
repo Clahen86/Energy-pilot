@@ -165,3 +165,28 @@ def test_profiles_from_the_integrations_own_names():
         assert got.get(entity) == want, (key, got)
     # emma's control mode is not the battery's working mode
     assert "select.emma_ess_control_mode" not in str(adapters.resolve(adapters.PROFILES["huawei_solar"]["hold"], cases["huawei_solar"][0], ctx))
+
+
+def test_givenergy_solis_alphaess_from_their_code():
+    ctx = {**CTX, "device_id": "dev9", "serial": "AL123"}
+    ge = ["select.givenergy_ce123_battery_pause_mode", "number.givenergy_ce123_battery_charge_power_limit"]
+    p = adapters.PROFILES["givenergy_local"]
+    charge = adapters.resolve(p["charge"], ge, ctx)
+    svc = [c for c in charge if c["domain"] == "givenergy_local"][0]
+    assert svc["service"] == "enable_timed_charge" and svc["data"] == {"device_id": "dev9", "start_time": "00:00", "end_time": "23:59", "charge_target": 90}
+    hold = adapters.resolve(p["hold"], ge, ctx)
+    assert {"entity_id": "select.givenergy_ce123_battery_pause_mode", "option": "Pause Discharge"} in [c["data"] for c in hold]
+
+    so = ["select.solis_rc_force_charge_discharge", "number.solis_rc_force_battery_charge_power", "number.solis_rc_timeout"]
+    p = adapters.PROFILES["solis_modbus"]
+    assert adapters.missing(adapters.check({i: p[i] for i in ("normal", "hold", "charge")}, so)) == []
+    assert p["reassert_s"] <= 1200  # its remote control times out after 30 min
+    charge = adapters.resolve(p["charge"], so, ctx)
+    assert [c["data"].get("option", c["data"].get("value")) for c in charge] == ["Solis RC Force Battery Charge", 2400, 30]
+
+    a = adapters.resolve(adapters.PROFILES["alphaess"]["charge"], [], ctx)[0]
+    assert a["service"] == "setbatterycharge" and a["data"]["serial"] == "AL123" and a["data"]["chargestopsoc"] == 90 and a["data"]["enabled"] is True
+
+
+def test_service_only_profile_is_found_by_its_integration():
+    assert adapters.guess_profile(["sensor.alphaess_soc"], {"alphaess"}) == "alphaess"

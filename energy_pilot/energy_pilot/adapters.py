@@ -235,13 +235,48 @@ PROFILES: dict[str, dict[str, Any]] = {
         "optional": [r"number\..*force_charge_power$", r"number\..*force_charge_max_soc$"],
         "source": "integration",
     },
+    # GivEnergy (cdpuk/givenergy-local): charging is a "timed charge" (service, needs the inverter's device_id) with
+    # a charge target; hold pauses discharging.
     "givenergy_local": {
-        "name": "GivEnergy",
+        "name": "GivEnergy (GivEnergy Local)",
         "match": r"givenergy|givtcp",
-        "normal": [(r"switch\..*enable_charge$", "off", None), (r"number\..*battery_discharge_limit$", "number", "{rate}")],
-        "hold": [(r"switch\..*enable_charge$", "off", None), (r"number\..*battery_discharge_limit$", "number", "0")],
-        "charge": [(r"number\..*charge_target_soc$", "number", "{target}"), (r"number\..*battery_charge_limit$", "number", "{rate}"),
-                   (r"switch\..*enable_charge$", "on", None)],
+        "source": "integration",
+        "normal": [("givenergy_local.disable_timed_charge", "service", {"device_id": "{device_id}"}),
+                   (r"select\..*battery_pause_mode$", "select", "Not Paused")],
+        "hold": [("givenergy_local.disable_timed_charge", "service", {"device_id": "{device_id}"}),
+                 (r"select\..*battery_pause_mode$", "select", "Pause Discharge")],
+        "charge": [(r"select\..*battery_pause_mode$", "select", "Not Paused"),
+                   (r"number\..*battery_charge_power_limit$", "number", "{power_w}"),
+                   ("givenergy_local.enable_timed_charge", "service",
+                    {"device_id": "{device_id}", "start_time": "00:00", "end_time": "23:59", "charge_target": "{target}"})],
+        "optional": [r"number\..*battery_charge_power_limit$"],
+    },
+    # Solis (Pho3niX90/solis_modbus): remote-control force charge with its power and timeout (1-30 min, so it is
+    # re-sent every 10 minutes); hold is a force charge at 0 W, which stops discharging.
+    "solis_modbus": {
+        "name": "Solis (Solis Modbus)",
+        "match": r"solis",
+        "source": "integration",
+        "reassert_s": 600,
+        "normal": [(r"select\..*rc_force_charge_discharge$", "select", "None")],
+        "hold": [(r"select\..*rc_force_charge_discharge$", "select", "Solis RC Force Battery Charge"),
+                 (r"number\..*rc_force_battery_charge_power$", "number", "0"), (r"number\..*rc_timeout$", "number", "30")],
+        "charge": [(r"select\..*rc_force_charge_discharge$", "select", "Solis RC Force Battery Charge"),
+                   (r"number\..*rc_force_battery_charge_power$", "number", "{power_w}"), (r"number\..*rc_timeout$", "number", "30")],
+    },
+    # Alpha ESS (Poshy163/homeassistant-alphaESS, cloud): charge and discharge windows by service, with the serial.
+    "alphaess": {
+        "name": "Alpha ESS (cloud)",
+        "match": r"alpha_?ess",
+        "source": "integration",
+        "normal": [("alphaess.setbatterycharge", "service", {"serial": "{serial}", "enabled": False, "cp1start": "00:00", "cp1end": "00:00",
+                                                             "cp2start": "00:00", "cp2end": "00:00", "chargestopsoc": 100}),
+                   ("alphaess.setbatterydischarge", "service", {"serial": "{serial}", "enabled": False, "dp1start": "00:00", "dp1end": "00:00",
+                                                                "dp2start": "00:00", "dp2end": "00:00", "dischargecutoffsoc": "{min_soc}"})],
+        "hold": [("alphaess.setbatterydischarge", "service", {"serial": "{serial}", "enabled": True, "dp1start": "00:00", "dp1end": "23:59",
+                                                              "dp2start": "00:00", "dp2end": "00:00", "dischargecutoffsoc": "{soc}"})],
+        "charge": [("alphaess.setbatterycharge", "service", {"serial": "{serial}", "enabled": True, "cp1start": "00:00", "cp1end": "23:59",
+                                                             "cp2start": "00:00", "cp2end": "00:00", "chargestopsoc": "{target}"})],
     },
 }
 
@@ -331,6 +366,8 @@ def guess_profile(entities: list[str], platforms: set[str], model: str | None = 
                 return key
     def fits(p: dict) -> bool:
         hits = [s for steps in (p["normal"], p["hold"], p["charge"]) for s in steps if s[1] != "service"]
+        if not hits:
+            return True  # all by services (Alpha ESS): the integration's name is all there is
         return sum(1 for pat, _k, _v in hits if any(re.search(pat, e) for e in entities)) >= max(1, len(hits) // 2)
 
     for key, p in PROFILES.items():

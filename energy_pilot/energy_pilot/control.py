@@ -95,7 +95,9 @@ class Controller:
                 found = [e for e in self.ha.states if e.split(".")[0] in ("select", "number", "switch") and e.split(".", 1)[1].startswith(prefix + "_")]
             self.entities[part], self.platforms[part] = sorted(found), plat
             if part == "battery":
-                self.battery_device = dev  # for services that want the device (Huawei forcible charge)
+                self.battery_device = dev  # for services that want the device (Huawei, GivEnergy)
+                d = (devices or {}).get(dev or "") if "devices" in dir() else None
+                self.battery_serial = (d or {}).get("serial_number") or ""  # Alpha ESS wants the serial
 
     def profile_key(self) -> str | None:
         chosen = self.ov.settings.get("inverter_profile")
@@ -141,7 +143,7 @@ class Controller:
                 "rate": round(100 * charge_kw / bat.max_charge_kw), "power_w": round(charge_kw * 1000),
                 "max_power_w": round(bat.max_discharge_kw * 1000), "max_charge_w": round(bat.max_charge_kw * 1000),
                 "power_kw": round(charge_kw, 2), "max_charge_kw": round(bat.max_charge_kw, 2),
-                "device_id": getattr(self, "battery_device", None) or ""}}
+                "device_id": getattr(self, "battery_device", None) or "", "serial": getattr(self, "battery_serial", "") or ""}}
             if "{house_w}" in str(self.profile_steps() or {}):
                 # Only for profiles that use it (EcoFlow), rounded - so others aren't re-sent at every small change.
                 out["battery"]["ctx"]["house_w"] = int(round((f.get("house") or 0.0) / 50) * 50)
@@ -194,7 +196,8 @@ class Controller:
             calls = self.calls(part, want)
             prev = self.last.get(part)
             changed = prev is None or prev["intent"] != want["intent"] or prev["ctx"] != want["ctx"]
-            due = prev is None or time.time() - prev["t"] > REASSERT_S
+            again = (adapters.PROFILES.get(self.profile_key() or "") or {}).get("reassert_s", REASSERT_S) if part == "battery" else REASSERT_S
+            due = prev is None or time.time() - prev["t"] > again  # Solis' remote control times out after 30 min
             if not (changed or due):
                 continue
             entry = {"t": time.time(), "intent": want["intent"], "ctx": want["ctx"], "calls": calls, "mode": mode}
