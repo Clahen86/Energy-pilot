@@ -44,7 +44,8 @@ one decide:
   earned: nothing until it has three weeks of data, half when the two hit equally well, more when it's better. If it
   starts to miss – a new heat pump, a new car – its share goes down again by itself.
 - **It also learns** how far off the solar forecast usually is on cloudy and clear days, a safety margin for the dear
-  hours, the battery's real efficiency, and the car's habits (when it leaves, how much it takes). What you set
+  hours, the battery's real usable capacity and efficiency (labels often say more than what's usable, and batteries wear),
+  and the car's habits (when it leaves, how much it takes). What you set
   yourself always wins.
 
 The panel shows who decides right now and how well each one hits:
