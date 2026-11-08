@@ -678,7 +678,7 @@ function foundLine() {
   const p = control?.profile, c = T.ctl;
   if (!p?.key || p.key === "custom") return c.profileH;
   const miss = Object.values(p.check || {}).reduce((n, r) => n + r.missing.length, 0);
-  return `${c.found}: <b>${esc(p.choices[p.key] || p.key)}</b>${p.model ? ` (${esc(p.model)})` : ""} – ${miss ? c.missingN.replace("{n}", miss) : c.allFound}${p.tested === false ? ` · 🧪 ${c.notTested}` : ""}`;
+  return `${c.found}: <strong style="display:inline;font-weight:650">${esc(p.choices[p.key] || p.key)}</strong>${p.model ? ` (${esc(p.model)})` : ""} – ${miss ? c.missingN.replace("{n}", miss) : c.allFound}${p.tested === false ? ` · 🧪 ${c.notTested}` : ""}`;
 }
 function capHint(v) {
   const y = T.y, l = settings.capacity_learned;

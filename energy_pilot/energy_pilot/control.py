@@ -75,7 +75,8 @@ class Controller:
         try:
             devices = {d["id"]: d for d in await self.ha.command({"type": "config/device_registry/list"})}
             dev = devices.get((by_id.get(self.ov.role("battery_soc") or "") or {}).get("device_id") or "") or {}
-            self.model = " ".join(x for x in (dev.get("model"), dev.get("model_id"), dev.get("name")) if x) or None
+            parts = [x for x in (dev.get("model"), dev.get("model_id"), dev.get("name")) if x]
+            self.model = " ".join(dict.fromkeys(parts)) or None  # "Growatt SPH", not "Growatt SPH Growatt SPH"
         except Exception:  # noqa: BLE001
             self.model = None
         try:
