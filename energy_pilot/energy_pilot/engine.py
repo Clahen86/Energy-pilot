@@ -16,10 +16,13 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 import logging
 import math
+import re
 from statistics import median
 import time
 from typing import Any
 from zoneinfo import ZoneInfo
+
+import aiohttp
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -286,6 +289,7 @@ class Engine:
         self.solar_factors: dict[int, float] = {}
         self.own_prices: list[dict[str, Any]] = []
         self.service_prices: list[dict[str, Any]] = []  # from an integration's action (Nord Pool, Tibber …)
+        self.agile_forecast: dict[datetime, float] = {}  # Agile Predict (UK Octopus Agile)
         self.own_solar: dict[datetime, float] = {}
         self._prices_at = 0.0
         self.profile: dict[tuple[bool, int], float] = {}
@@ -445,6 +449,45 @@ class Engine:
             self.price_days = self.price_model.train(self.weather, self.tz)
         except Exception:  # noqa: BLE001
             _LOGGER.warning("Price model failed", exc_info=True)
+
+    def agile_region(self) -> str | None:
+        """Octopus Agile (UK): the region letter (A-P) from the tariff code on the price entities - or as set."""
+        if r := str(self.ov.settings.get("agile_region") or "").strip().upper():
+            return r if re.fullmatch(r"[A-P]", r) else None
+        from .pricefeed import companions
+
+        e = self.ov.role("price")
+        if not e:
+            return None
+        for ent in [e, *companions(self.ha.states, e)]:
+            for v in ((self.ha.states.get(ent) or {}).get("attributes") or {}).values():
+                if isinstance(v, str) and (m := re.search(r"AGILE[A-Z0-9-]*-([A-P])$", v.upper())):
+                    return m[1]
+        return None
+
+    async def refresh_agile_predict(self) -> None:
+        """Agile Predict (agilepredict.com): a forecast of Octopus Agile prices trained on the whole UK market - far
+        better than one home's history. Used for Agile until the real prices are out; asked every hour."""
+        region = self.agile_region()
+        if not region:
+            self.agile_forecast = {}
+            return
+        if time.time() - getattr(self, "_agile_at", 0.0) < 3600 or self.ha.session is None:
+            return
+        self._agile_at = time.time()
+        try:
+            async with self.ha.session.get(f"https://agilepredict.com/api/{region}", params={"days": 3},
+                                           timeout=aiohttp.ClientTimeout(total=30)) as r:
+                data = await r.json(content_type=None)
+            rows = (data[0] if isinstance(data, list) and data else {}).get("prices") or []
+            out = {}
+            for p in rows:
+                t = datetime.fromisoformat(str(p["date_time"]).replace("Z", "+00:00")).astimezone(self.tz)
+                out[t] = float(p["agile_pred"]) / 100  # pence -> pounds, like the Octopus integration
+            if out:
+                self.agile_forecast = out
+        except Exception as err:  # noqa: BLE001 - the own estimate takes over
+            _LOGGER.info("Agile Predict not reachable: %s", err)
 
     async def refresh_service_prices(self) -> None:
         """Integrations that give the coming prices only through an action (Nord Pool and Tibber built into Home

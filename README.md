@@ -82,6 +82,8 @@ The panel shows who decides right now and how well each one hits:
   always at the emergency level.
 - **Sells from the battery when it pays** (optional) – with a great export rate it sells what the house doesn't need,
   keeps enough for the dear hours, and counts the battery's wear (worked out for you), losses and your export limit.
+- **Octopus Agile: Agile Predict built in** – in the UK the coming Agile prices come from Agile Predict (trained on
+  the whole market, region found from your tariff) until the real ones are out.
 - **7 languages** – English, Danish, German, French, Dutch, Swedish and Norwegian, following Home Assistant's language.
 
 ## What you need

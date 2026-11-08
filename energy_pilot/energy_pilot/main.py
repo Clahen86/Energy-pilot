@@ -98,6 +98,7 @@ async def main() -> None:
                     learned = asyncio.get_running_loop().time()
                 await engine.refresh_sources()
                 await engine.refresh_service_prices()
+                await engine.refresh_agile_predict()
                 await engine.refresh_house_today()
                 engine.run()
                 await engine.review()
