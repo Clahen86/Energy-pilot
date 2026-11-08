@@ -110,6 +110,16 @@ PROFILES: dict[str, dict[str, Any]] = {
         "charge": [(r"switch\..*time_of_use$", "on", None), (r"switch\..*grid_charge$", "on", None)]
         + [(rf"number\..*time_point_{n}_capacity$", "number", "{target}") for n in range(1, 7)]
         + [(rf"switch\..*time_point_{n}_charge_enable$", "on", None) for n in range(1, 7)],
+        # Selling (klatremis/esphome-for-deye): "Limit control mode" = "Selling first" with "Max Solar Sell Power",
+        # every time point down to the target. The owner's own limit mode and sell power are put back after.
+        "export": [(r"switch\..*time_of_use$", "on", None), (r"switch\..*grid_charge$", "off", None)]
+        + [(rf"number\..*time_point_{n}_capacity$", "number", "{target}") for n in range(1, 7)]
+        + [(rf"switch\..*time_point_{n}_charge_enable$", "off", None) for n in range(1, 7)]
+        + [(r"switch\..*solar_sell$", "on", None),
+           (r"number\..*max_solar_sell_power$", "number", "{power_w}"),
+           (r"select\..*limit_control_mode$", "select", "Selling first")],
+        "restore": [r"select\..*limit_control_mode$", r"number\..*max_solar_sell_power$"],
+        "optional": [r"switch\..*solar_sell$"],
     },
     # Sofar hybrid (HYD, ESI …) via Solarman (sofar_g3hyd definition). Normal is "Self Use"; hold and charge use
     # "Passive", where the battery's power is kept between a minimum and a maximum (positive = charging):
@@ -220,6 +230,9 @@ PROFILES: dict[str, dict[str, Any]] = {
                  (r"number\..*min_discharge_level$", "number", "{soc}")],
         "charge": [(r"number\..*custom_load_power.*$", "number", "0"),
                    (r"number\..*max_charge_level$", "number", "{target}")],
+        # Selling: a custom load above what the house uses - the rest goes out on the grid (at most 800 W, and only
+        # where feed-in is allowed). Normal sets it back to the house.
+        "export": [(r"number\..*custom_load_power.*$", "number", "{power_w}")],
     },
     # Huawei (wlcrs/huawei_solar): "Working Mode" ("Maximise self consumption"), maximum discharging power, and the
     # forcible_charge_soc service (needs the battery's device_id); "Stop forcible charge" ends a charge.
