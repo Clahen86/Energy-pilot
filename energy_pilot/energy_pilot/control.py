@@ -225,34 +225,43 @@ class Controller:
                 self.log[part].appendleft(entry)
 
     async def _send(self, calls: list[dict[str, Any]]) -> str:
-        for c in calls:
-            try:
-                await self.ha.call_service(c["domain"], c["service"], dict(c["data"]))
-                await asyncio.sleep(1.5)  # inverters take one change at a time
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.warning("Control call %s.%s failed: %s", c["domain"], c["service"], err)
-                return f"failed: {c['domain']}.{c['service']}"
-        await asyncio.sleep(15)
-        return "ok" if self._took(calls) else "not_confirmed"
+        """Send the calls - only those whose value isn't already set (some links, like Solarman, drop writes now
+        and then, so fewer writes is safer). A value that didn't stick is sent once more."""
+        todo = [c for c in calls if not self._matches(c)]
+        for attempt in range(2):
+            for c in todo:
+                try:
+                    await self.ha.call_service(c["domain"], c["service"], dict(c["data"]))
+                    await asyncio.sleep(1.5)  # inverters take one change at a time
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.warning("Control call %s.%s failed: %s", c["domain"], c["service"], err)
+                    if attempt:
+                        return f"failed: {c['domain']}.{c['service']}"
+            if not todo:
+                return "ok"
+            await asyncio.sleep(15)
+            todo = [c for c in calls if self._matches(c) is False]
+            if not todo:
+                return "ok"
+            if not attempt:
+                _LOGGER.info("Not taken, sending again: %s", ", ".join(c["data"].get("entity_id", "") for c in todo))
+        return "not_confirmed"
+
+    def _matches(self, c: dict[str, Any]) -> bool | None:
+        """Has this control the wanted value already? None: it can't be read back (a switch, a service)."""
+        data = c["data"]
+        e, want = data.get("entity_id"), data.get("option", data.get("value"))
+        if not isinstance(e, str) or want is None or e not in self.ha.states:
+            return None
+        state = self.ha.states[e].get("state")
+        try:
+            return abs(float(state) - float(want)) <= 0.6
+        except (TypeError, ValueError):
+            return str(state) == str(want)
 
     def _took(self, calls: list[dict[str, Any]]) -> bool:
         """Did the controls take the values? (Selects and numbers that can be read back.)"""
-        for c in calls:
-            data = c["data"]
-            e = data.get("entity_id")
-            if not e or e not in self.ha.states:
-                continue
-            state = self.ha.states[e].get("state")
-            want = data.get("option", data.get("value"))
-            if want is None:
-                continue
-            try:
-                if abs(float(state) - float(want)) > 0.6:
-                    return False
-            except (TypeError, ValueError):
-                if str(state) != str(want):
-                    return False
-        return True
+        return all(self._matches(c) is not False for c in calls)
 
     async def release(self) -> None:
         """Back to shadow: the battery is put back to normal first, the charger is left as it is."""
