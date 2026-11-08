@@ -51,6 +51,41 @@ DECISIONS = {
         "FREE_HOLD": ("Saving the power for later", "hold"), "HOLD": ("Saving the power for later", "hold"),
         "NOOP": ("Everything runs as planned", "hold"),
     },
+    "de": {
+        "FREE_DISCHARGE": ("Die Batterie versorgt das Haus", "discharge"), "DISCHARGE": ("Die Batterie versorgt das Haus", "discharge"),
+        "FREE_CHARGE": ("Die Batterie lädt", "charge"), "CHARGE": ("Die Batterie lädt", "charge"),
+        "GRID_CHARGE": ("Lädt die Batterie mit günstigem Strom", "grid"), "FREE_GRID_CHARGE": ("Lädt die Batterie mit günstigem Strom", "grid"),
+        "FREE_HOLD": ("Hebt den Strom für später auf", "hold"), "HOLD": ("Hebt den Strom für später auf", "hold"),
+        "NOOP": ("Alles läuft nach Plan", "hold"),
+    },
+    "fr": {
+        "FREE_DISCHARGE": ("La batterie alimente la maison", "discharge"), "DISCHARGE": ("La batterie alimente la maison", "discharge"),
+        "FREE_CHARGE": ("La batterie charge", "charge"), "CHARGE": ("La batterie charge", "charge"),
+        "GRID_CHARGE": ("Charge la batterie avec de l'électricité bon marché", "grid"), "FREE_GRID_CHARGE": ("Charge la batterie avec de l'électricité bon marché", "grid"),
+        "FREE_HOLD": ("Garde l'énergie pour plus tard", "hold"), "HOLD": ("Garde l'énergie pour plus tard", "hold"),
+        "NOOP": ("Tout se déroule comme prévu", "hold"),
+    },
+    "nl": {
+        "FREE_DISCHARGE": ("De batterij voedt het huis", "discharge"), "DISCHARGE": ("De batterij voedt het huis", "discharge"),
+        "FREE_CHARGE": ("De batterij laadt", "charge"), "CHARGE": ("De batterij laadt", "charge"),
+        "GRID_CHARGE": ("Laadt de batterij met goedkope stroom", "grid"), "FREE_GRID_CHARGE": ("Laadt de batterij met goedkope stroom", "grid"),
+        "FREE_HOLD": ("Bewaart de stroom voor later", "hold"), "HOLD": ("Bewaart de stroom voor later", "hold"),
+        "NOOP": ("Alles loopt volgens plan", "hold"),
+    },
+    "sv": {
+        "FREE_DISCHARGE": ("Batteriet försörjer huset", "discharge"), "DISCHARGE": ("Batteriet försörjer huset", "discharge"),
+        "FREE_CHARGE": ("Batteriet laddar", "charge"), "CHARGE": ("Batteriet laddar", "charge"),
+        "GRID_CHARGE": ("Laddar batteriet med billig ström", "grid"), "FREE_GRID_CHARGE": ("Laddar batteriet med billig ström", "grid"),
+        "FREE_HOLD": ("Sparar strömmen till senare", "hold"), "HOLD": ("Sparar strömmen till senare", "hold"),
+        "NOOP": ("Allt går som planerat", "hold"),
+    },
+    "nb": {
+        "FREE_DISCHARGE": ("Batteriet forsyner huset", "discharge"), "DISCHARGE": ("Batteriet forsyner huset", "discharge"),
+        "FREE_CHARGE": ("Batteriet lader", "charge"), "CHARGE": ("Batteriet lader", "charge"),
+        "GRID_CHARGE": ("Lader batteriet med billig strøm", "grid"), "FREE_GRID_CHARGE": ("Lader batteriet med billig strøm", "grid"),
+        "FREE_HOLD": ("Sparer strømmen til senere", "hold"), "HOLD": ("Sparer strømmen til senere", "hold"),
+        "NOOP": ("Alt går som planlagt", "hold"),
+    },
 }
 
 

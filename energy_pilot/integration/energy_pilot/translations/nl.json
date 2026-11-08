@@ -1,0 +1,98 @@
+{
+  "config": {
+    "step": {
+      "confirm": {
+        "title": "Energipilot",
+        "description": "De knoppen en sensoren van Energy Pilot aan Home Assistant toevoegen?"
+      },
+      "user": {
+        "title": "Energipilot",
+        "description": "Het adres van de Energy Pilot-app (Docker).",
+        "data": {
+          "url": "Adres"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Energy Pilot antwoordt niet op dat adres."
+    },
+    "abort": {
+      "already_configured": "Energy Pilot is al toegevoegd."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "decision": {
+        "name": "Beslissing",
+        "state": {
+          "discharge": "Batterij voedt het huis",
+          "charge": "Batterij laadt",
+          "grid": "Laadt met goedkope stroom",
+          "hold": "Bewaart de stroom"
+        }
+      },
+      "price_now": {
+        "name": "Prijs nu"
+      },
+      "battery_target": {
+        "name": "Batterijdoel"
+      },
+      "plan_saving": {
+        "name": "Plan bespaart"
+      },
+      "saved_yesterday": {
+        "name": "Gisteren bespaard"
+      },
+      "saved_today": {
+        "name": "Vandaag bespaard"
+      },
+      "saved_month": {
+        "name": "Deze maand bespaard"
+      },
+      "saved_year": {
+        "name": "Dit jaar bespaard"
+      },
+      "saved_total": {
+        "name": "Totaal bespaard"
+      },
+      "battery_cost": {
+        "name": "Kostprijs batterijstroom"
+      }
+    },
+    "switch": {
+      "charge_now": {
+        "name": "Nu laden"
+      }
+    },
+    "time": {
+      "ready_at": {
+        "name": "Klaar om"
+      }
+    },
+    "number": {
+      "at_most": {
+        "name": "Maximaal"
+      },
+      "battery_min": {
+        "name": "Batterijminimum"
+      }
+    },
+    "select": {
+      "style": {
+        "name": "Stijl",
+        "state": {
+          "cheapest": "Goedkoopst",
+          "solar": "Meeste zon",
+          "safe": "Veiligheid",
+          "car_first": "Auto eerst",
+          "battery_first": "Batterij eerst"
+        }
+      }
+    },
+    "button": {
+      "all_shadow": {
+        "name": "Alles terug in de schaduw"
+      }
+    }
+  }
+}

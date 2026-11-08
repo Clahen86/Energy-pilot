@@ -16,7 +16,9 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
     app = web.Application()
 
     def lang(req: web.Request) -> str:
-        return "da" if req.query.get("lang", overview.settings.get("language") or "da").startswith("da") else "en"
+        code = str(req.query.get("lang", overview.settings.get("language") or "da"))[:2].lower()
+        code = "nb" if code in ("no", "nn") else code
+        return code if code in ("da", "en", "de", "fr", "nl", "sv", "nb") else "en"
 
     async def get_overview(req: web.Request) -> web.Response:
         data = overview.snapshot(lang(req))
@@ -52,7 +54,7 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
             data["engine"] = {"saving": b.get("saving"), "now": b.get("now"), "capacity": b.get("capacity"),
                               "agree": round(100 * a["same"] / a["checks"]) if a["checks"] else None, "checks": a["checks"],
                               "profile": bool(eng.profile), "car": eng.result.get("car"), "sources": eng.sources_used(), "learning": eng.learning.summary(), "blend": eng.blend_info(),
-                              "decision": overview.engine_decision("da" if lang(req) == "da" else "en")}
+                              "decision": overview.engine_decision(lang(req))}
         return web.json_response(data)
 
     async def get_settings(_req: web.Request) -> web.Response:

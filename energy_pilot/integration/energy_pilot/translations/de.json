@@ -1,0 +1,98 @@
+{
+  "config": {
+    "step": {
+      "confirm": {
+        "title": "Energipilot",
+        "description": "Energy Pilots Schalter und Sensoren zu Home Assistant hinzufügen?"
+      },
+      "user": {
+        "title": "Energipilot",
+        "description": "Die Adresse der Energy-Pilot-App (Docker).",
+        "data": {
+          "url": "Adresse"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Energy Pilot antwortet unter dieser Adresse nicht."
+    },
+    "abort": {
+      "already_configured": "Energy Pilot ist bereits hinzugefügt."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "decision": {
+        "name": "Entscheidung",
+        "state": {
+          "discharge": "Batterie versorgt das Haus",
+          "charge": "Batterie lädt",
+          "grid": "Lädt mit günstigem Strom",
+          "hold": "Hebt den Strom auf"
+        }
+      },
+      "price_now": {
+        "name": "Preis jetzt"
+      },
+      "battery_target": {
+        "name": "Batterieziel"
+      },
+      "plan_saving": {
+        "name": "Plan spart"
+      },
+      "saved_yesterday": {
+        "name": "Gestern gespart"
+      },
+      "saved_today": {
+        "name": "Heute gespart"
+      },
+      "saved_month": {
+        "name": "Diesen Monat gespart"
+      },
+      "saved_year": {
+        "name": "Dieses Jahr gespart"
+      },
+      "saved_total": {
+        "name": "Insgesamt gespart"
+      },
+      "battery_cost": {
+        "name": "Kosten des Batteriestroms"
+      }
+    },
+    "switch": {
+      "charge_now": {
+        "name": "Jetzt laden"
+      }
+    },
+    "time": {
+      "ready_at": {
+        "name": "Fertig um"
+      }
+    },
+    "number": {
+      "at_most": {
+        "name": "Höchstens"
+      },
+      "battery_min": {
+        "name": "Batterie-Minimum"
+      }
+    },
+    "select": {
+      "style": {
+        "name": "Stil",
+        "state": {
+          "cheapest": "Am günstigsten",
+          "solar": "Am meisten Sonne",
+          "safe": "Sicherheit",
+          "car_first": "Auto zuerst",
+          "battery_first": "Batterie zuerst"
+        }
+      }
+    },
+    "button": {
+      "all_shadow": {
+        "name": "Alles zurück in den Schatten"
+      }
+    }
+  }
+}

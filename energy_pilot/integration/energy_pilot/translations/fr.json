@@ -1,0 +1,98 @@
+{
+  "config": {
+    "step": {
+      "confirm": {
+        "title": "Energipilot",
+        "description": "Ajouter les boutons et capteurs d'Energy Pilot à Home Assistant ?"
+      },
+      "user": {
+        "title": "Energipilot",
+        "description": "L'adresse de l'app Energy Pilot (Docker).",
+        "data": {
+          "url": "Adresse"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Energy Pilot ne répond pas à cette adresse."
+    },
+    "abort": {
+      "already_configured": "Energy Pilot est déjà ajouté."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "decision": {
+        "name": "Décision",
+        "state": {
+          "discharge": "La batterie alimente la maison",
+          "charge": "La batterie charge",
+          "grid": "Charge avec de l'électricité bon marché",
+          "hold": "Garde l'énergie"
+        }
+      },
+      "price_now": {
+        "name": "Prix actuel"
+      },
+      "battery_target": {
+        "name": "Objectif batterie"
+      },
+      "plan_saving": {
+        "name": "Le plan économise"
+      },
+      "saved_yesterday": {
+        "name": "Économisé hier"
+      },
+      "saved_today": {
+        "name": "Économisé aujourd'hui"
+      },
+      "saved_month": {
+        "name": "Économisé ce mois-ci"
+      },
+      "saved_year": {
+        "name": "Économisé cette année"
+      },
+      "saved_total": {
+        "name": "Économisé au total"
+      },
+      "battery_cost": {
+        "name": "Coût de l'énergie de la batterie"
+      }
+    },
+    "switch": {
+      "charge_now": {
+        "name": "Charger maintenant"
+      }
+    },
+    "time": {
+      "ready_at": {
+        "name": "Prête à"
+      }
+    },
+    "number": {
+      "at_most": {
+        "name": "Au maximum"
+      },
+      "battery_min": {
+        "name": "Minimum de la batterie"
+      }
+    },
+    "select": {
+      "style": {
+        "name": "Style",
+        "state": {
+          "cheapest": "Le moins cher",
+          "solar": "Le plus de soleil",
+          "safe": "Sécurité",
+          "car_first": "Voiture d'abord",
+          "battery_first": "Batterie d'abord"
+        }
+      }
+    },
+    "button": {
+      "all_shadow": {
+        "name": "Tout remettre en ombre"
+      }
+    }
+  }
+}

@@ -1,0 +1,98 @@
+{
+  "config": {
+    "step": {
+      "confirm": {
+        "title": "Energipilot",
+        "description": "Lägga till Energy Pilots knappar och sensorer i Home Assistant?"
+      },
+      "user": {
+        "title": "Energipilot",
+        "description": "Adressen till Energy Pilot-appen (Docker).",
+        "data": {
+          "url": "Adress"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Energy Pilot svarar inte på den adressen."
+    },
+    "abort": {
+      "already_configured": "Energy Pilot är redan tillagd."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "decision": {
+        "name": "Beslut",
+        "state": {
+          "discharge": "Batteriet försörjer huset",
+          "charge": "Batteriet laddar",
+          "grid": "Laddar med billig ström",
+          "hold": "Sparar strömmen"
+        }
+      },
+      "price_now": {
+        "name": "Pris nu"
+      },
+      "battery_target": {
+        "name": "Batterimål"
+      },
+      "plan_saving": {
+        "name": "Planen sparar"
+      },
+      "saved_yesterday": {
+        "name": "Sparat igår"
+      },
+      "saved_today": {
+        "name": "Sparat idag"
+      },
+      "saved_month": {
+        "name": "Sparat denna månad"
+      },
+      "saved_year": {
+        "name": "Sparat i år"
+      },
+      "saved_total": {
+        "name": "Sparat totalt"
+      },
+      "battery_cost": {
+        "name": "Batteriströmmens kostnad"
+      }
+    },
+    "switch": {
+      "charge_now": {
+        "name": "Ladda nu"
+      }
+    },
+    "time": {
+      "ready_at": {
+        "name": "Klar kl."
+      }
+    },
+    "number": {
+      "at_most": {
+        "name": "Högst"
+      },
+      "battery_min": {
+        "name": "Batteriminimum"
+      }
+    },
+    "select": {
+      "style": {
+        "name": "Stil",
+        "state": {
+          "cheapest": "Billigast",
+          "solar": "Mest sol",
+          "safe": "Trygghet",
+          "car_first": "Bilen först",
+          "battery_first": "Batteriet först"
+        }
+      }
+    },
+    "button": {
+      "all_shadow": {
+        "name": "Allt tillbaka till skugga"
+      }
+    }
+  }
+}

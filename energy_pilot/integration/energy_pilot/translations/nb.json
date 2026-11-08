@@ -1,0 +1,98 @@
+{
+  "config": {
+    "step": {
+      "confirm": {
+        "title": "Energipilot",
+        "description": "Legge til Energipilotens knapper og sensorer i Home Assistant?"
+      },
+      "user": {
+        "title": "Energipilot",
+        "description": "Adressen til Energipilot-appen (Docker).",
+        "data": {
+          "url": "Adresse"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Energipilot svarer ikke på den adressen."
+    },
+    "abort": {
+      "already_configured": "Energipilot er allerede lagt til."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "decision": {
+        "name": "Beslutning",
+        "state": {
+          "discharge": "Batteriet forsyner huset",
+          "charge": "Batteriet lader",
+          "grid": "Lader med billig strøm",
+          "hold": "Sparer strømmen"
+        }
+      },
+      "price_now": {
+        "name": "Pris nå"
+      },
+      "battery_target": {
+        "name": "Batterimål"
+      },
+      "plan_saving": {
+        "name": "Planen sparer"
+      },
+      "saved_yesterday": {
+        "name": "Spart i går"
+      },
+      "saved_today": {
+        "name": "Spart i dag"
+      },
+      "saved_month": {
+        "name": "Spart denne måneden"
+      },
+      "saved_year": {
+        "name": "Spart i år"
+      },
+      "saved_total": {
+        "name": "Spart totalt"
+      },
+      "battery_cost": {
+        "name": "Batteriets kostpris"
+      }
+    },
+    "switch": {
+      "charge_now": {
+        "name": "Lad nå"
+      }
+    },
+    "time": {
+      "ready_at": {
+        "name": "Klar kl."
+      }
+    },
+    "number": {
+      "at_most": {
+        "name": "Høyst"
+      },
+      "battery_min": {
+        "name": "Batteriminimum"
+      }
+    },
+    "select": {
+      "style": {
+        "name": "Stil",
+        "state": {
+          "cheapest": "Billigst mulig",
+          "solar": "Mest sol",
+          "safe": "Trygghet",
+          "car_first": "Bilen først",
+          "battery_first": "Batteriet først"
+        }
+      }
+    },
+    "button": {
+      "all_shadow": {
+        "name": "Alt tilbake i skygge"
+      }
+    }
+  }
+}
