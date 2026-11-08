@@ -146,7 +146,8 @@ class Overview:
                          "quiet_gen_from", "quiet_gen_to", "battery_charge_kw", "battery_discharge_kw", "ev_mode", "charger_kw", "ev_need_kwh",
                          "quiet_from", "quiet_to", "quiet_battery", "quiet_car",
                          "quiet_battery_from", "quiet_battery_to", "quiet_car_from", "quiet_car_to",
-                         "control", "inverter_profile", "custom_profile", "battery_takeover", "ev_now", "charger_phases", "ev_ready"):
+                         "control", "inverter_profile", "custom_profile", "battery_takeover", "ev_now", "charger_phases", "ev_ready",
+                         "batteries", "battery_dismissed"):
                 self.settings[key] = value
         self.file.write_text(json.dumps(self.settings, indent=2))
 
@@ -257,6 +258,11 @@ class Overview:
 
     # ---------- now ----------
 
+    def main_battery_kwh(self) -> float:
+        """Battery 1's size when there are more: what's set, else a capacity sensor, else 10 kWh."""
+        guess = self.engine._guess_capacity() if self.engine else None
+        return float(self.settings.get("battery_kwh") or guess or 10)
+
     def flow(self) -> dict[str, Any]:
         r, st = self.roles(), self.ha.states
         arrays = [w for e in self.role_all("pv_power") if (w := _watts(st.get(e))) is not None]
@@ -266,6 +272,15 @@ class Overview:
         if batt is not None:
             batt *= self.battery_sign()  # some integrations (Fox ESS Modbus …) count discharging as positive
         soc = _num(st.get(r["battery_soc"])) if r["battery_soc"] else None
+        packs = None
+        from . import batteries
+
+        if more := batteries.extras(self.settings):
+            # More than one battery: the plan sees one - the level weighted by size, the powers added up.
+            main = {"name": "", "soc": soc, "power": batt, "kwh": self.main_battery_kwh()}
+            others = [batteries.read(st, b) for b in more]
+            soc, batt = batteries.combine(main, others)
+            packs = [main] + others
         grid = _watts(st.get(r["grid_power"])) if r["grid_power"] else None
         ev = _watts(st.get(r["ev_power"])) if r["ev_power"] else None
         plug = (st.get(r["ev_plug"]) or {}).get("state") == "on" if r["ev_plug"] else None
@@ -277,7 +292,7 @@ class Overview:
         if house is None and None not in (pv, grid):
             house = max(0.0, (pv or 0) + (grid or 0) - (batt or 0) - (ev or 0))  # what's left is the house
         return {
-            "pv": pv, "house": house, "battery": batt, "soc": soc, "grid": grid, "ev": ev, "plug": plug,
+            "pv": pv, "house": house, "battery": batt, "soc": soc, "grid": grid, "ev": ev, "plug": plug, "batteries": packs,
             "has": {"pv": pv is not None, "battery": soc is not None or batt is not None, "grid": grid is not None,
                     "ev": r["ev_power"] is not None or r["ev_plug"] is not None},
         }

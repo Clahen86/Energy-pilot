@@ -120,6 +120,8 @@
   details.adv { margin-top:6px; border-top:1px solid var(--line2); padding-top:8px; } details.adv > summary { cursor:pointer; color:var(--faint); font-size:13px; font-weight:600; padding:4px 0; }
   .chkrow { padding:8px 0; border-top:1px solid var(--line2); } .chkrow:first-of-type { border-top:0; } .chkrow p { margin:0 0 4px; font-size:13.5px; }
   .chkrow.warn p { color:var(--warn); } .chkbtns { display:flex; gap:14px; }
+  .bathead { margin:14px 0 2px; font-size:13px; color:var(--faint); text-transform:uppercase; letter-spacing:.06em; }
+  .batbox { border-top:1px solid var(--line2); margin-top:12px; padding-top:4px; }
   .ghostbtn { width:100%; margin-top:16px; padding:12px; border-radius:14px; border:1px solid var(--line2); background:transparent; color:var(--text); font:inherit; font-weight:600; cursor:pointer; }
   .hero { text-align:center; padding:26px 10px 6px; }
   .hero h2 { font-size:26px; letter-spacing:-.03em; margin:16px 0 8px; font-weight:700; }
@@ -244,7 +246,7 @@ const T_ALL = {
       batNormal: "Normal drift (batteriet dækker huset, ned til {m} %)", batHold: "Holde på strømmen (ikke under {s} %)", batCharge: "Lade fra nettet til {t} % ({p} kW)", batExport: "Sælge fra batteriet ({p} kW)",
       carCharge: "Lade bilen ({a} A)", carStop: "Ikke lade bilen nu", genRun: "Køre generatoren", genOff: "Lade generatoren hvile",
       blocked: { other_system: "Dit eget system styrer – motoren sender intet", no_profile: "Vælg inverter-styring under Indstillinger → Husbatteri", no_charger: "Fandt ingen lader-kontroller", offgrid: "Off-grid: inverteren styrer batteriet", no_generator: "Vælg generatorens kontakt under Indstillinger → Off-grid",
-        missing_controls: "Der mangler kontroller - motoren styrer ikke, før de findes" },
+        missing_controls: "Der mangler kontroller - motoren styrer ikke, før de findes", multi_battery: "Flere batterier: kun skygge indtil videre – styringen kommer, når den er testet" },
       checkOk: "Test: alle kontroller fundet", checkMissing: "Test: {n} kontroller mangler", model: "Model", optional: "valgfri",
       untested: "Denne profil er lavet ud fra mærkets kendte kontroller, men ikke prøvet på et rigtigt anlæg - lad den køre i skygge først.",
       missingHint: "Vælg en anden profil under Indstillinger → Husbatteri, eller \"Selv valgt\" og peg på kontrollerne selv.",
@@ -273,7 +275,10 @@ const T_ALL = {
     priceEstimated: "Morgendagens priser er skønnet, indtil de rigtige kommer (ca. kl. 13).",
     priceMissing: "Morgendagens priser er ikke kommet endnu - planen stopper ved midnat.", priceFilled: "Morgendagens priser er skønnet ud fra spotprisen, indtil din pris-integration har dem.",
     legSoc: "Batteri-niveau (plan)", legCar: "Bilen lader", legExport: "Batteriet sælger", saves: "Planen sparer cirka {x} de næste timer.", otherSays: "AppDaemon: {x}",
-    chk: { title: "Tjek af indstillinger", fix: "Ret det", show: "Vis mig", adv: "Avanceret", diag: "Hent diagnosefil", diagH: "Send filen, hvis noget ser forkert ud – den indeholder ingen adgangskoder.",
+    bat: { n: "Batteri {n}", add: "+ Tilføj batteri", name: "Navn", soc: "Batteriniveau", power: "Batterieffekt", remove: "Fjern batteriet",
+      hint: "Planen ser alle batterierne som ét – størrelser og effekter lægges sammen.", each: "Hvert batteri", pick: "Vælg sensor…" },
+    chk: { title: "Tjek af indstillinger", fix: "Ret det", show: "Vis mig", no: "Nej tak",
+      battery_found: "Fandt et batteri mere: {name}. Skal det med i planen?", adv: "Avanceret", diag: "Hent diagnosefil", diagH: "Send filen, hvis noget ser forkert ud – den indeholder ingen adgangskoder.",
       fuse_blocks: "Importgrænsen på {limit} kW forhindrer batteriet i at lade i de billige timer – det koster ca. {x} i planen. Er den rigtig? Brug det, hovedsikringen tillader, eller fjern grænsen.",
       fuse_low: "Huset har købt {peak} kW fra nettet, mere end importgrænsen på {limit} kW. Er grænsen for lav?",
       capacity: "Batteriet har målt {learned} kWh brugbart, men der står {set} kWh. Brug det målte?",
@@ -341,7 +346,7 @@ const T_ALL = {
       batNormal: "Run normally (battery covers the house, down to {m} %)", batHold: "Keep the power (not below {s} %)", batCharge: "Charge from the grid to {t} % ({p} kW)", batExport: "Sell from the battery ({p} kW)",
       carCharge: "Charge the car ({a} A)", carStop: "Not charge the car now", genRun: "Run the generator", genOff: "Let the generator rest",
       blocked: { other_system: "Your own system controls it – the engine sends nothing", no_profile: "Pick inverter control under Settings → House battery", no_charger: "No charger controls found", offgrid: "Off-grid: the inverter runs the battery", no_generator: "Pick the generator's switch under Settings → Off-grid",
-        missing_controls: "Controls are missing - the engine won't control until they're found" },
+        missing_controls: "Controls are missing - the engine won't control until they're found", multi_battery: "More than one battery: shadow only for now – control comes once it's tested" },
       checkOk: "Test: every control found", checkMissing: "Test: {n} controls missing", model: "Model", optional: "optional",
       untested: "This profile is built from the brand's known controls but not yet tried on a real system - run it in shadow first.",
       missingHint: "Pick another profile under Settings → House battery, or \"Chosen by you\" and point to the controls yourself.",
@@ -370,7 +375,10 @@ const T_ALL = {
     priceEstimated: "Tomorrow's prices are estimated until the real ones are out (around 13:00).",
     priceMissing: "Tomorrow's prices aren't out yet - the plan ends at midnight.", priceFilled: "Tomorrow's prices are estimated from the spot price until your price integration has them.",
     legSoc: "Battery level (plan)", legCar: "Car charges", legExport: "Battery sells", saves: "The plan saves about {x} over the coming hours.", otherSays: "AppDaemon: {x}",
-    chk: { title: "Settings check", fix: "Fix it", show: "Show me", adv: "Advanced", diag: "Download diagnostics", diagH: "Send the file if something looks wrong – it holds no passwords.",
+    bat: { n: "Battery {n}", add: "+ Add a battery", name: "Name", soc: "Battery level", power: "Battery power", remove: "Remove this battery",
+      hint: "The plan sees all the batteries as one – sizes and powers are added up.", each: "Each battery", pick: "Pick a sensor…" },
+    chk: { title: "Settings check", fix: "Fix it", show: "Show me", no: "No thanks",
+      battery_found: "Found another battery: {name}. Add it to the plan?", adv: "Advanced", diag: "Download diagnostics", diagH: "Send the file if something looks wrong – it holds no passwords.",
       fuse_blocks: "The import limit of {limit} kW stops the battery charging in the cheap hours – it costs about {x} in the plan. Is it right? Use what your main fuse allows, or remove the limit.",
       fuse_low: "The house has bought {peak} kW from the grid, more than the import limit of {limit} kW. Is the limit too low?",
       capacity: "The battery has measured {learned} kWh usable, but it says {set} kWh. Use the measured?",
@@ -513,11 +521,12 @@ const DECICON = { discharge: "arrowDown", charge: "arrowUp", grid: "bolt", hold:
 function checksCard() {
   const list = data?.engine?.selfcheck || [], c = T.chk;
   if (!list.length) return "";
-  const val = (k, v) => k === "x" || k === "sell" || k === "worth" ? kr(v) : k === "seen" ? (v ? c.evYes : c.evNo) : num(v, 1);
+  const val = (k, v) => typeof v === "string" ? v : k === "x" || k === "sell" || k === "worth" ? kr(v) : k === "seen" ? (v ? c.evYes : c.evNo) : num(v, 1);
   const text = (x) => Object.entries(x.vals || {}).reduce((t, [k, v]) => t.replaceAll(`{${k}}`, val(k, v)), c[x.key] || x.key);
   return `<div class="card fade chkcard"><div class="eyebrow"><span>${c.title}</span></div>${list.map((x) => `<div class="chkrow ${x.level}">
     <p>${esc(text(x))}</p><div class="chkbtns">${x.fix ? `<button class="link" data-fix='${esc(JSON.stringify(x.fix))}'>${c.fix}</button>` : ""}
-    ${x.goto ? `<button class="link" data-goto="${x.goto}">${c.show}</button>` : ""}</div></div>`).join("")}</div>`;
+    ${x.dismiss ? `<button class="link" data-fix='${esc(JSON.stringify(x.dismiss))}'>${c.no}</button>` : ""}
+    ${x.goto && !x.dismiss ? `<button class="link" data-goto="${x.goto}">${c.show}</button>` : ""}</div></div>`).join("")}</div>`;
 }
 function home() {
   const d = data, f = d.flow, dec = d.decision;
@@ -527,7 +536,8 @@ function home() {
   const metrics = [
     d.price.now != null ? metric("bolt", T.priceNow, num(d.price.now, 2), `${SYM()}/kWh`, lv ? `<span class="lvl ${lv}">${T[lv]}</span> ${T.xToday}` : "", "t-price") : "",
     d.solar.solar_today != null ? metric("sun", T.sunToday, num(d.solar.solar_today, 1), "kWh", d.solar.solar_tomorrow != null ? `${T.xTomorrow} ${num(d.solar.solar_tomorrow, 1)} kWh` : "") : "",
-    f.soc != null ? metric("battery", T.battery, num(f.soc, 0), "%", dec?.target != null ? `${T.target} ${num(dec.target, 0)} %` : "", "t-soc", `<div class="bar"><span id="t-socbar" style="width:${f.soc}%"></span></div>`) : "",
+    f.soc != null ? metric("battery", T.battery, num(f.soc, 0), "%", (dec?.target != null ? `${T.target} ${num(dec.target, 0)} %` : "") +
+      (f.batteries ? `<br>${f.batteries.map((x, i) => `${esc(x.name || T.bat.n.replace("{n}", i + 1))}: ${x.soc != null ? num(x.soc, 0) + " %" : "–"}`).join(" · ")}` : ""), "t-soc", `<div class="bar"><span id="t-socbar" style="width:${f.soc}%"></span></div>`) : "",
     d.house_today != null ? metric("house", T.houseToday, num(d.house_today, 1), "kWh",
       d.house_other != null ? `${d.house_other_appdaemon ? (T.xYourAD) : (T.xOtherForecast)}: ${num(d.house_other, 1)}` : (T.xExpected)) : "",
   ].join("");
@@ -765,6 +775,21 @@ function capHint(v) {
   if (l) return y.sizeLearned.replace("{x}", num(l, 1));
   return settings.capacity_guess ? y.sizeH.replace("{x}", num(settings.capacity_guess, 1)) : y.sizeLearning;
 }
+function batteryList(v, row, numIn) {
+  const b = T.bat, list = v.batteries || [];
+  const pick = (i, key, role) => `<select data-bat="${i}:${key}"><option value="">${b.pick}</option>${(settings.candidates[role] || []).map((c) =>
+    `<option value="${esc(c.entity_id)}" ${list[i][key] === c.entity_id ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select>`;
+  const field = (i, key, ph, unit) => `<span class="unitin"><input class="numin" type="number" inputmode="decimal" step="0.1" data-batn="${i}:${key}" value="${list[i][key] ?? ""}" placeholder="${ph}"><i>${unit}</i></span>`;
+  return `${list.map((x, i) => `<div class="batbox"><h4 class="bathead">${b.n.replace("{n}", i + 2)}${x.name ? ` · ${esc(x.name)}` : ""}</h4>
+      ${row(b.name, "", `<input class="pname" data-batt="${i}:name" value="${esc(x.name || "")}">`)}
+      ${row(b.soc, "", pick(i, "soc", "battery_soc"))}
+      ${row(b.power, "", pick(i, "power", "battery_power"))}
+      ${row(T.y.size, "", field(i, "kwh", 10, "kWh"))}
+      ${row(T.y.power, T.y.powerH, field(i, "charge_kw", 3, "kW"))}
+      ${row(T.y.powerOut, T.y.powerOutH, field(i, "discharge_kw", x.charge_kw ?? 3, "kW"))}
+      <button class="link" data-batdel="${i}">${b.remove}</button></div>`).join("")}
+    <button class="ghostbtn" data-batadd>${b.add}</button>`;
+}
 const STYLES = [["cheapest", "bolt"], ["solar", "sun"], ["safe", "battery"], ["car_first", "car"], ["battery_first", "layers"]];
 function styleView() {
   const v = settings.settings, style = v.style || "cheapest", y = T.y;
@@ -785,11 +810,12 @@ function styleView() {
   return `<div class="card fade"><div class="eyebrow"><span>${y.style}</span></div>
       <div class="styles">${STYLES.filter(([k]) => hasCar || !k.startsWith("car") && k !== "battery_first").map(([k, ic]) => `<button class="style ${style === k ? "on" : ""}" data-style="${k}">
         ${icon(ic)}<b>${y.styles[k][0]}</b><span>${y.styles[k][1]}</span></button>`).join("")}</div></div>
-    ${section("battery", y.secBattery, y.secBatteryH, hasBatt ? `${row(y.minSoc, y.minSocH, `<div class="range"><input type="range" min="5" max="60" step="5" value="${v.battery_min_soc ?? 10}" data-range="battery_min_soc"><b id="r-battery_min_soc">${v.battery_min_soc ?? 10} %</b></div>`)}
+    ${section("battery", y.secBattery, y.secBatteryH, hasBatt ? `${(v.batteries || []).length ? `<div class="muted" style="margin:2px 0 6px">${T.bat.hint}</div>` : ""}${row(y.minSoc, y.minSocH, `<div class="range"><input type="range" min="5" max="60" step="5" value="${v.battery_min_soc ?? 10}" data-range="battery_min_soc"><b id="r-battery_min_soc">${v.battery_min_soc ?? 10} %</b></div>`)}
       ${row(y.grid, y.gridH, tog("grid_charge", true))}
       ${row(y.export, y.exportH, tog("battery_export"))}
       ${v.battery_export ? row(y.exportLimit, y.exportLimitH, numIn("export_limit_kw", "", "0.1", "kW")) : ""}
-      ${row(y.size, capHint(v), `<span class="capbox">${numIn("battery_kwh", settings.capacity_learned ?? settings.capacity_guess ?? 10, "0.1", "kWh")}${
+      ${(v.batteries || []).length ? `<h4 class="bathead">${T.bat.n.replace("{n}", 1)}</h4>` : ""}
+      ${row(y.size, (v.batteries || []).length ? "" : capHint(v), `<span class="capbox">${numIn("battery_kwh", settings.capacity_learned ?? settings.capacity_guess ?? 10, "0.1", "kWh")}${
         settings.capacity_learned && v.battery_kwh && Math.abs(v.battery_kwh - settings.capacity_learned) / settings.capacity_learned > 0.05
           ? `<button class="link" data-uselearned="${settings.capacity_learned}">${y.useLearned}</button>` : ""}</span>`)}
       ${row(y.power, y.powerH, numIn("battery_charge_kw", 3, "0.1", "kW"))}
@@ -801,7 +827,8 @@ function styleView() {
       ${control?.profile ? row(T.ctl.profile, foundLine(), `<select data-iprof><option value="">${T.auto}${control.profile.key && control.profile.key !== "custom" && !v.inverter_profile ? ": " + esc(control.profile.choices[control.profile.key] || "") : ""}</option>
         ${Object.entries(control.profile.choices).map(([k, n]) => `<option value="${k}" ${v.inverter_profile === k ? "selected" : ""}>${(control.profile.tested_keys || []).includes(k) ? "✅" : "🧪"} ${esc(n)}</option>`).join("")}
         <option value="custom" ${v.inverter_profile === "custom" ? "selected" : ""}>${T.ctl.custom}</option></select>`) : ""}
-      ${v.inverter_profile === "custom" ? customEditor(v) : ""}` : "")}
+      ${v.inverter_profile === "custom" ? customEditor(v) : ""}
+      ${batteryList(v, row, numIn)}` : "")}
     ${section("car", y.secCar, y.secCarH, hasCar ? `${row(y.carMode, "", `<div class="seg mini">${["cheapest", "solar"].map((m) => `<button class="${(v.ev_mode || "cheapest") === m ? "on" : ""}" data-evmode="${m}">${y.carModes[m]}</button>`).join("")}</div>`)}
       ${row(y.charger, y.chargerH, numIn("charger_kw", 7.4, "0.1", "kW"))}
       ${adv("car", `${settings.roles.pv_power ? row(y.followSun, y.followSunH, tog("ev_follow_sun", true)) : ""}
@@ -974,6 +1001,15 @@ function wire() {
   document.querySelectorAll("[data-range]").forEach((i) => { i.oninput = () => ($("#r-" + i.dataset.range).textContent = `${i.value} %`); i.onchange = () => saveSet({ [i.dataset.range]: Number(i.value) }); });
   document.querySelectorAll("[data-psrc]").forEach((b) => b.onclick = () => saveSet({ price_source: b.dataset.psrc === "auto" ? null : b.dataset.psrc }));
   document.querySelectorAll("[data-sval]").forEach((b) => b.onclick = () => saveSet({ solar_value: b.dataset.sval }));
+  const bats = () => JSON.parse(JSON.stringify(settings.settings.batteries || []));
+  const saveBats = (l) => saveSet({ batteries: l });
+  $("[data-batadd]")?.addEventListener("click", () => saveBats([...bats(), { name: "", soc: "", power: "" }]));
+  document.querySelectorAll("[data-batdel]").forEach((x) => x.onclick = () => { const l = bats(); l.splice(Number(x.dataset.batdel), 1); saveBats(l); });
+  document.querySelectorAll("[data-bat],[data-batn],[data-batt]").forEach((el) => el.onchange = () => {
+    const [i, key] = (el.dataset.bat || el.dataset.batn || el.dataset.batt).split(":"), l = bats();
+    l[Number(i)][key] = el.dataset.batn ? (el.value === "" ? null : Number(el.value.replace(",", "."))) : el.value || null;
+    saveBats(l);
+  });
   document.querySelectorAll("[data-fix]").forEach((b) => b.onclick = async () => { await api("/api/settings", JSON.parse(b.dataset.fix)); settings = await api("/api/settings"); await load(); render(); });
   document.querySelectorAll("[data-goto]").forEach((b) => b.onclick = async () => {
     const g = b.dataset.goto; if (["battery", "car", "grid"].includes(g)) advOpen.add(g);

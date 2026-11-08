@@ -84,6 +84,8 @@ The panel shows who decides right now and how well each one hits:
   keeps enough for the dear hours, and counts the battery's wear (worked out for you), losses and your export limit.
 - **Octopus Agile: Agile Predict built in** – in the UK the coming Agile prices come from Agile Predict (trained on
   the whole market, region found from your tariff) until the real ones are out.
+- **More than one home battery** – a SolarEdge and a Victron, say: found by itself (or added under House battery),
+  planned as one battery with the sizes and powers added up, each shown on its own. Shadow only for now.
 - **Checks your settings** – a setting that spoils the plan (an import limit that stops cheap charging, a battery size
   off from what it measured, selling that can never pay) is explained in plain words, with a one-tap fix. The rarely
   needed settings sit under "Advanced", and one button downloads a diagnostics file to send when something looks wrong.
@@ -173,6 +175,8 @@ bliver bedre hver nat.** Den starter altid i *skygge*: den viser, hvad den ville
 - **Også off-grid:** uden elnet styrer den generatoren – den starter, før batteriet når reserven, kører længe ad gangen
   og altid ved nødgrænsen.
 - **Sælger fra batteriet, når det betaler sig** (valgfrit) – med tab, slid og eksportgrænse regnet med.
+- **Flere husbatterier** – fx SolarEdge og Victron: findes selv (eller tilføjes under Husbatteri), planlægges som ét
+  batteri med størrelser og effekter lagt sammen, og hvert vises for sig. Kun skygge indtil videre.
 - **Tjekker dine indstillinger** – en indstilling, der ødelægger planen (en importgrænse, der spærrer for billig
   opladning, en batteristørrelse, der ikke passer med det målte, salg der aldrig kan betale sig), forklares med et
   tryk til at rette den. De sjældne indstillinger ligger under "Avanceret", og én knap henter en diagnosefil.

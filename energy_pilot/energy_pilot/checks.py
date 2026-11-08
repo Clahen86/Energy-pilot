@@ -57,8 +57,10 @@ def run(engine: Any, hours: list, b: Any, plan: Any, end_value: float) -> list[d
                     "fix": {"import_limit_kw": None}, "goto": "grid"})
 
     # 2. Battery size: the usable kWh it has measured differs from what's set.
+    from . import batteries
+
     learned = engine.batt_learn.capacity()
-    if learned and st.get("battery_kwh") and abs(float(st["battery_kwh"]) - learned) / learned > 0.05:
+    if learned and not batteries.extras(st) and st.get("battery_kwh") and abs(float(st["battery_kwh"]) - learned) / learned > 0.05:
         out.append({"key": "capacity", "level": "info", "vals": {"set": float(st["battery_kwh"]), "learned": round(learned, 1)},
                     "fix": {"battery_kwh": None}, "goto": "battery"})
 
@@ -80,7 +82,18 @@ def run(engine: Any, hours: list, b: Any, plan: Any, end_value: float) -> list[d
             if best < worth:  # otherwise something else holds it back - nothing plain to say
                 out.append({"key": "export_no_gain", "level": "info", "vals": {"sell": round(best, 2), "worth": round(worth, 2)}})
 
-    # 5. Things it can't see.
+    # 5. Another battery in Home Assistant that isn't set up.
+    main = engine.ov.role("battery_soc")
+    if main and not st.get("offgrid"):
+        more = batteries.extras(st)
+        taken = [b.get("soc") for b in more] + [b.get("power") for b in more]
+        for cand in batteries.find(engine.ha.states, main, taken, list(st.get("battery_dismissed") or []))[:1]:
+            new = {"name": cand["name"], "soc": cand["soc"], "power": cand["power"]}
+            out.append({"key": "battery_found", "level": "info", "vals": {"name": cand["name"]},
+                        "fix": {"batteries": list(st.get("batteries") or []) + [new]},
+                        "dismiss": {"battery_dismissed": list(st.get("battery_dismissed") or []) + [cand["soc"]]}, "goto": "battery"})
+
+    # 6. Things it can't see.
     if f.get("soc") is None and not st.get("offgrid"):
         out.append({"key": "no_soc", "level": "warn", "vals": {}, "goto": "roles"})
     return out

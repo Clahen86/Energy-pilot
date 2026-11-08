@@ -318,12 +318,22 @@ class Engine:
 
             if (PROFILES.get(ctl.profile_key() or "") or {}).get("grid_charge") is False:
                 grid = False  # this battery can't charge from the grid (EcoFlow PowerStream)
+        # What the user set wins; then the capacity it has learned (the usable kWh); then a guess.
+        cap = float(s.get("battery_kwh") or self.batt_learn.capacity() or self._guess_capacity() or 10)
+        # Discharge as charge unless set on its own (extra chargers can make charging faster).
+        charge = float(s.get("battery_charge_kw") or 3)
+        discharge = float(s.get("battery_discharge_kw") or s.get("battery_charge_kw") or 3)
+        from . import batteries
+
+        if more := batteries.extras(s):
+            # More than one battery: planned as one, everything added up.
+            cap = self.ov.main_battery_kwh() + sum(float(b.get("kwh") or 10) for b in more)
+            charge += sum(float(b.get("charge_kw") or 3) for b in more)
+            discharge += sum(float(b.get("discharge_kw") or b.get("charge_kw") or 3) for b in more)
         return Battery(
-            # What the user set wins; then the capacity it has learned (the usable kWh); then a guess.
-            capacity_kwh=float(s.get("battery_kwh") or self.batt_learn.capacity() or self._guess_capacity() or 10),
-            # Discharge as charge unless set on its own (extra chargers can make charging faster).
-            max_charge_kw=float(s.get("battery_charge_kw") or 3),
-            max_discharge_kw=float(s.get("battery_discharge_kw") or s.get("battery_charge_kw") or 3),
+            capacity_kwh=cap,
+            max_charge_kw=charge,
+            max_discharge_kw=discharge,
             min_soc=min_soc, grid_charge=grid, import_limit_kw=float(s["import_limit_kw"]) if s.get("import_limit_kw") else None,
             quiet=frozenset(self.quiet_hours("battery")),
             efficiency=self.batt_learn.efficiency(0.92),  # the datasheet's, until it has seen the real one

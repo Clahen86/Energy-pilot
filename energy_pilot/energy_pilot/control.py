@@ -55,6 +55,8 @@ class Controller:
         """Why the engine may not control this part (None: it may)."""
         if part == "battery" and self.ov.role("battery_plan") and not self.ov.settings.get("battery_takeover"):
             return "other_system"  # another system plans the battery: never two at once
+        if part == "battery" and __import__("energy_pilot.batteries", fromlist=["extras"]).extras(self.ov.settings):
+            return "multi_battery"  # more than one battery: shadow only until sharing the work is tested
         if part == "battery" and not self.profile_steps():
             return "no_profile"
         if part == "battery" and adapters.missing(self.check()):
