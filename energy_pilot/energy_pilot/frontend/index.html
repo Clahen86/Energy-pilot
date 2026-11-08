@@ -269,7 +269,7 @@ const T_ALL = {
       solarValue: "Solstrøm i batteriet", solarValueH: "Hvad en kWh fra solen tæller som i batteriets kostpris", sv: { free: "Gratis", sell: "Salgsprisen" } },
     priceEstimated: "Morgendagens priser er skønnet, indtil de rigtige kommer (ca. kl. 13).",
     priceMissing: "Morgendagens priser er ikke kommet endnu - planen stopper ved midnat.", priceFilled: "Morgendagens priser er skønnet ud fra spotprisen, indtil din pris-integration har dem.",
-    legSoc: "Batteri-niveau (plan)", legCar: "Bilen lader", saves: "Planen sparer cirka {x} de næste timer.", otherSays: "AppDaemon: {x}",
+    legSoc: "Batteri-niveau (plan)", legCar: "Bilen lader", legExport: "Batteriet sælger", saves: "Planen sparer cirka {x} de næste timer.", otherSays: "AppDaemon: {x}",
     engineName: "Energipilots egen motor", engineHint: "Sammenlignet med din AppDaemon · sparer ca. {x} de næste timer",
     g1title: "Velkommen til Energipilot", g1text: "Vi har kigget dit hjem igennem og fundet {n} ting. Ret det, der er forkert - resten klarer den selv.",
     g2title: "Altid i skygge først", g2text: "Energipilot rører ingenting, før du siger til.",
@@ -357,7 +357,7 @@ const T_ALL = {
       solarValue: "Solar power in the battery", solarValueH: "What a kWh from the sun counts as in the battery's cost", sv: { free: "Free", sell: "The sell price" } },
     priceEstimated: "Tomorrow's prices are estimated until the real ones are out (around 13:00).",
     priceMissing: "Tomorrow's prices aren't out yet - the plan ends at midnight.", priceFilled: "Tomorrow's prices are estimated from the spot price until your price integration has them.",
-    legSoc: "Battery level (plan)", legCar: "Car charges", saves: "The plan saves about {x} over the coming hours.", otherSays: "AppDaemon: {x}",
+    legSoc: "Battery level (plan)", legCar: "Car charges", legExport: "Battery sells", saves: "The plan saves about {x} over the coming hours.", otherSays: "AppDaemon: {x}",
     engineName: "Energy Pilot's own engine", engineHint: "Compared with your AppDaemon · saves about {x} over the coming hours",
     g1title: "Welcome to Energy Pilot", g1text: "We looked through your home and found {n} things. Fix what's wrong - it handles the rest.",
     g2title: "Always in shadow first", g2text: "Energy Pilot touches nothing until you say so.",
@@ -566,6 +566,7 @@ function planSvg(plan) {
     const past = t < nowT && !(t.getHours() === nowT.getHours() && t.getDate() === nowT.getDate());
     return `<g data-h="${i}" style="cursor:pointer">${h.price != null ? `<rect x="${x + 5}" y="${y0 - bh}" width="${W - 10}" height="${bh}" rx="3" fill="${col(h.price)}" opacity="${past ? .25 : .85}"/>` : ""}
       ${h.charge ? `<rect x="${x + 5}" y="${y0 + 4}" width="${W - 10}" height="3" rx="1.5" fill="var(--batt)"/>` : ""}
+      ${h.export ? `<rect x="${x + 5}" y="${y0 + 4}" width="${W - 10}" height="3" rx="1.5" fill="var(--grid)"/>` : ""}
       ${t.getHours() % 3 === 0 ? `<text class="axis" x="${x + W / 2}" y="${H - 4}" text-anchor="middle">${String(t.getHours()).padStart(2, "0")}</text>` : ""}
       ${t.getHours() === 0 && i > 0 ? `<line x1="${x}" x2="${x}" y1="${top}" y2="${y0}" stroke="var(--line2)" stroke-dasharray="2 4"/><text class="axis" x="${x + 4}" y="${top + 8}">${T.xTomorrow}</text>` : ""}
       <rect x="${x}" y="0" width="${W}" height="${H}" fill="transparent"/></g>`;
@@ -589,7 +590,8 @@ function planSvg(plan) {
     <div class="tip" id="tip">${T.tapHour}</div>
     <div class="legend"><span><i style="background:linear-gradient(90deg,hsl(150 70% 52%),hsl(0 70% 60%))"></i>${T.legPrice}</span><span><i style="background:var(--sun)"></i>${T.legSun}</span>
       <span><i style="background:var(--house)"></i>${T.legHouse}</span><span><i style="background:var(--batt)"></i>${T.legSoc}</span>
-      ${hrs.some((h) => h.car) ? `<span><i style="background:var(--car)"></i>${T.legCar}</span>` : ""}</div>
+      ${hrs.some((h) => h.car) ? `<span><i style="background:var(--car)"></i>${T.legCar}</span>` : ""}
+      ${hrs.some((h) => h.export) ? `<span><i style="background:var(--grid)"></i>${T.legExport}</span>` : ""}</div>
     ${plan.cheapest.length ? `<div class="eyebrow" style="margin:16px 0 8px"><span>${T.cheapest}</span></div><div class="chips">${plan.cheapest.map((t) => `<span class="chip good">${clock(t)}</span>`).join("")}</div>` : ""}`;
 }
 function blendRows() {
@@ -883,7 +885,7 @@ function wire() {
   });
   document.querySelectorAll("[data-h]").forEach((g) => g.onclick = () => {
     const h = data.plan.hours.filter((x) => x.price != null || x.sun != null)[Number(g.dataset.h)];
-    $("#tip").innerHTML = `<b>${clock(h.t)}</b> · ${kr(h.price)}/kWh${h.sun != null ? ` · ${T.legSun} ${num(h.sun, 1)} kWh` : ""}${h.house != null ? ` · ${T.legHouse} ${num(h.house, 1)} kWh` : ""}${h.soc != null ? ` · ${T.battery} ${num(h.soc, 0)} %` : ""}${h.charge ? ` · ${T.legCharge}` : ""}${h.car ? ` · ${T.legCar}` : ""}`;
+    $("#tip").innerHTML = `<b>${clock(h.t)}</b> · ${kr(h.price)}/kWh${h.sun != null ? ` · ${T.legSun} ${num(h.sun, 1)} kWh` : ""}${h.house != null ? ` · ${T.legHouse} ${num(h.house, 1)} kWh` : ""}${h.soc != null ? ` · ${T.battery} ${num(h.soc, 0)} %` : ""}${h.charge ? ` · ${T.legCharge}` : ""}${h.export ? ` · ${T.legExport}` : ""}${h.car ? ` · ${T.legCar}` : ""}`;
   });
   document.querySelectorAll("[data-cmode]").forEach((b) => b.onclick = async () => {
     if (b.dataset.cmode === "control" && !confirm(T.ctl.confirm)) return;

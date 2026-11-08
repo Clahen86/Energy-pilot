@@ -392,6 +392,8 @@ class Overview:
                 h["soc"] = st["soc"]
                 if st["action"] in ("charge_grid", "charge_sun"):
                     h["charge"] = True
+                elif st["action"] == "export":
+                    h["export"] = True  # sells from the battery
         for t in (res.get("car") or {}).get("hours", []):
             if (h := slot(datetime.fromisoformat(t))) is not None:
                 h["car"] = True
