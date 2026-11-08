@@ -87,3 +87,16 @@ class Cards:
             return  # unchanged (after a Home Assistant restart the sensor is gone and is written again)
         await self.ha.set_state(SENSOR, decision.get("kind") or "unknown", attrs)
         self._last = key
+        self._write_uses(o)
+
+    def _write_uses(self, o) -> None:
+        """energy_pilot_uses.json in the app's folder: every sensor Energy Pilot reads (and learns from its history), so
+        database tools like Database Doctor can see they're in use and never stop saving them."""
+        try:
+            ids = sorted({e for name in o.roles() for e in o.role_all(name) if e and "." in e})
+            path = o.file.parent / "energy_pilot_uses.json"
+            text = json.dumps({"app": "Energy Pilot", "history": True, "entities": ids}, indent=1)
+            if not path.exists() or path.read_text() != text:
+                path.write_text(text)
+        except Exception:  # noqa: BLE001 - only a hint for other tools
+            pass
