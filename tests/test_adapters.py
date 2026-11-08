@@ -94,3 +94,17 @@ def test_victron_ess():
     hold = adapters.resolve(p["hold"], vic, CTX)
     assert {"entity_id": "number.ess_maximum_discharge_power", "value": 0} in [c["data"] for c in hold]
     assert all("grid_setpoint" not in str(c) for i in steps for c in adapters.resolve(p[i], vic, CTX))  # his own setpoint stays
+
+
+def test_ecoflow_powerstream_gives_the_house_its_watts():
+    eco = ["number.powerstream_rooster_custom_load_power_settings", "number.powerstream_rooster_max_charge_level",
+           "number.powerstream_rooster_min_discharge_level"]
+    assert adapters.guess_profile(eco, set()) == "ecoflow"
+    p = adapters.PROFILES["ecoflow"]
+    assert p["grid_charge"] is False
+    steps = {i: p[i] for i in ("normal", "hold", "charge")}
+    assert adapters.missing(adapters.check(steps, eco)) == []
+    normal = adapters.resolve(p["normal"], eco, {**CTX, "house_w": 450})
+    assert {"entity_id": "number.powerstream_rooster_custom_load_power_settings", "value": 450} in [c["data"] for c in normal]
+    hold = adapters.resolve(p["hold"], eco, CTX)
+    assert {"entity_id": "number.powerstream_rooster_custom_load_power_settings", "value": 0} in [c["data"] for c in hold]

@@ -266,6 +266,12 @@ class Engine:
         if style == "safe":
             min_soc = max(min_soc, 30.0)
         grid = bool(s.get("grid_charge", True)) and style != "solar"
+        ctl = getattr(self.ov, "controller", None)
+        if ctl is not None:
+            from .adapters import PROFILES
+
+            if (PROFILES.get(ctl.profile_key() or "") or {}).get("grid_charge") is False:
+                grid = False  # this battery can't charge from the grid (EcoFlow PowerStream)
         return Battery(
             # What the user set wins; then the capacity it has learned (the usable kWh); then a guess.
             capacity_kwh=float(s.get("battery_kwh") or self.batt_learn.capacity() or self._guess_capacity() or 10),

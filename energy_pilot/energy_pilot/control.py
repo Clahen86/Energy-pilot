@@ -137,6 +137,9 @@ class Controller:
                 "min_soc": round(bat.min_soc), "soc": round(f["soc"] or bat.min_soc), "target": round(b.get("target") or step["soc"]),
                 "rate": round(100 * charge_kw / bat.max_charge_kw), "power_w": round(charge_kw * 1000),
                 "max_power_w": round(bat.max_discharge_kw * 1000)}}
+            if "{house_w}" in str(self.profile_steps() or {}):
+                # Only for profiles that use it (EcoFlow), rounded - so others aren't re-sent at every small change.
+                out["battery"]["ctx"]["house_w"] = int(round((f.get("house") or 0.0) / 50) * 50)
         if self.ov.ev() is not None:
             tz = ZoneInfo(self.ha.config.get("time_zone") or "UTC")
             car = res.get("car") or {}
@@ -159,8 +162,22 @@ class Controller:
     def calls(self, part: str, want: dict[str, Any]) -> list[dict[str, Any]]:
         if part == "battery":
             steps = self.profile_steps() or {}
-            return adapters.resolve(steps.get(want["intent"], []), self._pool(), want["ctx"])
+            return self._clamp(adapters.resolve(steps.get(want["intent"], []), self._pool(), want["ctx"]))
         return adapters.charger_calls(want["intent"], self.entities["car"], self.platforms["car"], want["ctx"]["current"])
+
+    def _clamp(self, calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Numbers within the control's own min/max - Home Assistant refuses a value outside them."""
+        for c in calls:
+            d = c["data"]
+            if c.get("service") == "set_value" and isinstance(d.get("value"), (int, float)):
+                a = (self.ha.states.get(d.get("entity_id")) or {}).get("attributes") or {}
+                try:
+                    lo, hi = float(a.get("min", "-inf")), float(a.get("max", "inf"))
+                except (TypeError, ValueError):
+                    continue
+                v = min(hi, max(lo, d["value"]))
+                d["value"] = int(v) if float(v).is_integer() else v
+        return calls
 
     async def tick(self, parts: tuple[str, ...] = ("battery", "car")) -> None:
         for part, want in self.intents().items():

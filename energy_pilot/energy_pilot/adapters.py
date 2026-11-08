@@ -11,7 +11,8 @@ Each brand is a profile: for each intent, which control to set to what. Controls
 entities by pattern (select.*work_mode_priority …), so one profile fits every installation of that integration.
 A brand that isn't built in gets a profile the user makes in the panel: pick the control and value for each intent.
 
-Values may use {min_soc}, {soc}, {target}, {rate} (% of max power), {power_w} and {current}.
+Values may use {min_soc}, {soc}, {target}, {rate} (% of max power), {power_w}, {current} and {house_w} (the house's
+use now - for a micro-inverter that is told how many watts to give, like EcoFlow PowerStream).
 
 Models: one integration can cover inverter models that are controlled differently (Growatt SPH/SPA work with
 "battery first" time slots, MIN/MOD TL-XH with a priority mode). A profile can name the models it is for ("models",
@@ -86,6 +87,21 @@ PROFILES: dict[str, dict[str, Any]] = {
                  (r"number\..*ess_maximum_discharge_power$", "number", "0")],
         "charge": [(r"number\..*ess_maximum_charge_power$", "number", "{power_w}"),
                    (r"switch\..*ess_force_charge$", "on", None)],
+    },
+    # EcoFlow PowerStream (EcoFlow Cloud integration): a micro-inverter that gives the house the watts it is told
+    # ("custom load"), from a Delta/River power station. It can't charge from the grid - that's the station's own AC
+    # charging - so the plan never buys for the battery with this profile.
+    "ecoflow": {
+        "name": "EcoFlow PowerStream",
+        "match": r"powerstream|ecoflow",
+        "models": r"powerstream|ecoflow",
+        "grid_charge": False,
+        "normal": [(r"number\..*custom_load_power.*$", "number", "{house_w}"),
+                   (r"number\..*min_discharge_level$", "number", "{min_soc}")],
+        "hold": [(r"number\..*custom_load_power.*$", "number", "0"),
+                 (r"number\..*min_discharge_level$", "number", "{soc}")],
+        "charge": [(r"number\..*custom_load_power.*$", "number", "0"),
+                   (r"number\..*max_charge_level$", "number", "{target}")],
     },
     "huawei_solar": {
         "name": "Huawei SUN2000 / LUNA2000",
