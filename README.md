@@ -63,8 +63,13 @@ The panel shows who decides right now and how well each one hits:
   the battery. And what the power in the battery cost (grid power at the price paid, solar free or at the sell price).
 - **Never half a command** – if a control your inverter profile needs is missing, it won't control at all and tells you
   what's missing. A control test in *Shadow* shows every control it found.
+- **The car follows the sun and minds the fuse** – the charging current follows the solar surplus minute by minute (6 A
+  and up), and the car is turned down so the house never buys more than your main fuse allows.
 - **The car is never counted twice** – if your house sensor includes the car, it notices from the hours the car charged
   and takes it out, so the house forecast and the battery plan stay right.
+- **Fits odd setups** – several solar arrays and forecasts are added up, it finds which way your battery's power number
+  goes (Fox ESS counts discharging as positive), and a changing feed-in price (Amber, Octopus export, net-billing) can
+  come from a sensor. Can't find your sensor in a list? Search for any of them.
 - **Runs your own system in shadow** – already have an energy setup in AppDaemon? Energy Pilot can run it unchanged next
   to its own engine and show how often they agree.
 - **Lives inside Home Assistant** – a sidebar panel, dashboard cards, and buttons and sensors (*Charge now*, *Ready at*,
@@ -72,6 +77,7 @@ The panel shows who decides right now and how well each one hits:
 - **Runs on a Raspberry Pi** – right next to Home Assistant, no cloud, no subscription. Even the ML models are trained
   at home, in a few seconds a night (about 180 MB RAM).
 - **No telemetry** – nothing about you or your home ever leaves your house.
+- **7 languages** – English, Danish, German, French, Dutch, Swedish and Norwegian, following Home Assistant's language.
 
 ## What you need
 
@@ -148,9 +154,13 @@ bliver bedre hver nat.** Den starter altid i *skygge*: den viser, hvad den ville
 - **Planlægger i kvarterer**, så batteri og bil bruger de billigste kvarterer.
 - **Målt besparelse** og batteriets kostpris.
 - **Aldrig en halv kommando:** mangler en kontrol, styrer den ikke, og en test i skygge viser, hvad den fandt.
+- **Bilen følger solen** minut for minut og **passer på hovedsikringen**.
 - **Bilen tælles aldrig to gange**, og den kan køre din egen AppDaemon i skygge og sammenligne.
+- **Passer til mange opsætninger:** flere solcelle-anlæg lægges sammen, den finder selv batteriets fortegn, og en
+  skiftende salgspris kan komme fra en sensor. Kan du ikke finde din sensor, kan du søge efter den.
 - **Kører på en Raspberry Pi** ved siden af Home Assistant – ingen cloud, intet abonnement.
 - **Ingen telemetri** – intet forlader dit hjem.
+- **7 sprog:** dansk, engelsk, tysk, fransk, hollandsk, svensk og norsk – følger Home Assistants sprog.
 - **Styrer mange mærker** – se tabellen ovenfor (✅ testet, 🧪 venter på en betatester).
 
 **Installation:** *Indstillinger → Apps → Butik → ⋮ → Repositories* → tilføj
