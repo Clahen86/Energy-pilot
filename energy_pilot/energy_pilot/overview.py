@@ -237,6 +237,14 @@ class Overview:
                 if cls == "energy" and not (dc == "energy" or (domain == "sensor" and not dc and unit in ("kwh", "wh"))):
                     continue
                 guess = e in spec["known"] or any(w in e for w in spec["words"])
+                if name in ("solar_today", "solar_tomorrow") and not guess and domain == "sensor" and unit in ("kwh", "wh"):
+                    # Forecast.Solar (energy_production_today), Open-Meteo and others are named otherwise: every
+                    # kWh sensor is listed, the forecast-looking ones first - never picked by itself
+                    day = name.split("_")[1]
+                    if not (day in e and any(w in e for w in ("forecast", "prognose", "production", "prediction"))):
+                        rows.append({"entity_id": e, "name": a.get("friendly_name") or e, "guess": False})
+                        continue
+                    guess = True
                 if cls is None and not guess:
                     continue
                 rows.append({"entity_id": e, "name": a.get("friendly_name") or e, "guess": guess})
