@@ -1,0 +1,36 @@
+"""The battery's real charging near full is learned; the battery doesn't empty itself into the car."""
+
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
+from energy_pilot.blend import BatteryLearner
+from energy_pilot.engine import Battery, Hour, plan_battery
+
+T0 = datetime(2026, 11, 9, 0, tzinfo=ZoneInfo("Europe/Copenhagen"))
+
+
+def test_taper_learned_from_what_it_really_takes():
+    bl = BatteryLearner({})
+    for _ in range(25):
+        bl.see(3000, 50, 30 / 3600)  # full speed at half
+    for _ in range(12):
+        bl.see(1200, 96, 30 / 3600)  # 40 % of it near full
+    assert bl.taper() == ((95.0, 0.4),)
+    assert BatteryLearner({}).taper() == ()  # nothing seen: no guess
+
+
+def test_plan_respects_the_taper():
+    hours = [Hour(T0 + timedelta(hours=i), 0.1 if i < 4 else 2.0, 0.0, 0.5, 0.0) for i in range(12)]
+    b = Battery(capacity_kwh=10, max_charge_kw=5, grid_charge=True, taper=((90.0, 0.2),))
+    p = plan_battery(hours, 80, b, end_value=1.5)
+    # above 90 % it can only take 1 kW an hour (10 % of 10 kWh): so 4 cheap hours can't fill it right after 90
+    jumps = [s.soc_end - s.soc_start for s in p.steps[:4] if s.soc_start >= 90]
+    assert all(j <= 10.5 for j in jumps)
+
+
+def test_no_discharge_while_the_car_charges():
+    hours = [Hour(T0 + timedelta(hours=i), 2.0, 0.0, 1.0, 0.0) for i in range(6)]
+    car = frozenset({hours[2].start, hours[3].start})
+    p = plan_battery(hours, 80, Battery(capacity_kwh=10, no_discharge=car), end_value=0.5)
+    assert all(s.action != "discharge" for s in p.steps if s.start in car)
+    assert any(s.action == "discharge" for s in p.steps if s.start not in car)

@@ -283,6 +283,9 @@ class Habits:
 
 # ---------- the battery's real efficiency ----------
 
+TAPER_BANDS = (98, 95, 90, 85)  # levels where charging is watched on its own (highest first)
+
+
 class BatteryLearner:
     """The battery's real usable capacity and efficiency - from what goes in and out against what the level shows.
 
@@ -316,6 +319,28 @@ class BatteryLearner:
         if seg:
             seg["kwh"] += abs(batt_w) / 1000 * hours
         self.s["seg"] = seg
+        if batt_w > 300:  # charging: how hard it charges at which level (most batteries slow down when nearly full)
+            band = next((b for b in TAPER_BANDS if soc >= b), 0)
+            key = str(band)
+            self.s.setdefault("charge_w", {})
+            self.s["charge_w"][key] = (self.s["charge_w"].get(key) or [])[-59:] + [round(batt_w)]
+
+    def taper(self) -> tuple[tuple[float, float], ...]:
+        """How much of its charge power the battery really takes near full, as (from level, share) - learned by
+        comparing the hardest charging seen high up with the hardest seen below 85 %. Nothing until it has seen enough."""
+        cw = self.s.get("charge_w") or {}
+        low = sorted(cw.get("0") or [])
+        if len(low) < 20:
+            return ()
+        ref = low[int(len(low) * 0.9)]
+        out = []
+        for band in sorted(TAPER_BANDS):
+            vals = sorted(cw.get(str(band)) or [])
+            if len(vals) >= 10:
+                share = max(0.2, min(1.0, vals[int(len(vals) * 0.9)] / ref))
+                if share < 0.95:
+                    out.append((float(band), round(share, 2)))
+        return tuple(out)
 
     def _medians(self) -> tuple[float, float, int] | None:
         a, b = self.s.get("in_pp") or [], self.s.get("out_pp") or []

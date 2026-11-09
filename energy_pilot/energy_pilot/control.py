@@ -235,6 +235,12 @@ class Controller:
             if "{house_w}" in str(self.profile_steps() or {}):
                 # Only for profiles that use it (EcoFlow), rounded - so others aren't re-sent at every small change.
                 out["battery"]["ctx"]["house_w"] = int(round((f.get("house") or 0.0) / 50) * 50)
+        # The car charging on the plan's cheap power right now: the battery holds, so the car takes it from the grid.
+        bw = out.get("battery")
+        cw = out.get("car")
+        if bw and cw and bw["intent"] == "normal" and cw["intent"] == "charge" and not self.ov.settings.get("ev_now") \
+                and self.car_why.startswith("planned"):
+            out["battery"] = {**bw, "intent": "hold"}
         if out.get("battery") and self.bat_parts():
             out.update(self._share(out["battery"], f))
         g = res.get("generator")

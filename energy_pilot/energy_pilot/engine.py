@@ -70,6 +70,8 @@ class Battery:
     export: bool = False  # may sell from the battery when it pays (off unless the user turns it on)
     wear: float = 0.0  # what one kWh into or out of the battery wears it (money per kWh) - a move must beat it
     export_limit_kw: float | None = None  # what may be sent to the grid
+    taper: tuple = ()  # (from level, share of the charge power it really takes) - learned; most slow down near full
+    no_discharge: frozenset = frozenset()  # slots the battery must not discharge in (the car charges on cheap power)
     peak_kw: float | None = None  # power tariff: the month's peak so far - buying more costs peak_price per kW
     peak_price: float = 0.0
 
@@ -153,8 +155,9 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
                 nxt = levels[k]
                 delta = kwh(nxt) - kwh(lv)  # + stored, - taken out (energy in the battery)
                 if delta > 0:
-                    if delta / eff > b.max_charge_kw * h.length + 1e-9:
-                        continue
+                    share = next((sh for lvl, sh in sorted(b.taper, reverse=True) if lv >= lvl), 1.0)
+                    if delta / eff > b.max_charge_kw * share * h.length + 1e-9:
+                        continue  # more than it takes at this level (it slows down when nearly full)
                     into = delta / eff  # what has to go in
                     from_sun = min(into, max(0.0, h.sun - h.house))
                     grid = h.house - h.sun + into
@@ -164,6 +167,8 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
                         continue
                     action = "charge_sun" if into - from_sun < 1e-6 else "charge_grid"
                 elif delta < 0:
+                    if h.start in b.no_discharge:
+                        continue  # the car charges on cheap power now: it takes it from the grid, not the battery
                     out = -delta * eff  # what comes out to the house
                     if -delta > b.max_discharge_kw * h.length + 1e-9:
                         continue
@@ -347,6 +352,7 @@ class Engine:
             export=self.can_export(),
             wear=self.wear(cap),
             export_limit_kw=float(s["export_limit_kw"]) if s.get("export_limit_kw") else None,
+            taper=self.batt_learn.taper(),
             peak_kw=(pt := self.power_tariff()) and pt["limit_kw"],
             peak_price=pt["price_per_kw"] if pt else 0.0,
         )
@@ -832,6 +838,12 @@ class Engine:
             result["generator"] = self._generator(now, f, [(t, house[i], sun[i]) for i, t in enumerate(times)])
         if f["soc"] is not None and not offgrid:
             b = self.settings()
+            # The car's cheap charging hours: the house battery doesn't empty itself into the car then.
+            pre = car_plan or (self._car(hours, now, f, set()) if f.get("plug") else None)
+            if pre and pre.get("set"):
+                from dataclasses import replace
+
+                b = replace(b, no_discharge=frozenset(pre["set"]))
             end_value = end_price(hours, b) * L.end_factor
             p = plan_battery(hours, f["soc"], b, end_value=end_value)
             # The target: where the current action leads (not just the end of this quarter).
