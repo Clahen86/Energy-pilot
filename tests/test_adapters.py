@@ -210,3 +210,24 @@ def test_chargers_from_their_integrations_code():
     assert adapters.charger_calls("stop", al, "alfen_wallbox", 16)[0]["data"]["value"] == 0
     assert adapters.charger_calls("charge", ["select.ohme_epod_charge_mode"], "ohme", 16)[0]["data"]["option"] == "max_charge"
     assert adapters.charger_calls("stop", ["select.myenergi_zappi_charge_mode"], "myenergi", 16)[0]["data"]["option"] == "Stopped"
+
+
+def test_victron_controls_found_on_another_device():
+    # Victron MQTT puts the ESS controls on an "ESS" device; the battery level comes from the GX device
+    from types import SimpleNamespace
+
+    from energy_pilot.control import Controller
+
+    c = Controller.__new__(Controller)
+    c.ov = SimpleNamespace(settings={"inverter_profile": "victron"}, role=lambda r: None)
+    c.entities = {"battery": ["select.gx_device_dc_mode"]}
+    c.platforms = {"battery": "victron_gx"}
+    c.services, c.model = None, "GX Device"
+    c.ha = SimpleNamespace(states={e: {"state": "0"} for e in (
+        "switch.ess_force_charge", "number.ess_maximum_charge_power", "number.ess_maximum_discharge_power",
+        "number.ess_ac_grid_setpoint", "switch.kitchen_light")})
+    from energy_pilot import adapters
+
+    assert adapters.missing(c.check()) == []
+    assert "switch.kitchen_light" not in c._pool()
+    assert not c.check()["export"]["missing"]

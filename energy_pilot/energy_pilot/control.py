@@ -18,6 +18,7 @@ import asyncio
 from collections import deque
 from datetime import datetime, timedelta
 import logging
+import re
 import time
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -194,10 +195,19 @@ class Controller:
         return adapters.check(steps, self._pool(part), optional, self.services) if steps else {}
 
     def _pool(self, part: str = "battery") -> list[str]:
-        """Built-in profiles look only at the inverter's own controls; a custom one may pick any entity."""
-        if part != "battery":
-            return self.entities.get(part, [])
-        return self.entities["battery"] + (list(self.ha.states) if self.profile_key() == "custom" else [])
+        """Built-in profiles look only at the inverter's own controls; a custom one may pick any entity. A profile
+        with distinctive names (Victron's ess_…) also finds its controls on another device."""
+        own = self.entities.get(part, []) if part != "battery" else self.entities["battery"]
+        key = self.profile_key(part)
+        if part == "battery" and key == "custom":
+            return own + list(self.ha.states)
+        prof = adapters.PROFILES.get(key or "") or {}
+        if prof.get("anywhere"):
+            pats = [st[0] for i in ("normal", "hold", "charge", "export") for st in prof.get(i, []) if isinstance(st[0], str)]
+            extra = [e for e in self.ha.states if e not in own and e.split(".")[0] in ("select", "number", "switch", "button")
+                     and any(re.search(p, e) for p in pats)]
+            return own + sorted(extra)
+        return own
 
     # ---------- deciding and acting ----------
 

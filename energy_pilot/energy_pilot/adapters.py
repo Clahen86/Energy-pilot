@@ -202,7 +202,10 @@ PROFILES: dict[str, dict[str, Any]] = {
     "victron": {
         "name": "Victron (ESS)",
         "match": r"victron|\bess_",
-        "models": r"victron|multiplus|quattro|cerbo|venus",
+        # The ESS controls often sit on another device than the battery level (Victron MQTT's "ESS" device, the level
+        # from the GX device) - their names are distinctive, so they're looked for everywhere.
+        "anywhere": True,
+        "models": r"victron|multiplus|quattro|cerbo|venus|gx device|\bgx\b",
         "normal": [(r"switch\..*ess_force_charge$", "off", None),
                    (r"number\..*ess_maximum_discharge_power$", "number", "{max_power_w}")],
         "hold": [(r"switch\..*ess_force_charge$", "off", None),
