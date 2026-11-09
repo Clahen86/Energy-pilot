@@ -57,6 +57,27 @@
       },
       "battery_cost": {
         "name": "Kostprijs batterijstroom"
+      },
+      "next_battery_charge": {
+        "name": "Volgende batterijlading"
+      },
+      "next_car_charge": {
+        "name": "Volgende autolading"
+      },
+      "next_battery_sell": {
+        "name": "Volgende verkoop uit de batterij"
+      },
+      "cheapest_hour": {
+        "name": "Goedkoopste uur"
+      },
+      "house_today": {
+        "name": "Huisverbruik vandaag"
+      },
+      "solar_forecast_today": {
+        "name": "Zonneprognose vandaag"
+      },
+      "solar_forecast_tomorrow": {
+        "name": "Zonneprognose morgen"
       }
     },
     "switch": {

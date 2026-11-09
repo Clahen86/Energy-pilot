@@ -57,6 +57,27 @@
       },
       "battery_cost": {
         "name": "Battery power cost"
+      },
+      "next_battery_charge": {
+        "name": "Next battery charge"
+      },
+      "next_car_charge": {
+        "name": "Next car charge"
+      },
+      "next_battery_sell": {
+        "name": "Next battery sale"
+      },
+      "cheapest_hour": {
+        "name": "Cheapest hour"
+      },
+      "house_today": {
+        "name": "House use today"
+      },
+      "solar_forecast_today": {
+        "name": "Solar forecast today"
+      },
+      "solar_forecast_tomorrow": {
+        "name": "Solar forecast tomorrow"
       }
     },
     "switch": {

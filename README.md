@@ -127,6 +127,11 @@ integration's own source code (entity names and values checked), waiting for a b
 3. The guide shows what it found – fix what's wrong and press *Get started*.
 4. Restart Home Assistant once: *Energipilot found* appears under *Devices & services* (buttons and sensors).
 
+**Sensors for your own dashboards and automations:** the decision now, the price now, the battery's target, what the
+plan saves, what the battery saved (today, month, year, in all), what the power in the battery cost, **next battery
+charge**, **next car charge**, **next sale from the battery** (with "until" and the battery level), **cheapest hour**
+(all of them as an attribute – start the dishwasher then), house use today and the solar forecast for today and tomorrow.
+
 **Docker (Home Assistant Container/Core):** see [`docker/docker-compose.yml`](docker/docker-compose.yml) – give it your
 Home Assistant address and a long-lived access token, open `http://<host>:8099`. Mount your Home Assistant config at
 `/homeassistant` to get the cards and the companion integration installed automatically.
@@ -193,6 +198,9 @@ bliver bedre hver nat.** Den starter altid i *skygge*: den viser, hvad den ville
 - **Tjekker dine indstillinger** – en indstilling, der ødelægger planen (en importgrænse, der spærrer for billig
   opladning, en batteristørrelse, der ikke passer med det målte, salg der aldrig kan betale sig), forklares med et
   tryk til at rette den. De sjældne indstillinger ligger under "Avanceret", og én knap henter en diagnosefil.
+- **Sensorer til dine egne dashboards og automationer:** beslutningen nu, prisen nu, batteriets mål, hvad batteriet har
+  sparet, **næste opladning af batteriet**, **næste opladning af bilen**, **næste salg fra batteriet**, **billigste time**
+  (fx til opvaskeren), husets forbrug i dag og solprognosen for i dag og i morgen.
 - **7 sprog:** dansk, engelsk, tysk, fransk, hollandsk, svensk og norsk – følger Home Assistants sprog.
 - **Styrer mange mærker** – se tabellen ovenfor (✅ testet, 🧪 venter på en betatester).
 

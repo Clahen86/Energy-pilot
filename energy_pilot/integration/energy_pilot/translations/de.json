@@ -57,6 +57,27 @@
       },
       "battery_cost": {
         "name": "Kosten des Batteriestroms"
+      },
+      "next_battery_charge": {
+        "name": "Nächste Batterieladung"
+      },
+      "next_car_charge": {
+        "name": "Nächste Autoladung"
+      },
+      "next_battery_sell": {
+        "name": "Nächster Verkauf aus der Batterie"
+      },
+      "cheapest_hour": {
+        "name": "Günstigste Stunde"
+      },
+      "house_today": {
+        "name": "Hausverbrauch heute"
+      },
+      "solar_forecast_today": {
+        "name": "Solarprognose heute"
+      },
+      "solar_forecast_tomorrow": {
+        "name": "Solarprognose morgen"
       }
     },
     "switch": {

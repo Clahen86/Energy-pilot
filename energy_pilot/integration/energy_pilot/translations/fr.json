@@ -57,6 +57,27 @@
       },
       "battery_cost": {
         "name": "Coût de l'énergie de la batterie"
+      },
+      "next_battery_charge": {
+        "name": "Prochaine charge de la batterie"
+      },
+      "next_car_charge": {
+        "name": "Prochaine charge de la voiture"
+      },
+      "next_battery_sell": {
+        "name": "Prochaine vente depuis la batterie"
+      },
+      "cheapest_hour": {
+        "name": "Heure la moins chère"
+      },
+      "house_today": {
+        "name": "Consommation de la maison aujourd'hui"
+      },
+      "solar_forecast_today": {
+        "name": "Prévision solaire aujourd'hui"
+      },
+      "solar_forecast_tomorrow": {
+        "name": "Prévision solaire demain"
       }
     },
     "switch": {

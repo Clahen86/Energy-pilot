@@ -57,6 +57,27 @@
       },
       "battery_cost": {
         "name": "Batteriets kostpris"
+      },
+      "next_battery_charge": {
+        "name": "Næste opladning af batteriet"
+      },
+      "next_car_charge": {
+        "name": "Næste opladning af bilen"
+      },
+      "next_battery_sell": {
+        "name": "Næste salg fra batteriet"
+      },
+      "cheapest_hour": {
+        "name": "Billigste time"
+      },
+      "house_today": {
+        "name": "Husets forbrug i dag"
+      },
+      "solar_forecast_today": {
+        "name": "Solprognose i dag"
+      },
+      "solar_forecast_tomorrow": {
+        "name": "Solprognose i morgen"
       }
     },
     "switch": {
