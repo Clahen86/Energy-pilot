@@ -54,3 +54,36 @@ def test_second_car_takes_the_cheapest_when_there_is_room():
     eng = SimpleNamespace(ov=SimpleNamespace(settings=settings), quiet_hours=lambda w: [])
     out = Engine._more_cars(eng, hours, T0, {"cars": [{"plug": True, "session_kwh": 0}]}, {"set": {hours[4].start}}, 60)
     assert [datetime.fromisoformat(t) for t in out[0]["hours"]] == [hours[4].start]
+
+
+def _ctl(settings, flow, cars_plan):
+    from energy_pilot.control import Controller
+
+    c = Controller.__new__(Controller)
+    c.ha = SimpleNamespace(config={"time_zone": "Europe/Berlin"})
+    c.ov = SimpleNamespace(settings=settings, role=lambda r: None)
+    c._sun_on_more, c.more_why = {}, {}
+    return c._more_intents(flow, {"cars": cars_plan}, {"intent": "charge", "ctx": {"current": 16}})
+
+
+def test_second_charger_is_turned_down_before_the_first():
+    # 25 kW fuse, house buys 5 kW, charger 1 takes 16 A x 3 x 230 V = 11.04 kW -> 8.96 kW left = 12 A for charger 2
+    st = {"import_limit_kw": 25, "charger_kw": 11, "chargers": [{"power": "x", "charger_kw": 11, "now": True}]}
+    flow = {"pv": 0, "house": 5000, "battery": 0, "grid": 5000 + 11000 + 11000, "ev": 22000,
+            "cars": [{"plug": True, "power": 11000}]}
+    want = _ctl(st, flow, [{"hours": [], "need_kwh": 10}])["car2"]
+    assert want == {"intent": "charge", "ctx": {"current": 12}}
+
+
+def test_second_charger_stops_when_no_room():
+    st = {"import_limit_kw": 17, "charger_kw": 11, "chargers": [{"power": "x", "charger_kw": 11, "now": True}]}
+    flow = {"pv": 0, "house": 5000, "battery": 0, "grid": 16000, "ev": 11000, "cars": [{"plug": True, "power": 0}]}
+    assert _ctl(st, flow, [{"hours": [], "need_kwh": 10}])["car2"]["intent"] == "stop"
+
+
+def test_second_charger_charges_in_its_planned_hour():
+    now = datetime.now(ZoneInfo("Europe/Berlin")).replace(minute=0, second=0, microsecond=0)
+    st = {"charger_kw": 11, "chargers": [{"power": "x", "charger_kw": 7.4}]}
+    flow = {"pv": 0, "house": 500, "battery": 0, "grid": 500, "ev": 0, "cars": [{"plug": True, "power": 0}]}
+    want = _ctl(st, flow, [{"hours": [now.isoformat()], "need_kwh": 10, "slot_min": 60}])["car2"]
+    assert want["intent"] == "charge" and want["ctx"]["current"] == 32

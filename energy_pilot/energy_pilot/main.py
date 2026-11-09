@@ -102,7 +102,8 @@ async def main() -> None:
                 await engine.refresh_house_today()
                 engine.run()
                 await engine.review()
-                if not controller.entities["battery"] and not controller.entities["car"] or int(asyncio.get_running_loop().time()) % 3600 < 300:
+                if (not controller.entities["battery"] and not controller.entities["car"] or int(asyncio.get_running_loop().time()) % 3600 < 300
+                        or any(p not in controller.entities for p in controller.car_parts())):  # a charger was just added
                     await controller.discover()
                 await controller.tick()
             except Exception:  # noqa: BLE001 - tries again next round
@@ -117,8 +118,8 @@ async def main() -> None:
         await asyncio.sleep(60)
         while True:
             try:
-                if controller.entities["car"] or controller.platforms["car"]:
-                    await controller.tick(("car",))
+                if controller.entities["car"] or controller.platforms["car"] or controller.car_parts():
+                    await controller.tick(("car",))  # charger 1 and the extra chargers (car2 …)
             except Exception:  # noqa: BLE001
                 logging.getLogger("energy_pilot.car").debug("Car round failed", exc_info=True)
             await asyncio.sleep(60)

@@ -37,10 +37,22 @@ class Controller:
         self.services: set[str] | None = None
         self.last: dict[str, dict[str, Any]] = {}
         self.log: dict[str, deque] = {"battery": deque(maxlen=60), "car": deque(maxlen=60), "generator": deque(maxlen=60)}
+        self.car_devices: dict[str, str | None] = {}  # the extra chargers' devices (car2, car3 …)
+        self._sun_on_more: dict[str, bool] = {}
+        self.more_why: dict[str, str] = {}
         self._sun_on = False  # the car is charging on the sun's surplus (for the start/stop margin)
         self.car_why = ""
 
     # ---------- settings ----------
+
+    def car_parts(self) -> list[str]:
+        """The extra chargers as parts of their own: car2, car3 … - each starts in shadow and is turned on by itself."""
+        from . import chargers
+
+        return [f"car{i + 2}" for i in range(len(chargers.extras(self.ov.settings)))]
+
+    def parts(self) -> list[str]:
+        return ["battery", "car", "generator", *self.car_parts()]
 
     def mode(self, part: str) -> str:
         return ((self.ov.settings.get("control") or {}).get(part)) or "shadow"
@@ -66,6 +78,8 @@ class Controller:
         if part == "generator" and not self.ov.role("generator_switch"):
             return "no_generator"
         if part == "car" and not self.entities["car"] and self.platforms["car"] not in adapters.CHARGER_SERVICES:
+            return "no_charger"
+        if part.startswith("car") and part != "car" and not self.entities.get(part) and self.platforms.get(part) not in adapters.CHARGER_SERVICES:
             return "no_charger"
         return None
 
@@ -106,6 +120,17 @@ class Controller:
                 self.battery_device = dev  # for services that want the device (Huawei, GivEnergy)
                 d = (devices or {}).get(dev or "") if "devices" in dir() else None
                 self.battery_serial = (d or {}).get("serial_number") or ""  # Alpha ESS wants the serial
+
+        # The extra chargers: the controls on the device of their power (or plug) sensor.
+        from . import chargers
+
+        for part, c in zip(self.car_parts(), chargers.extras(self.ov.settings)):
+            anchor = c.get("power") or c.get("plug")
+            dev = (by_id.get(anchor) or {}).get("device_id")
+            plat = (by_id.get(anchor) or {}).get("platform")
+            found = [e["entity_id"] for e in entities if not e.get("disabled_by") and dev and e.get("device_id") == dev
+                     and e["entity_id"].split(".")[0] in ("select", "number", "switch", "button")]
+            self.entities[part], self.platforms[part], self.car_devices[part] = sorted(found), plat, dev
 
     def profile_key(self) -> str | None:
         chosen = self.ov.settings.get("inverter_profile")
@@ -179,6 +204,53 @@ class Controller:
             d = decide(f, st, hour in planned, manual, need, self._sun_on)
             self._sun_on, self.car_why = d["sun"], d["why"]
             out["car"] = {"intent": "charge" if d["charge"] else "stop", "ctx": {"current": d["current"]}}
+        out.update(self._more_intents(f, res, out.get("car")))
+        return out
+
+    def _more_intents(self, f: dict[str, Any], res: dict[str, Any], first: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
+        """The extra chargers, one after the other: charger 1 comes first, then 2 … - the sun's surplus and the room
+        under the main fuse that the chargers before have taken are gone for the next. So the last one is turned
+        down (and stopped) first."""
+        from . import chargers
+        from .carspeed import VOLT, decide
+
+        more = chargers.extras(self.ov.settings)
+        if not more:
+            return {}
+        tz = ZoneInfo(self.ha.config.get("time_zone") or "UTC")
+        now = datetime.now(tz)
+        st = self.ov.settings
+
+        def watts(want: dict[str, Any] | None, kw: float, phases: Any) -> float:
+            if not want or want["intent"] != "charge":
+                return 0.0
+            ph = int(phases or (3 if kw > 7.5 else 1))
+            return float(want["ctx"]["current"]) * VOLT * ph
+
+        main_kw = float(st.get("charger_kw") or 7.4)
+        taken = watts(first, main_kw, st.get("charger_phases"))
+        cars_now = sum(max(0.0, x.get("power") or 0.0) for x in (f.get("cars") or []))
+        main_now = max(0.0, (f.get("ev") or 0.0) - cars_now)  # flow's ev has all the chargers in it
+        base_grid = (f.get("grid") - main_now - cars_now) if f.get("grid") is not None else None
+        out = {}
+        for part, c, now_c, plan in zip(self.car_parts(), more, f.get("cars") or [{}] * len(more), res.get("cars") or [{}] * len(more)):
+            kw = float(c.get("charger_kw") or 7.4)
+            slot = int((plan or {}).get("slot_min") or 60)
+            hour = now.replace(minute=now.minute // slot * slot if slot < 60 else 0, second=0, microsecond=0)
+            planned = hour in {datetime.fromisoformat(t) for t in ((plan or {}).get("hours") or [])}
+            own = max(0.0, now_c.get("power") or 0.0)
+            # This car sees the house as using what the chargers before it want - sun and fuse alike.
+            g = None if base_grid is None else base_grid + taken + own
+            flow = {"pv": f.get("pv"), "house": None if f.get("house") is None else f["house"] + taken,
+                    "battery": f.get("battery"), "plug": now_c.get("plug"), "ev": own, "grid": g}
+            cs = {**st, "charger_kw": kw, "charger_phases": c.get("phases"),
+                  "ev_follow_sun": c.get("follow_sun", st.get("ev_follow_sun", bool(self.ov.role("pv_power"))))}
+            need = float((plan or {}).get("need_kwh") if (plan or {}).get("need_kwh") is not None else 1.0)
+            d = decide(flow, cs, planned, bool(c.get("now")), need, self._sun_on_more.get(part, False))
+            self._sun_on_more[part], self.more_why[part] = d["sun"], d["why"]
+            want = {"intent": "charge" if d["charge"] else "stop", "ctx": {"current": d["current"]}}
+            out[part] = want
+            taken += watts(want, kw, c.get("phases"))
         return out
 
     def calls(self, part: str, want: dict[str, Any]) -> list[dict[str, Any]]:
@@ -191,6 +263,9 @@ class Controller:
             steps = self.profile_steps() or {}
             # A profile without a way to sell runs normally instead (the plan doesn't sell then anyway).
             return self._clamp(adapters.resolve(steps.get(want["intent"]) or steps.get("normal", []), self._pool(), want["ctx"]))
+        if part.startswith("car") and part != "car":
+            return self._clamp(adapters.charger_calls(want["intent"], self.entities.get(part, []), self.platforms.get(part),
+                                                      want["ctx"]["current"], self.car_devices.get(part)))
         return self._clamp(adapters.charger_calls(want["intent"], self.entities["car"], self.platforms["car"], want["ctx"]["current"],
                                                   getattr(self, "car_device", None)))
 
@@ -208,9 +283,9 @@ class Controller:
                 d["value"] = int(v) if float(v).is_integer() else v
         return calls
 
-    async def tick(self, parts: tuple[str, ...] = ("battery", "car", "generator")) -> None:
+    async def tick(self, parts: tuple[str, ...] | None = None) -> None:
         for part, want in self.intents().items():
-            if part not in parts:
+            if parts is not None and part not in parts and not (part.startswith("car") and "car" in parts):
                 continue
             mode = self.mode(part)
             if mode == "off":
@@ -233,7 +308,7 @@ class Controller:
                 entry["blocked"] = self.blocked(part)
             self.last[part] = entry
             if changed:
-                self.log[part].appendleft(entry)
+                self.log.setdefault(part, deque(maxlen=60)).appendleft(entry)
 
     def _restore(self, part: str, intent: str) -> list[dict[str, Any]]:
         """Settings that are the owner's own (Victron's grid setpoint, Deye's work mode): remembered before selling,
@@ -310,20 +385,26 @@ class Controller:
             want = self.intents().get("battery")
             if want:
                 await self._send(self.calls("battery", {**want, "intent": "normal"}))
-        modes = {p: "shadow" for p in ("battery", "car", "generator")}
+        modes = {p: "shadow" for p in self.parts()}
         self.ov.save({"control": modes})
         self.last.clear()
 
     def status(self) -> dict[str, Any]:
         wants = self.intents()
         out = {}
-        for part in ("battery", "car", "generator"):
+        from . import chargers
+
+        names = {p: c.get("name") or "" for p, c in zip(self.car_parts(), chargers.extras(self.ov.settings))}
+        for part in self.parts():
             want = wants.get(part)
             out[part] = {
                 "mode": self.mode(part), "blocked": self.blocked(part), "now": want,
-                "calls": self.calls(part, want) if want else [], "log": list(self.log[part])[:20],
+                "calls": self.calls(part, want) if want else [], "log": list(self.log.get(part, []))[:20],
                 "entities": self.entities.get(part, []),
             }
+            if part in names:
+                out[part].update(name=names[part], why=self.more_why.get(part, ""))
+        out["car_parts"] = self.car_parts()
         key = self.profile_key()
         prof = adapters.PROFILES.get(key or "") or {}
         out["profile"] = {"key": key, "name": prof.get("name") or ("custom" if key == "custom" else None),

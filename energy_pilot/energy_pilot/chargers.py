@@ -2,7 +2,8 @@
 
 Charger 1 is the one set up as before (its sensors under "What you have", its buttons on the car card); the others
 live in settings["chargers"]: sensors, charger power, and the car's own "charge now", "ready at" and "at most".
-Shadow only for now: the plan shows when each car would charge; control of the extra chargers comes once tested.
+Each extra charger is a part of its own (car2, car3 …): it starts in shadow and is put in control by itself.
+Charger 1 comes first: the sun's surplus and the room under the main fuse go to it, the others are turned down first.
 """
 
 from __future__ import annotations

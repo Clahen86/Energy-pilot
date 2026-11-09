@@ -177,7 +177,7 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
     async def control_mode(req: web.Request) -> web.Response:
         body = await req.json()
         c = overview.controller
-        if not c or body.get("part") not in ("battery", "car", "generator") or body.get("mode") not in ("shadow", "control", "off"):
+        if not c or body.get("part") not in c.parts() or body.get("mode") not in ("shadow", "control", "off"):
             return web.json_response({"error": "bad request"}, status=400)
         c.set_mode(body["part"], body["mode"])
         await c.tick()

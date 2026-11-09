@@ -279,7 +279,7 @@ const T_ALL = {
     bat: { n: "Batteri {n}", add: "+ Tilføj batteri", name: "Navn", soc: "Batteriniveau", power: "Batterieffekt", remove: "Fjern batteriet",
       hint: "Planen ser alle batterierne som ét – størrelser og effekter lægges sammen.", each: "Hvert batteri", pick: "Vælg sensor…" },
     chg: { n: "Lader {n}", add: "+ Tilføj ladeboks", name: "Navn", power: "Ladeeffekt", plug: "Stik", session: "Ladet", remove: "Fjern ladeboksen",
-      shadow: "Kun skygge – planen viser, hvornår bilen ville lade", planned: "Lader kl. {x}", none: "Ingen opladning planlagt", car: "Bil" },
+      shadow: "Starter i skygge – slå styring til under Skygge", planned: "Lader kl. {x}", none: "Ingen opladning planlagt", car: "Bil" },
     chk: { title: "Tjek af indstillinger", fix: "Ret det", show: "Vis mig", no: "Nej tak",
       charger_found: "Fandt en ladeboks mere: {name}. Skal den med i planen?",
       battery_found: "Fandt et batteri mere: {name}. Skal det med i planen?", adv: "Avanceret", diag: "Hent diagnosefil", diagH: "Send filen, hvis noget ser forkert ud – den indeholder ingen adgangskoder.",
@@ -382,7 +382,7 @@ const T_ALL = {
     bat: { n: "Battery {n}", add: "+ Add a battery", name: "Name", soc: "Battery level", power: "Battery power", remove: "Remove this battery",
       hint: "The plan sees all the batteries as one – sizes and powers are added up.", each: "Each battery", pick: "Pick a sensor…" },
     chg: { n: "Charger {n}", add: "+ Add a charger", name: "Name", power: "Charging power", plug: "Plug", session: "Charged", remove: "Remove this charger",
-      shadow: "Shadow only – the plan shows when the car would charge", planned: "Charges at {x}", none: "No charging planned", car: "Car" },
+      shadow: "Starts in shadow – turn on control under Shadow", planned: "Charges at {x}", none: "No charging planned", car: "Car" },
     chk: { title: "Settings check", fix: "Fix it", show: "Show me", no: "No thanks",
       charger_found: "Found another charger: {name}. Add it to the plan?",
       battery_found: "Found another battery: {name}. Add it to the plan?", adv: "Advanced", diag: "Download diagnostics", diagH: "Send the file if something looks wrong – it holds no passwords.",
@@ -688,7 +688,7 @@ let control = null;
 function describe(part, want) {
   const c = T.ctl;
   if (!want) return "–";
-  if (part === "car") return want.intent === "charge" ? c.carCharge.replace("{a}", Math.round(want.ctx.current)) : c.carStop;
+  if (part.startsWith("car")) return want.intent === "charge" ? c.carCharge.replace("{a}", Math.round(want.ctx.current)) : c.carStop;
   if (part === "battery" && want.intent === "export") return c.batExport.replace("{p}", num(want.ctx.power_w / 1000, 1));
   if (part === "generator") return `${want.intent === "run" ? c.genRun : c.genOff} (${T.gen.why[want.ctx.why] || want.ctx.why})`;
   return want.intent === "charge" ? c.batCharge.replace("{t}", want.ctx.target).replace("{p}", num(want.ctx.power_w / 1000, 1))
@@ -711,14 +711,14 @@ function controlView() {
   const part = (key, title, ic) => {
     const st = control[key];
     if (!st.now && !st.entities.length) return "";
-    return `<div class="cpart"><div class="cp-head"><span class="sec-ic" style="--sc:${key === "car" ? "var(--car)" : "var(--batt)"}">${icon(ic)}</span><div><b>${title}</b>
+    return `<div class="cpart"><div class="cp-head"><span class="sec-ic" style="--sc:${key.startsWith("car") ? "var(--car)" : "var(--batt)"}">${icon(ic)}</span><div><b>${title}</b>
         <span>${st.now ? `${c.now}: ${describe(key, st.now)}` : ""}${st.blocked ? `${st.now ? "<br>" : ""}<em class="blk">${c.blocked[st.blocked]}</em>` : ""}</span></div></div>
       <div class="seg">${["shadow", "control", "off"].map((m) => `<button class="${m} ${st.mode === m ? "on" : ""}" data-cpart="${key}" data-cmode="${m}" ${m === "control" && st.blocked ? "disabled" : ""}>${T.modes[m]}</button>`).join("")}</div>
       ${st.calls.length ? `<details class="more"><summary>${c.calls} (${st.calls.length})</summary><table>${st.calls.map((x) => `<tr><td>${esc(x.domain + "." + x.service)}</td><td>${esc(JSON.stringify(x.data))}</td></tr>`).join("")}</table></details>` : ""}
     </div>`;
   };
   return `<div class="eyebrow" style="margin-top:18px"><span>${c.title}</span>${control.profile?.name ? `<span>${esc(control.profile.name)}</span>` : ""}</div>
-    <div class="muted" style="margin-bottom:6px">${c.hint}</div>${part("battery", T.y.secBattery, "battery")}${checkView()}${part("car", T.y.secCar, "car")}${part("generator", T.gen.title, "bolt")}`;
+    <div class="muted" style="margin-bottom:6px">${c.hint}</div>${part("battery", T.y.secBattery, "battery")}${checkView()}${part("car", T.y.secCar, "car")}${(control.car_parts || []).map((k, i) => part(k, `${T.chg.n.replace("{n}", i + 2)}${control[k]?.name ? ` · ${esc(control[k].name)}` : ""}`, "car")).join("")}${part("generator", T.gen.title, "bolt")}`;
 }
 function shadowView() {
   if (!status) return `<div class="card">…</div>`;
