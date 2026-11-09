@@ -165,7 +165,9 @@ async def fetch_prices(session: Any, area: str, tz: ZoneInfo, s: dict[str, Any],
     Danish zones from Energi Data Service (in DKK), all others from energy-charts.info (EUR, converted)."""
     if not area.startswith("DK"):
         rate = await _rate(session, currency)
-        async with session.get(ENERGY_CHARTS, params={"bzn": area}, timeout=30) as resp:
+        day0 = datetime.now(tz).date()  # without dates it gives today only - tomorrow (out ~13:00) must be asked for
+        params = {"bzn": area, "start": day0.isoformat(), "end": (day0 + timedelta(days=1)).isoformat()}
+        async with session.get(ENERGY_CHARTS, params=params, timeout=30) as resp:
             resp.raise_for_status()
             data = await resp.json()
         out = []
