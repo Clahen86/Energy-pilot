@@ -65,3 +65,13 @@ def test_grid_peak_is_a_two_minute_average():
     for w in (6000,) * 4:
         gp.see(T0, w)
     assert gp.kw() == 6.0
+
+
+def test_default_limit_gets_the_usual_fuse_for_the_country():
+    e = engine({"import_limit_kw": 10}, peak=6.0)
+    e.ha = SimpleNamespace(config={"country": "DK"})
+    found = checks.run(e, [], Battery(capacity_kwh=10, import_limit_kw=10), None, 0.0)
+    assert found[0]["key"] == "fuse_default" and found[0]["fix"] == {"import_limit_kw": 17}
+    e2 = engine({"import_limit_kw": 10, "fuse_ok": True}, peak=6.0)
+    e2.ha = SimpleNamespace(config={"country": "DK"})
+    assert checks.run(e2, [], Battery(capacity_kwh=10, import_limit_kw=10), None, 0.0) == []

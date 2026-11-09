@@ -34,6 +34,11 @@ class GridPeak:
         return (self.state.get("grid_peak") or {}).get("kw")
 
 
+# The most common main fuse for a house, by country: (kW, as people know it). Only where one size is common.
+USUAL_FUSE = {"DK": (17, "3 × 25 A"), "SE": (17, "3 × 25 A"), "FI": (17, "3 × 25 A"), "DE": (24, "3 × 35 A"),
+              "AT": (24, "3 × 35 A"), "NL": (17, "3 × 25 A"), "GB": (23, "100 A"), "IE": (14, "63 A")}
+
+
 def run(engine: Any, hours: list, b: Any, plan: Any, end_value: float) -> list[dict[str, Any]]:
     """The checks for the plan just made. Each: key, level (warn/info), values for the text, fix (settings) or goto."""
     from .engine import plan_battery
@@ -55,6 +60,14 @@ def run(engine: Any, hours: list, b: Any, plan: Any, end_value: float) -> list[d
     if b.import_limit_kw is not None and peak and peak > b.import_limit_kw * 1.05 and not any(c["key"] == "fuse_blocks" for c in out):
         out.append({"key": "fuse_low", "level": "warn", "vals": {"limit": b.import_limit_kw, "peak": round(peak, 1)},
                     "fix": {"import_limit_kw": None}, "goto": "grid"})
+    # The limit is still the 10 kW new installs start with: the usual main fuse in the country is a better guess.
+    st0 = engine.ov.settings
+    country = str(((getattr(engine, "ha", None) and engine.ha.config) or {}).get("country") or "").upper()
+    usual = USUAL_FUSE.get(country)
+    if (usual and st0.get("import_limit_kw") == 10 and not st0.get("fuse_ok") and (peak or 0) <= usual[0]
+            and not any(c["key"] in ("fuse_blocks", "fuse_low") for c in out)):
+        out.append({"key": "fuse_default", "level": "info", "vals": {"kw": usual[0], "fuse": usual[1]},
+                    "fix": {"import_limit_kw": usual[0]}, "dismiss": {"fuse_ok": True}, "goto": "grid"})
 
     # 2. Battery size: the usable kWh it has measured differs from what's set.
     from . import batteries
