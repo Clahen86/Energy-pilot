@@ -16,6 +16,20 @@ PLUG_WORDS = ("plugged", "plug", "cable", "stik")
 SESSION_WORDS = ("session_energy", "energy_session", "session")
 
 
+# What a charger's plug sensor says when a car is in it - a binary sensor ("on") or an enum, like VEVOR's
+# "plugged_in", OCPP's "Preparing"/"SuspendedEV" or go-e's "waiting".
+_UNPLUGGED = ("off", "false", "available", "disconnected", "unplugged", "fault_unplugged", "not_connected", "no_car",
+              "idle", "unavailable", "unknown", "none", "")
+
+
+def is_plugged(state: Any) -> bool:
+    s = str(state or "").strip().lower().replace(" ", "_")
+    if s in _UNPLUGGED or "unplug" in s or "disconnect" in s or "not_connected" in s:
+        return False
+    return s in ("on", "true", "1") or any(w in s for w in (
+        "plug", "connect", "charg", "wait", "paus", "suspend", "prepar", "finish", "complete", "occupied", "ready", "car"))
+
+
 def extras(settings: dict[str, Any]) -> list[dict[str, Any]]:
     """The extra chargers that are set up (with a power or a plug sensor)."""
     return [c for c in (settings.get("chargers") or []) if isinstance(c, dict) and (c.get("power") or c.get("plug"))]
@@ -33,7 +47,7 @@ def read(states: dict[str, Any], c: dict[str, Any]) -> dict[str, Any]:
     w = _num(states.get(c["power"])) if c.get("power") else None
     if w is not None and str(((states.get(c["power"]) or {}).get("attributes") or {}).get("unit_of_measurement") or "").lower() == "kw":
         w *= 1000
-    plug = (states.get(c["plug"]) or {}).get("state") == "on" if c.get("plug") else (w or 0) > 100
+    plug = is_plugged((states.get(c["plug"]) or {}).get("state")) if c.get("plug") else (w or 0) > 100
     return {"name": c.get("name") or "", "power": w, "plug": plug,
             "session_kwh": _num(states.get(c["session"])) if c.get("session") else None}
 

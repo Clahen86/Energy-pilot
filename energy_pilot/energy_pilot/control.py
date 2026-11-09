@@ -118,7 +118,10 @@ class Controller:
             dev = (by_id.get(anchor) or {}).get("device_id")
             plat = (by_id.get(anchor) or {}).get("platform")
             found = [e["entity_id"] for e in entities if not e.get("disabled_by") and e["entity_id"].split(".")[0] in ("select", "number", "switch", "button")
-                     and ((dev and e.get("device_id") == dev) or (plat and e.get("platform") == plat and plat not in ("mqtt", "template")))]
+                     and ((dev and e.get("device_id") == dev) or (plat and e.get("platform") == plat and plat not in ("mqtt", "template")
+                                                                   and not (part == "car" and dev)))]
+            # The charger: only its own device when it has one - Tuya, say, also has the air conditioner and the cat's
+            # litter box, and their switches must never be taken for the charger's.
             if not found and anchor:  # MQTT inverters: same name prefix
                 prefix = anchor.split(".", 1)[1].split("_")[0]
                 found = [e for e in self.ha.states if e.split(".")[0] in ("select", "number", "switch") and e.split(".", 1)[1].startswith(prefix + "_")]
@@ -333,9 +336,9 @@ class Controller:
             return self._clamp(adapters.resolve(steps.get(want["intent"]) or steps.get("normal", []), self._pool(part), want["ctx"]))
         if part.startswith("car") and part != "car":
             return self._clamp(adapters.charger_calls(want["intent"], self.entities.get(part, []), self.platforms.get(part),
-                                                      want["ctx"]["current"], self.car_devices.get(part)))
+                                                      want["ctx"]["current"], self.car_devices.get(part), self.ha.states))
         return self._clamp(adapters.charger_calls(want["intent"], self.entities["car"], self.platforms["car"], want["ctx"]["current"],
-                                                  getattr(self, "car_device", None)))
+                                                  getattr(self, "car_device", None), self.ha.states))
 
     def _clamp(self, calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Numbers within the control's own min/max - Home Assistant refuses a value outside them."""

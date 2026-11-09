@@ -360,6 +360,7 @@ PROFILES: dict[str, dict[str, Any]] = {
 # Chargers: almost every integration has a switch to start/stop and a number for the current.
 CHARGER_SWITCH = r"switch\..*(charg|enable|is_enabled|charge_control|charging_allowed|start_stop|pause|resume)"
 CHARGER_CURRENT = r"number\..*(current|ampere|amp|charging_limit|dynamic_limit)"
+CHARGER_CURRENT_SELECT = r"select\..*(current|ampere|courant|strom)"  # VEVOR (Tuya) and others: the current as a list
 # Chargers by integration - from each integration's own source code. The current is in amps; {device_id} is the
 # charger's device in Home Assistant. Not on the list: the generic switch + number above.
 CHARGER_SERVICES = {
@@ -489,8 +490,21 @@ def guess_profile(entities: list[str], platforms: set[str], model: str | None = 
     return None
 
 
+def _amp_option(options: list[str], current: float) -> str | None:
+    """The highest current in the list that isn't above the wanted one (else the lowest): "16A", "16 A", "16"."""
+    vals = []
+    for o in options or []:
+        m = re.search(r"\d+", str(o))
+        if m:
+            vals.append((int(m.group()), o))
+    if not vals:
+        return None
+    under = [v for v in vals if v[0] <= current + 0.01]
+    return max(under)[1] if under else min(vals)[1]
+
+
 def charger_calls(intent: str, entities: list[str], platform: str | None, current: float,
-                  device_id: str | None = None) -> list[dict[str, Any]]:
+                  device_id: str | None = None, states: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     """Start at a current, or stop - by the charger integration's own way where known, else its switch and number."""
     ctx = {"current": round(current), "device_id": device_id or ""}
     if platform in CHARGER_SERVICES:
@@ -502,6 +516,10 @@ def charger_calls(intent: str, entities: list[str], platform: str | None, curren
     if intent == "charge":
         if number:
             calls.append({"domain": "number", "service": "set_value", "data": {"entity_id": number, "value": round(current)}})
+        elif (sel := next((e for e in entities if re.search(CHARGER_CURRENT_SELECT, e)), None)) and states is not None:
+            opts = ((states.get(sel) or {}).get("attributes") or {}).get("options") or []
+            if (opt := _amp_option(opts, current)) is not None:
+                calls.append({"domain": "select", "service": "select_option", "data": {"entity_id": sel, "option": opt}})
         if switch:
             calls.append({"domain": "switch", "service": "turn_off" if paused else "turn_on", "data": {"entity_id": switch}})
     elif switch:

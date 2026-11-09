@@ -87,3 +87,19 @@ def test_second_charger_charges_in_its_planned_hour():
     flow = {"pv": 0, "house": 500, "battery": 0, "grid": 500, "ev": 0, "cars": [{"plug": True, "power": 0}]}
     want = _ctl(st, flow, [{"hours": [now.isoformat()], "need_kwh": 10, "slot_min": 60}])["car2"]
     assert want["intent"] == "charge" and want["ctx"]["current"] == 32
+
+
+def test_plug_states_from_status_lists():
+    for on in ("on", "plugged_in", "charging", "waiting", "paused", "charged", "Preparing", "SuspendedEV", "connected"):
+        assert chargers.is_plugged(on), on
+    for off in ("off", "available", "fault_unplugged", "disconnected", "unavailable", "unknown", None, "fault"):
+        assert not chargers.is_plugged(off), off
+
+
+def test_current_as_a_select_vevor():
+    from energy_pilot import adapters
+
+    states = {"select.vevor_ev_charger_charging_current": {"state": "16A", "attributes": {"options": ["8A", "10A", "13A", "16A", "32A"]}}}
+    calls = adapters.charger_calls("charge", ["switch.vevor_ev_charger", "select.vevor_ev_charger_charging_current"], "tuya", 14, None, states)
+    assert calls[0] == {"domain": "select", "service": "select_option", "data": {"entity_id": "select.vevor_ev_charger_charging_current", "option": "13A"}}
+    assert calls[1]["service"] == "turn_on"

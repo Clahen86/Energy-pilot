@@ -232,7 +232,9 @@ class Overview:
                     continue
                 if cls == "battery" and not (dc == "battery" or (domain == "sensor" and not dc and unit == "%")):
                     continue
-                if cls == "plug" and (domain != "binary_sensor" or dc not in ("plug", "power", None)):
+                # A binary plug sensor, or a charger's status list (VEVOR, OCPP …) that says when the car is in.
+                if cls == "plug" and not ((domain == "binary_sensor" and dc in ("plug", "power", None))
+                                          or (domain == "sensor" and dc == "enum")):
                     continue
                 if cls == "energy" and not (dc == "energy" or (domain == "sensor" and not dc and unit in ("kwh", "wh"))):
                     continue
@@ -291,8 +293,9 @@ class Overview:
             packs = [main] + others
         grid = _watts(st.get(r["grid_power"])) if r["grid_power"] else None
         ev = _watts(st.get(r["ev_power"])) if r["ev_power"] else None
-        plug = (st.get(r["ev_plug"]) or {}).get("state") == "on" if r["ev_plug"] else None
         from . import chargers
+
+        plug = chargers.is_plugged((st.get(r["ev_plug"]) or {}).get("state")) if r["ev_plug"] else None
 
         cars = [chargers.read(st, c) for c in chargers.extras(self.settings)] or None
         if cars and any(c["power"] is not None for c in cars):
