@@ -35,3 +35,15 @@ def test_export_limit():
     b = Battery(capacity_kwh=10, export=True, wear=0.06, export_limit_kw=1.0)
     p = plan_battery(hours(0.9), 90, b, end_value=0.2)
     assert min(s.grid_kwh for s in p.steps) >= -1.0 - 1e-9
+
+
+def test_built_in_profiles_can_sell():
+    # the plan only sells when the profile's export step reaches it (0.39.3: it never did)
+    from types import SimpleNamespace
+
+    from energy_pilot.control import Controller
+
+    c = Controller.__new__(Controller)
+    c.ov = SimpleNamespace(settings={"inverter_profile": "victron"})
+    c.profile_key = lambda: "victron"
+    assert "export" in c.profile_steps()

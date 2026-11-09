@@ -158,7 +158,8 @@
   .stile { background:var(--card2, rgba(127,127,127,.08)); border-radius:12px; padding:8px 10px; } .stile span { display:block; font-size:12px; color:var(--muted); }
   .stile b { font-size:17px; } .stile b.bad { color:var(--warn); }
   @media (max-width:420px) { .stiles { grid-template-columns:repeat(2,1fr); } }
-  .set .extra { display: flex; gap: 6px; margin-top: 6px; } .set .extra select { flex: 1; min-width: 0; }
+  .rolesel { flex: 0 1 58%; min-width: 0; max-width: 58%; display: flex; flex-direction: column; } .rolesel select { max-width: 100%; } .rolesel > select { width: 100%; }
+  .set .extra { display: flex; align-items: center; gap: 6px; margin-top: 6px; } .set .extra select { flex: 1; min-width: 0; }
   .set .del { border: none; background: none; color: var(--muted); font-size: 20px; cursor: pointer; padding: 0 6px; }
   .rolemore { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
   .rolefind { flex: 1; min-width: 160px; font: inherit; font-size: 13px; padding: 7px 10px; border-radius: 10px;
@@ -167,8 +168,8 @@
   .ctl { flex-wrap:wrap; gap:8px 12px; } .ctl .t { flex:1 1 140px; min-width:0; }
   .ctl > :last-child { max-width:100%; } .seg.mini { flex-wrap:wrap; max-width:100%; min-width:0; }
   .times2 { flex-wrap:wrap; max-width:100%; } .times2 input { min-width:0; max-width:120px; }
-  .set { flex-wrap:wrap; } .set > select { min-width:0; max-width:100%; flex:1 1 160px; }
-  .set .extra, .set .rolemore { flex-basis:100%; min-width:0; } .rolemore .link { color:var(--muted); font-weight:600; } .rolefind { min-width:0; width:100%; flex:1 1 100%; }
+  .set { flex-wrap:wrap; } .set > select, .set > .rolesel { min-width:0; max-width:100%; flex:1 1 160px; }
+  .set .rolemore { flex-basis:100%; min-width:0; } .rolemore .link { color:var(--muted); font-weight:600; } .rolefind { min-width:0; width:100%; flex:1 1 100%; }
   .cp-head em.blk { font-style:normal; color:var(--muted); font-size:12px; }
   .pnote { font-size:12.5px; color:var(--muted); margin:-4px 0 10px; } .pnote.warn { color:var(--warn); }
   /* tab bar */
@@ -762,9 +763,9 @@ function roleRows(roles) {
       <button class="del" data-roledel="${r}" data-i="${i + 1}" aria-label="${T.remove}">×</button></div>`).join("") : "";
     const adding = multi && roleAdd[r] ? `<div class="extra"><select data-roleextra="${r}" data-i="${Math.max(1, list.length)}"><option value="">${T.pick}</option>${opts(null)}</select></div>` : "";
     return `<div class="set"><span><b class="rl">${T.roles[r]}</b>${src ? `<em class="src ${src.split(":")[0]}">${esc(sourceLabel(src))}</em>` : `<em class="src none">${T.notFound}</em>`}</span>
-      <select data-role="${r}"><option value="__auto" ${chosen == null ? "selected" : ""}>${found ? esc(found) : T.auto}</option>
+      <div class="rolesel"><select data-role="${r}"><option value="__auto" ${chosen == null ? "selected" : ""}>${found ? esc(found) : T.auto}</option>
       <option value="" ${chosen === "" ? "selected" : ""}>${T.none}</option>${opts(chosen)}</select>
-      ${extra}${adding}
+      ${extra}${adding}</div>
       <div class="rolemore">${multi && (list.length || foundId) ? `<button class="link" data-roleadd="${r}">+ ${T.addArray}</button>` : ""}
         ${roleFind[r] ? `<input class="rolefind" list="ep-all" data-rolefind="${r}" placeholder="${T.findSensor}">`
           : `<button class="link" data-rolesearch="${r}">${T.findOther}</button>`}</div></div>`;

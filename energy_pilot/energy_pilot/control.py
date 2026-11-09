@@ -120,7 +120,7 @@ class Controller:
             steps = {i: [(s["entity"], s["kind"], s.get("value")) for s in c.get(i, []) if s.get("entity")] for i in ("normal", "hold", "charge")}
             return steps if any(steps.values()) else None
         p = adapters.PROFILES.get(key or "")
-        return {i: p[i] for i in ("normal", "hold", "charge")} if p else None
+        return {i: p[i] for i in ("normal", "hold", "charge", "export") if i in p} if p else None
 
     def check(self) -> dict[str, dict]:
         """Which of the profile's controls were found on the inverter, and which are missing."""

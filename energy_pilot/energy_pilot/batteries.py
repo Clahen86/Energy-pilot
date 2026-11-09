@@ -12,7 +12,7 @@ from typing import Any
 
 SOC_WORDS = ("state_of_charge", "state_of_energy", "battery_soc", "_soc", "battery_level")
 NOT_A_HOME_BATTERY = ("phone", "iphone", "pixel", "ipad", "tablet", "watch", "laptop", "macbook", "car_", "_car", "tesla_model",
-                      "vehicle", "ev_", "remote", "button", "sensor_battery", "mower", "vacuum", "roborock")
+                      "vehicle", "ev_", "remote", "button", "sensor_battery", "mower", "vacuum", "roborock", "12v", "12_v")
 
 
 def extras(settings: dict[str, Any]) -> list[dict[str, Any]]:
