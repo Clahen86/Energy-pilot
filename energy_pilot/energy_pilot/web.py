@@ -70,6 +70,7 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
                                   "ev_detected": overview.engine.ev_detected if overview.engine else None,
                                   "all_sensors": overview.all_sensors(),
                                   "battery_sign_found": overview.engine.sign_found() if overview.engine else None,
+                                  "grid_sign_found": overview.grid_sign_found(),
                                   "capacity_learned": overview.engine.batt_learn.capacity() if overview.engine else None,
                                   "wear_default": __import__("energy_pilot.engine", fromlist=["WEAR"]).WEAR.get(str(runner.ha.config.get("currency") or "EUR").upper(), 0.07),
                                   "roles_all": {r: overview.role_all(r) for r in ("pv_power", "solar_today", "solar_tomorrow")}})

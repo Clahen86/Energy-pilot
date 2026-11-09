@@ -140,7 +140,7 @@ class Overview:
             if key == "roles":
                 self.settings.setdefault("roles", {}).update({k: v for k, v in value.items() if k in ROLES})
             elif key in ("battery_kwh", "import_limit_kw", "language", "setup_done", "style", "price_area", "tariff", "markup", "price_source", "tou", "vat", "battery_min_soc", "grid_charge",
-                         "sell", "sell_price", "solar_value", "ev_in_house", "battery_sign", "ev_follow_sun", "ev_fuse_guard",
+                         "sell", "sell_price", "solar_value", "ev_in_house", "battery_sign", "grid_sign", "ev_follow_sun", "ev_fuse_guard",
                          "battery_export", "battery_wear", "export_limit_kw", "agile_region", "restore_values",
                          "offgrid", "reserve_soc", "emergency_soc", "gen_stop_soc", "gen_charge_kw", "gen_min_run_h",
                          "quiet_gen_from", "quiet_gen_to", "battery_charge_kw", "battery_discharge_kw", "ev_mode", "charger_kw", "ev_need_kwh",
@@ -158,6 +158,39 @@ class Overview:
         from .pricefeed import now_price
 
         return now_price(self.ha.states, self.role("price"), ZoneInfo(self.ha.config.get("time_zone") or "UTC"))
+
+    def grid_sign(self) -> int:
+        """+1: positive grid power is buying (most meters). -1: positive is selling (Solis/SolaX PCC …). Chosen, or found."""
+        chosen = self.settings.get("grid_sign")
+        if chosen in (1, -1):
+            return chosen
+        return self.grid_sign_found() or 1
+
+    def grid_sign_found(self) -> int | None:
+        """Found from the house's own balance: with the battery resting, what the grid gives is house - sun."""
+        votes = list(getattr(self, "_grid_votes", []))
+        if len(votes) < 8:
+            return None
+        s = sum(votes)
+        return 1 if s >= 0.6 * len(votes) else -1 if s <= -0.6 * len(votes) else None
+
+    def _watch_grid(self, raw: float | None, house: float | None, pv: float | None, batt: float | None, ev: float | None) -> None:
+        if raw is None or house is None or pv is None or (batt is not None and abs(batt) > 150) or abs(raw) < 150:
+            return
+        expected = house - pv + (0.0 if (self.engine and self.engine.ev_in_house()) else (ev or 0.0))
+        if abs(expected) < 150:
+            return
+        if abs(raw - expected) < 0.35 * abs(expected):
+            vote = 1
+        elif abs(raw + expected) < 0.35 * abs(expected):
+            vote = -1
+        else:
+            return  # doesn't add up either way - another sensor is off, don't guess
+        from collections import deque
+
+        if not hasattr(self, "_grid_votes"):
+            self._grid_votes = deque(maxlen=30)
+        self._grid_votes.append(vote)
 
     def battery_sign(self) -> int:
         """+1: positive battery power is charging (Growatt). -1: positive is discharging (Fox ESS). Chosen, or found."""
@@ -292,6 +325,9 @@ class Overview:
             soc, batt = batteries.combine(main, others)
             packs = [main] + others
         grid = _watts(st.get(r["grid_power"])) if r["grid_power"] else None
+        if grid is not None:
+            self._watch_grid(grid, house, pv, batt, _watts(st.get(r["ev_power"])) if r["ev_power"] else None)
+            grid *= self.grid_sign()  # some meters (Solis/SolaX PCC …) count buying as negative
         ev = _watts(st.get(r["ev_power"])) if r["ev_power"] else None
         from . import chargers
 

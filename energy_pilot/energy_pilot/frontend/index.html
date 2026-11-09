@@ -234,6 +234,9 @@ const T_ALL = {
       sign: "Batteriets effekt", signs: { auto: "Find selv", norm: "+ er lader", rev: "+ er aflader" },
       signNorm: "Fundet: positivt tal = batteriet lader", signRev: "Fundet: positivt tal = batteriet aflader (fx Fox ESS) – vendes",
       signUnknown: "Ser på batteriniveauet for at finde ud af, hvilken vej tallet går",
+      gsign: "Net-effekt", gsigns: { auto: "Find selv", norm: "+ er køb", rev: "+ er salg" },
+      gsignNorm: "Fundet: positivt tal = du køber", gsignRev: "Fundet: positivt tal = du sælger (fx Solis) – vendes",
+      gsignUnknown: "Ser på husets forbrug og solen for at finde ud af, hvilken vej tallet går",
       sellFromSensor: "Bruges kun, når salgsprisen fra sensoren mangler",
       sellSensorH: "Skifter din salgspris (fx Amber)? Vælg en sensor med prisen, så bruger planen den time for time.",
       evInHouse: "Bilen er med i husforbruget", evHouse: { auto: "Find selv", yes: "Ja", no: "Nej" },
@@ -337,6 +340,9 @@ const T_ALL = {
       sign: "Battery power", signs: { auto: "Find out", norm: "+ is charging", rev: "+ is discharging" },
       signNorm: "Found: positive means charging", signRev: "Found: positive means discharging (e.g. Fox ESS) – reversed",
       signUnknown: "Watching the battery level to tell which way the number goes",
+      gsign: "Grid power", gsigns: { auto: "Find out", norm: "+ is buying", rev: "+ is selling" },
+      gsignNorm: "Found: positive means buying", gsignRev: "Found: positive means selling (e.g. Solis) – reversed",
+      gsignUnknown: "Comparing the house's use and the sun to tell which way the number goes",
       sellFromSensor: "Only used when the sensor's price is missing",
       sellSensorH: "Does your feed-in price change (e.g. Amber)? Pick a sensor with the price, and the plan uses it slot by slot.",
       evInHouse: "The car is in the house's use", evHouse: { auto: "Find out", yes: "Yes", no: "No" },
@@ -899,6 +905,8 @@ function styleView() {
       ${row(y.sell, y.sellH, tog("sell"))}
       ${v.sell ? `<div class="muted" style="margin:4px 0 2px">${y.sellSensorH}</div>${roleRows(["sell_price"])}` : ""}
       ${adv("grid", `${v.sell ? row(y.sellPrice, settings.roles.sell_price ? y.sellFromSensor : "", numIn("sell_price", "0.5", "0.05", SYM())) : ""}
+      ${row(y.gsign, settings.grid_sign_found === -1 ? y.gsignRev : settings.grid_sign_found === 1 ? y.gsignNorm : y.gsignUnknown,
+        `<div class="seg mini">${[["auto", null], ["norm", 1], ["rev", -1]].map(([k, val]) => `<button class="${(v.grid_sign ?? null) === val ? "on" : ""}" data-gsign="${k}">${y.gsigns[k]}</button>`).join("")}</div>`)}
       ${row(T.ledger.solarValue, T.ledger.solarValueH, `<div class="seg mini">${["free", "sell"].map((m) => `<button class="${(v.solar_value || "free") === m ? "on" : ""}" data-sval="${m}">${T.ledger.sv[m]}</button>`).join("")}</div>`)}`)}`)}
 `;
 }
@@ -1077,6 +1085,7 @@ function wire() {
   });
   document.querySelectorAll("details[data-adv]").forEach((d) => d.ontoggle = () => { d.open ? advOpen.add(d.dataset.adv) : advOpen.delete(d.dataset.adv); });
   document.querySelectorAll("[data-uselearned]").forEach((b) => b.onclick = () => saveSet({ battery_kwh: null }));
+  document.querySelectorAll("[data-gsign]").forEach((b) => b.onclick = () => saveSet({ grid_sign: { auto: null, norm: 1, rev: -1 }[b.dataset.gsign] }));
   document.querySelectorAll("[data-bsign]").forEach((b) => b.onclick = () => saveSet({ battery_sign: { auto: null, norm: 1, rev: -1 }[b.dataset.bsign] }));
   const tou = () => JSON.parse(JSON.stringify(settings.settings.tou || { default: 0, periods: [] }));
   $("[data-tou-preset]")?.addEventListener("change", (e) => { const p = settings.tou_presets[e.target.value]; if (p) saveSet({ tou: { default: p.default, periods: p.periods } }); });
