@@ -72,7 +72,8 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
                                   "battery_sign_found": overview.engine.sign_found() if overview.engine else None,
                                   "grid_sign_found": overview.grid_sign_found(),
                                   "capacity_learned": overview.engine.batt_learn.capacity() if overview.engine else None,
-                                  "wear_default": __import__("energy_pilot.engine", fromlist=["WEAR"]).WEAR.get(str(runner.ha.config.get("currency") or "EUR").upper(), 0.07),
+                                  "wear_default": overview.engine.wear(own=False) if overview.engine else None,
+                                  "battery_type_found": overview.engine.battery_type() if overview.engine else None,
                                   "roles_all": {r: overview.role_all(r) for r in ("pv_power", "solar_today", "solar_tomorrow")}})
 
     async def redetect(_req: web.Request) -> web.Response:

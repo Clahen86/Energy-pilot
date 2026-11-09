@@ -47,6 +47,8 @@ one decide:
   hours, the battery's real usable capacity and efficiency (labels often say more than what's usable, and batteries wear),
   and the car's habits (when it leaves, how much it takes). What you set
   yourself always wins.
+- **Counts the wear** – finds the battery type by itself (LFP, NMC, sodium or lead – from the inverter's setting or the battery's
+  model) and works out the wear per kWh, so the battery isn't cycled for a few cents. What the battery cost can be entered under Advanced.
 
 The panel shows who decides right now and how well each one hits:
 
@@ -168,6 +170,7 @@ bliver bedre hver nat.** Den starter altid i *skygge*: den viser, hvad den ville
   efterhånden som de rammer bedre – for forbrug, sol og morgendagens priser før kl. 13. Rammer de ved siden af, tager den
   simple over igen.
 - **Lærer batteriet at kende:** den rigtige brugbare kapacitet og virkningsgrad – navneværdien er ofte højere, og batterier slides.
+- **Regner sliddet med:** finder selv batteritypen (LFP, NMC, natrium eller bly – fra inverterens indstilling eller batteriets model) og regner sliddet pr. kWh ud, så batteriet ikke bruges for få øres gevinst. Man kan skrive, hvad batteriet kostede, under Avanceret.
 - **Planlægger i kvarterer**, så batteri og bil bruger de billigste kvarterer.
 - **Målt besparelse** og batteriets kostpris.
 - **Aldrig en halv kommando:** mangler en kontrol, styrer den ikke, og en test i skygge viser, hvad den fandt.

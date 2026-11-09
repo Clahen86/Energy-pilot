@@ -68,7 +68,7 @@ class Battery:
     import_limit_kw: float | None = None  # main fuse: never buy more than this in an hour
     quiet: frozenset = frozenset()  # hours (0-23) the battery must not charge
     export: bool = False  # may sell from the battery when it pays (off unless the user turns it on)
-    wear: float = 0.0  # what one kWh through the battery wears it (money per kWh) - only counted for selling
+    wear: float = 0.0  # what one kWh into or out of the battery wears it (money per kWh) - a move must beat it
     export_limit_kw: float | None = None  # what may be sent to the grid
 
 
@@ -183,8 +183,7 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
                 if b.import_limit_kw is not None and grid > b.import_limit_kw * h.length + 1e-9 and delta > 0:
                     continue  # charging would trip the main fuse
                 cost = grid * h.price if grid > 0 else grid * h.sell
-                if action == "export":
-                    cost += (out - need) * b.wear  # selling wears the battery: only worth it with a clear gain
+                cost += abs(delta) * b.wear  # every kWh in or out wears the battery: a move must pay for that too
                 total = cost + best[i + 1][k]
                 if total < best[i][j] - 1e-12:
                     best[i][j] = total
@@ -259,11 +258,6 @@ def split_slots(hours: list[Hour], prices: dict[datetime, float], now: datetime,
 
 ACTION_KIND = {"discharge": "discharge", "charge_sun": "charge", "charge_grid": "grid", "hold": "hold", "export": "export"}
 
-# What a kWh through a battery wears it, by currency: an LFP battery of about 3000 DKK per kWh lasts about 6000
-# cycles - about 0.5 DKK per kWh. Users don't know this, so it isn't asked; it can be changed under advanced.
-WEAR = {"DKK": 0.5, "NOK": 0.75, "SEK": 0.75, "EUR": 0.07, "GBP": 0.06, "USD": 0.08, "AUD": 0.11, "NZD": 0.12,
-        "CAD": 0.1, "PLN": 0.3, "CHF": 0.065, "CZK": 1.7, "HUF": 27.0}
-
 
 class Engine:
     def __init__(self, ha: Any, overview: Any) -> None:
@@ -308,7 +302,11 @@ class Engine:
         """The battery as set - a style changes the defaults: "solar" never buys for the battery, "safe" keeps 30 %."""
         s = self.ov.settings
         style = s.get("style") or "cheapest"
-        min_soc = float(s.get("battery_min_soc") or 10)
+        kind = self.battery_type()["type"]
+        from .batterytype import TYPES
+
+        # Lead batteries like to stay above half - unless the user set the minimum.
+        min_soc = float(s.get("battery_min_soc") or TYPES[kind]["min_soc"])
         if style == "safe":
             min_soc = max(min_soc, 30.0)
         grid = bool(s.get("grid_charge", True)) and style != "solar"
@@ -336,9 +334,9 @@ class Engine:
             max_discharge_kw=discharge,
             min_soc=min_soc, grid_charge=grid, import_limit_kw=float(s["import_limit_kw"]) if s.get("import_limit_kw") else None,
             quiet=frozenset(self.quiet_hours("battery")),
-            efficiency=self.batt_learn.efficiency(0.92),  # the datasheet's, until it has seen the real one
+            efficiency=self.batt_learn.efficiency(TYPES[kind]["eff"]),  # the type's, until it has seen the real one
             export=self.can_export(),
-            wear=self.wear(),
+            wear=self.wear(cap),
             export_limit_kw=float(s["export_limit_kw"]) if s.get("export_limit_kw") else None,
         )
 
@@ -357,11 +355,34 @@ class Engine:
         except Exception:  # noqa: BLE001
             return True
 
-    def wear(self) -> float:
+    def battery_type(self) -> dict[str, Any]:
+        """The battery's kind - chosen, or found (the inverter's setting, the model, the learned efficiency)."""
+        from . import batterytype
+
+        chosen = self.ov.settings.get("battery_type")
+        now = time.time()
+        if getattr(self, "_btype", None) is None or now - self._btype[0] > 600:
+            ctl = getattr(self.ov, "controller", None)
+            info = self.batt_learn.info(0.92)
+            found = batterytype.detect(self.ha.states, getattr(ctl, "model", None), self.ov.role("battery_soc"),
+                                       info.get("efficiency"), info.get("seen") or 0)
+            self._btype = (now, found)
+        found = self._btype[1]
+        if chosen in batterytype.TYPES:
+            return {**found, "type": chosen, "why": "chosen"}
+        return found
+
+    def wear(self, capacity_kwh: float | None = None, own: bool = True) -> float:
+        """Money per kWh into or out of the battery. Set outright, or worked out from the type (and the price paid)."""
+        from . import batterytype
+
         s = self.ov.settings
-        if s.get("battery_wear") not in (None, ""):
+        if own and s.get("battery_wear") not in (None, ""):
             return float(s["battery_wear"])
-        return WEAR.get(str(self.ha.config.get("currency") or "EUR").upper(), 0.07)
+        bt = self.battery_type()
+        cap = capacity_kwh or float(s.get("battery_kwh") or self.batt_learn.capacity() or self._guess_capacity() or 10)
+        price = float(s["battery_price"]) if s.get("battery_price") not in (None, "") else None
+        return batterytype.wear(bt["type"], str(self.ha.config.get("currency") or "EUR"), cap, price, bt.get("cycles"))
 
     def quiet_hours(self, what: str) -> list[int]:
         """The hours the battery or the car must not charge - each has its own (older settings: one shared period)."""

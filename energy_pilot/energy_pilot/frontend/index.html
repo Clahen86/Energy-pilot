@@ -217,7 +217,10 @@ const T_ALL = {
         battery_first: ["Batteriet først", "Bilen får solen, når batteriet er fuldt"] },
       minSoc: "Batteri-minimum", minSocH: "Går aldrig under dette", grid: "Må lade fra nettet", gridH: "Når strømmen er billig nok til at betale sig",
       export: "Sælg fra batteriet", exportH: "Når salgsprisen giver en tydelig gevinst - efter tab og slid", exportLimit: "Eksportgrænse", exportLimitH: "Hvad du må sende ud på nettet (tom: ingen grænse)",
-      wear: "Slid pr. kWh (avanceret)", wearH: "Regnet ud for dig: {x} - ret kun hvis du kender batteriets pris og levetid",
+      wear: "Slid pr. kWh", wearH: "Hver kWh ind eller ud slider lidt på batteriet – regnet ud for dig: {x}. Lad feltet stå tomt",
+      btype: "Batteritype", btypes: { lfp: "LFP (lithium-jern)", nmc: "NMC (lithium)", sodium: "Natrium-ion", lead: "Bly (AGM/gel)" },
+      btypeWhy: { inverter: "Fundet i inverterens indstillinger: {t}", model: "Fundet ud fra batteriets model: {t}", efficiency: "Virkningsgraden ligner {t}", default: "Ikke fundet – regner med {t}, den mest almindelige", chosen: "Valgt af dig" },
+      bprice: "Batteriets pris", bpriceH: "Valgfrit – hvad batteriet kostede, så sliddet passer til netop dit",
       size: "Batteriets størrelse", sizeH: "Fundet: {x} kWh",
       sizeLearned: "Lært: {x} kWh brugbart – bruges, når feltet er tomt", sizeDiff: "Lært: {x} kWh brugbart, du har sat {y}. Navneværdien er ofte højere end det brugbare.",
       sizeLearning: "Lærer den brugbare kapacitet af op- og afladningerne", useLearned: "Brug det lærte", power: "Ladeeffekt", powerH: "Hvor hurtigt batteriet kan lade",
@@ -323,7 +326,10 @@ const T_ALL = {
         battery_first: ["Battery first", "The car gets the sun once the battery is full"] },
       minSoc: "Battery minimum", minSocH: "Never goes below this", grid: "May charge from the grid", gridH: "When power is cheap enough to pay off",
       export: "Sell from the battery", exportH: "When the export price gives a clear gain - after losses and wear", exportLimit: "Export limit", exportLimitH: "What you may send to the grid (empty: no limit)",
-      wear: "Wear per kWh (advanced)", wearH: "Worked out for you: {x} - only change it if you know the battery's price and life",
+      wear: "Wear per kWh", wearH: "Every kWh in or out wears the battery a little – worked out for you: {x}. Leave it empty",
+      btype: "Battery type", btypes: { lfp: "LFP (lithium iron)", nmc: "NMC (lithium)", sodium: "Sodium-ion", lead: "Lead (AGM/gel)" },
+      btypeWhy: { inverter: "Found in the inverter's settings: {t}", model: "Found from the battery's model: {t}", efficiency: "The efficiency looks like {t}", default: "Not found – assuming {t}, the most common", chosen: "Chosen by you" },
+      bprice: "Battery price", bpriceH: "Optional – what the battery cost, so the wear fits yours",
       size: "Battery size", sizeH: "Found: {x} kWh",
       sizeLearned: "Learned: {x} kWh usable – used when the field is empty", sizeDiff: "Learned: {x} kWh usable, you set {y}. The label is often higher than what's usable.",
       sizeLearning: "Learning the usable capacity from charging and discharging", useLearned: "Use the learned", power: "Charge power", powerH: "How fast the battery can charge",
@@ -783,6 +789,11 @@ function foundLine(p = control?.profile) {
   const miss = Object.values(p.check || {}).reduce((n, r) => n + r.missing.length, 0);
   return `${c.found}: <strong style="display:inline;font-weight:650">${esc(control?.profile?.choices?.[p.key] || p.name || p.key)}</strong>${p.model ? ` (${esc(p.model)})` : ""} – ${miss ? c.missingN.replace("{n}", miss) : c.allFound}${p.tested === false ? ` · 🧪 ${c.notTested}` : ""}`;
 }
+function btypeHint() {
+  const f = settings.battery_type_found, y = T.y;
+  if (!f) return "";
+  return y.btypeWhy[f.why]?.replace("{t}", y.btypes[f.type]) || "";
+}
 function capHint(v) {
   const y = T.y, l = settings.capacity_learned;
   if (l && v.battery_kwh && Math.abs(v.battery_kwh - l) / l > 0.05) return y.sizeDiff.replace("{x}", num(l, 1)).replace("{y}", num(v.battery_kwh, 1));
@@ -872,7 +883,9 @@ function styleView() {
           ? `<button class="link" data-uselearned="${settings.capacity_learned}">${y.useLearned}</button>` : ""}</span>`)}
       ${row(y.power, y.powerH, numIn("battery_charge_kw", 3, "0.1", "kW"))}
       ${adv("battery", `${row(y.powerOut, y.powerOutH, numIn("battery_discharge_kw", v.battery_charge_kw ?? 3, "0.1", "kW"))}
-      ${v.battery_export ? row(y.wear, y.wearH.replace("{x}", num(settings.wear_default ?? 0, 2)), numIn("battery_wear", settings.wear_default ?? "", "0.01", "")) : ""}
+      ${row(y.btype, btypeHint(), `<select data-btype><option value="">${T.auto}${!v.battery_type && settings.battery_type_found ? ": " + y.btypes[settings.battery_type_found.type] : ""}</option>${["lfp", "nmc", "sodium", "lead"].map((k) => `<option value="${k}" ${v.battery_type === k ? "selected" : ""}>${y.btypes[k]}</option>`).join("")}</select>`)}
+      ${row(y.bprice, y.bpriceH, numIn("battery_price", "", "100", SYM()))}
+      ${row(y.wear, y.wearH.replace("{x}", num(settings.wear_default ?? 0, 2)), numIn("battery_wear", settings.wear_default ?? "", "0.01", ""))}
       ${row(y.sign, settings.battery_sign_found === -1 ? y.signRev : settings.battery_sign_found === 1 ? y.signNorm : y.signUnknown,
         `<div class="seg mini">${[["auto", null], ["norm", 1], ["rev", -1]].map(([k, val]) => `<button class="${(v.battery_sign ?? null) === val ? "on" : ""}" data-bsign="${k}">${y.signs[k]}</button>`).join("")}</div>`)}
       ${quietRow("battery")}`)}
@@ -1085,6 +1098,7 @@ function wire() {
   });
   document.querySelectorAll("details[data-adv]").forEach((d) => d.ontoggle = () => { d.open ? advOpen.add(d.dataset.adv) : advOpen.delete(d.dataset.adv); });
   document.querySelectorAll("[data-uselearned]").forEach((b) => b.onclick = () => saveSet({ battery_kwh: null }));
+  $("[data-btype]")?.addEventListener("change", (e) => saveSet({ battery_type: e.target.value || null }));
   document.querySelectorAll("[data-gsign]").forEach((b) => b.onclick = () => saveSet({ grid_sign: { auto: null, norm: 1, rev: -1 }[b.dataset.gsign] }));
   document.querySelectorAll("[data-bsign]").forEach((b) => b.onclick = () => saveSet({ battery_sign: { auto: null, norm: 1, rev: -1 }[b.dataset.bsign] }));
   const tou = () => JSON.parse(JSON.stringify(settings.settings.tou || { default: 0, periods: [] }));
