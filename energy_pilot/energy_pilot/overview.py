@@ -141,7 +141,7 @@ class Overview:
                 self.settings.setdefault("roles", {}).update({k: v for k, v in value.items() if k in ROLES})
             elif key in ("battery_kwh", "import_limit_kw", "language", "setup_done", "style", "price_area", "tariff", "markup", "price_source", "tou", "vat", "battery_min_soc", "grid_charge",
                          "sell", "sell_price", "solar_value", "ev_in_house", "battery_sign", "grid_sign", "ev_follow_sun", "ev_fuse_guard",
-                         "battery_export", "battery_wear", "battery_type", "battery_price", "fuse_ok", "power_tariff_price", "power_tariff_kind", "export_limit_kw", "agile_region", "restore_values",
+                         "battery_export", "battery_wear", "battery_type", "battery_price", "fuse_ok", "power_tariff_price", "power_tariff_kind", "battery_grid_max", "export_limit_kw", "agile_region", "restore_values",
                          "offgrid", "reserve_soc", "emergency_soc", "gen_stop_soc", "gen_charge_kw", "gen_min_run_h",
                          "quiet_gen_from", "quiet_gen_to", "battery_charge_kw", "battery_discharge_kw", "ev_mode", "charger_kw", "ev_need_kwh",
                          "quiet_from", "quiet_to", "quiet_battery", "quiet_car",

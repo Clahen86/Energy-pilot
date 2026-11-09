@@ -14,6 +14,8 @@ the same spirit: the more they have seen, the more they count. What the user set
 
 from __future__ import annotations
 
+import time
+
 from datetime import datetime, timedelta
 import json
 import logging
@@ -319,11 +321,19 @@ class BatteryLearner:
         if seg:
             seg["kwh"] += abs(batt_w) / 1000 * hours
         self.s["seg"] = seg
+        if soc >= 99:
+            self.s["last_full"] = time.time()  # full: the cells have been balanced
         if batt_w > 300:  # charging: how hard it charges at which level (most batteries slow down when nearly full)
             band = next((b for b in TAPER_BANDS if soc >= b), 0)
             key = str(band)
             self.s.setdefault("charge_w", {})
             self.s["charge_w"][key] = (self.s["charge_w"].get(key) or [])[-59:] + [round(batt_w)]
+
+    def days_since_full(self) -> float:
+        """Days since the battery was last full - 0 until it has been watched for a while (no full charge at once)."""
+        if "last_full" not in self.s:
+            self.s["last_full"] = time.time()
+        return (time.time() - float(self.s["last_full"])) / 86400
 
     def taper(self) -> tuple[tuple[float, float], ...]:
         """How much of its charge power the battery really takes near full, as (from level, share) - learned by

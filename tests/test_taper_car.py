@@ -34,3 +34,13 @@ def test_no_discharge_while_the_car_charges():
     p = plan_battery(hours, 80, Battery(capacity_kwh=10, no_discharge=car), end_value=0.5)
     assert all(s.action != "discharge" for s in p.steps if s.start in car)
     assert any(s.action == "discharge" for s in p.steps if s.start not in car)
+
+
+def test_grid_charging_stops_at_the_limit_but_the_sun_may_fill_it():
+    night = [Hour(T0 + timedelta(hours=i), 0.1, 0.0, 0.3, 0.0) for i in range(6)]
+    day = [Hour(T0 + timedelta(hours=6 + i), 3.0, 0.0, 0.3, 0.0) for i in range(6)]
+    p = plan_battery(night + day, 50, Battery(capacity_kwh=10, grid_charge=True, grid_max_soc=95), end_value=2.0)
+    assert max(s.soc_end for s in p.steps) <= 95
+    sunny = [Hour(T0 + timedelta(hours=i), 0.5, 0.0, 0.3, 4.0) for i in range(6)]
+    p2 = plan_battery(sunny + day, 80, Battery(capacity_kwh=10, grid_charge=True, grid_max_soc=95), end_value=2.0)
+    assert max(s.soc_end for s in p2.steps) == 100

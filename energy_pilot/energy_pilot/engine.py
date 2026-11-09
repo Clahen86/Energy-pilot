@@ -63,6 +63,7 @@ class Battery:
     max_discharge_kw: float = 3.0
     min_soc: float = 10.0  # %
     max_soc: float = 100.0
+    grid_max_soc: float = 100.0  # charging from the grid stops here (the last % wear most); the sun may fill it up
     efficiency: float = 0.92  # round trip
     grid_charge: bool = True  # may charge from the grid when it pays
     import_limit_kw: float | None = None  # main fuse: never buy more than this in an hour
@@ -166,6 +167,8 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
                     if h.start.hour in b.quiet:
                         continue
                     action = "charge_sun" if into - from_sun < 1e-6 else "charge_grid"
+                    if action == "charge_grid" and nxt > b.grid_max_soc + 1e-9:
+                        continue  # not above the grid limit with power bought - only the sun fills it beyond
                 elif delta < 0:
                     if h.start in b.no_discharge:
                         continue  # the car charges on cheap power now: it takes it from the grid, not the battery
@@ -353,9 +356,22 @@ class Engine:
             wear=self.wear(cap),
             export_limit_kw=float(s["export_limit_kw"]) if s.get("export_limit_kw") else None,
             taper=self.batt_learn.taper(),
+            grid_max_soc=self.grid_max_soc(kind),
             peak_kw=(pt := self.power_tariff()) and pt["limit_kw"],
             peak_price=pt["price_per_kw"] if pt else 0.0,
         )
+
+    def grid_max_soc(self, kind: str) -> float:
+        """How full the battery may be charged from the grid: as set, else 95 % (NMC 90 %). Every 14 days without a
+        full battery (winter, little sun) it may go to 100 % once, so the battery balances its cells."""
+        s = self.ov.settings
+        if s.get("battery_grid_max") not in (None, ""):
+            limit = float(s["battery_grid_max"])
+        else:
+            limit = 90.0 if kind == "nmc" else 95.0
+        if limit < 100 and self.batt_learn.days_since_full() >= 14:
+            return 100.0
+        return limit
 
     def power_tariff(self) -> dict[str, Any] | None:
         """A power tariff, when the user set its price: the peak to stay under, and what a kW above it costs."""
