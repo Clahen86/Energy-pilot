@@ -71,6 +71,8 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
                                   "all_sensors": overview.all_sensors(),
                                   "battery_sign_found": overview.engine.sign_found() if overview.engine else None,
                                   "grid_sign_found": overview.grid_sign_found(),
+                                  "power_tariff": overview.engine.power_tariff() if overview.engine else None,
+                                  "month_peak": overview.engine.month_peak.level() if overview.engine else None,
                                   "capacity_learned": overview.engine.batt_learn.capacity() if overview.engine else None,
                                   "wear_default": overview.engine.wear(own=False) if overview.engine else None,
                                   "battery_type_found": overview.engine.battery_type() if overview.engine else None,

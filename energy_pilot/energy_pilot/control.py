@@ -251,6 +251,8 @@ class Controller:
             from .carspeed import decide
 
             st = dict(self.ov.settings)
+            if self.engine and (pt := self.engine.power_tariff()):
+                st["peak_kw"] = pt["limit_kw"]
             if st.get("ev_follow_sun") is None:
                 st["ev_follow_sun"] = bool(self.ov.role("pv_power"))  # on by default when there is solar
             need = float(car.get("need_kwh") if car.get("need_kwh") is not None else 1.0)
@@ -325,6 +327,7 @@ class Controller:
             flow = {"pv": f.get("pv"), "house": None if f.get("house") is None else f["house"] + taken,
                     "battery": f.get("battery"), "plug": now_c.get("plug"), "ev": own, "grid": g}
             cs = {**st, "charger_kw": kw, "charger_phases": c.get("phases"),
+                  "peak_kw": (self.engine.power_tariff() or {}).get("limit_kw") if getattr(self, "engine", None) else None,
                   "ev_follow_sun": c.get("follow_sun", st.get("ev_follow_sun", bool(self.ov.role("pv_power"))))}
             need = float((plan or {}).get("need_kwh") if (plan or {}).get("need_kwh") is not None else 1.0)
             d = decide(flow, cs, planned, bool(c.get("now")), need, self._sun_on_more.get(part, False))

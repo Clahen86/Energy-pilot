@@ -70,6 +70,8 @@ class Battery:
     export: bool = False  # may sell from the battery when it pays (off unless the user turns it on)
     wear: float = 0.0  # what one kWh into or out of the battery wears it (money per kWh) - a move must beat it
     export_limit_kw: float | None = None  # what may be sent to the grid
+    peak_kw: float | None = None  # power tariff: the month's peak so far - buying more costs peak_price per kW
+    peak_price: float = 0.0
 
 
 @dataclass
@@ -184,6 +186,8 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
                     continue  # charging would trip the main fuse
                 cost = grid * h.price if grid > 0 else grid * h.sell
                 cost += abs(delta) * b.wear  # every kWh in or out wears the battery: a move must pay for that too
+                if b.peak_kw is not None and b.peak_price and grid / h.length > b.peak_kw:
+                    cost += (grid / h.length - b.peak_kw) * b.peak_price  # a new peak raises the month's power tariff
                 total = cost + best[i + 1][k]
                 if total < best[i][j] - 1e-12:
                     best[i][j] = total
@@ -196,6 +200,8 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
         plan.cost += cost
         base = h.house - h.sun
         plan.cost_without += base * h.price if base > 0 else base * h.sell
+        if b.peak_kw is not None and b.peak_price and base / h.length > b.peak_kw:
+            plan.cost_without += (base / h.length - b.peak_kw) * b.peak_price
         j = k
     plan.cost, plan.cost_without = round(plan.cost, 2), round(plan.cost_without, 2)
     return plan
@@ -281,6 +287,9 @@ class Engine:
         from .checks import GridPeak
 
         self.grid_peak = GridPeak(self.learning.state)  # the most the house has really bought
+        from .powertariff import MonthPeak
+
+        self.month_peak = MonthPeak(self.learning.state)  # the month's peaks, for a power tariff
         self.checks: list[dict[str, Any]] = []
         self.weather: Any = None
         self.house_model = HouseModel()
@@ -338,7 +347,24 @@ class Engine:
             export=self.can_export(),
             wear=self.wear(cap),
             export_limit_kw=float(s["export_limit_kw"]) if s.get("export_limit_kw") else None,
+            peak_kw=(pt := self.power_tariff()) and pt["limit_kw"],
+            peak_price=pt["price_per_kw"] if pt else 0.0,
         )
+
+    def power_tariff(self) -> dict[str, Any] | None:
+        """A power tariff, when the user set its price: the peak to stay under, and what a kW above it costs."""
+        from . import powertariff
+
+        s = self.ov.settings
+        try:
+            price = float(s.get("power_tariff_price") or 0)
+        except (TypeError, ValueError):
+            price = 0.0
+        if price <= 0:
+            return None
+        window, count = powertariff.kind(s, self.ha.config.get("country"))
+        return {"limit_kw": self.month_peak.limit(count), "price_per_kw": price / count, "window": window, "count": count,
+                "level_kw": self.month_peak.level(count)}
 
     def can_export(self) -> bool:
         """Selling from the battery: when the user turned it on - and the inverter profile can (if one is chosen)."""
@@ -860,8 +886,16 @@ class Engine:
                         break
         if quiet := self.quiet_hours("car"):
             skip = skip | {h.start for h in hours if h.start.hour in quiet}
-        chosen = plan_car(hours, max(0.0, need), float(st.get("charger_kw") or 7.4), ready, now,
-                          solar_only=st.get("ev_mode") == "solar", skip=skip)
+        kw = float(st.get("charger_kw") or 7.4)
+        chosen = None
+        if pt := self.power_tariff():
+            # Power tariff: charge beside the peaks when that still gets the car full - else as usual.
+            over = {h.start for h in hours if h.house / h.length + kw > pt["limit_kw"]}
+            chosen = plan_car(hours, max(0.0, need), kw, ready, now, solar_only=st.get("ev_mode") == "solar", skip=skip | over)
+            if sum(h.length for h in hours if h.start in set(chosen)) * kw < max(0.0, need) - 0.5:
+                chosen = None
+        if chosen is None:
+            chosen = plan_car(hours, max(0.0, need), kw, ready, now, solar_only=st.get("ev_mode") == "solar", skip=skip)
         return {"hours": [t.isoformat() for t in chosen], "set": set(chosen), "need": round(max(0.0, need), 1)}
 
     def _more_cars(self, hours: list[Hour], now: datetime, f: dict[str, Any], car_plan: dict[str, Any] | None,

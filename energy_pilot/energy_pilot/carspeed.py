@@ -53,4 +53,13 @@ def decide(flow: dict[str, Any], s: dict[str, Any], planned: bool, manual: bool,
             return {"charge": False, "current": max_a, "sun": False, "why": "fuse"}
         if fit < amps:
             amps, why = fit, why + "+fuse"
+    # Power tariff: keep under the month's peak so far by turning down - but never stopping for it.
+    peak = s.get("peak_kw")
+    if charge and peak and not manual and house is not None:
+        car_now = max(0.0, flow.get("ev") or 0.0)
+        grid = flow.get("grid")
+        others = (grid - car_now) if grid is not None else (house + batt_in - (pv or 0.0))
+        fit = int((float(peak) * 1000 - others) // per_a)
+        if fit < amps:
+            amps, why = max(MIN_A, fit), why + "+peak"
     return {"charge": charge, "current": amps, "sun": sun, "why": why}

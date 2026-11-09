@@ -159,6 +159,9 @@ async def main() -> None:
                 engine.habits.see(now, f.get("plug"), ev.get("session_kwh"))
                 engine.batt_learn.see(f.get("battery"), f.get("soc"), 30 / 3600)
                 engine.grid_peak.see(now, f.get("grid"))
+                from .powertariff import kind as _pt_kind
+
+                engine.month_peak.see(now, f.get("grid"), _pt_kind(st, ha.config.get("country"))[0])
                 if now.minute % 10 == 0 and now.second < 30:
                     engine.learning.save()
             except Exception:  # noqa: BLE001
