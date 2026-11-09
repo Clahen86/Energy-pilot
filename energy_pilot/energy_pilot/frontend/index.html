@@ -277,7 +277,7 @@ const T_ALL = {
     priceMissing: "Morgendagens priser er ikke kommet endnu - planen stopper ved midnat.", priceFilled: "Morgendagens priser er skønnet ud fra spotprisen, indtil din pris-integration har dem.",
     legSoc: "Batteri-niveau (plan)", legCar: "Bilen lader", legExport: "Batteriet sælger", saves: "Planen sparer cirka {x} de næste timer.", otherSays: "AppDaemon: {x}",
     bat: { n: "Batteri {n}", add: "+ Tilføj batteri", name: "Navn", soc: "Batteriniveau", power: "Batterieffekt", remove: "Fjern batteriet",
-      hint: "Planen ser alle batterierne som ét – størrelser og effekter lægges sammen.", each: "Hvert batteri", pick: "Vælg sensor…" },
+      hint: "Planen ser alle batterierne som ét – størrelser og effekter lægges sammen. Hvert batteri styres gennem sin egen inverter og starter i skygge.", noCtl: "Fandt ingen inverter-styring – vælg den her", each: "Hvert batteri", pick: "Vælg sensor…" },
     chg: { n: "Lader {n}", add: "+ Tilføj ladeboks", name: "Navn", power: "Ladeeffekt", plug: "Stik", session: "Ladet", remove: "Fjern ladeboksen",
       shadow: "Starter i skygge – slå styring til under Skygge", planned: "Lader kl. {x}", none: "Ingen opladning planlagt", car: "Bil" },
     chk: { title: "Tjek af indstillinger", fix: "Ret det", show: "Vis mig", no: "Nej tak",
@@ -380,7 +380,7 @@ const T_ALL = {
     priceMissing: "Tomorrow's prices aren't out yet - the plan ends at midnight.", priceFilled: "Tomorrow's prices are estimated from the spot price until your price integration has them.",
     legSoc: "Battery level (plan)", legCar: "Car charges", legExport: "Battery sells", saves: "The plan saves about {x} over the coming hours.", otherSays: "AppDaemon: {x}",
     bat: { n: "Battery {n}", add: "+ Add a battery", name: "Name", soc: "Battery level", power: "Battery power", remove: "Remove this battery",
-      hint: "The plan sees all the batteries as one – sizes and powers are added up.", each: "Each battery", pick: "Pick a sensor…" },
+      hint: "The plan sees all the batteries as one – sizes and powers are added up. Each battery is controlled through its own inverter and starts in shadow.", noCtl: "No inverter control found – pick it here", each: "Each battery", pick: "Pick a sensor…" },
     chg: { n: "Charger {n}", add: "+ Add a charger", name: "Name", power: "Charging power", plug: "Plug", session: "Charged", remove: "Remove this charger",
       shadow: "Starts in shadow – turn on control under Shadow", planned: "Charges at {x}", none: "No charging planned", car: "Car" },
     chk: { title: "Settings check", fix: "Fix it", show: "Show me", no: "No thanks",
@@ -694,8 +694,8 @@ function describe(part, want) {
   return want.intent === "charge" ? c.batCharge.replace("{t}", want.ctx.target).replace("{p}", num(want.ctx.power_w / 1000, 1))
     : want.intent === "hold" ? c.batHold.replace("{s}", want.ctx.soc) : c.batNormal.replace("{m}", want.ctx.min_soc);
 }
-function checkView() {
-  const pr = control.profile, c = T.ctl;
+function checkView(pr = control.profile) {
+  const c = T.ctl;
   if (!pr?.check || !Object.keys(pr.check).length) return "";
   const miss = Object.values(pr.check).reduce((n, r) => n + r.missing.length, 0);
   const row = (x, ok) => `<tr><td>${ok ? "✓" : "✗"}</td><td>${esc(x.entity || x.control)}${x.optional && !x.entity ? ` <span class="muted">(${c.optional})</span>` : ""}</td></tr>`;
@@ -710,7 +710,7 @@ function controlView() {
   const c = T.ctl;
   const part = (key, title, ic) => {
     const st = control[key];
-    if (!st.now && !st.entities.length) return "";
+    if (!st || (!st.now && !st.entities.length && !key.startsWith("bat"))) return "";
     return `<div class="cpart"><div class="cp-head"><span class="sec-ic" style="--sc:${key.startsWith("car") ? "var(--car)" : "var(--batt)"}">${icon(ic)}</span><div><b>${title}</b>
         <span>${st.now ? `${c.now}: ${describe(key, st.now)}` : ""}${st.blocked ? `${st.now ? "<br>" : ""}<em class="blk">${c.blocked[st.blocked]}</em>` : ""}</span></div></div>
       <div class="seg">${["shadow", "control", "off"].map((m) => `<button class="${m} ${st.mode === m ? "on" : ""}" data-cpart="${key}" data-cmode="${m}" ${m === "control" && st.blocked ? "disabled" : ""}>${T.modes[m]}</button>`).join("")}</div>
@@ -718,7 +718,7 @@ function controlView() {
     </div>`;
   };
   return `<div class="eyebrow" style="margin-top:18px"><span>${c.title}</span>${control.profile?.name ? `<span>${esc(control.profile.name)}</span>` : ""}</div>
-    <div class="muted" style="margin-bottom:6px">${c.hint}</div>${part("battery", T.y.secBattery, "battery")}${checkView()}${part("car", T.y.secCar, "car")}${(control.car_parts || []).map((k, i) => part(k, `${T.chg.n.replace("{n}", i + 2)}${control[k]?.name ? ` · ${esc(control[k].name)}` : ""}`, "car")).join("")}${part("generator", T.gen.title, "bolt")}`;
+    <div class="muted" style="margin-bottom:6px">${c.hint}</div>${part("battery", (control.bat_parts || []).length ? T.bat.n.replace("{n}", 1) : T.y.secBattery, "battery")}${checkView()}${(control.bat_parts || []).map((k, i) => part(k, `${T.bat.n.replace("{n}", i + 2)}${control[k]?.name ? ` · ${esc(control[k].name)}` : ""}`, "battery") + checkView(control[k]?.profile)).join("")}${part("car", T.y.secCar, "car")}${(control.car_parts || []).map((k, i) => part(k, `${T.chg.n.replace("{n}", i + 2)}${control[k]?.name ? ` · ${esc(control[k].name)}` : ""}`, "car")).join("")}${part("generator", T.gen.title, "bolt")}`;
 }
 function shadowView() {
   if (!status) return `<div class="card">…</div>`;
@@ -771,11 +771,11 @@ function roleRows(roles) {
           : `<button class="link" data-rolesearch="${r}">${T.findOther}</button>`}</div></div>`;
   }).join("") + sensors;
 }
-function foundLine() {
-  const p = control?.profile, c = T.ctl;
+function foundLine(p = control?.profile) {
+  const c = T.ctl;
   if (!p?.key || p.key === "custom") return c.profileH;
   const miss = Object.values(p.check || {}).reduce((n, r) => n + r.missing.length, 0);
-  return `${c.found}: <strong style="display:inline;font-weight:650">${esc(p.choices[p.key] || p.key)}</strong>${p.model ? ` (${esc(p.model)})` : ""} – ${miss ? c.missingN.replace("{n}", miss) : c.allFound}${p.tested === false ? ` · 🧪 ${c.notTested}` : ""}`;
+  return `${c.found}: <strong style="display:inline;font-weight:650">${esc(control?.profile?.choices?.[p.key] || p.name || p.key)}</strong>${p.model ? ` (${esc(p.model)})` : ""} – ${miss ? c.missingN.replace("{n}", miss) : c.allFound}${p.tested === false ? ` · 🧪 ${c.notTested}` : ""}`;
 }
 function capHint(v) {
   const y = T.y, l = settings.capacity_learned;
@@ -811,6 +811,15 @@ function moreCars() {
     <div class="muted" style="margin-top:6px">${c.shadow}</div></div>`;
   }).join("");
 }
+/** The extra battery's own inverter: found by itself (with what is missing), or picked. */
+function batControl(x, i) {
+  const st = control?.[`bat${i + 2}`], p = st?.profile, choices = control?.profile?.choices;
+  if (!choices || !x.soc) return "";
+  const auto = p?.key && !x.profile ? `: ${esc(choices[p.key] || p.name || "")}` : "";
+  return `<div class="ctl"><div class="t"><b>${T.ctl.profile}</b><span>${p?.key ? foundLine(p) : T.bat.noCtl}</span></div>
+    <select data-bat="${i}:profile"><option value="">${T.auto}${auto}</option>
+    ${Object.entries(choices).map(([k, n]) => `<option value="${k}" ${x.profile === k ? "selected" : ""}>${(control.profile.tested_keys || []).includes(k) ? "✅" : "🧪"} ${esc(n)}</option>`).join("")}</select></div>`;
+}
 function batteryList(v, row, numIn) {
   const b = T.bat, list = v.batteries || [];
   const pick = (i, key, role) => `<select data-bat="${i}:${key}"><option value="">${b.pick}</option>${(settings.candidates[role] || []).map((c) =>
@@ -823,6 +832,7 @@ function batteryList(v, row, numIn) {
       ${row(T.y.size, "", field(i, "kwh", 10, "kWh"))}
       ${row(T.y.power, T.y.powerH, field(i, "charge_kw", 3, "kW"))}
       ${row(T.y.powerOut, T.y.powerOutH, field(i, "discharge_kw", x.charge_kw ?? 3, "kW"))}
+      ${batControl(x, i)}
       <button class="link" data-batdel="${i}">${b.remove}</button></div>`).join("")}
     <button class="ghostbtn" data-batadd>${b.add}</button>`;
 }

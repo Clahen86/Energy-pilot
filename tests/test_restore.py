@@ -10,8 +10,8 @@ def ctl(states, key="victron"):
     store = {}
     c.ha = SimpleNamespace(states=states)
     c.ov = SimpleNamespace(settings=store, save=lambda d: store.update(d))
-    c.profile_key = lambda: key
-    c._pool = lambda: list(states)
+    c.profile_key = lambda *a: key
+    c._pool = lambda *a: list(states)
     return c, store
 
 

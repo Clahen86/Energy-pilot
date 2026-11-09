@@ -45,5 +45,5 @@ def test_built_in_profiles_can_sell():
 
     c = Controller.__new__(Controller)
     c.ov = SimpleNamespace(settings={"inverter_profile": "victron"})
-    c.profile_key = lambda: "victron"
+    c.profile_key = lambda *a: "victron"
     assert "export" in c.profile_steps()

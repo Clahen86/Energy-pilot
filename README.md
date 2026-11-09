@@ -85,7 +85,7 @@ The panel shows who decides right now and how well each one hits:
 - **Octopus Agile: Agile Predict built in** – in the UK the coming Agile prices come from Agile Predict (trained on
   the whole market, region found from your tariff) until the real ones are out.
 - **More than one home battery** – a SolarEdge and a Victron, say: found by itself (or added under House battery),
-  planned as one battery with the sizes and powers added up, each shown on its own. Shadow only for now.
+  planned as one battery with the sizes and powers added up, each shown on its own. Each battery is controlled through its own inverter (found by itself, or picked in its box), starts in shadow and is put in control on its own; the power is shared by what each can take.
 - **More than one charger** – two KEBA boxes, say: found by itself (or added under Car and charger), each car with
   its own "charge now", "ready at" and "at most", planned on its own and all kept under the main fuse. Each charger starts in shadow and can be put in control on its own (Shadow page); charger 1 comes first – the sun's surplus and the room under the fuse go to it, and the others are turned down first.
 - **Checks your settings** – a setting that spoils the plan (an import limit that stops cheap charging, a battery size
@@ -178,7 +178,7 @@ bliver bedre hver nat.** Den starter altid i *skygge*: den viser, hvad den ville
   og altid ved nødgrænsen.
 - **Sælger fra batteriet, når det betaler sig** (valgfrit) – med tab, slid og eksportgrænse regnet med.
 - **Flere husbatterier** – fx SolarEdge og Victron: findes selv (eller tilføjes under Husbatteri), planlægges som ét
-  batteri med størrelser og effekter lagt sammen, og hvert vises for sig. Kun skygge indtil videre.
+  batteri med størrelser og effekter lagt sammen, og hvert vises for sig. Hvert batteri styres gennem sin egen inverter (findes selv eller vælges i batteriets boks), starter i skygge og sættes til at styre for sig; effekten deles efter, hvad hvert kan klare.
 - **Flere ladebokse** – fx to KEBA-bokse: findes selv (eller tilføjes under Bil og lader), hver bil har sin egen
   "lad nu", "klar kl." og "højst", planlægges for sig, og tilsammen holdes de under hovedsikringen. Hver ladeboks starter i skygge og kan sættes til at styre for sig (Skygge-siden); lader 1 kommer først – soloverskuddet og pladsen under sikringen går til den, og de andre skrues ned først.
 - **Tjekker dine indstillinger** – en indstilling, der ødelægger planen (en importgrænse, der spærrer for billig

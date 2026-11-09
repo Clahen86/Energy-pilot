@@ -103,7 +103,7 @@ async def main() -> None:
                 engine.run()
                 await engine.review()
                 if (not controller.entities["battery"] and not controller.entities["car"] or int(asyncio.get_running_loop().time()) % 3600 < 300
-                        or any(p not in controller.entities for p in controller.car_parts())):  # a charger was just added
+                        or any(p not in controller.entities for p in controller.car_parts() + controller.bat_parts())):  # a charger or battery was just added
                     await controller.discover()
                 await controller.tick()
             except Exception:  # noqa: BLE001 - tries again next round

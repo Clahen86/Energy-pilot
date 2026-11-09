@@ -38,6 +38,7 @@ class Controller:
         self.last: dict[str, dict[str, Any]] = {}
         self.log: dict[str, deque] = {"battery": deque(maxlen=60), "car": deque(maxlen=60), "generator": deque(maxlen=60)}
         self.car_devices: dict[str, str | None] = {}  # the extra chargers' devices (car2, car3 …)
+        self.bat_info: dict[str, dict[str, Any]] = {}  # the extra batteries' inverter: device, model, serial
         self._sun_on_more: dict[str, bool] = {}
         self.more_why: dict[str, str] = {}
         self._sun_on = False  # the car is charging on the sun's surplus (for the start/stop margin)
@@ -51,8 +52,18 @@ class Controller:
 
         return [f"car{i + 2}" for i in range(len(chargers.extras(self.ov.settings)))]
 
+    def bat_parts(self) -> list[str]:
+        """The extra batteries (bat2, bat3 …): each talks to its own inverter, starts in shadow, turned on by itself."""
+        from . import batteries
+
+        return [f"bat{i + 2}" for i in range(len(batteries.extras(self.ov.settings)))]
+
     def parts(self) -> list[str]:
-        return ["battery", "car", "generator", *self.car_parts()]
+        return ["battery", *self.bat_parts(), "car", "generator", *self.car_parts()]
+
+    @staticmethod
+    def is_battery(part: str) -> bool:
+        return part == "battery" or part.startswith("bat")
 
     def mode(self, part: str) -> str:
         return ((self.ov.settings.get("control") or {}).get(part)) or "shadow"
@@ -65,15 +76,13 @@ class Controller:
 
     def blocked(self, part: str) -> str | None:
         """Why the engine may not control this part (None: it may)."""
-        if part == "battery" and self.ov.role("battery_plan") and not self.ov.settings.get("battery_takeover"):
+        if self.is_battery(part) and self.ov.role("battery_plan") and not self.ov.settings.get("battery_takeover"):
             return "other_system"  # another system plans the battery: never two at once
-        if part == "battery" and __import__("energy_pilot.batteries", fromlist=["extras"]).extras(self.ov.settings):
-            return "multi_battery"  # more than one battery: shadow only until sharing the work is tested
-        if part == "battery" and not self.profile_steps():
+        if self.is_battery(part) and not self.profile_steps(part):
             return "no_profile"
-        if part == "battery" and adapters.missing(self.check()):
+        if self.is_battery(part) and adapters.missing(self.check(part)):
             return "missing_controls"
-        if part == "battery" and self.ov.settings.get("offgrid"):
+        if self.is_battery(part) and self.ov.settings.get("offgrid"):
             return "offgrid"  # no grid to charge from: the inverter runs the battery, the engine runs the generator
         if part == "generator" and not self.ov.role("generator_switch"):
             return "no_generator"
@@ -132,30 +141,59 @@ class Controller:
                      and e["entity_id"].split(".")[0] in ("select", "number", "switch", "button")]
             self.entities[part], self.platforms[part], self.car_devices[part] = sorted(found), plat, dev
 
-    def profile_key(self) -> str | None:
+        # The extra batteries: the controls of the inverter their level sensor sits on.
+        from . import batteries
+
+        for part, bt in zip(self.bat_parts(), batteries.extras(self.ov.settings)):
+            reg = by_id.get(bt.get("soc")) or {}
+            dev, plat = reg.get("device_id"), reg.get("platform")
+            found = [e["entity_id"] for e in entities if not e.get("disabled_by") and e["entity_id"].split(".")[0] in ("select", "number", "switch", "button")
+                     and ((dev and e.get("device_id") == dev) or (plat and e.get("platform") == plat and plat not in ("mqtt", "template")
+                                                                   and plat != self.platforms.get("battery")))]
+            d = (devices or {}).get(dev or "") if "devices" in dir() else None
+            model = " ".join(dict.fromkeys(x for x in ((d or {}).get("model"), (d or {}).get("model_id"), (d or {}).get("name")) if x)) or None
+            self.entities[part], self.platforms[part] = sorted(found), plat
+            self.bat_info[part] = {"device": dev or "", "model": model, "serial": (d or {}).get("serial_number") or ""}
+
+    def _extra_battery(self, part: str) -> dict[str, Any]:
+        from . import batteries
+
+        more = batteries.extras(self.ov.settings)
+        i = self.bat_parts().index(part) if part in self.bat_parts() else -1
+        return more[i] if 0 <= i < len(more) else {}
+
+    def profile_key(self, part: str = "battery") -> str | None:
+        if part != "battery":
+            chosen = self._extra_battery(part).get("profile")
+            if chosen:
+                return chosen
+            info = self.bat_info.get(part) or {}
+            return adapters.guess_profile(self.entities.get(part, []), {self.platforms.get(part) or ""}, info.get("model"))
         chosen = self.ov.settings.get("inverter_profile")
         if chosen:
             return chosen
         return adapters.guess_profile(self.entities["battery"], {self.platforms["battery"] or ""}, self.model)
 
-    def profile_steps(self) -> dict[str, list] | None:
-        key = self.profile_key()
-        if key == "custom":
+    def profile_steps(self, part: str = "battery") -> dict[str, list] | None:
+        key = self.profile_key(part)
+        if key == "custom" and part == "battery":
             c = self.ov.settings.get("custom_profile") or {}
             steps = {i: [(s["entity"], s["kind"], s.get("value")) for s in c.get(i, []) if s.get("entity")] for i in ("normal", "hold", "charge")}
             return steps if any(steps.values()) else None
         p = adapters.PROFILES.get(key or "")
         return {i: p[i] for i in ("normal", "hold", "charge", "export") if i in p} if p else None
 
-    def check(self) -> dict[str, dict]:
+    def check(self, part: str = "battery") -> dict[str, dict]:
         """Which of the profile's controls were found on the inverter, and which are missing."""
-        steps = self.profile_steps() or {}
-        key = self.profile_key()
+        steps = self.profile_steps(part) or {}
+        key = self.profile_key(part)
         optional = (adapters.PROFILES.get(key or "") or {}).get("optional") or []
-        return adapters.check(steps, self._pool(), optional, self.services) if steps else {}
+        return adapters.check(steps, self._pool(part), optional, self.services) if steps else {}
 
-    def _pool(self) -> list[str]:
+    def _pool(self, part: str = "battery") -> list[str]:
         """Built-in profiles look only at the inverter's own controls; a custom one may pick any entity."""
+        if part != "battery":
+            return self.entities.get(part, [])
         return self.entities["battery"] + (list(self.ha.states) if self.profile_key() == "custom" else [])
 
     # ---------- deciding and acting ----------
@@ -184,6 +222,8 @@ class Controller:
             if "{house_w}" in str(self.profile_steps() or {}):
                 # Only for profiles that use it (EcoFlow), rounded - so others aren't re-sent at every small change.
                 out["battery"]["ctx"]["house_w"] = int(round((f.get("house") or 0.0) / 50) * 50)
+        if out.get("battery") and self.bat_parts():
+            out.update(self._share(out["battery"], f))
         g = res.get("generator")
         if g and self.ov.settings.get("offgrid"):
             out["generator"] = {"intent": "run" if g.get("run") else "off", "ctx": {"why": g.get("why")}}
@@ -205,6 +245,34 @@ class Controller:
             self._sun_on, self.car_why = d["sun"], d["why"]
             out["car"] = {"intent": "charge" if d["charge"] else "stop", "ctx": {"current": d["current"]}}
         out.update(self._more_intents(f, res, out.get("car")))
+        return out
+
+    def _share(self, want: dict[str, Any], f: dict[str, Any]) -> dict[str, dict[str, Any]]:
+        """More batteries: the same thing to all - the same level to charge to or hold at - with the power shared by
+        what each can take. Battery 1 keeps its share under "battery", the others get theirs (bat2 …)."""
+        from . import batteries
+
+        s = self.ov.settings
+        more = batteries.extras(s)
+        c1 = float(s.get("battery_charge_kw") or 3)
+        d1 = float(s.get("battery_discharge_kw") or s.get("battery_charge_kw") or 3)
+        cs = [c1] + [float(b.get("charge_kw") or 3) for b in more]
+        ds = [d1] + [float(b.get("discharge_kw") or b.get("charge_kw") or 3) for b in more]
+        packs = f.get("batteries") or []
+        ctx = want["ctx"]
+        out = {}
+        for i, part in enumerate(["battery", *self.bat_parts()]):
+            cshare, dshare = cs[i] / sum(cs), ds[i] / sum(ds)
+            share = dshare if want["intent"] == "export" else cshare
+            own = packs[i]["soc"] if i < len(packs) and packs[i].get("soc") is not None else ctx["soc"]
+            info = {"device": getattr(self, "battery_device", None) or "", "serial": getattr(self, "battery_serial", "") or ""} if i == 0 \
+                else self.bat_info.get(part) or {}
+            c = {**ctx, "soc": round(own), "power_w": round(ctx["power_w"] * share), "power_kw": round(ctx["power_kw"] * share, 2),
+                 "max_power_w": round(ctx["max_power_w"] * dshare), "max_power_kw": round(ctx["max_power_kw"] * dshare, 2),
+                 "max_charge_w": round(ctx["max_charge_w"] * cshare), "max_charge_kw": round(ctx["max_charge_kw"] * cshare, 2),
+                 "export_w": int(round(ctx.get("export_w", 0) * dshare / 50) * 50),
+                 "device_id": info.get("device") or "", "serial": info.get("serial") or ""}
+            out[part] = {"intent": want["intent"], "ctx": c}
         return out
 
     def _more_intents(self, f: dict[str, Any], res: dict[str, Any], first: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
@@ -259,10 +327,10 @@ class Controller:
             if not e:
                 return []
             return [{"domain": e.split(".")[0], "service": "turn_on" if want["intent"] == "run" else "turn_off", "data": {"entity_id": e}}]
-        if part == "battery":
-            steps = self.profile_steps() or {}
+        if self.is_battery(part):
+            steps = self.profile_steps(part) or {}
             # A profile without a way to sell runs normally instead (the plan doesn't sell then anyway).
-            return self._clamp(adapters.resolve(steps.get(want["intent"]) or steps.get("normal", []), self._pool(), want["ctx"]))
+            return self._clamp(adapters.resolve(steps.get(want["intent"]) or steps.get("normal", []), self._pool(part), want["ctx"]))
         if part.startswith("car") and part != "car":
             return self._clamp(adapters.charger_calls(want["intent"], self.entities.get(part, []), self.platforms.get(part),
                                                       want["ctx"]["current"], self.car_devices.get(part)))
@@ -293,7 +361,7 @@ class Controller:
             calls = self.calls(part, want)
             prev = self.last.get(part)
             changed = prev is None or prev["intent"] != want["intent"] or prev["ctx"] != want["ctx"]
-            again = (adapters.PROFILES.get(self.profile_key() or "") or {}).get("reassert_s", REASSERT_S) if part == "battery" else REASSERT_S
+            again = (adapters.PROFILES.get(self.profile_key(part) or "") or {}).get("reassert_s", REASSERT_S) if self.is_battery(part) else REASSERT_S
             due = prev is None or time.time() - prev["t"] > again  # Solis' remote control times out after 30 min
             if not (changed or due):
                 continue
@@ -302,8 +370,11 @@ class Controller:
                 calls = calls + self._restore(part, want["intent"])
                 entry["calls"] = calls
                 entry["result"] = await self._send(calls)
-                if entry["result"] == "ok" and want["intent"] != "export" and part == "battery":
-                    self.ov.save({"restore_values": {}})  # the owner's settings are back
+                if entry["result"] == "ok" and want["intent"] != "export" and self.is_battery(part):
+                    pool = set(self._pool(part))  # this inverter's own settings are back
+                    left = {e: v for e, v in (self.ov.settings.get("restore_values") or {}).items() if e not in pool}
+                    if left != (self.ov.settings.get("restore_values") or {}):
+                        self.ov.save({"restore_values": left})
             elif mode == "control":
                 entry["blocked"] = self.blocked(part)
             self.last[part] = entry
@@ -313,23 +384,24 @@ class Controller:
     def _restore(self, part: str, intent: str) -> list[dict[str, Any]]:
         """Settings that are the owner's own (Victron's grid setpoint, Deye's work mode): remembered before selling,
         put back when selling stops - kept on disk, so a restart in between doesn't lose them."""
-        pats = (adapters.PROFILES.get(self.profile_key() or "") or {}).get("restore") or []
-        if part != "battery" or not pats:
+        pats = ((adapters.PROFILES.get(self.profile_key(part) or "") or {}).get("restore") or []) if self.is_battery(part) else []
+        if not pats:
             return []
+        pool = self._pool(part)
         saved = dict(self.ov.settings.get("restore_values") or {})
+        mine = {e: v for e, v in saved.items() if e in pool}  # each inverter remembers its own
         if intent == "export":
-            if not saved:
-                pool = self._pool()
+            if not mine:
                 for p in pats:
                     e = adapters._find(p, pool)
                     st = (self.ha.states.get(e) or {}).get("state") if e else None
                     if e and st not in (None, "unknown", "unavailable"):
                         saved[e] = st
-                if saved:
+                if saved != (self.ov.settings.get("restore_values") or {}):
                     self.ov.save({"restore_values": saved})
             return []
         out = []
-        for e, v in saved.items():
+        for e, v in mine.items():
             if e.startswith("select."):
                 out.append({"domain": "select", "service": "select_option", "data": {"entity_id": e, "option": v}})
             else:
@@ -381,10 +453,10 @@ class Controller:
 
     async def release(self) -> None:
         """Back to shadow: the battery is put back to normal first, the charger is left as it is."""
-        if self.mode("battery") == "control" and not self.blocked("battery"):
-            want = self.intents().get("battery")
-            if want:
-                await self._send(self.calls("battery", {**want, "intent": "normal"}))
+        wants = self.intents()
+        for part in ["battery", *self.bat_parts()]:
+            if self.mode(part) == "control" and not self.blocked(part) and (want := wants.get(part)):
+                await self._send(self.calls(part, {**want, "intent": "normal"}))
         modes = {p: "shadow" for p in self.parts()}
         self.ov.save({"control": modes})
         self.last.clear()
@@ -404,7 +476,14 @@ class Controller:
             }
             if part in names:
                 out[part].update(name=names[part], why=self.more_why.get(part, ""))
+            if part.startswith("bat"):
+                key = self.profile_key(part)
+                prof = adapters.PROFILES.get(key or "") or {}
+                out[part].update(name=self._extra_battery(part).get("name") or "", profile={
+                    "key": key, "name": prof.get("name"), "model": (self.bat_info.get(part) or {}).get("model"),
+                    "tested": bool(prof.get("tested")) if key else None, "check": self.check(part)})
         out["car_parts"] = self.car_parts()
+        out["bat_parts"] = self.bat_parts()
         key = self.profile_key()
         prof = adapters.PROFILES.get(key or "") or {}
         out["profile"] = {"key": key, "name": prof.get("name") or ("custom" if key == "custom" else None),

@@ -41,3 +41,39 @@ def test_finds_the_victron_not_the_phone_or_the_motion_sensor():
 
 def test_extras_need_a_level_sensor():
     assert batteries.extras({"batteries": [{"name": "x", "soc": ""}, {"soc": "sensor.victron_battery_soc"}]}) == [{"soc": "sensor.victron_battery_soc"}]
+
+
+def _ctl(settings):
+    from types import SimpleNamespace
+
+    from energy_pilot.control import Controller
+
+    c = Controller.__new__(Controller)
+    c.ov = SimpleNamespace(settings=settings, role=lambda r: None)
+    c.entities = {"battery": ["switch.ess_force_charge", "number.ess_maximum_charge_power", "number.ess_maximum_discharge_power"],
+                  "bat2": ["number.solaredge_i1_storage_command_mode"]}
+    c.platforms = {"battery": "victron", "bat2": "solaredge_modbus_multi"}
+    c.bat_info = {"bat2": {"device": "dev2", "model": "SE10K", "serial": "S2"}}
+    c.services, c.model = None, None
+    return c
+
+
+def test_power_shared_by_size_and_each_holds_its_own_level():
+    st = {"battery_charge_kw": 8, "battery_discharge_kw": 4, "inverter_profile": "victron",
+          "batteries": [{"soc": "sensor.b2", "charge_kw": 4, "discharge_kw": 4, "profile": "solaredge_modbus_multi"}]}
+    c = _ctl(st)
+    want = {"intent": "charge", "ctx": {"min_soc": 10, "soc": 50, "target": 80, "rate": 100, "power_w": 12000, "power_kw": 12.0,
+                                        "max_power_w": 8000, "max_power_kw": 8.0, "max_charge_w": 12000, "max_charge_kw": 12.0,
+                                        "export_w": 0, "device_id": "", "serial": ""}}
+    out = c._share(want, {"batteries": [{"soc": 40}, {"soc": 70}]})
+    assert out["battery"]["ctx"]["power_w"] == 8000 and out["bat2"]["ctx"]["power_w"] == 4000
+    assert out["battery"]["ctx"]["max_power_w"] == 4000 and out["bat2"]["ctx"]["max_power_w"] == 4000
+    assert out["battery"]["ctx"]["soc"] == 40 and out["bat2"]["ctx"]["soc"] == 70 and out["bat2"]["ctx"]["target"] == 80
+    assert out["bat2"]["ctx"]["device_id"] == "dev2"
+
+
+def test_each_battery_has_its_own_profile():
+    c = _ctl({"inverter_profile": "victron", "batteries": [{"soc": "sensor.b2", "profile": "solaredge_modbus_multi"}]})
+    assert c.bat_parts() == ["bat2"]
+    assert c.profile_key("bat2") == "solaredge_modbus_multi" and c.profile_key() == "victron"
+    assert c._pool("bat2") == ["number.solaredge_i1_storage_command_mode"]
