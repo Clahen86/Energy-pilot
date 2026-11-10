@@ -74,14 +74,24 @@ The panel shows who decides right now and how well each one hits:
   charges to your target (80 % spares the battery) and stops there; **"100 % for the next trip"** fills it in the cheapest
   hours before you leave and turns itself off when the car leaves. The car's battery size is learned from the charges.
 - **The car is never counted twice** – if your house sensor includes the car, it notices from the hours the car charged
-  and takes it out, so the house forecast and the battery plan stay right.
+  and takes it out (every charger), so the house forecast and the battery plan stay right.
+- **Two limits for the car** – charge from the grid up to, say, 80 %, and let the sun's surplus fill it to 100 % for free.
+- **No house sensor needed** – without one, it works out the house's use from the history of your grid, solar,
+  battery and car meters, and learns your daily shape straight away.
+- **Any solar forecast** – Solcast, Open-Meteo Solar Forecast, or whatever is set up in Home Assistant's Energy
+  dashboard (Forecast.Solar and the rest). With none, it makes its own from the weather and your panels' history.
 - **Fits odd setups** – several solar arrays and forecasts are added up, it finds which way your battery's power number
   goes (Fox ESS counts discharging as positive), and a changing feed-in price (Amber, Octopus export, net-billing) can
-  come from a sensor. Can't find your sensor in a list? Search for any of them.
+  come from a sensor – or from your own tariff plan, with feed-in prices by time of day (e.g. 15c from 6–9pm) and a
+  daily cap on paid feed-in. Can't find your sensor in a list? Search for any of them.
 - **Runs your own system in shadow** – already have an energy setup in AppDaemon? Energy Pilot can run it unchanged next
   to its own engine and show how often they agree.
 - **Lives inside Home Assistant** – a sidebar panel, dashboard cards, and buttons and sensors (*Charge now*, *Ready at*,
-  *Saved today*, *Battery power cost* …) for your own automations.
+  *Saved today*, *Battery power cost* …) for your own automations. *Battery control* and *Car control* (Shadow /
+  Control / Off) let an automation switch Energy Pilot on and off.
+- **Keeps its settings in place** – a setting that goes back by itself (Victron puts its defaults back) is set again
+  at once, and if something else keeps changing the battery – Predbat, an automation – the self-check tells you, so
+  the two don't work against each other.
 - **Runs on a Raspberry Pi** – right next to Home Assistant, no cloud, no subscription. Even the ML models are trained
   at home, in a few seconds a night (about 180 MB RAM).
 - **No telemetry** – nothing about you or your home ever leaves your house.
@@ -108,7 +118,7 @@ The panel shows who decides right now and how well each one hits:
 
 | | |
 |---|---|
-| **Required** | Home Assistant, and a sensor for the house's power use (W) – most homes already have one |
+| **Required** | Home Assistant, and a sensor for the house's power use (W) – or grid and solar sensors, it works the house out from them |
 | **Prices** | Nothing – spot prices for 26 European countries are built in. Strømligning, Nord Pool, Tibber, Octopus, Amber, EDF Tempo and many more are used if you have them. No spot price (USA, UK…)? Enter your tariff plan or start from a template. |
 | **Optional** | Solar panels, a home battery, an EV charger – any of them, all of them, or none |
 
@@ -189,9 +199,17 @@ bliver bedre hver nat.** Den starter altid i *skygge*: den viser, hvad den ville
 - **Bilen følger solen** minut for minut og **passer på hovedsikringen**.
 - **Bilens eget batteri i %** findes fra bilens integration – lad til et mål (80 % skåner batteriet), eller tryk
   **"100 % til næste tur"** før en lang tur (slår selv fra, når bilen kører).
-- **Bilen tælles aldrig to gange**, og den kan køre din egen AppDaemon i skygge og sammenligne.
+- **Bilen tælles aldrig to gange** (alle ladere trækkes fra), og den kan køre din egen AppDaemon i skygge og sammenligne.
+- **To grænser for bilen:** lad fra nettet op til fx 80 %, og lad soloverskuddet fylde den op til 100 % gratis.
+- **Ingen husforbrug-sensor nødvendig:** uden en regner den husets forbrug ud fra historikken for net, sol, batteri og
+  bil – og lærer døgnets form med det samme.
+- **Enhver solprognose:** Solcast, Open-Meteo Solar Forecast eller det, der er sat op i Home Assistants Energi-panel
+  (Forecast.Solar m.fl.). Uden en laver den sin egen ud fra vejret og anlæggets historik.
 - **Passer til mange opsætninger:** flere solcelle-anlæg lægges sammen, den finder selv batteriets fortegn, og en
-  skiftende salgspris kan komme fra en sensor. Kan du ikke finde din sensor, kan du søge efter den.
+  skiftende salgspris kan komme fra en sensor – eller fra din egen tarifplan med salgspris efter tid på døgnet og en
+  daglig grænse for betalt salg. Kan du ikke finde din sensor, kan du søge efter den.
+- **Holder sine indstillinger på plads:** en indstilling, der går tilbage af sig selv (Victron), sættes igen med det
+  samme, og ændrer noget andet hele tiden batteriet – Predbat, en automation – siger selvtjekket til.
 - **Kører på en Raspberry Pi** ved siden af Home Assistant – ingen cloud, intet abonnement.
 - **Ingen telemetri** – intet forlader dit hjem.
 - **Også off-grid:** uden elnet styrer den generatoren – den starter, før batteriet når reserven, kører længe ad gangen
@@ -209,7 +227,8 @@ bliver bedre hver nat.** Den starter altid i *skygge*: den viser, hvad den ville
   tryk til at rette den. De sjældne indstillinger ligger under "Avanceret", og én knap henter en diagnosefil.
 - **Sensorer til dine egne dashboards og automationer:** beslutningen nu, prisen nu, batteriets mål, hvad batteriet har
   sparet, **næste opladning af batteriet**, **næste opladning af bilen**, **næste salg fra batteriet**, **billigste time**
-  (fx til opvaskeren), husets forbrug i dag og solprognosen for i dag og i morgen.
+  (fx til opvaskeren), husets forbrug i dag og solprognosen for i dag og i morgen. *Batteri-styring* og *Bil-styring*
+  (Skygge / Styrer / Fra) lader en automation slå Energipilot til og fra.
 - **7 sprog:** dansk, engelsk, tysk, fransk, hollandsk, svensk og norsk – følger Home Assistants sprog.
 - **Styrer mange mærker** – se tabellen ovenfor (✅ testet, 🧪 venter på en betatester).
 
