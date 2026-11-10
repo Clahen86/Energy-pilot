@@ -44,6 +44,13 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
                 top = max((h["price"] for h in (data.get("plan") or {}).get("hours", []) if "price" in h), default=5.0)
                 if other is not None and not 0 <= other <= 3 * max(top, 1.0):
                     other = None
+                # Not when Energy Pilot runs the battery itself (the other system is paused then and its number
+                # stands still), nor a 0 while the battery holds power.
+                c = overview.controller
+                if c and c.mode("battery") == "control":
+                    other = None
+                if other == 0 and overview.engine.ledger.state.get("stored_kwh", 0) > 0.5:
+                    other = None
             data["ledger"] = overview.engine.ledger.summary(_dt.now(_Z(runner.ha.config.get("time_zone") or "UTC")), other)
             soc = (overview.flow() or {}).get("soc")
             if soc is not None:
