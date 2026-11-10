@@ -293,7 +293,7 @@ class Controller:
                 charge_kw = min(bat.max_discharge_kw, max(0.5, ((f["soc"] or 0) - step["soc"]) / 100 * bat.capacity_kwh / slot_h))
                 export_w = int(round(max(0.0, -(step.get("grid") or 0.0)) / slot_h * 1000 / 50) * 50)
             out["battery"] = {"intent": intent, "ctx": {
-                "min_soc": round(bat.min_soc), "soc": round(f["soc"] or bat.min_soc), "target": round(b.get("target") or step["soc"]),
+                "grid_charge": bool(bat.grid_charge), "min_soc": round(bat.min_soc), "soc": round(f["soc"] or bat.min_soc), "target": round(b.get("target") or step["soc"]),
                 "rate": round(100 * charge_kw / bat.max_charge_kw), "power_w": round(charge_kw * 1000),
                 "max_power_w": round(bat.max_discharge_kw * 1000), "max_charge_w": round(bat.max_charge_kw * 1000),
                 "power_kw": round(charge_kw, 2), "max_charge_kw": round(bat.max_charge_kw, 2), "max_power_kw": round(bat.max_discharge_kw, 2), "export_w": export_w,
@@ -534,7 +534,11 @@ class Controller:
     def _matches(self, c: dict[str, Any]) -> bool | None:
         """Has this control the wanted value already? None: it can't be read back (a switch, a service)."""
         data = c["data"]
-        e, want = data.get("entity_id"), data.get("option", data.get("value"))
+        e = data.get("entity_id")
+        if c.get("service") in ("turn_on", "turn_off") and isinstance(e, str) and e.split(".")[0] in ("switch", "input_boolean"):
+            state = (self.ha.states.get(e) or {}).get("state")
+            return None if state not in ("on", "off") else state == c["service"][5:]  # a switch already on/off: not sent again
+        want = data.get("option", data.get("value"))
         if not isinstance(e, str) or want is None or e not in self.ha.states:
             return None
         state = self.ha.states[e].get("state")

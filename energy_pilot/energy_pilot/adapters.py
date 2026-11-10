@@ -88,18 +88,18 @@ PROFILES: dict[str, dict[str, Any]] = {
         "name": "Deye (Solarman)",
         "match": r"deye|solarman",
         "models": r"deye|SUN-\d+K-SG|sg0\dlp|sg0\dhp",
-        "normal": [(r"select\..*time_of_use$", "select", "Week"), (r"switch\..*battery_grid_charging$", "off", None)]
+        "normal": [(r"select\..*time_of_use$", "select", "Week"), (r"switch\..*battery_grid_charging$", "grid", None)]
         + [(rf"number\..*program_{n}_soc$", "number", "{min_soc}") for n in range(1, 7)]
         + [(rf"select\..*program_{n}_charging$", "select", "Disabled") for n in range(1, 7)],
-        "hold": [(r"select\..*time_of_use$", "select", "Week"), (r"switch\..*battery_grid_charging$", "off", None)]
+        "hold": [(r"select\..*time_of_use$", "select", "Week"), (r"switch\..*battery_grid_charging$", "grid", None)]
         + [(rf"number\..*program_{n}_soc$", "number", "{soc}") for n in range(1, 7)]
         + [(rf"select\..*program_{n}_charging$", "select", "Disabled") for n in range(1, 7)],
-        "charge": [(r"select\..*time_of_use$", "select", "Week"), (r"switch\..*battery_grid_charging$", "on", None)]
+        "charge": [(r"select\..*time_of_use$", "select", "Week"), (r"switch\..*battery_grid_charging$", "grid", None)]
         + [(rf"number\..*program_{n}_soc$", "number", "{target}") for n in range(1, 7)]
         + [(rf"select\..*program_{n}_charging$", "select", "Grid") for n in range(1, 7)],
         # Selling from the battery (davidrapan/ha-solarman deye_hybrid): Work Mode "Export First" with its
         # "Export Surplus Power", every programme down to the target.
-        "export": [(r"select\..*time_of_use$", "select", "Week"), (r"switch\..*battery_grid_charging$", "off", None)]
+        "export": [(r"select\..*time_of_use$", "select", "Week"), (r"switch\..*battery_grid_charging$", "grid", None)]
         + [(rf"number\..*program_{n}_soc$", "number", "{target}") for n in range(1, 7)]
         + [(rf"select\..*program_{n}_charging$", "select", "Disabled") for n in range(1, 7)]
         + [(r"number\..*export_surplus_power$", "number", "{power_w}"),
@@ -112,18 +112,18 @@ PROFILES: dict[str, dict[str, Any]] = {
         "name": "Deye (ESPHome, local Modbus)",
         "match": r"deye|time_point_\d",
         "models": r"esphome|SG04LP3",
-        "normal": [(r"switch\..*time_of_use$", "on", None), (r"switch\..*grid_charge$", "off", None)]
+        "normal": [(r"switch\..*time_of_use$", "on", None), (r"switch\..*grid_charge$", "grid", None)]
         + [(rf"number\..*time_point_{n}_capacity$", "number", "{min_soc}") for n in range(1, 7)]
         + [(rf"switch\..*time_point_{n}_charge_enable$", "off", None) for n in range(1, 7)],
-        "hold": [(r"switch\..*time_of_use$", "on", None), (r"switch\..*grid_charge$", "off", None)]
+        "hold": [(r"switch\..*time_of_use$", "on", None), (r"switch\..*grid_charge$", "grid", None)]
         + [(rf"number\..*time_point_{n}_capacity$", "number", "{soc}") for n in range(1, 7)]
         + [(rf"switch\..*time_point_{n}_charge_enable$", "off", None) for n in range(1, 7)],
-        "charge": [(r"switch\..*time_of_use$", "on", None), (r"switch\..*grid_charge$", "on", None)]
+        "charge": [(r"switch\..*time_of_use$", "on", None), (r"switch\..*grid_charge$", "grid", None)]
         + [(rf"number\..*time_point_{n}_capacity$", "number", "{target}") for n in range(1, 7)]
         + [(rf"switch\..*time_point_{n}_charge_enable$", "on", None) for n in range(1, 7)],
         # Selling (klatremis/esphome-for-deye): "Limit control mode" = "Selling first" with "Max Solar Sell Power",
         # every time point down to the target. The owner's own limit mode and sell power are put back after.
-        "export": [(r"switch\..*time_of_use$", "on", None), (r"switch\..*grid_charge$", "off", None)]
+        "export": [(r"switch\..*time_of_use$", "on", None), (r"switch\..*grid_charge$", "grid", None)]
         + [(rf"number\..*time_point_{n}_capacity$", "number", "{target}") for n in range(1, 7)]
         + [(rf"switch\..*time_point_{n}_charge_enable$", "off", None) for n in range(1, 7)]
         + [(r"switch\..*solar_sell$", "on", None),
@@ -483,6 +483,11 @@ def resolve(steps: list, entities: list[str], ctx: dict[str, Any]) -> list[dict[
             calls.append({"domain": domain, "service": "select_option", "data": {"entity_id": entity, "option": str(fill(value, ctx))}})
         elif kind == "number":
             calls.append({"domain": domain, "service": "set_value", "data": {"entity_id": entity, "value": fill(value, ctx)}})
+        elif kind == "grid":
+            # Deye's global grid-charge switch follows the setting "may charge from the grid" - set, not toggled:
+            # the programmes decide when (each "Grid" or "Disabled").
+            on = bool(ctx.get("grid_charge", True))
+            calls.append({"domain": domain, "service": "turn_on" if on else "turn_off", "data": {"entity_id": entity}})
         elif kind in ("on", "off") and domain == "select":
             calls.append({"domain": domain, "service": "select_option", "data": {"entity_id": entity, "option": "Enabled" if kind == "on" else "Disabled"}})
         elif kind in ("on", "off"):

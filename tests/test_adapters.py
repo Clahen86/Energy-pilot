@@ -270,3 +270,32 @@ def test_huawei_givenergy_sungrow_give_full_power_back():
     for key in ("huawei_solar", "givenergy_local", "sungrow"):
         for o in adapters.PROFILES[key]["optional"]:
             assert "\\\\" not in o  # a pattern, not a doubled backslash
+
+
+def test_deye_global_grid_switch_follows_the_setting_programmes_decide():
+    from energy_pilot.adapters import PROFILES, resolve
+
+    for key, glob, prog, val in (("solarman", "switch.deye_battery_grid_charging", "select.deye_program_1_charging", "Grid"),
+                                 ("deye_esphome", "switch.deye_grid_charge", "switch.deye_time_point_1_charge_enable", None)):
+        ents = [glob, prog]
+        for intent in ("normal", "hold", "charge", "export"):
+            for allowed in (True, False):
+                calls = resolve(PROFILES[key][intent], ents, {**CTX, "grid_charge": allowed})
+                g = [c for c in calls if c["data"].get("entity_id") == glob]
+                assert g and g[0]["service"] == ("turn_on" if allowed else "turn_off"), (key, intent)
+        charge = resolve(PROFILES[key]["charge"], ents, {**CTX, "grid_charge": True})
+        p = [c for c in charge if c["data"].get("entity_id") == prog][0]
+        assert (p["data"].get("option") == val) if val else p["service"] == "turn_on"  # the programme charges
+
+
+def test_switch_already_set_is_not_sent_again():
+    from energy_pilot.control import Controller
+
+    class HA:
+        states = {"switch.g": {"state": "on"}, "switch.h": {"state": "unavailable"}}
+
+    c = Controller.__new__(Controller)
+    c.ha = HA()
+    assert c._matches({"domain": "switch", "service": "turn_on", "data": {"entity_id": "switch.g"}}) is True
+    assert c._matches({"domain": "switch", "service": "turn_off", "data": {"entity_id": "switch.g"}}) is False
+    assert c._matches({"domain": "switch", "service": "turn_on", "data": {"entity_id": "switch.h"}}) is None
