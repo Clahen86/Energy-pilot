@@ -30,6 +30,22 @@ _LOGGER = logging.getLogger(__name__)
 # ---------- house forecast ----------
 
 
+def over_cap(hours: list[Hour], p: Plan, cap: float) -> list[Hour]:
+    """The paid slots past the day's feed-in cap: per day the best-paid exports are kept up to the cap."""
+    by_day: dict[Any, list[tuple[Hour, float]]] = {}
+    for h, st in zip(hours, p.steps):
+        if h.sell > 0 and st.grid_kwh < 0:
+            by_day.setdefault(h.start.date(), []).append((h, -st.grid_kwh))
+    out = []
+    for rows in by_day.values():
+        sold = 0.0
+        for h, kwh in sorted(rows, key=lambda r: (-r[0].sell, r[0].start)):
+            if sold >= cap - 1e-9:
+                out.append(h)
+            sold += kwh
+    return out
+
+
 def computed_house(grid: dict, pv: dict, batt: dict, ev: dict, grid_sign: int = 1, batt_sign: int = 1) -> list[tuple[datetime, float]]:
     """kW per hour: grid (buying +) + sun - battery (charging +) - car; never below 0."""
     out = []
@@ -762,9 +778,29 @@ class Engine:
             return 1
         return None
 
+    def tou_plan(self) -> dict[str, Any] | None:
+        """The own tariff plan, when it's the one in use."""
+        from .sources import ZONES
+
+        st = self.ov.settings
+        country = (self.ha.config.get("country") or "").upper()
+        use = st.get("price_source") == "tou" or (st.get("price_source") in (None, "auto") and country not in ZONES and st.get("tou"))
+        return st.get("tou") if use and st.get("tou") else None
+
     def sell_prices(self) -> dict[datetime, float]:
-        """A changing feed-in price (a chosen sensor), with its forecast; empty when the price is fixed."""
+        """A changing feed-in price (a chosen sensor, or the own tariff plan's feed-in times), with its forecast;
+        empty when the price is fixed."""
         e = self.ov.role("sell_price")
+        if not e and (plan := self.tou_plan()) and plan.get("sell_periods"):
+            from .sources import tou_price
+
+            st = self.ov.settings
+            base = plan.get("sell_default")
+            if base is None:
+                base = float(st.get("sell_price") or 0) if st.get("sell") else 0.0
+            sp = {"default": base, "periods": plan["sell_periods"]}
+            day0 = datetime.now(self.tz).replace(hour=0, minute=0, second=0, microsecond=0)
+            return {t: tou_price(sp, t) for t in (day0 + timedelta(minutes=15 * i) for i in range(2 * 96))}
         if not e or not (s := self.ha.states.get(e)):
             return {}
         from .pricefeed import companions, parse
@@ -931,6 +967,16 @@ class Engine:
                 b = replace(b, no_discharge=frozenset(pre["set"]))
             end_value = end_price(hours, b) * L.end_factor
             p = plan_battery(hours, f["soc"], b, end_value=end_value)
+            # A daily cap on paid feed-in (15 kWh a day, say): what is sold past it earns nothing - the best-paid
+            # slots keep the pay, the plan is made again without pay in the rest.
+            cap = (self.tou_plan() or {}).get("sell_cap_kwh")
+            for _ in range(3):
+                over = over_cap(hours, p, float(cap)) if cap else []
+                if not over:
+                    break
+                for h in over:
+                    h.sell = 0.0
+                p = plan_battery(hours, f["soc"], b, end_value=end_value)
             # The target: where the current action leads (not just the end of this quarter).
             run = 0
             while run + 1 < len(p.steps) and p.steps[run + 1].action == p.steps[0].action:
