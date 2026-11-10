@@ -103,3 +103,13 @@ def test_current_as_a_select_vevor():
     calls = adapters.charger_calls("charge", ["switch.vevor_ev_charger", "select.vevor_ev_charger_charging_current"], "tuya", 14, None, states)
     assert calls[0] == {"domain": "select", "service": "select_option", "data": {"entity_id": "select.vevor_ev_charger_charging_current", "option": "13A"}}
     assert calls[1]["service"] == "turn_on"
+
+
+def test_last_visits_session_is_not_this_one_keba():
+    """KEBA keeps 19.95 kWh from yesterday until it starts charging again - plugged in today, nothing is charged yet."""
+    st = {"sensor.session": {"state": "19.95", "last_changed": "2026-11-09T05:22:22+01:00"},
+          "binary_sensor.plug": {"state": "on", "last_changed": "2026-11-10T16:55:11+01:00"}}
+    assert chargers.session(st, "sensor.session", "binary_sensor.plug") == 0.0
+    st["sensor.session"] = {"state": "3.2", "last_changed": "2026-11-10T17:40:00+01:00"}
+    assert chargers.session(st, "sensor.session", "binary_sensor.plug") == 3.2
+    assert chargers.session(st, "sensor.session", None) == 3.2  # no plug sensor: as it says

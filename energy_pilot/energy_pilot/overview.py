@@ -500,12 +500,14 @@ class Overview:
         def val(role: str) -> Any:
             return (st.get(r[role]) or {}).get("state") if r[role] else None
 
+        from . import chargers
+
         # Without helpers of its own, the car's buttons are Energy Pilot's (its settings).
         return {"manual": val("ev_manual") == "on" if r["ev_manual"] else bool(self.settings.get("ev_now")),
                 "ready": val("ev_ready") if r["ev_ready"] else self.settings.get("ev_ready"),
                 "cap": _num(st.get(r["ev_cap"])) if r["ev_cap"] else self.settings.get("ev_need_kwh"),
                 "cap_max": ((st.get(r["ev_cap"]) or {}).get("attributes") or {}).get("max") if r["ev_cap"] else None,
-                "session_kwh": _num(st.get(r["ev_session"])) if r["ev_session"] else None,
+                "session_kwh": chargers.session(st, r["ev_session"], r["ev_plug"]),
                 **self._ev_soc(),
                 "entities": {k: r[k] for k in ("ev_manual", "ev_ready", "ev_cap", "ev_soc")}}
 

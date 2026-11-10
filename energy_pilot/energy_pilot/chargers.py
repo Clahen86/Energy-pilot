@@ -43,6 +43,26 @@ def _num(s: dict[str, Any] | None) -> float | None:
         return None
 
 
+def session(states: dict[str, Any], session_e: str | None, plug_e: str | None) -> float | None:
+    """What was charged since the car was plugged in. Many chargers (KEBA, …) keep the last session's number until
+    the next one starts charging - a number older than the plug-in belongs to the previous car visit: 0."""
+    if not session_e:
+        return None
+    s = states.get(session_e) or {}
+    v = _num(s)
+    if v is None or not plug_e:
+        return v
+    p = states.get(plug_e) or {}
+    if not is_plugged(p.get("state")):
+        return v
+    try:
+        if datetime.fromisoformat(s["last_changed"]) < datetime.fromisoformat(p["last_changed"]):
+            return 0.0
+    except (KeyError, ValueError, TypeError):
+        pass
+    return v
+
+
 def read(states: dict[str, Any], c: dict[str, Any]) -> dict[str, Any]:
     """One extra charger now: power (W), plugged in, charged this session (kWh)."""
     w = _num(states.get(c["power"])) if c.get("power") else None
@@ -50,7 +70,7 @@ def read(states: dict[str, Any], c: dict[str, Any]) -> dict[str, Any]:
         w *= 1000
     plug = is_plugged((states.get(c["plug"]) or {}).get("state")) if c.get("plug") else (w or 0) > 100
     return {"name": c.get("name") or "", "power": w, "plug": plug,
-            "session_kwh": _num(states.get(c["session"])) if c.get("session") else None}
+            "session_kwh": session(states, c.get("session"), c.get("plug"))}
 
 
 def ready_at(c: dict[str, Any], now: datetime) -> datetime | None:
