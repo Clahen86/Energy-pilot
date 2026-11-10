@@ -25,6 +25,10 @@ from zoneinfo import ZoneInfo
 
 from . import adapters
 
+# Platforms that hold anything (helpers, sums, MQTT): their entities never belong to one inverter or charger.
+GENERIC_PLATFORMS = ("mqtt", "template", "group", "min_max", "integration", "utility_meter", "statistics", "filter",
+                     "derivative", "threshold", "trend", "compensation", "powercalc", "sql", "rest", "command_line")
+
 _LOGGER = logging.getLogger(__name__)
 REASSERT_S = 1800
 
@@ -119,14 +123,22 @@ class Controller:
             self.services = None
         for part, role in (("battery", "battery_soc"), ("car", "ev_power")):
             anchor = self.ov.role(role) or (self.ov.role("ev_plug") if part == "car" else None)
+            if part == "car":
+                # The charger's own device: the power sensor's - or, when that is a sum/group/template of several
+                # (no device), the plug's or the session's (a Zappi behind an "All EV power" group).
+                for r in ("ev_power", "ev_plug", "ev_session"):
+                    e = self.ov.role(r)
+                    if e and (by_id.get(e) or {}).get("device_id"):
+                        anchor = e
+                        break
             dev = (by_id.get(anchor) or {}).get("device_id")
             plat = (by_id.get(anchor) or {}).get("platform")
             found = [e["entity_id"] for e in entities if not e.get("disabled_by") and e["entity_id"].split(".")[0] in ("select", "number", "switch", "button")
-                     and ((dev and e.get("device_id") == dev) or (plat and e.get("platform") == plat and plat not in ("mqtt", "template")
+                     and ((dev and e.get("device_id") == dev) or (plat and e.get("platform") == plat and plat not in GENERIC_PLATFORMS
                                                                    and not (part == "car" and dev)))]
             # The charger: only its own device when it has one - Tuya, say, also has the air conditioner and the cat's
             # litter box, and their switches must never be taken for the charger's.
-            if not found and anchor:  # MQTT inverters: same name prefix
+            if not found and anchor and part == "battery":  # MQTT inverters: same name prefix (never for a charger)
                 prefix = anchor.split(".", 1)[1].split("_")[0]
                 found = [e for e in self.ha.states if e.split(".")[0] in ("select", "number", "switch") and e.split(".", 1)[1].startswith(prefix + "_")]
             self.entities[part], self.platforms[part] = sorted(found), plat
