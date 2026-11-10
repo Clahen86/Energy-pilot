@@ -319,3 +319,8 @@ def test_megarevo_through_solarassistant():
     ctl.ha.states["select.megarevo_work_mode"]["attributes"]["options"] = ["Self Consumption"]
     assert ctl._clamp(adapters.resolve(p["normal"], mr, CTX))[0]["data"]["option"] == "Self Consumption"
     assert ctl._clamp(adapters.resolve(p["hold"], mr, CTX)) == []  # no such option: nothing is sent
+
+
+def test_victron_is_told_again_every_few_minutes():
+    """Victron puts its ESS settings back after about 10 minutes - they are re-sent before that."""
+    assert adapters.PROFILES["victron"]["reassert_s"] < 600
