@@ -436,7 +436,20 @@ class Controller:
                                                   getattr(self, "car_device", None), self.ha.states, switch=self.auto_switch("car")))
 
     def _clamp(self, calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Numbers within the control's own min/max - Home Assistant refuses a value outside them."""
+        """Numbers within the control's own min/max - Home Assistant refuses a value outside them. A select value
+        written "re:<pattern>" is the control's own option that matches (SolarAssistant names a mode its own way)."""
+        out = []
+        for c in calls:
+            d = c["data"]
+            if c.get("service") == "select_option" and str(d.get("option", "")).startswith("re:"):
+                a = (self.ha.states.get(d.get("entity_id")) or {}).get("attributes") or {}
+                opt = adapters.pick_option(str(d["option"])[3:], a.get("options") or [])
+                if opt is None:
+                    _LOGGER.warning("No option like %s on %s", d["option"][3:], d.get("entity_id"))
+                    continue
+                d["option"] = opt
+            out.append(c)
+        calls = out
         for c in calls:
             d = c["data"]
             if c.get("service") == "set_value" and isinstance(d.get("value"), (int, float)):

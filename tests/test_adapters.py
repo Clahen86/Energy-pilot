@@ -299,3 +299,23 @@ def test_switch_already_set_is_not_sent_again():
     assert c._matches({"domain": "switch", "service": "turn_on", "data": {"entity_id": "switch.g"}}) is True
     assert c._matches({"domain": "switch", "service": "turn_off", "data": {"entity_id": "switch.g"}}) is False
     assert c._matches({"domain": "switch", "service": "turn_on", "data": {"entity_id": "switch.h"}}) is None
+
+
+def test_megarevo_through_solarassistant():
+    """Megarevo via SolarAssistant: Work mode only - normal and hold, never grid charging; names matched loosely."""
+    from energy_pilot import control as C
+
+    mr = ["select.megarevo_work_mode", "select.megarevo_discharge_slot_1_start", "select.megarevo_export_to_grid"]
+    assert adapters.guess_profile(mr, {"mqtt"}) == "megarevo"
+    p = adapters.PROFILES["megarevo"]
+    assert p["grid_charge"] is False
+    assert adapters.missing(adapters.check({i: p[i] for i in ("normal", "hold", "charge")}, mr)) == []
+    opts = ["Self consume", "Peak shift", "Battery priority"]
+    ctl = C.Controller.__new__(C.Controller)
+    ctl.ha = type("H", (), {"states": {"select.megarevo_work_mode": {"state": "Self consume", "attributes": {"options": opts}}}})()
+    hold = ctl._clamp(adapters.resolve(p["hold"], mr, CTX))
+    assert hold[0]["data"] == {"entity_id": "select.megarevo_work_mode", "option": "Battery priority"}
+    assert ctl._clamp(adapters.resolve(p["normal"], mr, CTX))[0]["data"]["option"] == "Self consume"
+    ctl.ha.states["select.megarevo_work_mode"]["attributes"]["options"] = ["Self Consumption"]
+    assert ctl._clamp(adapters.resolve(p["normal"], mr, CTX))[0]["data"]["option"] == "Self Consumption"
+    assert ctl._clamp(adapters.resolve(p["hold"], mr, CTX)) == []  # no such option: nothing is sent

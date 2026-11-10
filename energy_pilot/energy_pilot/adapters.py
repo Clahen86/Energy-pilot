@@ -236,6 +236,19 @@ PROFILES: dict[str, dict[str, Any]] = {
         # The owner's own grid setpoint is remembered before selling and put back after.
         "restore": [r"number\..*(grid_set_?point|acpowersetpoint)$"],
     },
+    # Megarevo (R-series hybrid) through SolarAssistant's MQTT: the inverter's own "Work mode" - Self Consumption,
+    # Peak Shift or Battery Priority (Megarevo's manual). SolarAssistant shows only the discharge slots of Peak Shift,
+    # not when to charge, so it can't be told to buy from the grid: the plan never does. The option names are matched
+    # loosely ("Self consume" / "Self Consumption").
+    "megarevo": {
+        "name": "Megarevo (SolarAssistant)",
+        "match": r"megarevo",
+        "models": r"megarevo",
+        "grid_charge": False,
+        "normal": [(r"select\..*work_mode$", "select", "re:self.?consum")],
+        "hold": [(r"select\..*work_mode$", "select", "re:batt?e?r?y?.?prior")],
+        "charge": [(r"select\..*work_mode$", "select", "re:self.?consum")],
+    },
     # EcoFlow PowerStream (EcoFlow Cloud integration): a micro-inverter that gives the house the watts it is told
     # ("custom load"), from a Delta/River power station. It can't charge from the grid - that's the station's own AC
     # charging - so the plan never buys for the battery with this profile.
@@ -520,6 +533,11 @@ def guess_profile(entities: list[str], platforms: set[str], model: str | None = 
                 sum(1 for pat, _k, _v in hits if any(re.search(pat, e) for e in entities)) >= max(1, len(hits) // 2):
             return key
     return None
+
+
+def pick_option(pattern: str, options: list[str]) -> str | None:
+    """The first option that matches the pattern, ignoring case."""
+    return next((o for o in options if re.search(pattern, str(o), re.I)), None)
 
 
 def _amp_option(options: list[str], current: float) -> str | None:
