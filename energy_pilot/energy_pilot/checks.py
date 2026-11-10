@@ -170,7 +170,8 @@ class FollowWatch:
 
     @classmethod
     def suspects(cls, kind: str, states: dict[str, Any], entities: list[str]) -> list[str]:
-        """The inverter's numbers that stand at 0 and sound like they limit this way: "free_mode_discharge_rate = 0"."""
+        """The inverter's numbers that sound like they limit this way and stand at 0 or at their lowest (Sungrow's
+        "no battery discharge" is 10 W, the least it takes): "free_mode_discharge_rate = 0"."""
         import re
 
         out = []
@@ -180,17 +181,30 @@ class FollowWatch:
             name = e.split(".", 1)[1]
             if not (re.search(cls.WORDS[kind], name) and re.search(cls.LIMIT, name)):
                 continue
+            st = states.get(e) or {}
             try:
-                v = float((states.get(e) or {}).get("state"))
+                v = float(st.get("state"))
             except (TypeError, ValueError):
                 continue
-            if v == 0:
-                out.append(e)
+            attrs = st.get("attributes") or {}
+            lo, hi = attrs.get("min"), attrs.get("max")
+            lowest = isinstance(lo, (int, float)) and isinstance(hi, (int, float)) and 0 < lo and hi >= 20 * lo and v <= lo
+            if v == 0 or lowest:
+                out.append(f"{name} = {int(v) if v.is_integer() else v}")
+        # Modes and switches that stop it outright: Victron's "Keep batteries charged", GivEnergy's pause, "disable charge".
+        block = {"discharge": r"keep batteries charged|pause discharg|pause both", "charge": r"pause charg|pause both"}[kind]
+        for e in entities:
+            st = str((states.get(e) or {}).get("state") or "")
+            name = e.split(".", 1)[1]
+            if e.startswith("select.") and re.search(block, st, re.I):
+                out.append(f"{name} = {st}")
+            elif e.startswith("switch.") and st == "on" and re.search(r"disable_charg" if kind == "charge" else r"disable_discharg", name):
+                out.append(f"{name} = on")
         return out[:4]
 
     def check(self) -> list[dict[str, Any]]:
         if not self.found:
             return []
-        names = ", ".join(f"{e.split('.', 1)[1]} = 0" for e in self.found["suspects"])
+        names = ", ".join(self.found["suspects"])
         key = f"follow_{self.found['kind']}" + ("_why" if names else "")
         return [{"key": key, "level": "warn", "vals": {"list": names}, "goto": "battery"}]

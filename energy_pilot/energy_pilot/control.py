@@ -440,6 +440,7 @@ class Controller:
     async def _send(self, calls: list[dict[str, Any]]) -> str:
         """Send the calls - only those whose value isn't already set (some links, like Solarman, drop writes now
         and then, so fewer writes is safer). A value that didn't stick is sent once more."""
+        calls = [self._clamp(c) for c in calls]
         todo = [c for c in calls if not self._matches(c)]
         for attempt in range(2):
             for c in todo:
@@ -459,6 +460,25 @@ class Controller:
             if not attempt:
                 _LOGGER.info("Not taken, sending again: %s", ", ".join(c["data"].get("entity_id", "") for c in todo))
         return "not_confirmed"
+
+    def _clamp(self, c: dict[str, Any]) -> dict[str, Any]:
+        """A number is kept inside what the entity takes (its min/max): "full power" from the battery's settings may be
+        more than this inverter's own maximum (Sungrow's comes from the owner's secrets), and HA refuses the write."""
+        data = c.get("data") or {}
+        e, v = data.get("entity_id"), data.get("value")
+        if c.get("service") != "set_value" or not isinstance(e, str) or not isinstance(v, (int, float)):
+            return c
+        attrs = (self.ha.states.get(e) or {}).get("attributes") or {}
+        lo, hi = attrs.get("min"), attrs.get("max")
+        nv = v
+        if isinstance(hi, (int, float)) and nv > hi:
+            nv = hi
+        if isinstance(lo, (int, float)) and nv < lo:
+            nv = lo
+        if nv == v:
+            return c
+        nv = int(nv) if float(nv).is_integer() else nv
+        return {**c, "data": {**data, "value": nv}}
 
     def _matches(self, c: dict[str, Any]) -> bool | None:
         """Has this control the wanted value already? None: it can't be read back (a switch, a service)."""

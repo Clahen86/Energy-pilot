@@ -87,7 +87,7 @@ def test_victron_ess():
     assert adapters.guess_profile(vic, {"victron"}) == "victron"
     p = adapters.PROFILES["victron"]
     steps = {i: p[i] for i in ("normal", "hold", "charge")}
-    assert adapters.missing(adapters.check(steps, vic)) == []
+    assert adapters.missing(adapters.check(steps, vic, p["optional"])) == []
     charge = adapters.resolve(p["charge"], vic, CTX)
     assert {"entity_id": "number.ess_maximum_charge_power", "value": 2400} in [c["data"] for c in charge]
     assert charge[-1] == {"domain": "switch", "service": "turn_on", "data": {"entity_id": "switch.ess_force_charge"}}
@@ -259,3 +259,14 @@ def test_normal_gives_back_the_limits_a_charge_or_sale_set():
     assert r"number\..*battery_charge_power_limit$" in pats("givenergy_local", "normal")
     assert r"number\..*(grid_first_discharge_rate|discharge_power_rate)$" in pats("growatt_tlxh", "normal")
     assert r"switch\..*solar_sell$" in adapters.PROFILES["deye_esphome"]["restore"]
+
+
+def test_huawei_givenergy_sungrow_give_full_power_back():
+    def pats(key, intent):
+        return {x[0] for x in adapters.PROFILES[key][intent] if isinstance(x[0], str)}
+    assert r"number\..*maximum_charging_power$" in pats("huawei_solar", "normal") & pats("huawei_solar", "hold")
+    assert r"number\..*battery_discharge_power_limit$" in pats("givenergy_local", "normal")
+    assert r"number\..*battery_max_discharge_power$" in pats("sungrow", "normal")
+    for key in ("huawei_solar", "givenergy_local", "sungrow"):
+        for o in adapters.PROFILES[key]["optional"]:
+            assert "\\\\" not in o  # a pattern, not a doubled backslash
