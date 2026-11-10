@@ -480,6 +480,9 @@ class Overview:
                 if (h := slot(when)) is not None:
                     h["sun"] = kwh
                     self.sun_source = "own"
+        if any("sun" in h for h in hours.values()):
+            for h in hours.values():  # forecasts leave out the night (Forecast.Solar): no number is no sun
+                h.setdefault("sun", 0.0)
         if (e := self.role("house_forecast")) and (s := self.ha.states.get(e)):
             hourly = (s.get("attributes") or {}).get("hourly_kwh") or []
             if isinstance(hourly, list):
