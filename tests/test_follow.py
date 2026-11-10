@@ -50,10 +50,10 @@ def test_a_number_is_kept_inside_what_the_entity_takes():
     c.ha = SimpleNamespace(states={"number.sg_battery_max_discharge_power": {"state": "10", "attributes": {"min": 10, "max": 5000}},
                                    "number.growatt_sph_free_mode_discharge_rate": {"state": "0", "attributes": {"min": 0, "max": 100}}})
     call = lambda e, v: {"domain": "number", "service": "set_value", "data": {"entity_id": e, "value": v}}  # noqa: E731
-    assert c._clamp(call("number.sg_battery_max_discharge_power", 6000))["data"]["value"] == 5000
-    assert c._clamp(call("number.growatt_sph_free_mode_discharge_rate", 100))["data"]["value"] == 100
+    assert c._clamp([call("number.sg_battery_max_discharge_power", 6000)])[0]["data"]["value"] == 5000
+    assert c._clamp([call("number.growatt_sph_free_mode_discharge_rate", 100)])[0]["data"]["value"] == 100
     sw = {"domain": "switch", "service": "turn_off", "data": {"entity_id": "switch.x"}}
-    assert c._clamp(sw) is sw
+    assert c._clamp([sw]) == [sw]
 
 
 def test_modes_that_stop_the_battery_are_named():
