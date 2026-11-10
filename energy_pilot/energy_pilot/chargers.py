@@ -9,6 +9,7 @@ Charger 1 comes first: the sun's surplus and the room under the main fuse go to 
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+import re
 from typing import Any
 
 POWER_WORDS = ("charging_power", "charge_power", "charger_power", "wallbox_power", "ladeeffekt")
@@ -93,3 +94,49 @@ def find(states: dict[str, Any], main_power: str | None, main_plug: str | None, 
             continue  # a power sensor alone could be anything - a charger has a plug
         out.append({"power": e, "plug": plug, "session": sessions.get(t), "name": a.get("friendly_name") or e})
     return out
+
+
+# The switch that starts and stops a charger - only what has to do with charging is offered.
+CHARGE_WORDS = re.compile(r"charg|evse|wallbox|(^|_)ev(_|$)|lader|ladebox|ladestation|laadpaal|laad|borne|recharge|zappi|easee|"
+                          r"keba|wallbox|go_?e|ohme|pod_?point|myenergi|commando")
+_T = r"(?:^|_)"  # a whole word in entity_id style
+NOT_CHARGER = re.compile(r"batter|inverter|discharg|grid_charg|ac_charg|force_charg|export|solar|backup|child|display|"
+                         r"buzzer|firmware|restart|reboot|identify|sentry|climate|heater|defrost|steering|precondition|"
+                         r"charge_port|cable_lock|" + _T + r"(sell|eco|lock|led|leds|light|lights|lys|screen|sound|beep|"
+                         r"update|ota|sleep|seat|seats|valet|window|windows|door|doors|trunk|frunk)(?:_|$)")
+CHARGER_MODEL = re.compile(r"charg|evse|wallbox|lader|laad|borne|zappi|easee|keba|go-e|ohme|pod point", re.I)
+
+
+def switch_options(registry: list[dict[str, Any]], devices: dict[str, dict[str, Any]], states: dict[str, Any],
+                   anchors: list[str], skip_devices: set[str]) -> list[dict[str, Any]]:
+    """Switches that can start and stop a charger: on a charger's own device, on the device that measures a
+    charger's power (a Shelly, a smart plug), or named for charging - never the inverter's or the battery's."""
+    by_id = {e["entity_id"]: e for e in registry}
+    anchor_devs = {by_id[a]["device_id"] for a in anchors if a and (by_id.get(a) or {}).get("device_id")}
+    current_devs = {e.get("device_id") for e in registry if e.get("device_id")
+                    and re.match(r"(number|select)\..*(current|ampere|amp|courant|strom)", e["entity_id"])}
+    out = []
+    for e in registry:
+        eid = e["entity_id"]
+        if not eid.startswith("switch.") or e.get("disabled_by") or eid not in states:
+            continue
+        dev = e.get("device_id") or ""
+        if dev and dev in skip_devices:
+            continue
+        name = str((states[eid].get("attributes") or {}).get("friendly_name") or eid)
+        text = (eid.split(".", 1)[1] + " " + name.lower().replace(" ", "_"))
+        if NOT_CHARGER.search(text):
+            continue
+        d = devices.get(dev) or {}
+        model = " ".join(str(d.get(k) or "") for k in ("manufacturer", "model", "name", "name_by_user"))
+        if dev in anchor_devs:
+            why = "measures"
+        elif CHARGE_WORDS.search(text):
+            why = "name"
+        elif dev and CHARGER_MODEL.search(model) and dev in current_devs:
+            why = "charger"
+        else:
+            continue
+        out.append({"entity_id": eid, "name": name, "device": dev, "why": why})
+    order = {"measures": 0, "charger": 1, "name": 2}
+    return sorted(out, key=lambda r: (order[r["why"]], r["name"].lower()))

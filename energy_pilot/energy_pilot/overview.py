@@ -148,7 +148,7 @@ class Overview:
                          "quiet_gen_from", "quiet_gen_to", "battery_charge_kw", "battery_discharge_kw", "ev_mode", "charger_kw", "ev_need_kwh",
                          "quiet_from", "quiet_to", "quiet_battery", "quiet_car",
                          "quiet_battery_from", "quiet_battery_to", "quiet_car_from", "quiet_car_to",
-                         "control", "inverter_profile", "custom_profile", "battery_takeover", "ev_now", "ev_target", "ev_trip", "ev_battery_kwh", "charger_phases", "ev_ready",
+                         "control", "inverter_profile", "custom_profile", "battery_takeover", "ev_now", "ev_target", "ev_trip", "ev_battery_kwh", "charger_phases", "ev_ready", "ev_switch",
                          "batteries", "battery_dismissed", "chargers", "charger_dismissed"):
                 self.settings[key] = value
         self.file.write_text(json.dumps(self.settings, indent=2))

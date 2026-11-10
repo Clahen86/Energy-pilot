@@ -24,7 +24,8 @@ def decide(flow: dict[str, Any], s: dict[str, Any], planned: bool, manual: bool,
     phases = int(s.get("charger_phases") or (3 if kw > 7.5 else 1))
     max_a = min(32, max(MIN_A, round(kw * 1000 / (VOLT * phases))))
     per_a = VOLT * phases
-    min_w = MIN_A * per_a
+    lo = max_a if s.get("onoff") else MIN_A  # a plain on/off switch (a Shelly, a smart plug): full power or nothing
+    min_w = lo * per_a
     plug = bool(flow.get("plug"))
     if not plug or (need_kwh <= 0 and not manual):
         return {"charge": False, "current": max_a, "sun": False, "why": "no_need" if plug else "not_plugged"}
@@ -36,7 +37,7 @@ def decide(flow: dict[str, Any], s: dict[str, Any], planned: bool, manual: bool,
     if manual:
         charge, amps, why = True, max_a, "manual"
     elif sun:
-        charge, amps, why = True, max(MIN_A, min(max_a, int(surplus // per_a))), "sun"
+        charge, amps, why = True, max(lo, min(max_a, int(surplus // per_a))), "sun"
     elif planned:
         charge, amps, why = True, max_a, "planned"
     else:
@@ -49,7 +50,7 @@ def decide(flow: dict[str, Any], s: dict[str, Any], planned: bool, manual: bool,
         others = (grid - car_now) if grid is not None else (house + batt_in - (pv or 0.0))
         room = float(limit) * 1000 - others
         fit = int(room // per_a)
-        if fit < MIN_A:
+        if fit < lo:
             return {"charge": False, "current": max_a, "sun": False, "why": "fuse"}
         if fit < amps:
             amps, why = fit, why + "+fuse"
@@ -60,6 +61,6 @@ def decide(flow: dict[str, Any], s: dict[str, Any], planned: bool, manual: bool,
         grid = flow.get("grid")
         others = (grid - car_now) if grid is not None else (house + batt_in - (pv or 0.0))
         fit = int((float(peak) * 1000 - others) // per_a)
-        if fit < amps:
-            amps, why = max(MIN_A, fit), why + "+peak"
+        if fit < amps and lo < max_a:
+            amps, why = max(lo, fit), why + "+peak"
     return {"charge": charge, "current": amps, "sun": sun, "why": why}

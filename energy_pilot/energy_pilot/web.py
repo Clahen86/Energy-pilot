@@ -6,6 +6,7 @@ from pathlib import Path
 
 from aiohttp import web
 
+from . import adapters
 from .overview import Overview
 from .runner import CONTROL, OFF, SHADOW, Runner
 
@@ -76,14 +77,31 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
                                   "capacity_learned": overview.engine.batt_learn.capacity() if overview.engine else None,
                                   "wear_default": overview.engine.wear(own=False) if overview.engine else None,
                                   "battery_type_found": overview.engine.battery_type() if overview.engine else None,
-                                  "roles_all": {r: overview.role_all(r) for r in ("pv_power", "solar_today", "solar_tomorrow")}})
+                                  "roles_all": {r: overview.role_all(r) for r in ("pv_power", "solar_today", "solar_tomorrow")},
+                                  "charger_switches": switches()})
+
+    def switches() -> dict | None:
+        """For Settings → Car → Control: the switches that can start a charger, and what each charger uses now."""
+        c = overview.controller
+        if not c:
+            return None
+        parts = ["car", *c.car_parts()]
+        return {"options": c.switch_options, "used": {p: c.auto_switch(p) for p in parts},
+                "onoff": {p: c.onoff(p) for p in parts},
+                "native": {p: c.platforms.get(p) in adapters.CHARGER_SERVICES for p in parts}}
 
     async def redetect(_req: web.Request) -> web.Response:
         await overview.async_detect()
         return web.json_response({"ok": True})
 
     async def save_settings(req: web.Request) -> web.Response:
-        overview.save(await req.json())
+        body = await req.json()
+        overview.save(body)
+        if overview.controller and ("ev_switch" in body or "chargers" in body):
+            try:
+                await overview.controller.discover()  # the chosen switch is used at once
+            except Exception:  # noqa: BLE001
+                pass
         if overview.engine:
             try:
                 overview.engine.run()  # the new choices show at once

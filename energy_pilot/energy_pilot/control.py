@@ -44,6 +44,10 @@ class Controller:
         self.more_why: dict[str, str] = {}
         self._sun_on = False  # the car is charging on the sun's surplus (for the start/stop margin)
         self.car_why = ""
+        self.lone_ok: dict[str, bool] = {}  # a charger's only switch may start it (found on its own device)
+        self.chosen: dict[str, str] = {}  # the switch picked for a charger in the settings
+        self.switch_options: list[dict[str, Any]] = []
+        self._devices: dict[str, dict[str, Any]] = {}
 
     # ---------- settings ----------
 
@@ -87,9 +91,7 @@ class Controller:
             return "offgrid"  # no grid to charge from: the inverter runs the battery, the engine runs the generator
         if part == "generator" and not self.ov.role("generator_switch"):
             return "no_generator"
-        if part == "car" and not self.entities["car"] and self.platforms["car"] not in adapters.CHARGER_SERVICES:
-            return "no_charger"
-        if part.startswith("car") and part != "car" and not self.entities.get(part) and self.platforms.get(part) not in adapters.CHARGER_SERVICES:
+        if part.startswith("car") and not self._can_drive(part):
             return "no_charger"
         return None
 
@@ -104,6 +106,7 @@ class Controller:
         by_id = {e["entity_id"]: e for e in entities}
         try:
             devices = {d["id"]: d for d in await self.ha.command({"type": "config/device_registry/list"})}
+            self._devices = devices
             dev = devices.get((by_id.get(self.ov.role("battery_soc") or "") or {}).get("device_id") or "") or {}
             parts = [x for x in (dev.get("model"), dev.get("model_id"), dev.get("name")) if x]
             self.model = " ".join(dict.fromkeys(parts)) or None  # "Growatt SPH", not "Growatt SPH Growatt SPH"
@@ -129,6 +132,7 @@ class Controller:
             self.entities[part], self.platforms[part] = sorted(found), plat
             if part == "car":
                 self.car_device = dev  # Easee's actions want the charger's device
+                self.lone_ok["car"] = bool(dev)
             if part == "battery":
                 self.battery_device = dev  # for services that want the device (Huawei, GivEnergy)
                 d = (devices or {}).get(dev or "") if "devices" in dir() else None
@@ -144,6 +148,12 @@ class Controller:
             found = [e["entity_id"] for e in entities if not e.get("disabled_by") and dev and e.get("device_id") == dev
                      and e["entity_id"].split(".")[0] in ("select", "number", "switch", "button")]
             self.entities[part], self.platforms[part], self.car_devices[part] = sorted(found), plat, dev
+            self.lone_ok[part] = bool(dev)
+
+        # The switch chosen for a charger (Settings → Car → Control): it starts and stops the car, and a current
+        # control on its device (Tuya Local, ESPHome …) sets the speed. Only charging switches are offered.
+        skip = {d for d in [getattr(self, "battery_device", None)] if d}
+        self._chosen_switches(entities, by_id, skip)
 
         # The extra batteries: the controls of the inverter their level sensor sits on.
         from . import batteries
@@ -158,6 +168,50 @@ class Controller:
             model = " ".join(dict.fromkeys(x for x in ((d or {}).get("model"), (d or {}).get("model_id"), (d or {}).get("name")) if x)) or None
             self.entities[part], self.platforms[part] = sorted(found), plat
             self.bat_info[part] = {"device": dev or "", "model": model, "serial": (d or {}).get("serial_number") or ""}
+
+    def _chosen_switches(self, entities: list[dict[str, Any]], by_id: dict[str, dict[str, Any]], skip: set[str]) -> None:
+        from . import chargers
+
+        more = chargers.extras(self.ov.settings)
+        anchors = [self.ov.role("ev_power"), self.ov.role("ev_plug")] + [x for c in more for x in (c.get("power"), c.get("plug"))]
+        for b in (self.ov.settings.get("batteries") or []):
+            if isinstance(b, dict) and (d := (by_id.get(b.get("soc") or "") or {}).get("device_id")):
+                skip.add(d)
+        self.switch_options = chargers.switch_options(entities, self._devices, self.ha.states, [a for a in anchors if a], skip)
+        chosen = {"car": self.ov.settings.get("ev_switch")} | {p: c.get("switch") for p, c in zip(self.car_parts(), more)}
+        self.chosen = {}
+        for part, sw in chosen.items():
+            reg = by_id.get(sw or "")
+            if not reg:
+                continue
+            dev = reg.get("device_id")
+            own = [e["entity_id"] for e in entities if not e.get("disabled_by") and dev and e.get("device_id") == dev
+                   and re.match(r"(number|select)\.", e["entity_id"])]
+            self.entities[part] = sorted(set(own) | {sw})
+            self.platforms[part], self.chosen[part] = None, sw  # the generic way: the switch and a current control
+            if part == "car":
+                self.car_device = dev
+            else:
+                self.car_devices[part] = dev
+
+    def _can_drive(self, part: str) -> bool:
+        """A charger can be run: by its integration's own actions, a switch, or a current control."""
+        if self.platforms.get(part) in adapters.CHARGER_SERVICES:
+            return True
+        ents = self.entities.get(part) or []
+        return bool(self.auto_switch(part)) or any(re.search(adapters.CHARGER_CURRENT, e) for e in ents)
+
+    def onoff(self, part: str) -> bool:
+        """A charger that can only be switched on and off (a Shelly, a smart plug): full power or nothing."""
+        if getattr(self, "platforms", {}).get(part) in adapters.CHARGER_SERVICES:
+            return False
+        ents = getattr(self, "entities", {}).get(part) or []
+        return bool(ents) and not any(re.search(adapters.CHARGER_CURRENT, e) or re.search(adapters.CHARGER_CURRENT_SELECT, e) for e in ents)
+
+    def auto_switch(self, part: str) -> str | None:
+        """The switch this charger is started and stopped with now - chosen, or found by itself."""
+        ents = self.entities.get(part) or []
+        return self.chosen.get(part) or adapters.charger_switch(ents, self.lone_ok.get(part, False))
 
     def _extra_battery(self, part: str) -> dict[str, Any]:
         from . import batteries
@@ -265,6 +319,7 @@ class Controller:
             ev = self.ov.ev() or {}
             if ev.get("soc") is not None and ev["soc"] >= ev.get("target", 100):
                 need, manual = 0.0, False  # at its target: it stops, even on "charge now" and in the sun (spares the battery)
+            st["onoff"] = self.onoff("car")
             d = decide(f, st, hour in planned, manual, need, self._sun_on)
             self._sun_on, self.car_why = d["sun"], d["why"]
             out["car"] = {"intent": "charge" if d["charge"] else "stop", "ctx": {"current": d["current"]}}
@@ -337,7 +392,7 @@ class Controller:
                     "battery": f.get("battery"), "plug": now_c.get("plug"), "ev": own, "grid": g}
             cs = {**st, "charger_kw": kw, "charger_phases": c.get("phases"),
                   "peak_kw": (self.engine.power_tariff() or {}).get("limit_kw") if getattr(self, "engine", None) else None,
-                  "ev_follow_sun": c.get("follow_sun", st.get("ev_follow_sun", bool(self.ov.role("pv_power"))))}
+                  "ev_follow_sun": c.get("follow_sun", st.get("ev_follow_sun", bool(self.ov.role("pv_power")))), "onoff": self.onoff(part)}
             need = float((plan or {}).get("need_kwh") if (plan or {}).get("need_kwh") is not None else 1.0)
             d = decide(flow, cs, planned, bool(c.get("now")), need, self._sun_on_more.get(part, False))
             self._sun_on_more[part], self.more_why[part] = d["sun"], d["why"]
@@ -358,9 +413,10 @@ class Controller:
             return self._clamp(adapters.resolve(steps.get(want["intent"]) or steps.get("normal", []), self._pool(part), want["ctx"]))
         if part.startswith("car") and part != "car":
             return self._clamp(adapters.charger_calls(want["intent"], self.entities.get(part, []), self.platforms.get(part),
-                                                      want["ctx"]["current"], self.car_devices.get(part), self.ha.states))
+                                                      want["ctx"]["current"], self.car_devices.get(part), self.ha.states,
+                                                      switch=self.auto_switch(part)))
         return self._clamp(adapters.charger_calls(want["intent"], self.entities["car"], self.platforms["car"], want["ctx"]["current"],
-                                                  getattr(self, "car_device", None), self.ha.states))
+                                                  getattr(self, "car_device", None), self.ha.states, switch=self.auto_switch("car")))
 
     def _clamp(self, calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Numbers within the control's own min/max - Home Assistant refuses a value outside them."""

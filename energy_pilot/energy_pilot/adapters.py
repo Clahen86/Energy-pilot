@@ -530,13 +530,24 @@ def _amp_option(options: list[str], current: float) -> str | None:
     return max(under)[1] if under else min(vals)[1]
 
 
+def charger_switch(entities: list[str], lone_ok: bool = False) -> str | None:
+    """The switch that starts and stops the charger: one named for it - or, on the charger's (or its power meter's)
+    own device, its only switch (a Shelly or a smart plug the charger is plugged into)."""
+    named = next((e for e in entities if re.search(CHARGER_SWITCH, e)), None)
+    if named or not lone_ok:
+        return named
+    switches = [e for e in entities if e.startswith("switch.")]
+    return switches[0] if len(switches) == 1 else None
+
+
 def charger_calls(intent: str, entities: list[str], platform: str | None, current: float,
-                  device_id: str | None = None, states: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+                  device_id: str | None = None, states: dict[str, Any] | None = None,
+                  switch: str | None = None) -> list[dict[str, Any]]:
     """Start at a current, or stop - by the charger integration's own way where known, else its switch and number."""
     ctx = {"current": round(current), "device_id": device_id or ""}
     if platform in CHARGER_SERVICES:
         return resolve(CHARGER_SERVICES[platform][intent], entities, ctx)
-    switch = next((e for e in entities if re.search(CHARGER_SWITCH, e)), None)
+    switch = switch or charger_switch(entities)
     number = next((e for e in entities if re.search(CHARGER_CURRENT, e)), None)
     calls = []
     paused = switch is not None and re.search(r"pause", switch)
