@@ -307,7 +307,7 @@ class Controller:
                     net = max(0.0, (f.get("house") or 0.0) - (f.get("pv") or 0.0))
                     export_w = int(round(max(0.0, charge_kw * 1000 - net) / 100) * 100)
             out["battery"] = {"intent": intent, "ctx": {
-                "grid_charge": bool(bat.grid_charge), "min_soc": round(bat.min_soc), "soc": round(f["soc"] or bat.min_soc), "target": round(b.get("target") or step["soc"]),
+                "grid_charge": bool(bat.grid_charge), "min_soc": round(bat.min_soc), "soc": round(max(f["soc"] or bat.min_soc, bat.min_soc)), "target": round(b.get("target") or step["soc"]),
                 "rate": round(100 * charge_kw / bat.max_charge_kw), "power_w": round(charge_kw * 1000),
                 "max_power_w": round(bat.max_discharge_kw * 1000), "max_charge_w": round(bat.max_charge_kw * 1000),
                 "power_kw": round(charge_kw, 2), "max_charge_kw": round(bat.max_charge_kw, 2), "max_power_kw": round(bat.max_discharge_kw, 2), "export_w": export_w,
@@ -377,7 +377,7 @@ class Controller:
             own = packs[i]["soc"] if i < len(packs) and packs[i].get("soc") is not None else ctx["soc"]
             info = {"device": getattr(self, "battery_device", None) or "", "serial": getattr(self, "battery_serial", "") or ""} if i == 0 \
                 else self.bat_info.get(part) or {}
-            c = {**ctx, "soc": round(own), "power_w": round(ctx["power_w"] * share), "power_kw": round(ctx["power_kw"] * share, 2),
+            c = {**ctx, "soc": round(max(own, ctx.get("min_soc") or 0)), "power_w": round(ctx["power_w"] * share), "power_kw": round(ctx["power_kw"] * share, 2),
                  "max_power_w": round(ctx["max_power_w"] * dshare), "max_power_kw": round(ctx["max_power_kw"] * dshare, 2),
                  "max_charge_w": round(ctx["max_charge_w"] * cshare), "max_charge_kw": round(ctx["max_charge_kw"] * cshare, 2),
                  "export_w": int(round(ctx.get("export_w", 0) * dshare / 50) * 50),
