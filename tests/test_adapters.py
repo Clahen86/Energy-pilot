@@ -55,9 +55,9 @@ def test_model_picks_the_variant():
 def test_missing_control_is_found_and_never_half():
     p = adapters.PROFILES["growatt"]
     steps = {i: p[i] for i in ("normal", "hold", "charge")}
-    assert adapters.missing(adapters.check(steps, GROWATT)) == []
+    assert adapters.missing(adapters.check(steps, GROWATT, p["optional"])) == []
     partial = [e for e in GROWATT if "stop_charge" not in e]
-    res = adapters.check(steps, partial)
+    res = adapters.check(steps, partial, p["optional"])
     assert adapters.missing(res) == [r"number\..*battery_first_stop_charge$"]
     # optional controls may be missing; a service that isn't there is missing
     h = adapters.PROFILES["huawei_solar"]
@@ -231,3 +231,19 @@ def test_victron_controls_found_on_another_device():
     assert adapters.missing(c.check()) == []
     assert "switch.kitchen_light" not in c._pool()
     assert not c.check()["export"]["missing"]
+
+
+def test_growatt_frees_the_discharge_rate_like_appdaemon():
+    """A free-mode discharge rate left at 0 % (by another system) kept the battery from covering the house."""
+    p = adapters.PROFILES["growatt"]
+    ents = GROWATT + ["number.growatt_sph_free_mode_discharge_rate", "number.growatt_sph_free_mode_charge_rate",
+                      "number.growatt_sph_load_first_stop_charge"]
+
+    def calls(intent):
+        return {c["data"]["entity_id"]: (c["service"], c["data"].get("value")) for c in adapters.resolve(p[intent], ents, CTX)}
+
+    normal, hold = calls("normal"), calls("hold")
+    assert normal["number.growatt_sph_free_mode_discharge_rate"] == ("set_value", 100)
+    assert hold["number.growatt_sph_free_mode_discharge_rate"] == ("set_value", 0)
+    assert normal["number.growatt_sph_load_first_stop_charge"] == ("set_value", 100)
+    assert normal["switch.growatt_sph_battery_first_slot_1_enabled"][0] == "turn_off"

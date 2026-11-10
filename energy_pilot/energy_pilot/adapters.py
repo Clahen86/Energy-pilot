@@ -34,10 +34,18 @@ PROFILES: dict[str, dict[str, Any]] = {
         "match": r"growatt",
         "models": r"SPH|SPA",
         "tested": True,
+        # "Load first" lets the battery follow the house. The free-mode rates decide how hard it may discharge and how
+        # much of the sun it may take: discharge 100 % when it should cover the house, 0 % when it holds; the sun may
+        # always fill it to 100 %. Slot 1 (battery first) is let go, or a stuck slot keeps the battery from discharging.
         "normal": [(r"select\..*work_mode_priority$", "select", "Load first"), (r"number\..*load_first_stop_discharge$", "number", "{min_soc}"),
-                   (r"select\..*battery_first_grid_charge$", "select", "Disabled")],
+                   (r"select\..*battery_first_grid_charge$", "select", "Disabled"),
+                   (r"number\..*free_mode_discharge_rate$", "number", "100"), (r"number\..*free_mode_charge_rate$", "number", "100"),
+                   (r"number\..*load_first_stop_charge$", "number", "100"), (r"switch\..*battery_first_slot_1_enabled$", "off", None)],
         "hold": [(r"select\..*work_mode_priority$", "select", "Load first"), (r"number\..*load_first_stop_discharge$", "number", "{soc}"),
-                 (r"select\..*battery_first_grid_charge$", "select", "Disabled")],
+                 (r"select\..*battery_first_grid_charge$", "select", "Disabled"),
+                 (r"number\..*free_mode_discharge_rate$", "number", "0"), (r"number\..*free_mode_charge_rate$", "number", "100"),
+                 (r"number\..*load_first_stop_charge$", "number", "100"), (r"switch\..*battery_first_slot_1_enabled$", "off", None)],
+        "optional": [r"number\..*free_mode_discharge_rate$", r"number\..*free_mode_charge_rate$", r"number\..*load_first_stop_charge$"],
         "charge": [(r"switch\..*battery_first_slot_1_enabled$", "on", None), (r"select\..*battery_first_slot_1_start$", "select", "00:00"),
                    (r"select\..*battery_first_slot_1_end$", "select", "23:59"), (r"number\..*battery_first_charge_rate$", "number", "{rate}"),
                    (r"number\..*battery_first_stop_charge$", "number", "{target}"), (r"select\..*battery_first_grid_charge$", "select", "Enabled"),
