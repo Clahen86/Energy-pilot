@@ -30,6 +30,15 @@ _LOGGER = logging.getLogger(__name__)
 # ---------- house forecast ----------
 
 
+def computed_house(grid: dict, pv: dict, batt: dict, ev: dict, grid_sign: int = 1, batt_sign: int = 1) -> list[tuple[datetime, float]]:
+    """kW per hour: grid (buying +) + sun - battery (charging +) - car; never below 0."""
+    out = []
+    for t in sorted(set(grid) & set(pv)):
+        kw = pv[t] + grid[t] * grid_sign - batt.get(t, 0.0) * batt_sign - ev.get(t, 0.0)
+        out.append((t, round(max(0.0, kw), 3)))
+    return out
+
+
 def solar_hours(fc: Any, ids: list[str]) -> dict[datetime, float]:
     """Home Assistant's energy/solar_forecast answer -> kWh per hour, the arrays (config entries) added up."""
     out: dict[datetime, float] = {}
@@ -508,6 +517,28 @@ class Engine:
                 total[w] = total.get(w, 0.0) + kw
         return total
 
+    async def _house_rows(self, days: int) -> list[tuple[datetime, float]]:
+        """The house's use per hour, without the car: its own sensor, or worked out from the other meters."""
+        if e := self.ov.role("house_power"):
+            rows = await self._hourly_kw(e, days)
+            if rows and self.ev_in_house() and (ev_e := self.ov.role("ev_power")):
+                from . import evsplit
+
+                rows = evsplit.subtract(rows, await self._hourly_kw(ev_e, days))
+            return rows
+        if self.ov.role("grid_power") and self.ov.role_all("pv_power"):
+            return await self._computed_house(days)
+        return []
+
+    async def _computed_house(self, days: int) -> list[tuple[datetime, float]]:
+        """The house's use from the history of the other meters, the way the panel works it out for now: what comes
+        from the grid and the sun, less what goes into the battery and the car. Only hours where grid and sun are known."""
+        grid = dict(await self._hourly_kw(self.ov.role("grid_power"), days))
+        pv = await self._hourly_sum(self.ov.role_all("pv_power"), days)
+        batt = dict(await self._hourly_kw(b, days)) if (b := self.ov.role("battery_power")) else {}
+        ev = dict(await self._hourly_kw(c, days)) if (c := self.ov.role("ev_power")) else {}
+        return computed_house(grid, pv, batt, ev, self.ov.grid_sign(), self.ov.battery_sign())
+
     async def learn(self) -> None:
         """Once a day: weather for the past weeks, the house model, and what the solar panels make of sunlight."""
         from .sources import Weather, learn_solar
@@ -523,9 +554,13 @@ class Engine:
                 await self.weather.refresh()
             except Exception:  # noqa: BLE001 - no internet: learn without weather
                 _LOGGER.info("No weather from Open-Meteo - learning without it")
+        rows = []
         if e := self.ov.role("house_power"):
             rows = await self._hourly_kw(e, 60)
-            if rows and (ev_e := self.ov.role("ev_power")):
+        elif self.ov.role("grid_power") and self.ov.role_all("pv_power"):
+            rows = await self._computed_house(60)  # no house sensor: grid + sun - battery - car, hour by hour
+        if rows:
+            if self.ov.role("house_power") and (ev_e := self.ov.role("ev_power")):
                 from . import evsplit
 
                 ev_rows = await self._hourly_kw(ev_e, 60)
@@ -685,15 +720,11 @@ class Engine:
 
     async def refresh_house_today(self) -> None:
         """What the house has used so far today (whole hours from the statistics, plus this hour's share)."""
-        if not (e := self.ov.role("house_power")):
-            return
         now = datetime.now(self.tz)
         day0 = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        rows = await self._hourly_kw(e, 1)
-        if self.ev_in_house() and (ev_e := self.ov.role("ev_power")):
-            from . import evsplit
-
-            rows = evsplit.subtract(rows, await self._hourly_kw(ev_e, 1))
+        rows = await self._house_rows(1)
+        if not rows:
+            return
         done = sum(kw for w, kw in rows if day0 <= w < now.replace(minute=0, second=0, microsecond=0))
         house_w = (self.ov.flow() or {}).get("house") or 0.0
         self.house_so_far = round(done + house_w / 1000 * now.minute / 60, 2)
@@ -780,11 +811,7 @@ class Engine:
             return
         def by_hour(rows: list[tuple[datetime, float]]) -> dict[str, float]:
             return {w.strftime("%Y-%m-%dT%H"): kw for w, kw in rows if w.date() == day.date()}
-        house_rows = await self._hourly_kw(self.ov.role("house_power"), 2) if self.ov.role("house_power") else []
-        if house_rows and self.ev_in_house() and (ev_e := self.ov.role("ev_power")):
-            from . import evsplit
-
-            house_rows = evsplit.subtract(house_rows, await self._hourly_kw(ev_e, 2))  # as the forecast was made
+        house_rows = await self._house_rows(2)  # as the forecast was made (the car taken out)
         house = by_hour(house_rows)
         pv = by_hour(list((await self._hourly_sum(self.ov.role_all("pv_power"), 2)).items())) if self.ov.role_all("pv_power") else {}
         prices = {k: v["price"] for k, v in self.learning._expected(day.strftime("%Y-%m-%d")).items() if v.get("price") is not None}
