@@ -139,6 +139,9 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
             overview.save({"ev_target": max(20, min(100, int(body["target"])))})
         if "trip" in body:
             overview.save({"ev_trip": bool(body["trip"])})
+        if "sun_target" in body:  # 0/None: the same as the grid target
+            v = body["sun_target"]
+            overview.save({"ev_sun_target": max(20, min(100, int(v))) if v else None})
         return web.json_response({"ok": True})
 
     async def index(_req: web.Request) -> web.FileResponse:

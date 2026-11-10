@@ -1,5 +1,8 @@
 """The car's own battery level: charge to a target (80 % spares the battery), or 100 % for the next trip.
 
+Two limits: from the grid up to the target, and with the sun's surplus up to its own (e.g. 80 % from the grid,
+the last 20 % only when the sun gives it for free).
+
 With the car's level known, what's missing is (target - level) x the car's battery size. The size is learned from the
 charger: kWh put in against the % it rose (losses included). Without a level, the plan works on kWh as before.
 """
@@ -22,6 +25,16 @@ def target(settings: dict[str, Any]) -> int:
         return max(20, min(100, int(settings.get("ev_target") or DEFAULT_TARGET)))
     except (TypeError, ValueError):
         return DEFAULT_TARGET
+
+
+def sun_target(settings: dict[str, Any]) -> int:
+    """How far the sun's surplus may fill the car - never below the grid target (the same when not set)."""
+    grid = target(settings)
+    v = settings.get("ev_sun_target")
+    try:
+        return max(grid, min(100, int(v))) if v else grid
+    except (TypeError, ValueError):
+        return grid
 
 
 def need_kwh(soc: float, goal: float, car_kwh: float) -> float:

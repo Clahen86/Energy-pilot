@@ -330,7 +330,12 @@ class Controller:
             need = float(car.get("need_kwh") if car.get("need_kwh") is not None else 1.0)
             ev = self.ov.ev() or {}
             if ev.get("soc") is not None and ev["soc"] >= ev.get("target", 100):
-                need, manual = 0.0, False  # at its target: it stops, even on "charge now" and in the sun (spares the battery)
+                manual = False  # at its grid target: never more from the grid, even on "charge now"
+                if ev["soc"] < ev.get("sun_target", ev.get("target", 100)) and st.get("ev_follow_sun"):
+                    need = 1.0  # the sun's surplus may fill it further (to its own limit) - no grid hours are planned for it
+                    hour, planned = None, set()
+                else:
+                    need = 0.0  # at its limit: it stops, in the sun too (spares the battery)
             st["onoff"] = self.onoff("car")
             d = decide(f, st, hour in planned, manual, need, self._sun_on)
             self._sun_on, self.car_why = d["sun"], d["why"]

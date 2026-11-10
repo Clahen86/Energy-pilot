@@ -66,3 +66,21 @@ def test_a_car_percentage_named_otherwise_is_offered_never_picked():
           "sensor.home_minimum_state_of_charge": {"state": "50", "attributes": {"unit_of_measurement": "%"}}}
     got = car_socs(ents, [{"id": "sk", "manufacturer": "Škoda"}], st)
     assert [g["entity_id"] for g in got] == ["sensor.skoda_enyaq_charge_state_percent"] and got[0]["score"] == -5
+
+
+def test_grid_limit_and_sun_limit():
+    assert evsoc.sun_target({"ev_target": 80}) == 80  # not set: the same
+    assert evsoc.sun_target({"ev_target": 80, "ev_sun_target": 100}) == 100
+    assert evsoc.sun_target({"ev_target": 90, "ev_sun_target": 80}) == 90  # never below the grid limit
+    assert evsoc.sun_target({"ev_target": 80, "ev_sun_target": 90, "ev_trip": True}) == 100
+
+
+def test_above_grid_limit_only_the_sun_charges():
+    from energy_pilot.carspeed import decide
+
+    st = {"charger_kw": 11, "ev_follow_sun": True}
+    sunny = {"plug": True, "pv": 9000, "house": 500, "battery": 0, "ev": 0}
+    dark = {"plug": True, "pv": 0, "house": 500, "battery": 0, "ev": 0}
+    # At 85 % with grid limit 80 and sun limit 100: the sun charges, the grid never (no planned hours, need kept > 0).
+    assert decide(sunny, st, False, False, 1.0, False)["why"] == "sun"
+    assert decide(dark, st, False, False, 1.0, False)["charge"] is False
