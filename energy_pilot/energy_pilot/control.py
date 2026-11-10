@@ -52,6 +52,9 @@ class Controller:
         self.chosen: dict[str, str] = {}  # the switch picked for a charger in the settings
         self.switch_options: list[dict[str, Any]] = []
         self._devices: dict[str, dict[str, Any]] = {}
+        # Controls that went back to another value after they were set (Victron's defaults, Predbat, an automation):
+        # part -> [(time, entity)], the last hour.
+        self.drift: dict[str, list[tuple[float, str]]] = {}
 
     # ---------- settings ----------
 
@@ -287,11 +290,22 @@ class Controller:
             bat = self.engine.settings()
             intent = {"charge_grid": "charge", "hold": "hold", "export": "export"}.get(step["action"], "normal")
             slot_h = (b.get("slot_min") or 60) / 60  # the step is one price slot (a quarter of an hour in Europe)
-            charge_kw = min(bat.max_charge_kw, max(0.5, (step["soc"] - (f["soc"] or 0)) / 100 * bat.capacity_kwh / slot_h))
+            # The time left of the slot: the battery is to reach the step's level by its end, so the power follows
+            # what is really left - not the whole slot (that left the battery above the plan when the house used less).
+            left_h = slot_h
+            try:
+                start = datetime.fromisoformat(step["t"])
+                left_h = min(slot_h, max(5 / 60, slot_h - (datetime.now(start.tzinfo) - start).total_seconds() / 3600))
+            except (KeyError, TypeError, ValueError):
+                pass
+            charge_kw = min(bat.max_charge_kw, max(0.5, (step["soc"] - (f["soc"] or 0)) / 100 * bat.capacity_kwh / left_h))
             export_w = 0
             if intent == "export":  # the battery's discharge power: the house's share and what is sold
-                charge_kw = min(bat.max_discharge_kw, max(0.5, ((f["soc"] or 0) - step["soc"]) / 100 * bat.capacity_kwh / slot_h))
+                charge_kw = min(bat.max_discharge_kw, max(0.5, ((f["soc"] or 0) - step["soc"]) / 100 * bat.capacity_kwh / left_h))
                 export_w = int(round(max(0.0, -(step.get("grid") or 0.0)) / slot_h * 1000 / 50) * 50)
+                if f.get("house") is not None:  # what the house really uses now is covered first, the rest is sold
+                    net = max(0.0, (f.get("house") or 0.0) - (f.get("pv") or 0.0))
+                    export_w = int(round(max(0.0, charge_kw * 1000 - net) / 100) * 100)
             out["battery"] = {"intent": intent, "ctx": {
                 "grid_charge": bool(bat.grid_charge), "min_soc": round(bat.min_soc), "soc": round(f["soc"] or bat.min_soc), "target": round(b.get("target") or step["soc"]),
                 "rate": round(100 * charge_kw / bat.max_charge_kw), "power_w": round(charge_kw * 1000),
@@ -474,6 +488,17 @@ class Controller:
             changed = prev is None or prev["intent"] != want["intent"] or prev["ctx"] != want["ctx"]
             again = (adapters.PROFILES.get(self.profile_key(part) or "") or {}).get("reassert_s", REASSERT_S) if self.is_battery(part) else REASSERT_S
             due = prev is None or time.time() - prev["t"] > again  # Solis' remote control times out after 30 min
+            # A value that held and then changed by itself is set again at once (at most once a minute) - the
+            # inverter put back its default, or something else changed it.
+            if not (changed or due) and mode == "control" and prev.get("result") == "ok" and time.time() - prev["t"] > 60:
+                moved = [c["data"]["entity_id"] for c in calls if self._matches(c) is False]
+                if moved:
+                    now_t = time.time()
+                    _LOGGER.info("%s changed back by itself - set again: %s", part, ", ".join(moved))
+                    if not ((adapters.PROFILES.get(self.profile_key(part) or "") or {}).get("resets_itself") and self.is_battery(part)):
+                        # (Victron puts its own defaults back - that isn't another system steering)
+                        self.drift[part] = [d for d in self.drift.get(part, []) if now_t - d[0] < 3600] + [(now_t, e) for e in moved]
+                    due = True
             if not (changed or due):
                 continue
             entry = {"t": time.time(), "intent": want["intent"], "ctx": want["ctx"], "calls": calls, "mode": mode}
@@ -564,6 +589,23 @@ class Controller:
             return abs(float(state) - float(want)) <= 0.6
         except (TypeError, ValueError):
             return str(state) == str(want)
+
+    OTHER = 3  # changed back this many times in an hour: something else is steering too
+
+    def watch_checks(self) -> list[dict[str, Any]]:
+        """Warnings for the self-check: another system steers the battery too (Predbat, an automation, the inverter's
+        own schedule) - they work against each other."""
+        out = []
+        now_t = time.time()
+        for part, seen in self.drift.items():
+            recent = [e for t, e in seen if now_t - t < 3600]
+            if self.mode(part) == "control" and len(recent) >= self.OTHER:
+                names = ", ".join(sorted({e.split(".", 1)[1] for e in recent}))
+                out.append({"key": "other_control", "level": "warn", "vals": {"list": names}, "goto": "battery"})
+        pm = str((self.ha.states.get("select.predbat_mode") or {}).get("state") or "")
+        if self.mode("battery") == "control" and pm and pm.lower() not in ("monitor", "unavailable", "unknown"):
+            out.append({"key": "predbat_on", "level": "warn", "vals": {"mode": pm}, "goto": "battery"})
+        return out
 
     def _took(self, calls: list[dict[str, Any]]) -> bool:
         """Did the controls take the values? (Selects and numbers that can be read back.)"""

@@ -217,6 +217,7 @@ PROFILES: dict[str, dict[str, Any]] = {
         # Victron's ESS settings go back to their defaults after about 10 minutes when set from Home Assistant
         # (a user saw it), so they are sent again every 4 minutes.
         "reassert_s": 240,
+        "resets_itself": True,
         # The ESS controls often sit on another device than the battery level (Victron MQTT's "ESS" device, the level
         # from the GX device) - their names are distinctive, so they're looked for everywhere.
         "anywhere": True,
