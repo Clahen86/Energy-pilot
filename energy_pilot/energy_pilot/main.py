@@ -108,7 +108,12 @@ async def main() -> None:
                 await controller.tick()
             except Exception:  # noqa: BLE001 - tries again next round
                 logging.getLogger("energy_pilot.engine").warning("Engine round failed", exc_info=True)
-            await asyncio.sleep(300)
+            # Every 5 minutes, and just after each quarter hour starts - prices change on the quarter, so the battery
+            # follows the plan from the first minute of a slot instead of up to 5 minutes late.
+            import time as _time
+
+            to_quarter = 900 - _time.time() % 900 + 5
+            await asyncio.sleep(min(300, to_quarter))
 
     asyncio.create_task(run_engine())
 

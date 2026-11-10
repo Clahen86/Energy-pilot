@@ -162,3 +162,25 @@ def test_hourly_prices_stay_hourly():
     hours = [Hour(t0 + timedelta(hours=i), 2.0, 0.0, 1.0, 0.0) for i in range(3)]
     slots = split_slots(hours, {t0 + timedelta(hours=i): 2.0 for i in range(3)}, t0)
     assert len(slots) == 3 and slots[0].length == 1.0
+
+
+def test_late_in_a_quarter_the_battery_still_covers_the_house():
+    """At 07:26 the 07:15 quarter is nearly gone; the plan held the battery for the rest of it (grid bought)."""
+    from zoneinfo import ZoneInfo
+
+    from energy_pilot.engine import Battery, Hour, plan_battery, split_slots
+
+    tz = ZoneInfo("Europe/Copenhagen")
+    t0 = datetime(2026, 11, 10, 7, tzinfo=tz)
+    prices = [4.9, 5.6, 5.4, 4.9, 4.7, 4.6, 4.8, 4.8, 5.4, 5.6, 6.2, 5.9, 5.3, 5.0, 3.3, 3.0]
+    hours = [Hour(t0 + timedelta(hours=i), p, 0.0, 0.9, 0.0) for i, p in enumerate(prices)]
+    fine = {t0 + timedelta(minutes=15 * q): prices[q // 4] for q in range(len(prices) * 4)}
+    fine[t0 + timedelta(minutes=15)] = 5.6  # the quarter now is one the plan discharges in
+    now = t0 + timedelta(minutes=26)
+    slots = split_slots(hours, fine, now)
+    b = Battery(capacity_kwh=11.5, min_soc=10, max_soc=100, max_charge_kw=3, max_discharge_kw=3, efficiency=0.9,
+                grid_charge=True, wear=0.13)
+    full = plan_battery(split_slots(hours, fine, t0 + timedelta(minutes=15)), 95, b)
+    assert full.steps[0].action == "discharge"  # planned at the start of the quarter
+    plan = plan_battery(slots, 95, b)
+    assert plan.steps[0].action == "discharge"  # and still, 11 minutes in

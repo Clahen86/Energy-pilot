@@ -249,7 +249,7 @@ def resolution(prices: dict[datetime, float], now: datetime) -> int:
 
 def split_slots(hours: list[Hour], prices: dict[datetime, float], now: datetime,
                 sells: dict[datetime, float] | None = None) -> list[Hour]:
-    """Hours split into the market's price slots, each with its own price; the slot now is scaled to what's left."""
+    """Hours split into the market's price slots, each with its own price."""
     res = resolution(prices, now) if prices else 60
     k = 60 // res
     out = []
@@ -261,10 +261,8 @@ def split_slots(hours: list[Hour], prices: dict[datetime, float], now: datetime,
             price = prices.get(start, h.price) if k > 1 else h.price
             sell = sells.get(start, h.sell) if sells and k > 1 else h.sell
             out.append(Hour(start, price, sell, h.house / k, h.sun / k, res / 60))
-    if out and out[0].start < now:
-        part = 1 - (now - out[0].start).total_seconds() / (out[0].length * 3600)
-        out[0].house *= part
-        out[0].sun *= part
+    # The slot now is planned whole, not scaled to what's left of it: late in a quarter the house would use less than one
+    # battery step, and the plan would hold the battery for the rest of it while the house bought from the grid.
     return out
 
 
