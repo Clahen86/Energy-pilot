@@ -34,6 +34,8 @@ class Pilot(DataUpdateCoordinator[dict[str, Any]]):
                 data = await r.json()
             async with self.session.get(f"{self.url}/api/settings", timeout=aiohttp.ClientTimeout(total=10)) as r:
                 data["settings_full"] = (await r.json()).get("settings", {})
+            async with self.session.get(f"{self.url}/api/control", timeout=aiohttp.ClientTimeout(total=10)) as r:
+                data["control"] = await r.json() if r.status == 200 else {}
             return data
         except (aiohttp.ClientError, TimeoutError) as err:
             raise UpdateFailed(f"Energy Pilot isn't answering: {err}") from err

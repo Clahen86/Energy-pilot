@@ -114,6 +114,22 @@
           "car_first": "Auto eerst",
           "battery_first": "Batterij eerst"
         }
+      },
+      "battery_mode": {
+        "name": "Batterijsturing",
+        "state": {
+          "shadow": "Schaduw",
+          "control": "Sturen",
+          "off": "Uit"
+        }
+      },
+      "car_mode": {
+        "name": "Autosturing",
+        "state": {
+          "shadow": "Schaduw",
+          "control": "Sturen",
+          "off": "Uit"
+        }
       }
     },
     "button": {

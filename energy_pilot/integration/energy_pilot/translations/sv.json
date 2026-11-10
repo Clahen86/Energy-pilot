@@ -114,6 +114,22 @@
           "car_first": "Bilen först",
           "battery_first": "Batteriet först"
         }
+      },
+      "battery_mode": {
+        "name": "Batteristyrning",
+        "state": {
+          "shadow": "Skugga",
+          "control": "Styr",
+          "off": "Av"
+        }
+      },
+      "car_mode": {
+        "name": "Bilstyrning",
+        "state": {
+          "shadow": "Skugga",
+          "control": "Styr",
+          "off": "Av"
+        }
       }
     },
     "button": {

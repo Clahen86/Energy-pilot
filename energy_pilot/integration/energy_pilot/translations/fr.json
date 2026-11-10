@@ -114,6 +114,22 @@
           "car_first": "Voiture d'abord",
           "battery_first": "Batterie d'abord"
         }
+      },
+      "battery_mode": {
+        "name": "Contrôle batterie",
+        "state": {
+          "shadow": "Ombre",
+          "control": "Contrôle",
+          "off": "Arrêt"
+        }
+      },
+      "car_mode": {
+        "name": "Contrôle voiture",
+        "state": {
+          "shadow": "Ombre",
+          "control": "Contrôle",
+          "off": "Arrêt"
+        }
       }
     },
     "button": {

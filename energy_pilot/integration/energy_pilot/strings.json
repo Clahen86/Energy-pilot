@@ -114,6 +114,22 @@
           "car_first": "Car first",
           "battery_first": "Battery first"
         }
+      },
+      "battery_mode": {
+        "name": "Battery control",
+        "state": {
+          "shadow": "Shadow",
+          "control": "Control",
+          "off": "Off"
+        }
+      },
+      "car_mode": {
+        "name": "Car control",
+        "state": {
+          "shadow": "Shadow",
+          "control": "Control",
+          "off": "Off"
+        }
       }
     },
     "button": {

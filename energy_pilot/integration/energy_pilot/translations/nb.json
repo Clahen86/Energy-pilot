@@ -114,6 +114,22 @@
           "car_first": "Bilen først",
           "battery_first": "Batteriet først"
         }
+      },
+      "battery_mode": {
+        "name": "Batteristyring",
+        "state": {
+          "shadow": "Skygge",
+          "control": "Styrer",
+          "off": "Av"
+        }
+      },
+      "car_mode": {
+        "name": "Bilstyring",
+        "state": {
+          "shadow": "Skygge",
+          "control": "Styrer",
+          "off": "Av"
+        }
       }
     },
     "button": {
