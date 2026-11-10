@@ -29,6 +29,19 @@ _LOGGER = logging.getLogger(__name__)
 
 # ---------- house forecast ----------
 
+
+def solar_hours(fc: Any, ids: list[str]) -> dict[datetime, float]:
+    """Home Assistant's energy/solar_forecast answer -> kWh per hour, the arrays (config entries) added up."""
+    out: dict[datetime, float] = {}
+    for i in ids:
+        for t, wh in (((fc or {}).get(i) or {}).get("wh_hours") or {}).items():
+            try:
+                dt = datetime.fromisoformat(str(t)).replace(minute=0, second=0, microsecond=0)
+                out[dt] = round(out.get(dt, 0.0) + float(wh) / 1000, 3)
+            except (TypeError, ValueError):
+                continue
+    return out
+
 def house_profile(rows: list[tuple[datetime, float]], now: datetime) -> dict[tuple[bool, int], float]:
     """{(weekend, hour): kWh} from hourly means (kW) - the last weeks weigh most."""
     sums: dict[tuple[bool, int], float] = {}
@@ -310,6 +323,7 @@ class Engine:
         self.service_prices: list[dict[str, Any]] = []  # from an integration's action (Nord Pool, Tibber …)
         self.agile_forecast: dict[datetime, float] = {}  # Agile Predict (UK Octopus Agile)
         self.own_solar: dict[datetime, float] = {}
+        self.ha_solar: dict[datetime, float] = {}  # Home Assistant's Energy dashboard forecast (kWh per hour)
         self._prices_at = 0.0
         self.profile: dict[tuple[bool, int], float] = {}
         self.profile_at: datetime | None = None
@@ -648,9 +662,26 @@ class Engine:
                 self._prices_at = time.time()
             except Exception:  # noqa: BLE001
                 _LOGGER.info("No prices from Energi Data Service right now")
-        if self.solar_factors and self.weather and not self.ov.role("solar_today"):
+        # Its own (learned) forecast is always made: it's used when no forecast in the home gives the sun hour by hour.
+        if self.solar_factors and self.weather:
             start = datetime.now(self.tz).replace(minute=0, second=0, microsecond=0)
             self.own_solar = solar_forecast(self.solar_factors, self.weather, [start + timedelta(hours=i) for i in range(48)])
+        await self.refresh_ha_solar()
+
+    async def refresh_ha_solar(self) -> None:
+        """The solar forecasts set up in Home Assistant's Energy dashboard (Forecast.Solar, Open-Meteo, Solcast …),
+        hour by hour - the same numbers the Energy dashboard shows. Their sensors alone don't carry the hours."""
+        try:
+            prefs = await self.ha.command({"type": "energy/get_prefs"})
+            ids = [i for src in (prefs or {}).get("energy_sources") or [] if src.get("type") == "solar"
+                   for i in src.get("config_entry_solar_forecast") or []]
+            if not ids:
+                self.ha_solar = {}
+                return
+            fc = await self.ha.command({"type": "energy/solar_forecast"})
+        except Exception:  # noqa: BLE001
+            return
+        self.ha_solar = solar_hours(fc, ids)
 
     async def refresh_house_today(self) -> None:
         """What the house has used so far today (whole hours from the statistics, plus this hour's share)."""
@@ -802,7 +833,7 @@ class Engine:
 
     def sources_used(self) -> dict[str, Any]:
         return {"weather": bool(self.weather and self.weather.hours), "own_prices": bool(self.own_prices and not self.ov.role("price")),
-                "own_solar": bool(self.own_solar and not self.ov.role("solar_today")), "house_model": self.house_model.model is not None,
+                "own_solar": getattr(self.ov, "sun_source", None) == "own", "sun_source": getattr(self.ov, "sun_source", None), "house_model": self.house_model.model is not None,
                 "house_error": self.house_model.error, "house_samples": self.house_model.samples}
 
     def run(self) -> dict[str, Any] | None:

@@ -120,6 +120,7 @@ class Overview:
         self.engine: Any = None
         self.controller: Any = None
         self.price_info: dict[str, Any] = {}
+        self.sun_source: str | None = None  # where the plan's sun comes from: sensor, energy (dashboard), own
 
     async def async_detect(self) -> None:
         from .detect import detect
@@ -450,10 +451,35 @@ class Overview:
                         continue
                     if (h := slot(dt)) is not None:
                         h["sun"] = round(h.get("sun", 0.0) + kwh, 2)  # several forecasts (arrays) add up
-        if not self.role("solar_today") and self.engine and self.engine.own_solar:
+        # Not every forecast sensor carries the hours (Solcast does): next the ones that carry them in another
+        # shape (Open-Meteo Solar Forecast's wh_period), then Home Assistant's Energy dashboard forecast
+        # (Forecast.Solar and the rest), and last its own learned forecast - so the plan always knows the sun.
+        has_sun = any("sun" in h for h in hours.values())
+        if not has_sun:
+            per: dict[datetime, float] = {}
+            for role in ("solar_today", "solar_tomorrow"):
+                for e in self.role_all(role):
+                    a = (self.ha.states.get(e) or {}).get("attributes") or {}
+                    for t, wh in (a.get("wh_period") or {}).items() if isinstance(a.get("wh_period"), dict) else []:
+                        try:
+                            per[datetime.fromisoformat(str(t))] = float(wh) / 1000  # the same moment twice: once
+                        except (TypeError, ValueError):
+                            continue
+            for dt, kwh in per.items():
+                if (h := slot(dt)) is not None:
+                    h["sun"] = round(h.get("sun", 0.0) + kwh, 3)
+                    has_sun = True
+        self.sun_source = "sensor" if has_sun else None
+        if not has_sun and self.engine and getattr(self.engine, "ha_solar", None):
+            for when, kwh in self.engine.ha_solar.items():
+                if (h := slot(when)) is not None:
+                    h["sun"] = round(h.get("sun", 0.0) + kwh, 2)
+                    has_sun, self.sun_source = True, "energy"
+        if not has_sun and self.engine and self.engine.own_solar:
             for when, kwh in self.engine.own_solar.items():
                 if (h := slot(when)) is not None:
                     h["sun"] = kwh
+                    self.sun_source = "own"
         if (e := self.role("house_forecast")) and (s := self.ha.states.get(e)):
             hourly = (s.get("attributes") or {}).get("hourly_kwh") or []
             if isinstance(hourly, list):
