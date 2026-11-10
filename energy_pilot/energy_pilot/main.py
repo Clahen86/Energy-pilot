@@ -162,6 +162,12 @@ async def main() -> None:
                 engine.price_model.remember(prices, now)
                 ev = overview.ev() or {}
                 engine.habits.see(now, f.get("plug"), ev.get("session_kwh"))
+                engine.car_size.see(f.get("plug"), ev.get("soc"), ev.get("session_kwh"))
+                from .evsoc import trip_done
+
+                if trip_done(st, f.get("plug"), getattr(engine, "_was_plugged", False), ev.get("soc")):
+                    overview.save({"ev_trip": False})  # the car left full: back to the everyday target
+                engine._was_plugged = bool(f.get("plug"))
                 engine.batt_learn.see(f.get("battery"), f.get("soc"), 30 / 3600)
                 engine.grid_peak.see(now, f.get("grid"))
                 bp = controller.last.get("battery") if hasattr(controller, "last") else None

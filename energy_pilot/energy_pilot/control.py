@@ -262,6 +262,9 @@ class Controller:
             if st.get("ev_follow_sun") is None:
                 st["ev_follow_sun"] = bool(self.ov.role("pv_power"))  # on by default when there is solar
             need = float(car.get("need_kwh") if car.get("need_kwh") is not None else 1.0)
+            ev = self.ov.ev() or {}
+            if ev.get("soc") is not None and ev["soc"] >= ev.get("target", 100):
+                need, manual = 0.0, False  # at its target: it stops, even on "charge now" and in the sun (spares the battery)
             d = decide(f, st, hour in planned, manual, need, self._sun_on)
             self._sun_on, self.car_why = d["sun"], d["why"]
             out["car"] = {"intent": "charge" if d["charge"] else "stop", "ctx": {"current": d["current"]}}

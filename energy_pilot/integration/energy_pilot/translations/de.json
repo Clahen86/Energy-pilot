@@ -83,6 +83,9 @@
     "switch": {
       "charge_now": {
         "name": "Jetzt laden"
+      },
+      "next_trip": {
+        "name": "100 % für die nächste Fahrt"
       }
     },
     "time": {
@@ -96,6 +99,9 @@
       },
       "battery_min": {
         "name": "Batterie-Minimum"
+      },
+      "charge_to": {
+        "name": "Auto laden bis"
       }
     },
     "select": {

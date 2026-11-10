@@ -34,6 +34,8 @@ ROLES: dict[str, dict[str, Any]] = {
     "generator_switch": {"known": [], "class": None, "words": ["generator", "genset"]},
     "generator_running": {"known": [], "class": None, "words": ["generator", "genset"]},
     "sell_price": {"known": [], "class": None, "words": ["feed_in", "feedin", "export_price", "export_current", "export", "sell_price", "salgspris"]},
+    # The car's own battery level (%): from the car's integration only - see detect.car_socs.
+    "ev_soc": {"known": [], "class": "battery", "words": []},
     "ev_manual": {"known": ["input_boolean.bil_lad_manuelt"], "class": None, "words": []},
     "ev_ready": {"known": ["input_datetime.bil_klar_tid"], "class": None, "words": []},
     "ev_cap": {"known": ["input_number.bil_lad_loft_kwh"], "class": None, "words": []},
@@ -146,7 +148,7 @@ class Overview:
                          "quiet_gen_from", "quiet_gen_to", "battery_charge_kw", "battery_discharge_kw", "ev_mode", "charger_kw", "ev_need_kwh",
                          "quiet_from", "quiet_to", "quiet_battery", "quiet_car",
                          "quiet_battery_from", "quiet_battery_to", "quiet_car_from", "quiet_car_to",
-                         "control", "inverter_profile", "custom_profile", "battery_takeover", "ev_now", "charger_phases", "ev_ready",
+                         "control", "inverter_profile", "custom_profile", "battery_takeover", "ev_now", "ev_target", "ev_trip", "ev_battery_kwh", "charger_phases", "ev_ready",
                          "batteries", "battery_dismissed", "chargers", "charger_dismissed"):
                 self.settings[key] = value
         self.file.write_text(json.dumps(self.settings, indent=2))
@@ -272,6 +274,11 @@ class Overview:
                 if cls == "energy" and not (dc == "energy" or (domain == "sensor" and not dc and unit in ("kwh", "wh"))):
                     continue
                 guess = e in spec["known"] or any(w in e for w in spec["words"])
+                if name == "ev_soc":
+                    # Cars' levels first; other % sensors may still be picked by hand (a template, MQTT …).
+                    guess = e in str((self.detected.get("_ev_soc_options") or {}).get("entity_id", "")).split()
+                    if not guess and (a.get("unit_of_measurement") != "%" or e == self.role("battery_soc")):
+                        continue
                 if name in ("solar_today", "solar_tomorrow") and not guess and domain == "sensor" and unit in ("kwh", "wh"):
                     # Forecast.Solar (energy_production_today), Open-Meteo and others are named otherwise: every
                     # kWh sensor is listed, the forecast-looking ones first - never picked by itself
@@ -499,7 +506,18 @@ class Overview:
                 "cap": _num(st.get(r["ev_cap"])) if r["ev_cap"] else self.settings.get("ev_need_kwh"),
                 "cap_max": ((st.get(r["ev_cap"]) or {}).get("attributes") or {}).get("max") if r["ev_cap"] else None,
                 "session_kwh": _num(st.get(r["ev_session"])) if r["ev_session"] else None,
-                "entities": {k: r[k] for k in ("ev_manual", "ev_ready", "ev_cap")}}
+                **self._ev_soc(),
+                "entities": {k: r[k] for k in ("ev_manual", "ev_ready", "ev_cap", "ev_soc")}}
+
+    def _ev_soc(self) -> dict[str, Any]:
+        """The car's own level and the target it charges to (see evsoc.py)."""
+        from . import evsoc
+
+        e = self.role("ev_soc")
+        soc = evsoc.num(self.ha.states.get(e)) if e else None
+        size = self.engine.car_size.kwh(self.settings) if self.engine and hasattr(self.engine, "car_size") else (evsoc.DEFAULT_KWH, "guess")
+        return {"soc": soc, "soc_known": e is not None, "target": evsoc.target(self.settings), "trip": bool(self.settings.get("ev_trip")),
+                "everyday": evsoc.target({**self.settings, "ev_trip": False}), "car_kwh": size[0], "car_kwh_from": size[1]}
 
     def snapshot(self, lang: str = "da") -> dict[str, Any]:
         price_e = self.role("price")

@@ -37,6 +37,60 @@ NOT_HOME_BATTERY = ("mobile_app", "zha", "matter", "mqtt_room", "ble_monitor", "
                     "volvo", "volvooncall", "stellantis_vehicles", "smartcar", "seatconnect", "cupra_we_connect",
                     "jlrincontrol", "porscheconnect", "zoe", "leaf", "evcc_intg")
 
+# The car's own battery level ("ev_soc"): only from a car's integration (or a device a car maker made), never by name
+# alone - a phone, a watch, a Zigbee sensor, the house battery or the car's 12 V battery are all "battery %".
+CAR_PLATFORMS = ("tesla", "tesla_custom", "tesla_fleet", "teslemetry", "tessie", "volkswagen_we_connect_id", "volkswagencarnet",
+                 "myskoda", "skodaconnect", "audiconnect", "seatconnect", "cupra_we_connect", "porscheconnect",
+                 "bmw_connected_drive", "mercedes_me", "mbapi2020", "kia_uvo", "hyundai_kia_connect", "renault", "zoe",
+                 "nissan_leaf", "leaf", "polestar_api", "polestar", "volvo", "volvooncall", "volvo_cars", "fordpass",
+                 "toyota", "stellantis_vehicles", "smartcar", "jlrincontrol", "mg_saic", "saic_ismart", "byd", "smart_hashtag",
+                 "rivian", "lucid", "zeekr", "subaru", "mazda", "honda", "evcc_intg", "ocpp", "tronity", "carconnectivity")
+CAR_BRANDS = re.compile(r"\b(tesla|volkswagen|vw|audi|skoda|škoda|seat|cupra|porsche|bmw|mercedes|kia|hyundai|renault|dacia|"
+                        r"nissan|polestar|volvo|ford|toyota|lexus|peugeot|citro[eë]n|opel|vauxhall|ds automobiles|fiat|jeep|saic motor|"
+                        r"byd|zeekr|xpeng|rivian|lucid|jaguar|land rover|honda|mazda|subaru|genesis|lynk)\b", re.I)
+EV_SOC_WORDS = re.compile(r"state_of_charge|battery_level|\bsoc\b|_soc$|charge_level|battery_percent|ev_battery|hv_battery|"
+                          r"battery_charge|ladestand|ladezustand|niveau_de_charge|batteriniveau|laddniva", re.I)
+EV_SOC_NOT = re.compile(r"12v|12_v|car_battery|aux|auxiliary|lv_battery|low_voltage|starter|key|fob|phone|watch|tyre|tire|fuel|range|"
+                        r"target|limit|min|max|setpoint|health|soh|temperature|temp|signal|rssi|wifi|sentry|charge_rate|"
+                        r"remote|tag|tracker|predicted|forecast|estimate|at_departure|departure", re.I)
+
+
+def car_socs(entities: list[dict[str, Any]], devices: list[dict[str, Any]], states: dict[str, Any]) -> list[dict[str, Any]]:
+    """The cars' battery levels found: [{"entity_id", "device", "score"}], best first. A sensor in %, 0-100, from a car
+    integration or a device made by a car maker, named like a battery level - and none of the look-alikes."""
+    makers = {d["id"]: f"{d.get('manufacturer') or ''} {d.get('model') or ''}" for d in devices}
+    out = []
+    for e in entities:
+        eid, platform, dev = e["entity_id"], e.get("platform"), e.get("device_id")
+        if not eid.startswith("sensor.") or e.get("disabled_by"):
+            continue
+        s = states.get(eid) or {}
+        a = s.get("attributes") or {}
+        if a.get("unit_of_measurement") != "%":
+            continue
+        car = platform in CAR_PLATFORMS or bool(dev and CAR_BRANDS.search(makers.get(dev, "")))
+        if not car or platform in GADGETS:  # a phone or a sensor on a device a car maker's name matches is still that
+            continue
+        text = f"{eid} {a.get('friendly_name', '')}"
+        # Always named like the driving battery: a plain "battery" with device class battery is often the 12 V one (Ford).
+        if EV_SOC_NOT.search(text) or not EV_SOC_WORDS.search(text):
+            continue
+        try:
+            v = float(s.get("state"))
+            if not 0 <= v <= 100:
+                continue
+        except (TypeError, ValueError):
+            if s.get("state") not in ("unavailable", "unknown"):
+                continue  # a car asleep may be unknown for a while - that's fine
+        score = 2 * (a.get("device_class") == "battery") + 2 * bool(re.search(r"state_of_charge|battery_level|\bsoc\b|_soc$", eid)) \
+            + (platform in CAR_PLATFORMS) - (platform == "ocpp")  # the car's own app knows best; a charger only while it charges
+        out.append({"entity_id": eid, "device": dev or eid, "score": score})
+    return sorted(out, key=lambda r: -r["score"])
+
+
+GADGETS = ("mobile_app", "zha", "zwave_js", "matter", "mqtt_room", "ble_monitor", "bthome", "switchbot", "homekit_controller",
+           "xiaomi_ble", "hue", "deconz", "tuya", "shelly", "esphome_ble", "bluetooth", "ibeacon", "private_ble_device")
+
 WORDS = {
     "pv_power": [r"\bpv\b|pv_power|pv_effekt|solar_power|solar_production|sol_produktion|input_power|photovoltaic"],
     "battery_power": [r"battery.*(power|effekt)|batteri.*(effekt|power)|charge_discharge_power"],
@@ -142,6 +196,15 @@ async def detect(ha: Any) -> dict[str, dict[str, str]]:
     if prices:
         _score, _len, eid, platform = max(prices)
         put("price", eid, f"integration:{platform}")
+
+    # The car's battery level: picked by itself only when there is one car - with two, the user says which charges here.
+    cars = car_socs(entities, devices, states)
+    if cars:
+        found["_ev_soc_options"] = {"entity_id": " ".join(c["entity_id"] for c in cars), "source": "options"}
+        own = [c for c in cars if c["device"] == cars[0]["device"]]
+        if len({c["device"] for c in cars if c["score"] >= 2}) <= 1:
+            platform = (by_id.get(own[0]["entity_id"]) or {}).get("platform")
+            put("ev_soc", own[0]["entity_id"], f"integration:{platform}")
 
     # 3. Names and kinds (inverters through MQTT, Modbus, templates …).
     for role, patterns in WORDS.items():

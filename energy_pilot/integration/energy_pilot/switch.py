@@ -8,8 +8,9 @@ from .entity import PilotEntity
 
 
 async def async_setup_entry(hass, entry, add):
-    if entry.runtime_data.data.get("ev") is not None:
-        add([ChargeNow(entry.runtime_data)])
+    ev = entry.runtime_data.data.get("ev")
+    if ev is not None:
+        add([ChargeNow(entry.runtime_data)] + ([NextTrip(entry.runtime_data)] if ev.get("soc_known") else []))
 
 
 class ChargeNow(PilotEntity, SwitchEntity):
@@ -25,3 +26,20 @@ class ChargeNow(PilotEntity, SwitchEntity):
 
     async def async_turn_off(self, **kwargs):
         await self.coordinator.post("/api/ev", {"manual": False})
+
+
+class NextTrip(PilotEntity, SwitchEntity):
+    """100 % for the next trip - turns itself off when the car leaves full."""
+
+    def __init__(self, p):
+        super().__init__(p, "next_trip")
+
+    @property
+    def is_on(self):
+        return bool((self.d.get("ev") or {}).get("trip"))
+
+    async def async_turn_on(self, **kwargs):
+        await self.coordinator.post("/api/ev", {"trip": True})
+
+    async def async_turn_off(self, **kwargs):
+        await self.coordinator.post("/api/ev", {"trip": False})

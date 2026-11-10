@@ -110,6 +110,10 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
                 await runner.ha.call_service("input_number", "set_value", {"entity_id": ents["ev_cap"], "value": float(body["cap"])})
             else:
                 overview.save({"ev_need_kwh": float(body["cap"])})
+        if "target" in body:
+            overview.save({"ev_target": max(20, min(100, int(body["target"])))})
+        if "trip" in body:
+            overview.save({"ev_trip": bool(body["trip"])})
         return web.json_response({"ok": True})
 
     async def index(_req: web.Request) -> web.FileResponse:

@@ -300,6 +300,9 @@ class Engine:
         from .checks import FollowWatch
 
         self.follow = FollowWatch()  # does the battery do what the plan says (see checks.py)
+        from .evsoc import CarSize
+
+        self.car_size = CarSize(self.learning.state)  # the car's battery, learned from the charger (see evsoc.py)
         self.weather: Any = None
         self.house_model = HouseModel()
         self.solar_factors: dict[int, float] = {}
@@ -899,6 +902,11 @@ class Engine:
         # What the user set wins; otherwise the car's learned habits (when it leaves, how much it takes).
         cap = float(ev.get("cap")) if self.ov.role("ev_cap") and ev.get("cap") else self.habits.need(float(ev.get("cap") or st.get("ev_need_kwh") or 20))
         need = cap - float(ev.get("session_kwh") or 0)
+        if ev.get("soc") is not None:
+            # The car says how full it is: what's missing up to the target (100 % before a long trip).
+            from . import evsoc
+
+            need = evsoc.need_kwh(ev["soc"], ev["target"], ev["car_kwh"])
         ready = None
         if ev.get("ready") and ev["ready"] != "00:00:00":
             hh, mm = (int(x) for x in str(ev["ready"]).split(":")[:2])

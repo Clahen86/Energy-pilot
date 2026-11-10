@@ -83,6 +83,9 @@
     "switch": {
       "charge_now": {
         "name": "Lad nu"
+      },
+      "next_trip": {
+        "name": "100 % til næste tur"
       }
     },
     "time": {
@@ -96,6 +99,9 @@
       },
       "battery_min": {
         "name": "Batteri-minimum"
+      },
+      "charge_to": {
+        "name": "Lad bilen til"
       }
     },
     "select": {

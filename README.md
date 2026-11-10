@@ -69,6 +69,10 @@ The panel shows who decides right now and how well each one hits:
   what's missing. A control test in *Shadow* shows every control it found.
 - **The car follows the sun and minds the fuse** – the charging current follows the solar surplus minute by minute (6 A
   and up), and the car is turned down so the house never buys more than your main fuse allows.
+- **The car's own battery level** – found from the car's integration (Tesla, Kia/Hyundai, VW/Skoda/Audi/Cupra, BMW,
+  Mercedes, Renault, Polestar, Volvo, Toyota, MG, BYD, OCPP …; never a phone, a sensor or the car's 12 V battery). It
+  charges to your target (80 % spares the battery) and stops there; **"100 % for the next trip"** fills it in the cheapest
+  hours before you leave and turns itself off when the car leaves. The car's battery size is learned from the charges.
 - **The car is never counted twice** – if your house sensor includes the car, it notices from the hours the car charged
   and takes it out, so the house forecast and the battery plan stay right.
 - **Fits odd setups** – several solar arrays and forecasts are added up, it finds which way your battery's power number
@@ -183,6 +187,8 @@ bliver bedre hver nat.** Den starter altid i *skygge*: den viser, hvad den ville
 - **Målt besparelse** og batteriets kostpris.
 - **Aldrig en halv kommando:** mangler en kontrol, styrer den ikke, og en test i skygge viser, hvad den fandt.
 - **Bilen følger solen** minut for minut og **passer på hovedsikringen**.
+- **Bilens eget batteri i %** findes fra bilens integration – lad til et mål (80 % skåner batteriet), eller tryk
+  **"100 % til næste tur"** før en lang tur (slår selv fra, når bilen kører).
 - **Bilen tælles aldrig to gange**, og den kan køre din egen AppDaemon i skygge og sammenligne.
 - **Passer til mange opsætninger:** flere solcelle-anlæg lægges sammen, den finder selv batteriets fortegn, og en
   skiftende salgspris kan komme fra en sensor. Kan du ikke finde din sensor, kan du søge efter den.

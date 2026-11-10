@@ -83,6 +83,9 @@
     "switch": {
       "charge_now": {
         "name": "Charger maintenant"
+      },
+      "next_trip": {
+        "name": "100 % pour le prochain trajet"
       }
     },
     "time": {
@@ -96,6 +99,9 @@
       },
       "battery_min": {
         "name": "Minimum de la batterie"
+      },
+      "charge_to": {
+        "name": "Charger la voiture jusqu'à"
       }
     },
     "select": {
