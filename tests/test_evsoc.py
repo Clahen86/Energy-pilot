@@ -55,3 +55,14 @@ def test_the_car_size_is_learned_from_a_charge():
     size, how = cs.kwh({})
     assert how == "learned" and abs(size - 63.0) < 0.5
     assert cs.kwh({"ev_battery_kwh": 77})[0] == 77
+
+
+def test_a_car_percentage_named_otherwise_is_offered_never_picked():
+    from energy_pilot.detect import car_socs
+
+    ents = [{"entity_id": "sensor.skoda_enyaq_charge_state_percent", "platform": "myskoda", "device_id": "sk"},
+            {"entity_id": "sensor.home_minimum_state_of_charge", "platform": "myskoda", "device_id": "sk"}]
+    st = {"sensor.skoda_enyaq_charge_state_percent": {"state": "64", "attributes": {"unit_of_measurement": "%"}},
+          "sensor.home_minimum_state_of_charge": {"state": "50", "attributes": {"unit_of_measurement": "%"}}}
+    got = car_socs(ents, [{"id": "sk", "manufacturer": "Škoda"}], st)
+    assert [g["entity_id"] for g in got] == ["sensor.skoda_enyaq_charge_state_percent"] and got[0]["score"] == -5

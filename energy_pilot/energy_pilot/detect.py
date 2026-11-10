@@ -73,8 +73,11 @@ def car_socs(entities: list[dict[str, Any]], devices: list[dict[str, Any]], stat
             continue
         text = f"{eid} {a.get('friendly_name', '')}"
         # Always named like the driving battery: a plain "battery" with device class battery is often the 12 V one (Ford).
-        if EV_SOC_NOT.search(text) or not EV_SOC_WORDS.search(text):
+        if EV_SOC_NOT.search(text):
             continue
+        weak = not EV_SOC_WORDS.search(text)  # a % on the car named otherwise: offered to choose, never picked by itself
+        if weak and re.search(r"_battery$|^sensor\.battery$", eid):
+            continue  # a plain "battery" on a car is often the 12 V one (Ford) - not even offered
         try:
             v = float(s.get("state"))
             if not 0 <= v <= 100:
@@ -84,6 +87,8 @@ def car_socs(entities: list[dict[str, Any]], devices: list[dict[str, Any]], stat
                 continue  # a car asleep may be unknown for a while - that's fine
         score = 2 * (a.get("device_class") == "battery") + 2 * bool(re.search(r"state_of_charge|battery_level|\bsoc\b|_soc$", eid)) \
             + (platform in CAR_PLATFORMS) - (platform == "ocpp")  # the car's own app knows best; a charger only while it charges
+        if weak:
+            score = -5
         out.append({"entity_id": eid, "device": dev or eid, "score": score})
     return sorted(out, key=lambda r: -r["score"])
 
@@ -198,9 +203,11 @@ async def detect(ha: Any) -> dict[str, dict[str, str]]:
         put("price", eid, f"integration:{platform}")
 
     # The car's battery level: picked by itself only when there is one car - with two, the user says which charges here.
-    cars = car_socs(entities, devices, states)
+    options = car_socs(entities, devices, states)
+    cars = [c for c in options if c["score"] > -5]  # only ones named like a battery level are ever picked by themselves
+    if options:
+        found["_ev_soc_options"] = {"entity_id": " ".join(c["entity_id"] for c in options), "source": "options"}
     if cars:
-        found["_ev_soc_options"] = {"entity_id": " ".join(c["entity_id"] for c in cars), "source": "options"}
         own = [c for c in cars if c["device"] == cars[0]["device"]]
         if len({c["device"] for c in cars if c["score"] >= 2}) <= 1:
             platform = (by_id.get(own[0]["entity_id"]) or {}).get("platform")
