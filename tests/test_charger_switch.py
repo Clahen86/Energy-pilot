@@ -21,6 +21,7 @@ REG = [
     reg("switch.growatt_battery_charge", "inv"), reg("switch.growatt_ac_charge", "inv"),  # the inverter
     reg("switch.kitchen_light", "hue"), reg("switch.tesla_charger", "tesla"), reg("switch.tesla_sentry_mode", "tesla"),
     reg("switch.old_charger", "x", disabled_by="user"),
+    reg("switch.julelys_bornesikring", "plug"), reg("switch.roborock_s7_bornelas", "robo"),  # Danish child locks ("børne")
 ]
 STATES = st(*[r["entity_id"] for r in REG])
 DEVS = {"tuya1": {"manufacturer": "Tuya", "model": "Portable EV Charger"}}
@@ -40,7 +41,7 @@ def test_never_inverter_light_lock_or_disabled():
     o = opts(anchors=(), skip=())
     for bad in ("switch.growatt_battery_charge", "switch.growatt_ac_charge", "switch.kitchen_light", "switch.aircon_power",
                 "switch.cat_litter", "switch.portable_evse_child_lock", "switch.shelly_led_indicator", "switch.tesla_sentry_mode",
-                "switch.old_charger"):
+                "switch.old_charger", "switch.julelys_bornesikring", "switch.roborock_s7_bornelas"):
         assert bad not in o
 
 

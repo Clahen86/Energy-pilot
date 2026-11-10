@@ -97,14 +97,15 @@ def find(states: dict[str, Any], main_power: str | None, main_plug: str | None, 
 
 
 # The switch that starts and stops a charger - only what has to do with charging is offered.
-CHARGE_WORDS = re.compile(r"charg|evse|wallbox|(^|_)ev(_|$)|lader|ladebox|ladestation|laadpaal|laad|borne|recharge|zappi|easee|"
+CHARGE_WORDS = re.compile(r"charg|evse|wallbox|(^|_)ev(_|$)|lader|ladebox|ladestation|laadpaal|laad|recharge|zappi|easee|"
                           r"keba|wallbox|go_?e|ohme|pod_?point|myenergi|commando")
 _T = r"(?:^|_)"  # a whole word in entity_id style
 NOT_CHARGER = re.compile(r"batter|inverter|discharg|grid_charg|ac_charg|force_charg|export|solar|backup|child|display|"
+                         r"bornesikring|bornelas|barnlas|barnesikring|kinderslot|kindersicherung|securite_enfant|"
                          r"buzzer|firmware|restart|reboot|identify|sentry|climate|heater|defrost|steering|precondition|"
                          r"charge_port|cable_lock|" + _T + r"(sell|eco|lock|led|leds|light|lights|lys|screen|sound|beep|"
                          r"update|ota|sleep|seat|seats|valet|window|windows|door|doors|trunk|frunk)(?:_|$)")
-CHARGER_MODEL = re.compile(r"charg|evse|wallbox|lader|laad|borne|zappi|easee|keba|go-e|ohme|pod point", re.I)
+CHARGER_MODEL = re.compile(r"charg|evse|wallbox|lader|laad|borne de|zappi|easee|keba|go-e|ohme|pod point", re.I)
 
 
 def switch_options(registry: list[dict[str, Any]], devices: dict[str, dict[str, Any]], states: dict[str, Any],
