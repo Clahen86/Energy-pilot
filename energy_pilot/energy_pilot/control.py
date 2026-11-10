@@ -426,6 +426,9 @@ class Controller:
         for e, v in mine.items():
             if e.startswith("select."):
                 out.append({"domain": "select", "service": "select_option", "data": {"entity_id": e, "option": v}})
+            elif e.startswith("switch."):
+                if v in ("on", "off"):
+                    out.append({"domain": "switch", "service": f"turn_{v}", "data": {"entity_id": e}})
             else:
                 try:
                     num = float(v)

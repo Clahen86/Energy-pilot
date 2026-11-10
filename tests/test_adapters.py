@@ -5,7 +5,7 @@ from energy_pilot import adapters
 GROWATT = ["select.growatt_sph_work_mode_priority", "number.growatt_sph_load_first_stop_discharge", "select.growatt_sph_battery_first_grid_charge",
            "switch.growatt_sph_battery_first_slot_1_enabled", "select.growatt_sph_battery_first_slot_1_start", "select.growatt_sph_battery_first_slot_1_end",
            "number.growatt_sph_battery_first_charge_rate", "number.growatt_sph_battery_first_stop_charge", "select.growatt_blaeser_adfaerd_ved_taending"]
-CTX = {"min_soc": 10, "soc": 62, "target": 90, "rate": 80, "power_w": 2400, "max_power_w": 3000}
+CTX = {"min_soc": 10, "soc": 62, "target": 90, "rate": 80, "power_w": 2400, "max_power_w": 3000, "max_charge_w": 3000, "max_charge_kw": 3.0, "max_power_kw": 3.0}
 
 
 def test_growatt_from_your_entities():
@@ -247,3 +247,15 @@ def test_growatt_frees_the_discharge_rate_like_appdaemon():
     assert hold["number.growatt_sph_free_mode_discharge_rate"] == ("set_value", 0)
     assert normal["number.growatt_sph_load_first_stop_charge"] == ("set_value", 100)
     assert normal["switch.growatt_sph_battery_first_slot_1_enabled"][0] == "turn_off"
+
+
+def test_normal_gives_back_the_limits_a_charge_or_sale_set():
+    """A limit set for a grid charge or a sale must not stay: the sun and the house need the full power after."""
+    def pats(key, intent):
+        return {s[0] for s in adapters.PROFILES[key][intent] if isinstance(s[0], str)}
+    assert r"number\..*ess_max_charging_limit$" in pats("sigen", "normal")
+    assert r"number\..*ess_maximum_charge_power$" in pats("victron", "normal") & pats("victron", "hold")
+    assert r"number\..*max_charge_level$" in pats("ecoflow", "normal") & pats("ecoflow", "hold")
+    assert r"number\..*battery_charge_power_limit$" in pats("givenergy_local", "normal")
+    assert r"number\..*(grid_first_discharge_rate|discharge_power_rate)$" in pats("growatt_tlxh", "normal")
+    assert r"switch\..*solar_sell$" in adapters.PROFILES["deye_esphome"]["restore"]

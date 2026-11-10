@@ -123,3 +123,74 @@ def run(engine: Any, hours: list, b: Any, plan: Any, end_value: float) -> list[d
     if f.get("soc") is None and not st.get("offgrid"):
         out.append({"key": "no_soc", "level": "warn", "vals": {}, "goto": "roles"})
     return out
+
+
+class FollowWatch:
+    """Does the battery do what it's told? If the plan wants it to cover the house (or charge) and it stays at 0 W for
+    10 minutes, something on the inverter holds it back - often a rate or limit left at 0 by another system. It says
+    so, with the inverter's settings that stand at 0, so it's found for every inverter, known or not."""
+
+    WAIT = 600  # seconds the battery must stay still before it's told
+    WORDS = {"discharge": r"discharg|dischg|output|export", "charge": r"(?<!dis)charg|(?<!dis)chg|input"}
+    LIMIT = r"rate|power|limit|current|level|max"
+
+    def __init__(self) -> None:
+        self.since: datetime | None = None
+        self.kind: str | None = None
+        self.found: dict[str, Any] | None = None
+
+    def see(self, now: datetime, mode: str | None, want: dict[str, Any] | None, f: dict[str, Any],
+            states: dict[str, Any], entities: list[str]) -> None:
+        kind = self._expect(mode, want, f)
+        batt, grid = f.get("battery"), f.get("grid") or 0.0
+        stuck = kind == "discharge" and batt is not None and batt > -100 and grid > 300 \
+            or kind == "charge" and batt is not None and batt < 100
+        if not stuck:
+            self.since, self.kind, self.found = None, None, None
+            return
+        if self.kind != kind:
+            self.since, self.kind, self.found = now, kind, None
+        if (now - self.since).total_seconds() >= self.WAIT and self.found is None:
+            self.found = {"kind": kind, "at": now.isoformat(), "suspects": self.suspects(kind, states, entities)}
+            import logging
+
+            logging.getLogger("energy_pilot.control").warning("The battery doesn't follow the plan (%s): %s", kind, self.found["suspects"])
+
+    @staticmethod
+    def _expect(mode: str | None, want: dict[str, Any] | None, f: dict[str, Any]) -> str | None:
+        if mode != "control" or not want or f.get("soc") is None:
+            return None
+        ctx, soc = want.get("ctx") or {}, f["soc"]
+        need = (f.get("house") or 0.0) - (f.get("pv") or 0.0)
+        if want.get("intent") == "normal" and need > 400 and soc > (ctx.get("min_soc") or 0) + 3:
+            return "discharge"
+        if want.get("intent") == "charge" and soc < (ctx.get("target") or 0) - 3:
+            return "charge"
+        return None
+
+    @classmethod
+    def suspects(cls, kind: str, states: dict[str, Any], entities: list[str]) -> list[str]:
+        """The inverter's numbers that stand at 0 and sound like they limit this way: "free_mode_discharge_rate = 0"."""
+        import re
+
+        out = []
+        for e in entities:
+            if not e.startswith("number."):
+                continue
+            name = e.split(".", 1)[1]
+            if not (re.search(cls.WORDS[kind], name) and re.search(cls.LIMIT, name)):
+                continue
+            try:
+                v = float((states.get(e) or {}).get("state"))
+            except (TypeError, ValueError):
+                continue
+            if v == 0:
+                out.append(e)
+        return out[:4]
+
+    def check(self) -> list[dict[str, Any]]:
+        if not self.found:
+            return []
+        names = ", ".join(f"{e.split('.', 1)[1]} = 0" for e in self.found["suspects"])
+        key = f"follow_{self.found['kind']}" + ("_why" if names else "")
+        return [{"key": key, "level": "warn", "vals": {"list": names}, "goto": "battery"}]

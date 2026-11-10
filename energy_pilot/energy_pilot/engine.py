@@ -297,6 +297,9 @@ class Engine:
 
         self.month_peak = MonthPeak(self.learning.state)  # the month's peaks, for a power tariff
         self.checks: list[dict[str, Any]] = []
+        from .checks import FollowWatch
+
+        self.follow = FollowWatch()  # does the battery do what the plan says (see checks.py)
         self.weather: Any = None
         self.house_model = HouseModel()
         self.solar_factors: dict[int, float] = {}

@@ -54,7 +54,7 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
             data["engine"] = {"saving": b.get("saving"), "now": b.get("now"), "capacity": b.get("capacity"),
                               "agree": round(100 * a["same"] / a["checks"]) if a["checks"] else None, "checks": a["checks"],
                               "profile": bool(eng.profile), "car": eng.result.get("car"), "cars": eng.result.get("cars"), "generator": eng.result.get("generator"), "sources": eng.sources_used(), "learning": eng.learning.summary(), "blend": eng.blend_info(),
-                              "decision": overview.engine_decision(lang(req)), "selfcheck": eng.checks}
+                              "decision": overview.engine_decision(lang(req)), "selfcheck": eng.follow.check() + eng.checks}
         return web.json_response(data)
 
     async def get_settings(_req: web.Request) -> web.Response:

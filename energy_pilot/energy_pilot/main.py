@@ -164,6 +164,9 @@ async def main() -> None:
                 engine.habits.see(now, f.get("plug"), ev.get("session_kwh"))
                 engine.batt_learn.see(f.get("battery"), f.get("soc"), 30 / 3600)
                 engine.grid_peak.see(now, f.get("grid"))
+                bp = controller.last.get("battery") if hasattr(controller, "last") else None
+                engine.follow.see(now, controller.mode("battery"), bp, f,
+                                  ha.states, controller.entities.get("battery") or [])
                 from .powertariff import kind as _pt_kind
 
                 engine.month_peak.see(now, f.get("grid"), _pt_kind(st, ha.config.get("country"))[0])
