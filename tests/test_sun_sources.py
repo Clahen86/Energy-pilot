@@ -27,3 +27,20 @@ def test_house_worked_out_from_the_other_meters():
     assert computed_house(grid, pv, batt, ev) == [(t[0], 1.0), (t[1], 0.5), (t[2], 0.6)]
     assert computed_house({t[0]: -1.0}, {t[0]: 0.0}, {}, {}, grid_sign=-1) == [(t[0], 1.0)]
     assert computed_house({t[0]: -3.0}, {t[0]: 0.0}, {}, {}) == [(t[0], 0.0)]
+
+
+def test_every_charger_is_taken_out():
+    """Charger 1 and the extra chargers are added up when the cars are taken out of the house's history."""
+    import asyncio
+
+    from energy_pilot.engine import Engine
+
+    t = datetime(2026, 11, 10, 18, tzinfo=timezone.utc)
+    eng = Engine.__new__(Engine)
+    eng.ov = type("O", (), {"settings": {"chargers": [{"power": "sensor.keba2_power", "plug": "binary_sensor.keba2_plug"}]},
+                            "role": lambda self, r: "sensor.keba1_power" if r == "ev_power" else None})()
+
+    async def hourly(e, days):
+        return [(t, {"sensor.keba1_power": 7.0, "sensor.keba2_power": 3.5}[e])]
+    eng._hourly_kw = hourly
+    assert asyncio.run(eng._all_cars(1)) == {t: 10.5}

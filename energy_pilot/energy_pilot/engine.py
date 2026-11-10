@@ -524,11 +524,18 @@ class Engine:
             if rows and self.ev_in_house() and (ev_e := self.ov.role("ev_power")):
                 from . import evsplit
 
-                rows = evsplit.subtract(rows, await self._hourly_kw(ev_e, days))
+                rows = evsplit.subtract(rows, list((await self._all_cars(days)).items()))
             return rows
         if self.ov.role("grid_power") and self.ov.role_all("pv_power"):
             return await self._computed_house(days)
         return []
+
+    async def _all_cars(self, days: int) -> dict[datetime, float]:
+        """kW per hour of every charger: charger 1 and the extra ones (settings → chargers)."""
+        from . import chargers
+
+        ents = [e for e in [self.ov.role("ev_power")] + [c.get("power") for c in chargers.extras(self.ov.settings)] if e]
+        return await self._hourly_sum(ents, days) if ents else {}
 
     async def _computed_house(self, days: int) -> list[tuple[datetime, float]]:
         """The house's use from the history of the other meters, the way the panel works it out for now: what comes
@@ -536,7 +543,7 @@ class Engine:
         grid = dict(await self._hourly_kw(self.ov.role("grid_power"), days))
         pv = await self._hourly_sum(self.ov.role_all("pv_power"), days)
         batt = dict(await self._hourly_kw(b, days)) if (b := self.ov.role("battery_power")) else {}
-        ev = dict(await self._hourly_kw(c, days)) if (c := self.ov.role("ev_power")) else {}
+        ev = await self._all_cars(days)
         return computed_house(grid, pv, batt, ev, self.ov.grid_sign(), self.ov.battery_sign())
 
     async def learn(self) -> None:
@@ -566,7 +573,7 @@ class Engine:
                 ev_rows = await self._hourly_kw(ev_e, 60)
                 self.ev_detected = evsplit.detect(rows, ev_rows)
                 if self.ev_in_house():
-                    rows = evsplit.subtract(rows, ev_rows)  # the car is planned on its own
+                    rows = evsplit.subtract(rows, list((await self._all_cars(60)).items()))  # the cars are planned on their own
             if rows:
                 self.profile = house_profile(rows, now)
                 self.profile_at = now
