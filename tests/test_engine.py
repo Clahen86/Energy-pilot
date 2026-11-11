@@ -50,6 +50,11 @@ def test_styles_limits_and_quiet():
     # Quiet at night: no charging 0-6
     p = plan_battery(day(prices), soc_now=10, b=Battery(quiet=frozenset(range(0, 6))))
     assert not any(s.action.startswith("charge") for s in p.steps[:6])
+    # Quiet in the day: nothing from the grid, but the sun's surplus still fills it
+    sun = [0] * 8 + [3.0] * 6 + [0] * 10
+    p = plan_battery(day(prices, sun=sun), soc_now=10, b=Battery(quiet=frozenset(range(6, 22))))
+    assert not any(s.action == "charge_grid" for s in p.steps[6:22])
+    assert any(s.action == "charge_sun" for s in p.steps[8:14])
     # A low main fuse: charging may not push the hour over it
     p = plan_battery(day(prices, house=2.5), soc_now=10, b=Battery(import_limit_kw=4.0, max_charge_kw=3))
     assert all(s.grid_kwh <= 4.0 + 1e-6 for s in p.steps if s.action.startswith("charge"))

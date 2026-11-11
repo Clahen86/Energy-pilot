@@ -105,7 +105,7 @@ class Battery:
     efficiency: float = 0.92  # round trip
     grid_charge: bool = True  # may charge from the grid when it pays
     import_limit_kw: float | None = None  # main fuse: never buy more than this in an hour
-    quiet: frozenset = frozenset()  # hours (0-23) the battery must not charge
+    quiet: frozenset = frozenset()  # hours (0-23) the battery must not charge from the grid (the sun still fills it)
     export: bool = False  # may sell from the battery when it pays (off unless the user turns it on)
     wear: float = 0.0  # what one kWh into or out of the battery wears it (money per kWh) - a move must beat it
     export_limit_kw: float | None = None  # what may be sent to the grid
@@ -202,9 +202,9 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
                     grid = h.house - h.sun + into
                     if not b.grid_charge and grid > max(0.0, h.house - h.sun) + 1e-9:
                         continue
-                    if h.start.hour in b.quiet:
-                        continue
                     action = "charge_sun" if into - from_sun < 1e-6 else "charge_grid"
+                    if h.start.hour in b.quiet and action == "charge_grid":
+                        continue  # quiet hours: nothing bought for the battery - the sun's surplus still goes in
                     if action == "charge_grid" and nxt > b.grid_max_soc + 1e-9:
                         continue  # not above the grid limit with power bought - only the sun fills it beyond
                 elif delta < 0:
