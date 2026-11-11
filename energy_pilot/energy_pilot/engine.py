@@ -451,10 +451,14 @@ class Engine:
         """How full the battery may be charged from the grid: as set, else 95 % (NMC 90 %). Every 14 days without a
         full battery (winter, little sun) it may go to 100 % once, so the battery balances its cells."""
         s = self.ov.settings
-        if s.get("battery_grid_max") not in (None, ""):
-            limit = float(s["battery_grid_max"])
-        else:
-            limit = 90.0 if kind == "nmc" else 95.0
+        limit = 90.0 if kind == "nmc" else 95.0
+        try:
+            set_to = float(s.get("battery_grid_max"))
+        except (TypeError, ValueError):
+            set_to = None
+        # 0 or anything at or below the minimum would stop all charging from the grid - a slip, not a wish: ignored.
+        if set_to is not None and float(s.get("battery_min_soc") or 0) < set_to <= 100:
+            limit = set_to
         if limit < 100 and self.batt_learn.days_since_full() >= 14:
             return 100.0
         return limit

@@ -189,3 +189,17 @@ def test_late_in_a_quarter_the_battery_still_covers_the_house():
     assert full.steps[0].action == "discharge"  # planned at the start of the quarter
     plan = plan_battery(slots, 95, b)
     assert plan.steps[0].action == "discharge"  # and still, 11 minutes in
+
+
+def test_grid_limit_at_or_below_the_minimum_is_ignored(tmp_path):
+    from types import SimpleNamespace
+
+    from energy_pilot.engine import Engine
+
+    ov = SimpleNamespace(settings={"battery_grid_max": 0, "battery_min_soc": 20}, file=tmp_path / "s.json")
+    e = Engine(SimpleNamespace(states={}, config={}), ov)
+    assert e.grid_max_soc("lfp") == 95.0  # 0 would stop all charging from the grid (a red Tempo day too)
+    ov.settings = {"battery_grid_max": 15, "battery_min_soc": 20}
+    assert e.grid_max_soc("lfp") == 95.0
+    ov.settings = {"battery_grid_max": 80, "battery_min_soc": 20}
+    assert e.grid_max_soc("lfp") == 80.0
