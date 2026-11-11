@@ -24,7 +24,9 @@ def decide(flow: dict[str, Any], s: dict[str, Any], planned: bool, manual: bool,
     phases = int(s.get("charger_phases") or (3 if kw > 7.5 else 1))
     max_a = min(32, max(MIN_A, round(kw * 1000 / (VOLT * phases))))
     per_a = VOLT * phases
-    lo = max_a if s.get("onoff") else MIN_A  # a plain on/off switch (a Shelly, a smart plug): full power or nothing
+    # A plain on/off switch (a Shelly, a smart plug): full power or nothing. A charger with fixed steps (8/10/13 A):
+    # its lowest step - below it, it would still take that step and go over the fuse.
+    lo = max_a if s.get("onoff") else min(max_a, max(MIN_A, int(s.get("min_a") or MIN_A)))
     min_w = lo * per_a
     plug = bool(flow.get("plug"))
     if not plug or (need_kwh <= 0 and not manual):

@@ -35,3 +35,18 @@ def test_switches_off():
     d = decide(f(house=9000), {**S, "ev_fuse_guard": False}, True, False, 20, False)
     assert d["current"] == 16
     assert not decide(f(plug=False), S, True, False, 20, False)["charge"]
+
+
+def test_fixed_steps_stop_when_the_lowest_does_not_fit():
+    from energy_pilot.adapters import lowest_amps
+    from energy_pilot.carspeed import decide
+
+    sel = "select.all_house_vevor_ev_charger_charging_current"
+    states = {sel: {"attributes": {"options": ["8A", "10A", "13A", "16A", "20A", "24A", "32A"]}}}
+    assert lowest_amps([sel, "switch.vevor_ev_charger"], states) == 8
+    # 6 kW subscription, the house takes 4.4 kW: room for ~6.9 A - the lowest step (8 A) would go over: stop
+    flow = {"pv": 0.0, "house": 4400.0, "battery": 0.0, "plug": True, "ev": 0.0, "grid": 4400.0}
+    s = {"charger_kw": 7.4, "import_limit_kw": 6, "min_a": 8}
+    assert decide(flow, s, True, False, 10.0, False)["charge"] is False
+    s["min_a"] = None  # a charger that can go down to 6 A still charges
+    assert decide(flow, s, True, False, 10.0, False)["current"] == 6

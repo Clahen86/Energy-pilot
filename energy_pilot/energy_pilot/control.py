@@ -351,6 +351,7 @@ class Controller:
                 else:
                     need = 0.0  # at its limit: it stops, in the sun too (spares the battery)
             st["onoff"] = self.onoff("car")
+            st["min_a"] = adapters.lowest_amps(getattr(self, "entities", {}).get("car", []), getattr(getattr(self, "ha", None), "states", {}))
             d = decide(f, st, hour in planned, manual, need, self._sun_on)
             self._sun_on, self.car_why = d["sun"], d["why"]
             out["car"] = {"intent": "charge" if d["charge"] else "stop", "ctx": {"current": d["current"]}}
@@ -423,7 +424,8 @@ class Controller:
                     "battery": f.get("battery"), "plug": now_c.get("plug"), "ev": own, "grid": g}
             cs = {**st, "charger_kw": kw, "charger_phases": c.get("phases"),
                   "peak_kw": (self.engine.power_tariff() or {}).get("limit_kw") if getattr(self, "engine", None) else None,
-                  "ev_follow_sun": c.get("follow_sun", st.get("ev_follow_sun", bool(self.ov.role("pv_power")))), "onoff": self.onoff(part)}
+                  "ev_follow_sun": c.get("follow_sun", st.get("ev_follow_sun", bool(self.ov.role("pv_power")))), "onoff": self.onoff(part),
+                  "min_a": adapters.lowest_amps(getattr(self, "entities", {}).get(part, []), getattr(getattr(self, "ha", None), "states", {}))}
             need = float((plan or {}).get("need_kwh") if (plan or {}).get("need_kwh") is not None else 1.0)
             d = decide(flow, cs, planned, bool(c.get("now")), need, self._sun_on_more.get(part, False))
             self._sun_on_more[part], self.more_why[part] = d["sun"], d["why"]

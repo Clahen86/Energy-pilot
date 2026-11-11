@@ -557,6 +557,22 @@ def _amp_option(options: list[str], current: float) -> str | None:
     return max(under)[1] if under else min(vals)[1]
 
 
+def lowest_amps(entities: list[str], states: dict[str, Any] | None) -> int | None:
+    """The charger's lowest current when it only takes fixed steps (a select: 8/10/13/16 A) or has a minimum."""
+    for e in entities or []:
+        a = ((states or {}).get(e) or {}).get("attributes") or {}
+        if re.search(CHARGER_CURRENT_SELECT, e):
+            vals = [int(m.group()) for o in a.get("options") or [] if (m := re.search(r"\d+", str(o)))]
+            if vals:
+                return min(vals)
+        elif re.search(CHARGER_CURRENT, e) and a.get("min") not in (None, ""):
+            try:
+                return int(float(a["min"]) + 0.999)
+            except (TypeError, ValueError):
+                pass
+    return None
+
+
 def charger_switch(entities: list[str], lone_ok: bool = False) -> str | None:
     """The switch that starts and stops the charger: one named for it - or, on the charger's (or its power meter's)
     own device, its only switch (a Shelly or a smart plug the charger is plugged into)."""
