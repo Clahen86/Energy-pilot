@@ -505,9 +505,20 @@ class Overview:
                     h["charge"] = True
                 elif st["action"] == "export":
                     h["export"] = True  # sells from the battery
-        for t in (res.get("car") or {}).get("hours", []):
-            if (h := slot(datetime.fromisoformat(t))) is not None:
-                h["car"] = True
+        # What the cars take in each hour (kWh): full speed through the planned slots until what they need is in.
+        from . import chargers
+
+        cars = [(res.get("car"), float(self.settings.get("charger_kw") or 7.4))]
+        cars += [(c, float(x.get("charger_kw") or 7.4)) for c, x in zip(res.get("cars") or [], chargers.extras(self.settings))]
+        for plan, kw in cars:
+            left = float((plan or {}).get("need_kwh") or 0)
+            step = int((plan or {}).get("slot_min") or 60) / 60
+            for t in sorted((plan or {}).get("hours", [])):
+                if (h := slot(datetime.fromisoformat(t))) is not None:
+                    h["car"] = True
+                    got = min(kw * step, left) if left > 0 else 0.0
+                    left -= got
+                    h["car_kwh"] = round(h.get("car_kwh", 0.0) + got, 2)
         # The engine's own forecast covers every planned hour: it fills what another forecast doesn't reach
         # (an AppDaemon forecast that only covers today).
         for row in res.get("house", []):

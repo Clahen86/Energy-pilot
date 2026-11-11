@@ -659,7 +659,7 @@ function planSvg(plan) {
   if (!hrs.length) return `<div class="muted">–</div>`;
   const W = 26, H = 250, top = 14, bottom = 22, n = hrs.length, width = n * W;  // big enough to tap an hour on a phone
   const pmin = Math.min(0, plan.price_min ?? 0), pmax = (plan.price_max || 1) * 1.08;
-  const eMax = Math.max(1, ...hrs.map((h) => h.sun || 0), ...hrs.map((h) => h.house || 0)) * 1.15;
+  const eMax = Math.max(1, ...hrs.map((h) => h.sun || 0), ...hrs.map((h) => h.house || 0), ...hrs.map((h) => h.car_kwh || 0)) * 1.15;
   const nowT = new Date(plan.now), y0 = H - bottom, ph = H - top - bottom;
   const col = (p) => { const x = (p - plan.price_min) / Math.max(0.01, plan.price_max - plan.price_min); return `hsl(${Math.round(150 - 150 * x)} 70% ${x > .66 ? 60 : 52}%)`; };
   const gridLines = [0.25, 0.5, 0.75, 1].map((g) => `<line x1="0" x2="${width}" y1="${y0 - g * ph}" y2="${y0 - g * ph}" stroke="var(--line)"/>`).join("");
@@ -676,13 +676,19 @@ function planSvg(plan) {
   const pts = (key) => hrs.map((h, i) => h[key] != null ? [i * W + W / 2, y0 - (h[key] / eMax) * ph] : null).filter(Boolean);
   const smooth = (p) => p.length < 2 ? "" : p.map((q, i) => i ? `L${q[0].toFixed(1)} ${q[1].toFixed(1)}` : `M${q[0].toFixed(1)} ${q[1].toFixed(1)}`).join(" ");
   const sun = pts("sun"), house = pts("house");
+  // The car as the sun: an area over the hours it charges (kWh), down to nothing either side.
+  const carIdx = hrs.map((h, i) => (h.car_kwh > 0 ? i : -1)).filter((i) => i >= 0);
+  const carPts = carIdx.length ? hrs.map((h, i) => [i * W + W / 2, y0 - ((h.car_kwh || 0) / eMax) * ph])
+    .slice(Math.max(0, carIdx[0] - 1), carIdx[carIdx.length - 1] + 2) : [];
   const sunPath = smooth(sun);
   const nowI = hrs.findIndex((h) => { const t = new Date(h.t); return t.getHours() === nowT.getHours() && t.getDate() === nowT.getDate(); });
   const nowX = nowI >= 0 ? nowI * W + (nowT.getMinutes() / 60) * W : null;
   return `<div class="planwrap" id="planwrap"><svg class="plan" width="${width}" height="${H}" viewBox="0 0 ${width} ${H}">
-      <defs><linearGradient id="sung" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--sun)" stop-opacity=".35"/><stop offset="1" stop-color="var(--sun)" stop-opacity="0"/></linearGradient></defs>
+      <defs><linearGradient id="sung" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--sun)" stop-opacity=".35"/><stop offset="1" stop-color="var(--sun)" stop-opacity="0"/></linearGradient>
+        <linearGradient id="carg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--car)" stop-opacity=".35"/><stop offset="1" stop-color="var(--car)" stop-opacity="0"/></linearGradient></defs>
       ${gridLines}${bars}
       ${sun.length > 1 ? `<path d="${sunPath} L${sun[sun.length - 1][0]} ${y0} L${sun[0][0]} ${y0}Z" fill="url(#sung)"/><path d="${sunPath}" fill="none" stroke="var(--sun)" stroke-width="2"/>` : ""}
+      ${carPts.length > 1 ? `<path d="${smooth(carPts)} L${carPts[carPts.length - 1][0]} ${y0} L${carPts[0][0]} ${y0}Z" fill="url(#carg)"/><path d="${smooth(carPts)}" fill="none" stroke="var(--car)" stroke-width="2"/>` : ""}
       ${house.length > 1 ? `<path d="${smooth(house)}" fill="none" stroke="var(--house)" stroke-width="1.6" stroke-dasharray="4 3" opacity=".8"/>` : ""}
       ${(() => { const sp = hrs.map((h, i) => h.soc != null ? [i * W + W / 2, y0 - (h.soc / 100) * ph] : null).filter(Boolean);
         return sp.length > 1 ? `<path d="${smooth(sp)}" fill="none" stroke="var(--batt)" stroke-width="2.2"/>` : ""; })()}
@@ -1109,7 +1115,7 @@ function wire() {
   });
   document.querySelectorAll("[data-h]").forEach((g) => g.onclick = () => {
     const h = data.plan.hours.filter((x) => x.price != null || x.sun != null)[Number(g.dataset.h)];
-    $("#tip").innerHTML = `<b>${clock(h.t)}</b> · ${kr(h.price)}/kWh${h.sun != null ? ` · ${T.legSun} ${num(h.sun, 1)} kWh` : ""}${h.house != null ? ` · ${T.legHouse} ${num(h.house, 1)} kWh` : ""}${h.soc != null ? ` · ${T.battery} ${num(h.soc, 0)} %` : ""}${h.charge ? ` · ${T.legCharge}` : ""}${h.export ? ` · ${T.legExport}` : ""}${h.car ? ` · ${T.legCar}` : ""}`;
+    $("#tip").innerHTML = `<b>${clock(h.t)}</b> · ${kr(h.price)}/kWh${h.sun != null ? ` · ${T.legSun} ${num(h.sun, 1)} kWh` : ""}${h.house != null ? ` · ${T.legHouse} ${num(h.house, 1)} kWh` : ""}${h.soc != null ? ` · ${T.battery} ${num(h.soc, 0)} %` : ""}${h.charge ? ` · ${T.legCharge}` : ""}${h.export ? ` · ${T.legExport}` : ""}${h.car ? ` · ${T.legCar}${h.car_kwh ? ` ${num(h.car_kwh, 1)} kWh` : ""}` : ""}`;
   });
   document.querySelectorAll("[data-cmode]").forEach((b) => b.onclick = async () => {
     if (b.dataset.cmode === "control" && !confirm(T.ctl.confirm)) return;
