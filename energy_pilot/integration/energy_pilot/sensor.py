@@ -117,14 +117,16 @@ class Energy(PilotEntity, SensorEntity):
 
 class Decision(PilotEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.ENUM
-    _attr_options = ["discharge", "charge", "grid", "hold"]
+    _attr_options = ["discharge", "charge", "grid", "hold", "export"]
 
     def __init__(self, p):
         super().__init__(p, "decision")
 
     @property
     def native_value(self):
-        return (self.d.get("decision") or {}).get("kind")
+        kind = (self.d.get("decision") or {}).get("kind")
+        # A state Home Assistant doesn't know is refused, and the sensor would keep showing the last one.
+        return kind if kind in self._attr_options else None
 
     @property
     def extra_state_attributes(self):

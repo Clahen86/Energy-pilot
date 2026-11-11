@@ -28,7 +28,8 @@
           "discharge": "Batterij voedt het huis",
           "charge": "Batterij laadt",
           "grid": "Laadt met goedkope stroom",
-          "hold": "Bewaart de stroom"
+          "hold": "Bewaart de stroom",
+          "export": "Verkoopt stroom uit de batterij"
         }
       },
       "price_now": {

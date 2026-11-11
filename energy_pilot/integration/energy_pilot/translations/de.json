@@ -28,7 +28,8 @@
           "discharge": "Batterie versorgt das Haus",
           "charge": "Batterie lädt",
           "grid": "Lädt mit günstigem Strom",
-          "hold": "Hebt den Strom auf"
+          "hold": "Hebt den Strom auf",
+          "export": "Verkauft Strom aus der Batterie"
         }
       },
       "price_now": {

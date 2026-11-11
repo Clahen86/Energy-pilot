@@ -28,7 +28,8 @@
           "discharge": "Batteriet forsyner huset",
           "charge": "Batteriet lader",
           "grid": "Lader med billig strøm",
-          "hold": "Sparer strømmen"
+          "hold": "Sparer strømmen",
+          "export": "Selger strøm fra batteriet"
         }
       },
       "price_now": {

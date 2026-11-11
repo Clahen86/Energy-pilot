@@ -28,7 +28,8 @@
           "discharge": "Battery powers the house",
           "charge": "Battery charges",
           "grid": "Charging with cheap power",
-          "hold": "Saving the power"
+          "hold": "Saving the power",
+          "export": "Selling power from the battery"
         }
       },
       "price_now": {

@@ -28,7 +28,8 @@
           "discharge": "La batterie alimente la maison",
           "charge": "La batterie charge",
           "grid": "Charge avec de l'électricité bon marché",
-          "hold": "Garde l'énergie"
+          "hold": "Garde l'énergie",
+          "export": "Vend l'énergie de la batterie"
         }
       },
       "price_now": {
