@@ -74,6 +74,95 @@ function flowBeams(f, filterId) {
   return out.join("");
 }
 
+/* ---------- the card's energy picture dressed like the app: time of day, real weather, the season and the day's holiday (by country) ----------
+   The card stays the same: a soft tint behind it, a few particles, and for a holiday a ring of lights around the house.
+   ?hol=jul&season=winter&wx=snowy&t=night previews another day. */
+const C_SCENE_ICONS = {
+  moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
+  cloudsun: '<path d="M12 4v1.5M6.3 6.3l1 1M4 12h1.5M17.7 6.3l-1 1"/><path d="M8 12a4 4 0 0 1 7.6-1.8"/><path d="M9 20h8.5a3.5 3.5 0 0 0 0-7h-.6A5 5 0 0 0 7 14.5 3 3 0 0 0 9 20z"/>',
+  cloud: '<path d="M7 18h10.5a3.5 3.5 0 0 0 0-7h-.6A5 5 0 0 0 7 12.5 3 3 0 0 0 7 18z"/>',
+  rain: '<path d="M7 15h10.5a3.5 3.5 0 0 0 0-7h-.6A5 5 0 0 0 7 9.5 3 3 0 0 0 7 15z"/><path d="M9 18l-1 3M13 18l-1 3M17 18l-1 3"/>',
+  snow: '<path d="M7 14h10.5a3.5 3.5 0 0 0 0-7h-.6A5 5 0 0 0 7 8.5 3 3 0 0 0 7 14z"/><path d="M9 18h.01M13 18h.01M17 18h.01M11 21h.01M15 21h.01"/>',
+  storm: '<path d="M7 14h10.5a3.5 3.5 0 0 0 0-7h-.6A5 5 0 0 0 7 8.5 3 3 0 0 0 7 14z"/><path d="M13 14l-2 4h3l-2 4"/>',
+};
+function cardSceneInfo(hass, cfg) {
+  const s = hass?.states["sensor.energipilot"]?.attributes?.scene;
+  if (!s || cfg?.scene === false) return null;
+  return { ...s, time: s.time || "day", dark: !!hass.themes?.darkMode };
+}
+const C_SCENE_HOL = { jul: ["#ff4d5e", "#ffd34d", "#3ddc84", "#4dc3ff"], paaske: ["#ffb3cf", "#ffe680", "#a8e6a1", "#9fd0ff"], halloween: ["#ff8a2a", "#9b5de5"],
+  national: ["#c8102e", "#ffffff"], midsummer: ["#ffb02e", "#ff7a2a"], nytaar: ["#ff5d8f", "#ffd84d", "#5dd6ff"], carnival: ["#ff5d8f", "#ffd84d", "#5dd6ff", "#3ddc84", "#a78bfa"],
+  thanksgiving: ["#e8892c", "#c4542a", "#f0b04a"], lunar: ["#e0262a", "#ffd34d"], diwali: ["#ffb02e", "#ff7a2a", "#ffe08a"], eid: ["#1f9e5a", "#ffd34d"], bonfire: ["#ff7a2a", "#ffd84d"] };
+const C_RINGED = new Set(["jul", "paaske", "halloween", "national", "thanksgiving", "lunar", "diwali", "eid"]);
+function cardSunIcon(sc) {
+  const c = sc?.condition || "";
+  if (!sc) return null;
+  if (/lightning/.test(c)) return "storm";
+  if (/snow/.test(c)) return "snow";
+  if (/rain|pouring|hail/.test(c)) return "rain";
+  if (sc.time === "night") return "moon";
+  if (c === "cloudy" || c === "fog") return "cloud";
+  if (c === "partlycloudy" || (sc.cloud ?? 0) > 40) return "cloudsun";
+  return null;  // the plain sun
+}
+function cardHouseRing(sc) {
+  const h = sc?.holiday;
+  if (!h) return "";
+  const cols = h.colours || C_SCENE_HOL[h.key] || [], light = !sc.dark;
+  let s = "";
+  if (["midsummer", "bonfire", "halloween", "paaske", "diwali"].includes(h.key)) s += `<circle r="44" fill="none" stroke="${cols[0]}" stroke-width="7" opacity="${h.key === "paaske" ? .22 : .3}" filter="url(#sc-blur4)" class="sc-breathe"/>`;
+  if (!C_RINGED.has(h.key)) return s;
+  const n = 18;
+  for (let k = 0; k < n; k++) {
+    const a = k / n * Math.PI * 2, x = (Math.cos(a) * 41).toFixed(1), y = (Math.sin(a) * 41).toFixed(1), c = cols[k % cols.length];
+    const edge = light && /^#f{3,6}$/i.test(c) ? ` stroke="#c9ced8" stroke-width=".6"` : "";
+    s += `<circle cx="${x}" cy="${y}" r="5.5" fill="${c}" opacity=".3" filter="url(#sc-blur2)"/><circle cx="${x}" cy="${y}" r="2.2" fill="${c}"${edge} class="sc-twinkle" style="animation-delay:${(k * .23).toFixed(2)}s"/>`;
+  }
+  return s;
+}
+function cardSceneSvg(sc) {
+  if (!sc) return "";
+  const { time, dark } = sc, night = time === "night", dusk = time === "dusk", cond = sc.condition || "";
+  const W = 400, H = 360, rnd = (k) => { const h = Math.sin(k * 127.1 + 311.7) * 43758.5453; return h - Math.floor(h); };
+  const tint = { winter: "#cfe0ff", spring: "#d6f2c8", summer: "#ffecc0", autumn: "#ffd8b0" }[sc.season] || "#e6ecf5";
+  const top = night ? (dark ? "#2a3a78" : "#8f9fe0") : dusk ? "#ffb98a" : tint;
+  let s = `<defs><radialGradient id="sc-sky" cx=".5" cy="0" r="1.05"><stop offset="0" stop-color="${top}" stop-opacity="${dark ? (night ? .55 : .28) : (night ? .38 : .7)}"/><stop offset="1" stop-color="${top}" stop-opacity="0"/></radialGradient>
+    <filter id="sc-blur2" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="2"/></filter>
+    <filter id="sc-blur4" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter></defs>
+    <rect width="${W}" height="${H}" fill="url(#sc-sky)"/>`;
+  if (night) s += Array.from({ length: 20 }, (_, k) => `<circle class="sc-twinkle" cx="${(rnd(k) * W).toFixed(0)}" cy="${(rnd(k + 40) * 150 + 6).toFixed(0)}" r="${rnd(k + 9) > .8 ? 1.3 : .8}" fill="${dark ? "#fff" : "#5a68b8"}" opacity="${dark ? .7 : .45}" style="animation-delay:${(k * .37).toFixed(2)}s"/>`).join("");
+  // one kind of particles at a time: the holiday's, else the real weather's, else the season's
+  const h = sc.holiday?.key, cols = sc.holiday?.colours || [];
+  let parts = "";
+  if (h === "nytaar" || h === "bonfire" && (night || dusk)) {
+    parts = [[80, 52], [320, 44], [200, 26]].map(([x, y], i) => `<g class="sc-burst" style="animation-delay:${i * .9}s;transform-origin:${x}px ${y}px">${Array.from({ length: 12 }, (_, k) => { const a = k / 12 * Math.PI * 2; return `<line x1="${x + Math.cos(a) * 5}" y1="${y + Math.sin(a) * 5}" x2="${x + Math.cos(a) * 19}" y2="${y + Math.sin(a) * 19}" stroke="${(cols.length ? cols : C_SCENE_HOL.nytaar)[i % 3]}" stroke-width="1.8" stroke-linecap="round"/>`; }).join("")}</g>`).join("");
+  } else if (h === "carnival") {
+    parts = Array.from({ length: 26 }, (_, k) => `<rect class="sc-fall" x="${(rnd(k) * W).toFixed(0)}" y="${(rnd(k + 7) * H - H).toFixed(0)}" width="5" height="2.6" rx="1" fill="${cols[k % cols.length]}" opacity=".6" style="animation-delay:-${(rnd(k + 3) * 14).toFixed(1)}s;animation-duration:${(10 + rnd(k) * 6).toFixed(1)}s;--r:${(rnd(k + 5) * 360).toFixed(0)}deg"/>`).join("");
+  } else if (h === "midsummer" || h === "bonfire") {
+    parts = Array.from({ length: 18 }, (_, k) => `<circle class="sc-rise" cx="${(200 + (rnd(k) - .5) * 220).toFixed(0)}" cy="${H + 10}" r="${(1 + rnd(k + 4) * 1.6).toFixed(1)}" fill="${["#ffb02e", "#ff7a2a", "#fff0a0"][k % 3]}" opacity=".7" style="animation-delay:-${(rnd(k + 2) * 9).toFixed(1)}s;animation-duration:${(7 + rnd(k) * 4).toFixed(1)}s"/>`).join("");
+  } else if (h === "lunar" || h === "diwali" || h === "eid") {
+    parts = Array.from({ length: 14 }, (_, k) => `<circle class="sc-twinkle" cx="${(rnd(k) * W).toFixed(0)}" cy="${(rnd(k + 8) * H).toFixed(0)}" r="1.6" fill="${cols[k % cols.length]}" style="animation-delay:${(k * .4).toFixed(1)}s"/>`).join("");
+  } else if (/rain|pouring|lightning-rainy|hail/.test(cond)) {
+    parts = Array.from({ length: cond === "pouring" ? 34 : 22 }, (_, k) => `<line class="sc-rain" x1="${(rnd(k) * W).toFixed(0)}" y1="-14" x2="${(rnd(k) * W - 4).toFixed(0)}" y2="-2" stroke="${dark ? "#7cb7ff" : "#5b8fd6"}" stroke-width="1.2" opacity=".35" stroke-linecap="round" style="animation-delay:-${(rnd(k + 1) * 1.2).toFixed(2)}s"/>`).join("");
+  } else if (/snow/.test(cond)) {
+    parts = Array.from({ length: 26 }, (_, k) => `<circle class="sc-fall" cx="${(rnd(k) * W).toFixed(0)}" cy="${(rnd(k + 7) * H - H).toFixed(0)}" r="${(1.2 + rnd(k + 3) * 1.4).toFixed(1)}" fill="${dark ? "#ffffff" : "#8fb0dc"}" opacity="${dark ? .75 : .6}" style="animation-delay:-${(rnd(k + 3) * 14).toFixed(1)}s;animation-duration:${(9 + rnd(k) * 5).toFixed(1)}s"/>`).join("");
+  } else if (cond === "fog") {
+    parts = [0, 1, 2].map((k) => `<ellipse class="sc-drift" cx="${120 + k * 90}" cy="${120 + k * 70}" rx="190" ry="26" fill="${dark ? "#c9d3e6" : "#ffffff"}" opacity="${dark ? .08 : .5}" filter="url(#sc-blur4)" style="animation-delay:-${k * 9}s"/>`).join("");
+  } else if (sc.season === "spring") {
+    parts = Array.from({ length: 8 }, (_, k) => `<ellipse class="sc-fall" cx="${(rnd(k) * W).toFixed(0)}" cy="${(rnd(k + 9) * H - H).toFixed(0)}" rx="4" ry="2.3" fill="${["#ffc4d6", "#ffffff", "#ffd9e4"][k % 3]}" stroke="#f3a9c0" stroke-width=".6" opacity=".85" style="animation-delay:-${(rnd(k + 2) * 20).toFixed(1)}s;animation-duration:${(16 + rnd(k) * 8).toFixed(1)}s;--r:${(rnd(k + 5) * 360).toFixed(0)}deg"/>`).join("");
+  } else if (sc.season === "summer") {
+    const c = night || dusk ? "#d9ff7a" : "#ffd36b";
+    parts = Array.from({ length: 9 }, (_, k) => `<g class="sc-float" style="animation-delay:-${(rnd(k) * 12).toFixed(1)}s"><circle cx="${(rnd(k) * W).toFixed(0)}" cy="${(rnd(k + 9) * H).toFixed(0)}" r="1.8" fill="${c}" class="sc-twinkle" style="animation-delay:${(k * .5).toFixed(1)}s"/></g>`).join("");
+  } else if (sc.season === "autumn") {
+    parts = Array.from({ length: 8 }, (_, k) => `<path class="sc-fall" transform="translate(${(rnd(k) * W).toFixed(0)} ${(rnd(k + 9) * H - H).toFixed(0)})" d="M0 -5 q4 2.5 0 10 q-4 -7.5 0 -10z" fill="${["#e8892c", "#c4542a", "#f0b04a"][k % 3]}" opacity=".75" style="animation-delay:-${(rnd(k + 2) * 18).toFixed(1)}s;animation-duration:${(14 + rnd(k) * 6).toFixed(1)}s;--r:${(rnd(k + 5) * 360).toFixed(0)}deg"/>`).join("");
+  } else if (sc.season === "winter" && sc.outdoor != null && sc.outdoor <= 0) {
+    parts = [[118, 120], [282, 112], [42, 190], [356, 196], [118, 262], [282, 270], [200, 64]].map(([x, y], k) => `<g transform="translate(${x} ${y})" class="sc-twinkle" style="animation-delay:${k * .6}s"><path d="M0 -4 V4 M-4 0 H4 M-2.6 -2.6 L2.6 2.6 M-2.6 2.6 L2.6 -2.6" stroke="${dark ? "#dfe9ff" : "#8fb6e6"}" stroke-width="1" stroke-linecap="round"/></g>`).join("");
+  }
+  s += parts;
+  if (/lightning/.test(cond)) s += `<rect width="${W}" height="${H}" fill="#fff" class="sc-flash"/>`;
+  return `<svg class="scene" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${s}</svg>`;
+}
+
 class EnergipilotCard extends HTMLElement {
   setConfig(config) { this._config = { view: "overview", ...config }; if (!this.shadowRoot) this.attachShadow({ mode: "open" }); this._uid = Math.random().toString(36).slice(2, 7); }
   static getConfigElement() { return document.createElement("energipilot-card-editor"); }
@@ -115,7 +204,9 @@ class EnergipilotCard extends HTMLElement {
   _sig() {
     const f = this._flow(), b = (w) => w == null || Math.abs(w) < 30 ? 0 : (w > 0 ? 1 : -1) * (Math.abs(w) > 3000 ? 3 : Math.abs(w) > 1200 ? 2 : 1);
     const p = flowPaths(f);
-    return Object.keys(p).sort().map((k) => k + Math.min(3, Math.floor(p[k] / 1200))).join(",") + "|" + Object.values(f.has).join();
+    const sc = this._hass?.states[SENSOR]?.attributes?.scene;
+    return Object.keys(p).sort().map((k) => k + Math.min(3, Math.floor(p[k] / 1200))).join(",") + "|" + Object.values(f.has).join()
+      + "|" + JSON.stringify(sc || null) + (this._hass?.themes?.darkMode ? "d" : "l");
   }
 
   _render() {
@@ -138,9 +229,9 @@ class EnergipilotCard extends HTMLElement {
     const bb = root.getElementById("bbar"); if (bb) bb.style.width = `${f.soc || 0}%`;
   }
 
-  _node(id, x, y, color, value, unit, cap, extra = "", above = false, active = false) {
+  _node(id, x, y, color, value, unit, cap, extra = "", above = false, active = false, iconId = null) {
     return `<g transform="translate(${x} ${y})" class="node ${active ? "on" : ""}" style="--nc:${color}"><circle r="40" class="halo"/><circle r="33" class="nbg"/><circle r="33" fill="none" stroke="${color}" stroke-opacity=".6" stroke-width="1.4"/>${extra}
-      <g transform="translate(-10 -21) scale(.84)" style="color:${color}"><svg width="24" height="24" viewBox="0 0 24 24" class="ic ${id === "sun" && active ? "spin" : ""}" style="width:24px;height:24px">${P[id]}</svg></g>
+      <g transform="translate(-10 -21) scale(.84)" style="color:${color}"><svg width="24" height="24" viewBox="0 0 24 24" class="ic ${id === "sun" && active && !iconId ? "spin" : ""}" style="width:24px;height:24px">${iconId ? C_SCENE_ICONS[iconId] : P[id]}</svg></g>
       <text class="val" y="17" id="v-${id}">${value}<tspan class="unit" id="u-${id}">${unit ? " " + unit : ""}</tspan></text>
       ${cap != null ? `<text class="cap" y="${above ? -42 : 50}">${esc(cap)}</text>` : ""}</g>`;
   }
@@ -148,13 +239,14 @@ class EnergipilotCard extends HTMLElement {
     const f = this._flow(), t = this.t, h = f.has, gc = (f.grid || 0) < -30 ? "#3ddc97" : "#6ea8fe", r = 38, c = 2 * Math.PI * r;
     const [pv, pvu] = this._split(f.pv), [ho, hou] = this._split(f.house), [gr, gru] = this._split(f.grid), [ev, evu] = this._split(f.ev);
     const ring = `<circle r="${r}" fill="none" stroke="#a78bfa" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - (f.soc || 0) / 100)}" transform="rotate(-90)" id="soc"/>`;
-    return `<div class="flow"><svg viewBox="-20 -20 400 352"><defs><filter id="g${this._uid}" filterUnits="userSpaceOnUse" x="-40" y="-40" width="480" height="430"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+    const sc = cardSceneInfo(this._hass, this._config);
+    return `<div class="flow">${cardSceneSvg(sc)}<svg class="dia" viewBox="-20 -20 400 352"><defs><filter id="sc-blur2" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="2"/></filter><filter id="sc-blur4" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter><filter id="g${this._uid}" filterUnits="userSpaceOnUse" x="-40" y="-40" width="480" height="430"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
       ${h.pv ? '<path class="base" d="M180 74 L180 116"/>' : ""}${h.grid ? '<path class="base" d="M286 150 L214 150"/>' : ""}
       ${h.battery ? '<path class="base" d="M74 150 L146 150"/>' : ""}${h.ev ? '<path class="base" d="M180 184 L180 228"/>' : ""}
       ${flowBeams(f, "g" + this._uid)}
-      ${h.pv ? this._node("sun", 180, 40, "#f5b544", pv, pvu, t.sun.toUpperCase(), "", true, (f.pv || 0) > 30) : ""}
+      ${h.pv ? this._node("sun", 180, 40, "#f5b544", pv, pvu, t.sun.toUpperCase(), "", true, (f.pv || 0) > 30, cardSunIcon(sc)) : ""}
       ${h.grid ? this._node("grid", 320, 150, gc, gr, gru, (f.grid < -30 ? t.sell : f.grid > 30 ? t.buy : t.grid).toUpperCase(), "", false, Math.abs(f.grid || 0) > 30) : ""}
-      ${this._node("house", 180, 150, "var(--ep-house)", ho, hou, null, "", false, true)}
+      ${this._node("house", 180, 150, "var(--ep-house)", ho, hou, null, cardHouseRing(sc), false, true)}
       ${h.battery ? this._node("battery", 40, 150, "#a78bfa", this._n(f.soc, 0), "%", (f.batt > 30 ? t.charging : f.batt < -30 ? t.discharging : t.idle).toUpperCase(), ring, false, Math.abs(f.batt || 0) > 30) : ""}
       ${h.ev ? this._node("car", 180, 260, "#f472b6", f.ev > 30 ? ev : "–", f.ev > 30 ? evu : "", (f.ev > 30 ? t.charging : f.plug ? t.plugged : t.notPlugged).toUpperCase(), "", false, (f.ev || 0) > 30) : ""}
     </svg></div>`;
@@ -244,7 +336,18 @@ const CSS = `
   ha-card { overflow:hidden; padding:4px 0; }
   .title { font-size:16px; font-weight:600; padding:12px 16px 0; }
   .ic { stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; vertical-align:-3px; }
-  .flow { padding:8px 10px 0; } .flow svg { width:100%; height:auto; display:block; overflow:visible; }
+  .flow { padding:8px 10px 0; position:relative; overflow:hidden; } .flow svg.dia { width:100%; height:auto; display:block; overflow:visible; position:relative; }
+  .flow > svg.scene { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+  .sc-twinkle { animation:sctw 3.2s ease-in-out infinite; } @keyframes sctw { 50% { opacity:.25; } }
+  .sc-breathe { animation:scbr 4s ease-in-out infinite; } @keyframes scbr { 50% { opacity:.12; } }
+  .sc-fall { animation:scfall 12s linear infinite; } @keyframes scfall { from { transform:translate(0,0) rotate(var(--r,0deg)); } to { transform:translate(30px,420px) rotate(calc(var(--r,0deg) + 200deg)); } }
+  .sc-rain { animation:scrain 1.1s linear infinite; } @keyframes scrain { to { transform:translate(-14px,390px); } }
+  .sc-rise { animation:scrise 9s ease-out infinite; } @keyframes scrise { from { transform:translate(0,0); opacity:.8; } to { transform:translate(18px,-300px); opacity:0; } }
+  .sc-float { animation:scfl 12s ease-in-out infinite alternate; } @keyframes scfl { to { transform:translate(22px,-16px); } }
+  .sc-drift { animation:scdr 30s ease-in-out infinite alternate; } @keyframes scdr { to { transform:translateX(40px); } }
+  .sc-burst { animation:scbu 2.8s ease-out infinite; opacity:0; } @keyframes scbu { 0% { transform:scale(.1); opacity:0; } 12% { opacity:1; } 70% { transform:scale(1); opacity:.8; } 100% { transform:scale(1.1); opacity:0; } }
+  .sc-flash { opacity:0; animation:scfla 9s linear infinite; } @keyframes scfla { 0%,93%,100% { opacity:0; } 94% { opacity:.4; } 96% { opacity:.25; } }
+  @media (prefers-reduced-motion: reduce) { .sc-twinkle, .sc-breathe, .sc-fall, .sc-rain, .sc-rise, .sc-float, .sc-drift, .sc-burst, .sc-flash { animation:none !important; } .sc-burst { opacity:.8; } }
   .nbg { fill:var(--secondary-background-color, rgba(127,127,127,.12)); }
   .val { font:650 17px var(--paper-font-body1_-_font-family, system-ui); fill:var(--primary-text-color); text-anchor:middle; letter-spacing:-.02em; }
   .unit { font-size:11px; font-weight:500; fill:var(--secondary-text-color); }

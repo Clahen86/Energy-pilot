@@ -80,8 +80,14 @@ class Cards:
             "price_min": snap["plan"]["price_min"], "price_max": snap["plan"]["price_max"], "cheapest": snap["plan"]["cheapest"],
             "battery_sign": o.battery_sign(),
             "solar": snap["solar"], "house_today": snap["house_today"], "ev": snap["ev"], "version": self.version,
+            # the card dresses its energy picture like the app: only what changes now and then (not the sun's height)
+            "scene": {k: (round(v) if k == "outdoor" and isinstance(v, (int, float)) else v) for k, v in (snap.get("scene") or {}).items()
+                      if k not in ("elevation", "cloud", "wind")} or None,
         }
-        key = json.dumps([decision.get("key"), decision.get("target"), attrs["plan"], attrs["ev"], attrs["roles"], attrs["solar"]],
+        sc = attrs["scene"] or {}
+        key = json.dumps([decision.get("key"), decision.get("target"), attrs["plan"], attrs["ev"], attrs["roles"], attrs["solar"],
+                          sc.get("time"), sc.get("condition"), sc.get("season"), (sc.get("holiday") or {}).get("key"),
+                          sc.get("outdoor") is not None and sc["outdoor"] <= 0],
                          sort_keys=True, default=str)
         if key == self._last and SENSOR in self.ha.states:
             return  # unchanged (after a Home Assistant restart the sensor is gone and is written again)

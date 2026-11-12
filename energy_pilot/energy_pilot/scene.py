@@ -145,5 +145,10 @@ def build(states: dict[str, Any], config: dict[str, Any], now: datetime) -> dict
     except Exception:  # noqa: BLE001 - never let decoration break the page
         _LOGGER.debug("No holiday", exc_info=True)
         hol = None
-    return {"elevation": sun.get("elevation"), "condition": w.get("state"), "cloud": a.get("cloud_coverage"), "wind": wind,
+    try:
+        el = float(sun.get("elevation"))
+        time_ = "day" if el > 6 else "dusk" if el > -6 else "night"
+    except (TypeError, ValueError):
+        time_ = "night" if (states.get("sun.sun") or {}).get("state") == "below_horizon" else "day"
+    return {"elevation": sun.get("elevation"), "time": time_, "condition": w.get("state"), "cloud": a.get("cloud_coverage"), "wind": wind,
             "outdoor": outdoor, "season": season(now.date(), lat), "holiday": hol}
