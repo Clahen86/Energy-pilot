@@ -70,12 +70,30 @@ def _near(country: str, day: date, before: int, after: int, *names: str) -> bool
                 found.add(d)
     return any(d - timedelta(days=before) <= day <= d + timedelta(days=after) for d in found)
 
+def easter(year: int, orthodox: bool = False) -> date:
+    """Easter Sunday - western (Gauss/Meeus) or Orthodox (Julian, given in the Gregorian calendar)."""
+    if orthodox:
+        a, b, c = year % 4, year % 7, year % 19
+        d = (19 * c + 15) % 30
+        e = (2 * a + 4 * b - d + 34) % 7
+        month, day = divmod(d + e + 114, 31)
+        return date(year, month, day + 1) + timedelta(days=year // 100 - year // 400 - 2)  # Julian to Gregorian
+    a, b, c = year % 19, year // 100, year % 100
+    d, e = b // 4, b % 4
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i, k = c // 4, c % 4
+    l_ = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l_) // 451
+    month, day = divmod(h + l_ - 7 * m + 114, 31)
+    return date(year, month, day + 1)
+
+
 def holiday(country: str | None, today: date) -> dict[str, Any] | None:
     """The day's holiday where the home is: {"key", "colours"} - None on an ordinary day."""
     c = (country or "").upper()
     d, dm = today, today.strftime("%d-%m")
-    from dateutil.easter import EASTER_ORTHODOX, EASTER_WESTERN, easter
-
     if (d.month, d.day) in ((12, 31), (1, 1)):
         return {"key": "nytaar", "colours": ["#ff5d8f", "#ffd84d", "#5dd6ff"]}
     if c in NATIONAL and NATIONAL[c][0] == dm:
@@ -93,7 +111,7 @@ def holiday(country: str | None, today: date) -> dict[str, Any] | None:
     if c in EID and _near(c, d, 0, 2, "Eid al-Fitr", "Eid ul-Fitr", "Id-ul-Fitr", "Ramazan", "Hari Raya Puasa", "Lebaran"):
         return {"key": "eid", "colours": COLOURS["eid"]}
     if c not in NO_CHRISTMAS:
-        e = easter(d.year, EASTER_ORTHODOX if c in ORTHODOX else EASTER_WESTERN)
+        e = easter(d.year, c in ORTHODOX)
         if c in CARNIVAL and e - timedelta(days=51) <= d <= e - timedelta(days=47):  # Fastelavn / Rosenmontag / Mardi Gras
             return {"key": "carnival", "colours": ["#ff5d8f", "#ffd84d", "#5dd6ff", "#3ddc84", "#a78bfa"]}
         if e - timedelta(days=7) <= d <= e + timedelta(days=1):

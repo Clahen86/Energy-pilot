@@ -12,7 +12,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
-      - run: pip install pytest pytest-asyncio aiohttp
+      - run: pip install pytest pytest-asyncio aiohttp holidays
       - run: pytest -q tests
 
   docker:
