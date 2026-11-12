@@ -516,9 +516,15 @@ class Overview:
         # What the cars take in each hour (kWh): full speed through the planned slots until what they need is in.
         from . import chargers
 
-        cars = [(res.get("car"), float(self.settings.get("charger_kw") or 7.4))]
-        cars += [(c, float(x.get("charger_kw") or 7.4)) for c, x in zip(res.get("cars") or [], chargers.extras(self.settings))]
-        for plan, kw in cars:
+        # Only chargers Energy Pilot really runs: a charger in shadow is charged by something else (the car's own app,
+        # Octopus, an automation), and Energy Pilot's guess at its slots would show charging that won't happen.
+        ctl = getattr(self, "controller", None)
+        running = (lambda part: ctl.mode(part) == "control") if ctl else (lambda part: False)
+        cars = [(res.get("car"), float(self.settings.get("charger_kw") or 7.4), "car")]
+        cars += [(c, float(x.get("charger_kw") or 7.4), f"car{i + 2}") for i, (c, x) in enumerate(zip(res.get("cars") or [], chargers.extras(self.settings)))]
+        for plan, kw, part in cars:
+            if not running(part):
+                continue
             left = float((plan or {}).get("need_kwh") or 0)
             step = int((plan or {}).get("slot_min") or 60) / 60
             for t in sorted((plan or {}).get("hours", [])):
