@@ -215,6 +215,8 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
         c = overview.controller
         if not c or body.get("part") not in c.parts() or body.get("mode") not in ("shadow", "control", "off"):
             return web.json_response({"error": "bad request"}, status=400)
+        if body["mode"] != "control":
+            await c.hand_back(body["part"])  # leaving control: the inverter back to normal and the owner's settings
         c.set_mode(body["part"], body["mode"])
         await c.tick()
         return web.json_response(c.status())

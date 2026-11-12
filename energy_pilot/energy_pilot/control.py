@@ -80,6 +80,15 @@ class Controller:
     def mode(self, part: str) -> str:
         return ((self.ov.settings.get("control") or {}).get(part)) or "shadow"
 
+    async def hand_back(self, part: str) -> None:
+        """A battery leaving control: normal again and the owner's own settings back (a grid setpoint left selling
+        would go on selling in shadow)."""
+        if self.mode(part) != "control" or not self.is_battery(part) or self.blocked(part):
+            return
+        want = self.intents().get(part)
+        if want:
+            await self._send(self.calls(part, {**want, "intent": "normal"}) + self._restore(part, "normal"))
+
     def set_mode(self, part: str, mode: str) -> None:
         modes = dict(self.ov.settings.get("control") or {})
         modes[part] = mode
@@ -535,12 +544,20 @@ class Controller:
                     e = adapters._find(p, pool)
                     st = (self.ha.states.get(e) or {}).get("state") if e else None
                     if e and st not in (None, "unknown", "unavailable"):
-                        saved[e] = st
+                        saved[e] = "0" if _negative(e, st) else st  # a setpoint already selling is ours, not the owner's
                 if saved != (self.ov.settings.get("restore_values") or {}):
                     self.ov.save({"restore_values": saved})
             return []
         out = []
+        # Not selling any more: a grid setpoint still below 0 keeps the inverter selling (Victron does exactly what it
+        # is told) - back to 0, also when nothing was remembered (an older version kept a selling value as the owner's).
+        for p in pats:
+            e = adapters._find(p, pool)
+            if e and e not in mine and _negative(e, (self.ha.states.get(e) or {}).get("state")):
+                mine[e] = "0"
         for e, v in mine.items():
+            if _negative(e, v):
+                v = "0"
             if e.startswith("select."):
                 out.append({"domain": "select", "service": "select_option", "data": {"entity_id": e, "option": v}})
             elif e.startswith("switch."):
@@ -619,7 +636,7 @@ class Controller:
         wants = self.intents()
         for part in ["battery", *self.bat_parts()]:
             if self.mode(part) == "control" and not self.blocked(part) and (want := wants.get(part)):
-                await self._send(self.calls(part, {**want, "intent": "normal"}))
+                await self._send(self.calls(part, {**want, "intent": "normal"}) + self._restore(part, "normal"))
         modes = {p: "shadow" for p in self.parts()}
         self.ov.save({"control": modes})
         self.last.clear()
@@ -659,3 +676,13 @@ class Controller:
         everything = [e for e in self.ha.states if e.split(".")[0] in ("select", "number", "switch", "button", "time")]
         out["profile"]["all_controls"] = sorted(own) + sorted(e for e in everything if e not in own)
         return out
+
+
+def _negative(entity: str, value: Any) -> bool:
+    """A grid setpoint below 0: the inverter sells to the grid."""
+    if not entity.startswith("number.") or not re.search(r"grid_set_?point|acpowersetpoint", entity):
+        return False
+    try:
+        return float(value) < 0
+    except (TypeError, ValueError):
+        return False
