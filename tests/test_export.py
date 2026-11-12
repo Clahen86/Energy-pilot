@@ -47,3 +47,38 @@ def test_built_in_profiles_can_sell():
     c.ov = SimpleNamespace(settings={"inverter_profile": "victron"})
     c.profile_key = lambda *a: "victron"
     assert "export" in c.profile_steps()
+
+
+def iog_night():
+    # Intelligent Go + Agile Outgoing: buy 3.8p at night and 26.7p by day; export pays 17p at night, 25p at the peak
+    t = datetime(2026, 11, 12, 23, tzinfo=ZoneInfo("Europe/London"))
+    out = []
+    for i in range(24):
+        start = t + timedelta(hours=i)
+        night = start.hour < 6
+        out.append(Hour(start, 0.038 if night else 0.267, 0.25 if start.hour in (16, 17, 18) else 0.17, 0.8, 0.0))
+    return out
+
+
+def test_cheap_slots_are_the_night_of_a_night_tariff():
+    from energy_pilot.engine import cheap_slots
+
+    h = iog_night()
+    assert cheap_slots(h) == frozenset(x.start for x in h if x.price < 0.1)
+    assert cheap_slots([Hour(T0, 0.25, 0.0, 0.5, 0.0), Hour(T0 + timedelta(hours=1), 0.25, 0.0, 0.5, 0.0)]) == frozenset()
+
+
+def test_no_selling_in_the_cheap_hours_when_asked():
+    from dataclasses import replace
+
+    from energy_pilot.engine import cheap_slots
+
+    h = iog_night()
+    b = Battery(capacity_kwh=32, max_charge_kw=8, max_discharge_kw=5.2, export=True, wear=0.015, efficiency=0.8)
+    free = plan_battery(h, 60, b, end_value=0.1)
+    cheap = cheap_slots(h)
+    assert any(s.action == "export" and s.start in cheap for s in free.steps)  # arbitrage at night when allowed
+    kept = plan_battery(h, 60, replace(b, no_export=cheap), end_value=0.1)
+    assert not any(s.action == "export" and s.start in cheap for s in kept.steps)
+    assert any(s.action == "charge_grid" for s in kept.steps)  # it still charges on the cheap power
+    assert any(s.action == "export" and s.start.hour in (16, 17, 18) for s in kept.steps)  # and sells at the peak

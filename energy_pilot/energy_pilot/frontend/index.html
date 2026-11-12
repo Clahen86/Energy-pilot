@@ -443,6 +443,16 @@ const T_EXTRA = {"de": {"btg": {"title": "Ziele für die Batterie", "hint": "Min
 const T_EVSUN = {"da": {"gridTo": "Fra nettet op til", "gridToH": "Strøm fra nettet stopper her – 80 % skåner batteriet", "sunTo": "Med solen op til", "sunToH": "Gratis overskud fra solen må fylde mere på", "same": "Samme"}, "en": {"gridTo": "From the grid up to", "gridToH": "Power from the grid stops here – 80 % spares the battery", "sunTo": "With the sun up to", "sunToH": "Free surplus from the sun may fill it further", "same": "Same"}, "de": {"gridTo": "Aus dem Netz bis", "gridToH": "Netzstrom stoppt hier – 80 % schont die Batterie", "sunTo": "Mit Sonne bis", "sunToH": "Kostenloser Solarüberschuss darf weiter füllen", "same": "Gleich"}, "fr": {"gridTo": "Depuis le réseau jusqu'à", "gridToH": "Le courant du réseau s'arrête ici – 80 % ménage la batterie", "sunTo": "Avec le soleil jusqu'à", "sunToH": "Le surplus solaire gratuit peut remplir davantage", "same": "Pareil"}, "nl": {"gridTo": "Van het net tot", "gridToH": "Netstroom stopt hier – 80 % spaart de accu", "sunTo": "Met de zon tot", "sunToH": "Gratis zonne-overschot mag verder vullen", "same": "Gelijk"}, "sv": {"gridTo": "Från nätet upp till", "gridToH": "Nätström stannar här – 80 % skonar batteriet", "sunTo": "Med solen upp till", "sunToH": "Gratis solöverskott får fylla mer", "same": "Samma"}, "nb": {"gridTo": "Fra nettet opp til", "gridToH": "Strøm fra nettet stopper her – 80 % skåner batteriet", "sunTo": "Med solen opp til", "sunToH": "Gratis overskudd fra solen kan fylle mer", "same": "Samme"}};
 const T = deepMerge(deepMerge(T_ALL.en, T_EXTRA[L] || {}), T_ALL[L] || {});
 Object.assign(T.evs, T_EVSUN[L] || T_EVSUN.en);
+const T_NOEXP = {
+  da: { noExpCheap: "Sælg ikke i de billige timer", noExpCheapH: "Når strømmen er billig, lader batteriet kun – det sælger først, når prisen er høj" },
+  en: { noExpCheap: "Don't sell in the cheap hours", noExpCheapH: "While power is cheap the battery only charges – it sells when the price is high" },
+  de: { noExpCheap: "In den günstigen Stunden nicht verkaufen", noExpCheapH: "Solange Strom günstig ist, lädt die Batterie nur – verkauft wird erst bei hohem Preis" },
+  fr: { noExpCheap: "Ne pas vendre aux heures creuses", noExpCheapH: "Quand l'électricité est bon marché, la batterie ne fait que charger – elle vend quand le prix est élevé" },
+  nl: { noExpCheap: "Niet verkopen in de goedkope uren", noExpCheapH: "Zolang stroom goedkoop is laadt de batterij alleen – verkopen pas als de prijs hoog is" },
+  sv: { noExpCheap: "Sälj inte under de billiga timmarna", noExpCheapH: "När elen är billig laddar batteriet bara – det säljer när priset är högt" },
+  nb: { noExpCheap: "Ikke selg i de billige timene", noExpCheapH: "Når strømmen er billig lader batteriet bare – det selger når prisen er høy" },
+};
+Object.assign(T.y, T_NOEXP[L] || T_NOEXP.en);
 const T_SW = {
   da: { t: "Styring", h: "Kontakten der starter og stopper laderen", auto: "Find selv", used: "Bruger: {x}", none: "Ingen fundet – vælg kontakten, der tænder laderen", onoff: "Kun tænd/sluk: lader med fuld effekt – på sol kun når der er nok til det hele" },
   en: { t: "Control", h: "The switch that starts and stops the charger", auto: "Find by itself", used: "Using: {x}", none: "None found – pick the switch that turns the charger on", onoff: "On/off only: charges at full power – on sun only when there's enough for all of it" },
@@ -963,6 +973,7 @@ function styleView() {
       ${row(y.grid, y.gridH, tog("grid_charge", true))}
       ${row(y.export, y.exportH, tog("battery_export"))}
       ${v.battery_export ? row(y.exportLimit, y.exportLimitH, numIn("export_limit_kw", "", "0.1", "kW")) : ""}
+      ${v.battery_export ? row(y.noExpCheap, y.noExpCheapH, tog("battery_no_export_cheap")) : ""}
       ${(v.batteries || []).length ? `<h4 class="bathead">${T.bat.n.replace("{n}", 1)}</h4>` : ""}
       ${row(y.size, (v.batteries || []).length ? "" : capHint(v), `<span class="capbox">${numIn("battery_kwh", settings.capacity_learned ?? settings.capacity_guess ?? 10, "0.1", "kWh")}${
         settings.capacity_learned && v.battery_kwh && Math.abs(v.battery_kwh - settings.capacity_learned) / settings.capacity_learned > 0.05

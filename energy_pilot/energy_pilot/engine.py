@@ -111,6 +111,7 @@ class Battery:
     export_limit_kw: float | None = None  # what may be sent to the grid
     taper: tuple = ()  # (from level, share of the charge power it really takes) - learned; most slow down near full
     no_discharge: frozenset = frozenset()  # slots the battery must not discharge in (the car charges on cheap power)
+    no_export: frozenset = frozenset()  # slots the battery must not sell in (the user keeps the cheap hours for charging)
     peak_kw: float | None = None  # power tariff: the month's peak so far - buying more costs peak_price per kW
     peak_price: float = 0.0
     targets: tuple = ()  # (hour, minute, soc %): the user wants at least this much in the battery at that time, every day
@@ -183,6 +184,16 @@ def target_levels(hours: list[Hour], targets: tuple) -> dict[int, float]:
     return req
 
 
+def cheap_slots(hours: list[Hour], share: float = 0.25) -> frozenset:
+    """The cheap slots: a buy price in the lowest quarter of the span between the cheapest and the dearest.
+    On a night tariff (Intelligent Go, Economy 7) that is the night; with flat prices nothing is cheap."""
+    prices = [h.price for h in hours]
+    if not prices or max(prices) - min(prices) < 1e-6:
+        return frozenset()
+    cut = min(prices) + share * (max(prices) - min(prices))
+    return frozenset(h.start for h in hours if h.price <= cut + 1e-9)
+
+
 def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float | None = None, step_pct: float | None = None) -> Plan:
     """The cheapest way through the hours, starting at soc_now (%)."""
     if not hours:
@@ -239,7 +250,7 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
                     need = max(0.0, h.house - h.sun)
                     action = "discharge"
                     if out > need + 1e-9:
-                        if b.export and h.sell > 0:
+                        if b.export and h.sell > 0 and h.start not in b.no_export:
                             action = "export"  # sells what the house doesn't use
                         elif k != j - 1 or need <= 0:
                             continue  # no exporting from the battery
@@ -1012,6 +1023,10 @@ class Engine:
                 from dataclasses import replace
 
                 b = replace(b, no_discharge=frozenset(pre["set"]))
+            if st.get("battery_no_export_cheap"):
+                from dataclasses import replace
+
+                b = replace(b, no_export=cheap_slots(hours))  # no selling while power is cheap - only charging
             end_value = end_price(hours, b) * L.end_factor
             p = plan_battery(hours, f["soc"], b, end_value=end_value)
             # A daily cap on paid feed-in (15 kWh a day, say): what is sold past it earns nothing - the best-paid

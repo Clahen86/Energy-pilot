@@ -90,8 +90,11 @@ def run(engine: Any, hours: list, b: Any, plan: Any, end_value: float) -> list[d
             out.append({"key": "export_no_price", "level": "warn", "vals": {}, "fix": {"sell": True}, "goto": "grid"})
         elif plan is not None and hours and not any(s.action == "export" for s in plan.steps):
             best = max(h.sell for h in hours)
+            # What the power in the battery saves: the cheapest hour the plan lets the battery cover the house in.
+            price = {h.start: h.price for h in hours}
+            used = [price[x.start] for x in plan.steps if x.action == "discharge" and x.start in price]
             buys = sorted(h.price for h in hours)
-            worth = buys[len(buys) // 2]
+            worth = min(used) if used else buys[len(buys) // 2]  # kept for later: about a usual hour's price
             if best < worth:  # otherwise something else holds it back - nothing plain to say
                 out.append({"key": "export_no_gain", "level": "info", "vals": {"sell": round(best, 2), "worth": round(worth, 2)}})
 
