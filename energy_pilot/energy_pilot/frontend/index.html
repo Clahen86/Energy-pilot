@@ -515,11 +515,14 @@ function node(id, x, y, color, value, unit, caption, extra = "", capPos = "below
     <text class="n-val" y="17" id="v-${id}">${value}<tspan class="n-unit" id="u-${id}">${unit ? " " + unit : ""}</tspan></text>
     ${caption != null ? `<text class="n-cap" y="${capY}" id="c-${id}">${caption}</text>` : ""}</g>`;
 }
+// below this the inverter is only trimming (zero export, a battery topping up the gap): shown as idle, not as selling
+const NOISE_W = 100;
+const quiet = (w) => (w == null || Math.abs(w) < NOISE_W ? 0 : w);
 function flowPaths(f) {
   // Who feeds whom (W): the sun first to the house, then the car, the battery, the grid; the battery to the house and
   // the car; the grid covers the rest.
-  const src = { pv: Math.max(0, f.pv || 0), batt: Math.max(0, -(f.battery ?? f.batt ?? 0)), grid: Math.max(0, f.grid || 0) };
-  const need = { house: Math.max(0, f.house || 0), ev: Math.max(0, f.ev || 0), batt: Math.max(0, f.battery ?? f.batt ?? 0), grid: Math.max(0, -(f.grid || 0)) };
+  const src = { pv: Math.max(0, f.pv || 0), batt: Math.max(0, -quiet(f.battery ?? f.batt)), grid: Math.max(0, quiet(f.grid)) };
+  const need = { house: Math.max(0, f.house || 0), ev: Math.max(0, f.ev || 0), batt: Math.max(0, quiet(f.battery ?? f.batt)), grid: Math.max(0, -quiet(f.grid)) };
   const out = {};
   for (const s of ["pv", "batt", "grid"]) {
     for (const d of ["house", "ev", "batt", "grid"]) {
@@ -661,20 +664,20 @@ function sceneSvg() {
 }
 
 function flowSvg(f) {
-  const h = f.has, gridCol = (f.grid || 0) < -30 ? "var(--sell)" : "var(--grid)";
+  const h = f.has, gridCol = (f.grid || 0) < -NOISE_W ? "var(--sell)" : "var(--grid)";
   const soc = f.soc ?? 0, r = 38, circ = 2 * Math.PI * r;
   const socRing = `<circle r="${r}" fill="none" stroke="var(--batt)" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="${circ}" stroke-dashoffset="${circ * (1 - soc / 100)}" transform="rotate(-90)" id="socring"/>`;
   const [pv, pvu] = split(f.pv), [ho, hou] = split(f.house), [gr, gru] = split(f.grid), [ev, evu] = split(f.ev);
-  const battCap = f.battery > 30 ? `${T.charging}` : f.battery < -30 ? `${T.discharging}` : T.idle;
+  const battCap = f.battery > NOISE_W ? `${T.charging}` : f.battery < -NOISE_W ? `${T.discharging}` : T.idle;
   const sc = sceneInfo();
   return `<svg viewBox="-20 -20 400 352"><defs><filter id="sc-blur2" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="2"/></filter><filter id="sc-blur4" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter><filter id="glow" filterUnits="userSpaceOnUse" x="-40" y="-40" width="480" height="430"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
     ${h.pv ? '<path class="base" d="M180 74 L180 116"/>' : ""}${h.grid ? '<path class="base" d="M286 150 L214 150"/>' : ""}
     ${h.battery ? '<path class="base" d="M74 150 L146 150"/>' : ""}${h.ev ? '<path class="base" d="M180 184 L180 228"/>' : ""}
     ${flowBeams(f, "glow")}
     ${h.pv ? node("sun", 180, 40, "var(--sun)", pv, pvu, T.sun.toUpperCase(), "", "above", (f.pv || 0) > 30, sunIcon(sc)) : ""}
-    ${h.grid ? node("grid", 320, 150, gridCol, gr, gru, (f.grid < -30 ? T.sell : f.grid > 30 ? T.buy : T.grid).toUpperCase(), "", "below", Math.abs(f.grid || 0) > 30) : ""}
+    ${h.grid ? node("grid", 320, 150, gridCol, gr, gru, (f.grid < -NOISE_W ? T.sell : f.grid > NOISE_W ? T.buy : T.grid).toUpperCase(), "", "below", Math.abs(f.grid || 0) > NOISE_W) : ""}
     ${node("house", 180, 150, "var(--house)", ho, hou, null, houseRing(sc), "below", true)}
-    ${h.battery ? node("battery", 40, 150, "var(--batt)", `${num(f.soc, 0)}`, "%", `${battCap} ${f.battery && Math.abs(f.battery) > 30 ? kw(f.battery) : ""}`.trim().toUpperCase(), socRing, "below", Math.abs(f.battery || 0) > 30) : ""}
+    ${h.battery ? node("battery", 40, 150, "var(--batt)", `${num(f.soc, 0)}`, "%", `${battCap} ${f.battery && Math.abs(f.battery) > NOISE_W ? kw(f.battery) : ""}`.trim().toUpperCase(), socRing, "below", Math.abs(f.battery || 0) > NOISE_W) : ""}
     ${h.ev ? node("car", 180, 260, "var(--car)", f.ev > 30 ? ev : "–", f.ev > 30 ? evu : "", (f.ev > 30 ? T.charging : f.plug ? T.plugged : T.notPlugged).toUpperCase(), "", "below", (f.ev || 0) > 30) : ""}
   </svg>`;
 }
@@ -1229,7 +1232,7 @@ function patch() {
   setv("sun", split(f.pv)); setv("house", split(f.house)); setv("grid", split(f.grid)); setv("battery", [num(f.soc, 0), "%"]);
   if (f.ev > 30) setv("car", split(f.ev));
   const c = document.getElementById("c-battery");
-  if (c) c.textContent = `${f.battery > 30 ? T.charging : f.battery < -30 ? T.discharging : T.idle} ${f.battery && Math.abs(f.battery) > 30 ? kw(f.battery) : ""}`.trim().toUpperCase();
+  if (c) c.textContent = `${f.battery > NOISE_W ? T.charging : f.battery < -NOISE_W ? T.discharging : T.idle} ${f.battery && Math.abs(f.battery) > NOISE_W ? kw(f.battery) : ""}`.trim().toUpperCase();
   const tp = document.getElementById("t-price"); if (tp && tp.firstChild) tp.firstChild.nodeValue = num(data.price.now, 2);
   const ts = document.getElementById("t-soc"); if (ts && ts.firstChild) ts.firstChild.nodeValue = num(f.soc, 0);
   const sb = document.getElementById("t-socbar"); if (sb) sb.style.width = `${f.soc}%`;

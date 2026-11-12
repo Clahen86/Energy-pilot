@@ -40,11 +40,14 @@ const ic = (n, size = 16) => `<svg class="ic" style="width:${size}px;height:${si
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 /* ---------- energy flow: every real path (sun→battery, grid→battery, battery→car …), shared by panel and card ---------- */
+// below this the inverter is only trimming (zero export, a battery topping up the gap): shown as idle, not as selling
+const NOISE_W = 100;
+const quiet = (w) => (w == null || Math.abs(w) < NOISE_W ? 0 : w);
 function flowPaths(f) {
   // Who feeds whom (W): the sun first to the house, then the car, the battery, the grid; the battery to the house and
   // the car; the grid covers the rest.
-  const src = { pv: Math.max(0, f.pv || 0), batt: Math.max(0, -(f.battery ?? f.batt ?? 0)), grid: Math.max(0, f.grid || 0) };
-  const need = { house: Math.max(0, f.house || 0), ev: Math.max(0, f.ev || 0), batt: Math.max(0, f.battery ?? f.batt ?? 0), grid: Math.max(0, -(f.grid || 0)) };
+  const src = { pv: Math.max(0, f.pv || 0), batt: Math.max(0, -quiet(f.battery ?? f.batt)), grid: Math.max(0, quiet(f.grid)) };
+  const need = { house: Math.max(0, f.house || 0), ev: Math.max(0, f.ev || 0), batt: Math.max(0, quiet(f.battery ?? f.batt)), grid: Math.max(0, -quiet(f.grid)) };
   const out = {};
   for (const s of ["pv", "batt", "grid"]) {
     for (const d of ["house", "ev", "batt", "grid"]) {
@@ -236,7 +239,7 @@ class EnergipilotCard extends HTMLElement {
       ${cap != null ? `<text class="cap" y="${above ? -42 : 50}">${esc(cap)}</text>` : ""}</g>`;
   }
   _flowHtml() {
-    const f = this._flow(), t = this.t, h = f.has, gc = (f.grid || 0) < -30 ? "#3ddc97" : "#6ea8fe", r = 38, c = 2 * Math.PI * r;
+    const f = this._flow(), t = this.t, h = f.has, gc = (f.grid || 0) < -NOISE_W ? "#3ddc97" : "#6ea8fe", r = 38, c = 2 * Math.PI * r;
     const [pv, pvu] = this._split(f.pv), [ho, hou] = this._split(f.house), [gr, gru] = this._split(f.grid), [ev, evu] = this._split(f.ev);
     const ring = `<circle r="${r}" fill="none" stroke="#a78bfa" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - (f.soc || 0) / 100)}" transform="rotate(-90)" id="soc"/>`;
     const sc = cardSceneInfo(this._hass, this._config);
@@ -245,9 +248,9 @@ class EnergipilotCard extends HTMLElement {
       ${h.battery ? '<path class="base" d="M74 150 L146 150"/>' : ""}${h.ev ? '<path class="base" d="M180 184 L180 228"/>' : ""}
       ${flowBeams(f, "g" + this._uid)}
       ${h.pv ? this._node("sun", 180, 40, "#f5b544", pv, pvu, t.sun.toUpperCase(), "", true, (f.pv || 0) > 30, cardSunIcon(sc)) : ""}
-      ${h.grid ? this._node("grid", 320, 150, gc, gr, gru, (f.grid < -30 ? t.sell : f.grid > 30 ? t.buy : t.grid).toUpperCase(), "", false, Math.abs(f.grid || 0) > 30) : ""}
+      ${h.grid ? this._node("grid", 320, 150, gc, gr, gru, (f.grid < -NOISE_W ? t.sell : f.grid > NOISE_W ? t.buy : t.grid).toUpperCase(), "", false, Math.abs(f.grid || 0) > NOISE_W) : ""}
       ${this._node("house", 180, 150, "var(--ep-house)", ho, hou, null, cardHouseRing(sc), false, true)}
-      ${h.battery ? this._node("battery", 40, 150, "#a78bfa", this._n(f.soc, 0), "%", (f.batt > 30 ? t.charging : f.batt < -30 ? t.discharging : t.idle).toUpperCase(), ring, false, Math.abs(f.batt || 0) > 30) : ""}
+      ${h.battery ? this._node("battery", 40, 150, "#a78bfa", this._n(f.soc, 0), "%", (f.batt > NOISE_W ? t.charging : f.batt < -NOISE_W ? t.discharging : t.idle).toUpperCase(), ring, false, Math.abs(f.batt || 0) > NOISE_W) : ""}
       ${h.ev ? this._node("car", 180, 260, "#f472b6", f.ev > 30 ? ev : "–", f.ev > 30 ? evu : "", (f.ev > 30 ? t.charging : f.plug ? t.plugged : t.notPlugged).toUpperCase(), "", false, (f.ev || 0) > 30) : ""}
     </svg></div>`;
   }
@@ -259,7 +262,7 @@ class EnergipilotCard extends HTMLElement {
   _batteryHtml(inline = false) {
     const f = this._flow(), d = this._hass.states[SENSOR].attributes.decision || {}, t = this.t;
     if (f.soc == null) return "";
-    const state = f.batt > 30 ? `${t.charging} ${this._split(f.batt).join(" ")}` : f.batt < -30 ? `${t.discharging} ${this._split(f.batt).join(" ")}` : t.idle;
+    const state = f.batt > NOISE_W ? `${t.charging} ${this._split(f.batt).join(" ")}` : f.batt < -NOISE_W ? `${t.discharging} ${this._split(f.batt).join(" ")}` : t.idle;
     return `<div class="${inline ? "sec" : "pad"}"><div class="eyebrow">${ic("battery")} ${t.battery}<span>${d.target != null ? `${t.target} ${this._n(d.target, 0)} %` : ""}</span></div>
       <div class="big"><span id="bsoc">${this._n(f.soc, 0)}</span><small>%</small> <em>${esc(state)}</em></div><div class="bar"><span id="bbar" style="width:${f.soc}%"></span></div></div>`;
   }
