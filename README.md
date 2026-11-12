@@ -1,238 +1,176 @@
-# Energipilot · Energy Pilot
+<div align="center">
 
-**Your home battery, solar panels and electric car – planned for the lowest price, in one app for Home Assistant
-that learns your home and gets better every night.** It always starts in *shadow*: it shows what it would do, but
-controls nothing until you say so.
+# ⚡ Energy Pilot
 
-> 🧪 **Beta testers wanted.** Any setup counts – just an EV charger, just solar, or battery + solar + car. I especially
-> need people with other inverters and chargers than mine. [Open an issue](https://github.com/Clahen86/Energy-pilot/issues)
+**Your home battery, solar panels and electric car – planned for the lowest price.**<br>
+One app for Home Assistant that finds what you have, learns your home and gets better every night.
+
+[![Version](https://img.shields.io/github/v/tag/Clahen86/Energy-pilot?label=version&color=7c6cff)](https://github.com/Clahen86/Energy-pilot/releases)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-app-41BDF5?logo=homeassistant&logoColor=white)](#install)
+[![Languages](https://img.shields.io/badge/languages-7-3ddc97)](#good-to-know)
+[![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
+
+[Install](#install) · [Features](#features) · [Dashboard cards](#dashboard-cards) · [Brands](#brands) · [FAQ](#faq) · 🇩🇰 [Dansk](README.da.md)
+
+![Energy Pilot](docs/hero_en.png)
+
+</div>
+
+> [!TIP]
+> **🧪 Beta testers wanted.** Any setup counts – just a charger, just solar, or battery + solar + car. I especially need
+> people with other inverters and chargers than mine. [Open an issue](https://github.com/Clahen86/Energy-pilot/issues)
 > and tell me what you have.
 
-![Energy Pilot](docs/screens_en.png)
+## Why Energy Pilot
 
-## Set up in two minutes
+| | |
+|---|---|
+| 🔍 **Set up in two minutes** | It finds your solar, battery, grid, house, car and prices by itself. No YAML, no templates. |
+| 👻 **Safe from the start** | It always starts in *shadow*: it shows what it would do, but controls nothing until you say so. |
+| 🧠 **Learns your home** | A simple forecast from day one, and ML models trained every night on your own data take over when they hit better. |
+| ⏱️ **Plans in quarter hours** | Uses the market's own slots (15 min in Europe, 30 min on UK Agile), so the cheapest quarters are used. |
+| 💰 **Shows what it saved** | Measured from what you really bought and sold, against the same house and sun without the battery. |
+| 🔒 **Stays at home** | Runs on a Raspberry Pi next to Home Assistant. No cloud, no subscription, no telemetry. |
 
-1. Add the repository and install the app (see [Install](#install)).
-2. Open **Energipilot** in the sidebar. It has already looked through your Home Assistant – the Energy dashboard,
-   known integrations and sensor names – and shows what it found: solar, battery, grid, house, car, prices.
-3. Fix anything that's wrong with a tap, and press **Get started**.
+## Install
 
-No YAML, no files to edit, no templates to write. Weather, spot prices for 26 European countries, a solar forecast and
-holidays are built in, so it works even if you have nothing but a power sensor.
+**Home Assistant OS / Supervised**
+
+1. *Settings → Apps → App store → ⋮ → Repositories* → add `https://github.com/Clahen86/Energy-pilot`
+2. Install **Energipilot** and start it. It appears in the sidebar.
+3. The guide shows what it found. Fix anything that's wrong and press **Get started**.
+4. Restart Home Assistant once. *Energipilot* then appears under *Devices & services* with buttons and sensors.
+
+**Docker (Home Assistant Container/Core):** see [`docker/docker-compose.yml`](docker/docker-compose.yml). Give it your
+Home Assistant address and a long-lived access token, and open `http://<host>:8099`.
 
 ## How it works
 
-1. **It finds what you have** and only shows that. No battery? No battery screens.
-2. **It makes a plan** for today and tomorrow: when to charge the battery (cheap power or too much sun), when to use
-   it (dear power), and when to charge the car (sun first, then the cheapest slots before it must be ready).
-3. **It runs in shadow** next to whatever you use today and shows what it would send to your inverter and charger.
-4. **It learns every night** from what really happened (see below).
+1. **Finds what you have** – and only shows that. No battery? No battery screens.
+2. **Makes a plan** for today and tomorrow – when to charge the battery, when to use it, when to charge the car.
+3. **Runs in shadow** next to what you use today and shows what it would send to your inverter and charger.
+4. **Learns every night** from what really happened.
 5. **You switch it on** part by part – battery, car – when you trust it. One tap puts everything back in shadow.
 
-## It learns your home
+## Features
 
-Most energy planners use a fixed formula. Energy Pilot uses two ways of forecasting side by side, and lets the better
-one decide:
+### 🔋 Home battery
+- Charges when power is cheap or the sun gives too much, and covers the house when power is dear.
+- **Sells from the battery when it pays** (optional) – after losses, wear and your export limit. It can skip the cheap hours.
+- **Battery targets** – "at least 80 % at 7:00", every day.
+- **Counts the wear** – finds the battery type (LFP, NMC, sodium, lead) and never cycles it for a few cents.
+- **Learns the battery** – its real usable capacity, efficiency and how it slows down near full.
+- **Never half a command** – if a control is missing, it doesn't control and tells you what's missing.
+- **Keeps its settings in place** – and tells you if Predbat or an automation keeps changing the battery too.
 
-- **From day one:** a simple forecast – the average for each hour and weekday from your own history, adjusted for
-  temperature and holidays. Good enough to start, so new users aren't waiting for a model to train.
-- **As it earns it:** ML models trained every night on *your* data, in your home:
-  - **house use** – hour, weekday, day off, temperature
-  - **solar** – sunlight, cloud, temperature and time of year, so it learns your panels, their direction and shade
-  - **tomorrow's prices before they're out** (around 13:00) – wind, sun, weekday and recent prices
-- **Every night** both are checked against what really happened. The ML model's share moves towards what it has
-  earned: nothing until it has three weeks of data, half when the two hit equally well, more when it's better. If it
-  starts to miss – a new heat pump, a new car – its share goes down again by itself.
-- **It also learns** how far off the solar forecast usually is on cloudy and clear days, a safety margin for the dear
-  hours, the battery's real usable capacity and efficiency (labels often say more than what's usable, and batteries wear),
-  and the car's habits (when it leaves, how much it takes). What you set
-  yourself always wins.
-- **Power tariffs** (Belgium, Norway, Sweden) – enter the price per kW and it keeps track of the month's peak itself,
-  shaves the peaks with the battery and charges the car beside them.
-- **Counts the wear** – finds the battery type by itself (LFP, NMC, sodium or lead – from the inverter's setting or the battery's
-  model) and works out the wear per kWh, so the battery isn't cycled for a few cents. What the battery cost can be entered under Advanced.
+### 🚗 Car and charger
+- **Follows the sun** minute by minute (6 A and up) and **never trips the main fuse**.
+- **Ready at** a set time, charged in the cheapest slots before it.
+- **Two limits** – from the grid up to, say, 80 %, and free solar surplus up to 100 %.
+- **The car's own battery %** from its integration (Tesla, Kia/Hyundai, VW group, BMW, Polestar, Volvo …).
+- **"100 % for the next trip"** – turns itself off when the car leaves.
+- **Never counted twice** – if your house sensor includes the car, it takes it out.
 
-The panel shows who decides right now and how well each one hits:
+### 🧠 It learns your home
 
-![Who makes the forecast](docs/plan_en.png)
+Two ways of forecasting side by side, and the better one decides:
 
-## What only Energy Pilot does
+- **From day one:** the average for each hour and weekday from your own history, adjusted for temperature and holidays.
+- **As it earns it:** ML models for house use, solar (your panels, direction and shade) and tomorrow's prices before
+  they're out. They get no say for the first three weeks, then a share that follows how well they hit. If they start
+  to miss – a new heat pump, a new car – their share drops again by itself.
+- **Also learned:** the solar forecast's usual error on cloudy and clear days, a safety margin for the dear hours, and
+  the car's habits.
 
-- **Simple and ML, blended by results** – works from day one and gets better on its own, instead of either a fixed
-  formula or a model that needs months before it's useful.
-- **Quarter-hour planning** – Europe's prices change every 15 minutes since October 2025. Energy Pilot plans in the
-  market's own slots (quarter hours in Europe, half hours on UK Agile, hours elsewhere), so the battery and car use the
-  cheapest quarters inside an hour.
-- **What the battery really saved** – measured from what you bought and sold, against the same house and sun without
-  the battery. And what the power in the battery cost (grid power at the price paid, solar free or at the sell price).
-- **Never half a command** – if a control your inverter profile needs is missing, it won't control at all and tells you
-  what's missing. A control test in *Shadow* shows every control it found.
-- **The car follows the sun and minds the fuse** – the charging current follows the solar surplus minute by minute (6 A
-  and up), and the car is turned down so the house never buys more than your main fuse allows.
-- **The car's own battery level** – found from the car's integration (Tesla, Kia/Hyundai, VW/Skoda/Audi/Cupra, BMW,
-  Mercedes, Renault, Polestar, Volvo, Toyota, MG, BYD, OCPP …; never a phone, a sensor or the car's 12 V battery). It
-  charges to your target (80 % spares the battery) and stops there; **"100 % for the next trip"** fills it in the cheapest
-  hours before you leave and turns itself off when the car leaves. The car's battery size is learned from the charges.
-- **The car is never counted twice** – if your house sensor includes the car, it notices from the hours the car charged
-  and takes it out (every charger), so the house forecast and the battery plan stay right.
-- **Two limits for the car** – charge from the grid up to, say, 80 %, and let the sun's surplus fill it to 100 % for free.
-- **No house sensor needed** – without one, it works out the house's use from the history of your grid, solar,
-  battery and car meters, and learns your daily shape straight away.
-- **Any solar forecast** – Solcast, Open-Meteo Solar Forecast, or whatever is set up in Home Assistant's Energy
-  dashboard (Forecast.Solar and the rest). With none, it makes its own from the weather and your panels' history.
-- **Fits odd setups** – several solar arrays and forecasts are added up, it finds which way your battery's power number
-  goes (Fox ESS counts discharging as positive), and a changing feed-in price (Amber, Octopus export, net-billing) can
-  come from a sensor – or from your own tariff plan, with feed-in prices by time of day (e.g. 15c from 6–9pm) and a
-  daily cap on paid feed-in. Can't find your sensor in a list? Search for any of them.
-- **Runs your own system in shadow** – already have an energy setup in AppDaemon? Energy Pilot can run it unchanged next
-  to its own engine and show how often they agree.
-- **Lives inside Home Assistant** – a sidebar panel, dashboard cards, and buttons and sensors (*Charge now*, *Ready at*,
-  *Saved today*, *Battery power cost* …) for your own automations. *Battery control* and *Car control* (Shadow /
-  Control / Off) let an automation switch Energy Pilot on and off.
-- **Keeps its settings in place** – a setting that goes back by itself (Victron puts its defaults back) is set again
-  at once, and if something else keeps changing the battery – Predbat, an automation – the self-check tells you, so
-  the two don't work against each other.
-- **Runs on a Raspberry Pi** – right next to Home Assistant, no cloud, no subscription. Even the ML models are trained
-  at home, in a few seconds a night (about 180 MB RAM).
-- **No telemetry** – nothing about you or your home ever leaves your house.
-- **Off-grid too** – no grid and no prices? The generator becomes the "grid": it runs before the battery would fall
-  below your reserve (using the sun and house forecast ahead), in long runs, not in the quiet hours unless it must, and
-  always at the emergency level.
-- **Sells from the battery when it pays** (optional) – with a great export rate it sells what the house doesn't need,
-  keeps enough for the dear hours, and counts the battery's wear (worked out for you), losses and your export limit.
-- **Octopus Agile: Agile Predict built in** – in the UK the coming Agile prices come from Agile Predict (trained on
-  the whole market, region found from your tariff) until the real ones are out.
-- **More than one home battery** – a SolarEdge and a Victron, say: found by itself (or added under House battery),
-  planned as one battery with the sizes and powers added up, each shown on its own. Each battery is controlled through its own inverter (found by itself, or picked in its box), starts in shadow and is put in control on its own; the power is shared by what each can take.
-- **More than one charger** – two KEBA boxes, say: found by itself (or added under Car and charger), each car with
-  its own "charge now", "ready at" and "at most", planned on its own and all kept under the main fuse. Each charger starts in shadow and can be put in control on its own (Shadow page); charger 1 comes first – the sun's surplus and the room under the fuse go to it, and the others are turned down first.
+<p align="center"><img src="docs/learn_en.png" width="380" alt="What it has learned"></p>
 
-![Two batteries and two chargers](docs/multi_en.png)
+### 🏠 Inside Home Assistant
+- A sidebar panel in 7 languages, in light and dark – with the real weather, seasons and holidays on the energy picture.
+- **Dashboard cards** for the energy flow, battery, car and plan.
+- **Sensors** for your own automations: the decision now, next battery charge, next car charge, next sale, **cheapest
+  hour** (start the dishwasher then), what the battery saved and what the power in it cost.
+- **Buttons and switches:** *Charge now*, *Ready at*, and *Battery/Car control* (Shadow / Control / Off).
+- **A settings check** that explains in plain words when a setting spoils the plan, with a one-tap fix.
 
-- **Checks your settings** – a setting that spoils the plan (an import limit that stops cheap charging, a battery size
-  off from what it measured, selling that can never pay) is explained in plain words, with a one-tap fix. The rarely
-  needed settings sit under "Advanced", and one button downloads a diagnostics file to send when something looks wrong.
-- **7 languages** – English, Danish, German, French, Dutch, Swedish and Norwegian, following Home Assistant's language.
+<details>
+<summary><b>More – several batteries and chargers, off-grid, power tariffs, odd setups</b></summary>
+
+- **Several home batteries** – a SolarEdge and a Victron, say: planned as one, each controlled through its own inverter
+  and put in control on its own.
+- **Several chargers** – each car has its own *charge now*, *ready at* and *at most*, and all stay under the main fuse.
+
+  ![Two batteries and two chargers](docs/multi_en.png)
+
+- **No house sensor needed** – it works the house out from your grid, solar, battery and car meters.
+- **Any solar forecast** – Solcast, Open-Meteo, Forecast.Solar … or its own from the weather and your panels' history.
+- **Odd setups** – several solar arrays are added up, the battery's and grid's sign is found by itself, and a changing
+  feed-in price can come from a sensor or your own tariff plan (with a daily cap).
+- **Power tariffs** (Belgium, Norway, Sweden) – keeps track of the month's peak and shaves it with the battery.
+- **Off-grid** – the generator becomes the "grid": it starts before the battery reaches your reserve, runs in long runs
+  and always at the emergency level.
+- **Octopus Agile** – the coming prices come from Agile Predict until the real ones are out.
+- **Your own AppDaemon in shadow** – runs your existing setup unchanged next to its own engine and shows how often they agree.
+
+</details>
+
+## Dashboard cards
+
+Add them from the card picker – search for *Energipilot*. They follow your Home Assistant theme.
+
+![Dashboard cards](docs/cards.png)
 
 ## What you need
 
 | | |
 |---|---|
-| **Required** | Home Assistant, and a sensor for the house's power use (W) – or grid and solar sensors, it works the house out from them |
-| **Prices** | Nothing – spot prices for 26 European countries are built in. Strømligning, Nord Pool, Tibber, Octopus, Amber, EDF Tempo and many more are used if you have them. No spot price (USA, UK…)? Enter your tariff plan or start from a template. |
+| **Required** | Home Assistant, and a house power sensor (W) – or grid and solar sensors, it works the house out from them |
+| **Prices** | Nothing – spot prices for 26 European countries are built in. Strømligning, Nord Pool, Tibber, Octopus, Amber, EDF Tempo and many more are used if you have them. No spot price (USA, UK …)? Enter your tariff plan or start from a template. |
 | **Optional** | Solar panels, a home battery, an EV charger – any of them, all of them, or none |
 
 ## Brands
 
-Everything goes through the device's own Home Assistant integration. ✅ runs in real use · 🧪 built from the
-integration's own source code (entity names and values checked), waiting for a beta tester with the hardware.
+Everything goes through the device's own Home Assistant integration.<br>
+✅ runs in real use · 🧪 built from the integration's own code, waiting for a beta tester with the hardware
 
 | | |
 |---|---|
-| **Inverter / battery** | ✅ Growatt SPH (SPA) · 🧪 Growatt MIN/MOD TL-XH · 🧪 Deye (Solarman or ESPHome/local Modbus) · 🧪 Sofar (Solarman or SolaX Modbus) · 🧪 Sigenergy · 🧪 Tesla Powerwall · 🧪 Enphase IQ Battery · 🧪 Victron (ESS) · 🧪 EcoFlow PowerStream · 🧪 Megarevo (SolarAssistant, no grid charging) · 🧪 Huawei SUN2000/LUNA2000 · 🧪 SolaX · 🧪 Sungrow · 🧪 SolarEdge · 🧪 Fox ESS · 🧪 GivEnergy · 🧪 Solis (Solis Modbus) · 🧪 Alpha ESS (cloud) · any other by picking its controls yourself |
+| **Inverter / battery** | ✅ Growatt SPH (SPA) · 🧪 Growatt MIN/MOD TL-XH · 🧪 Deye (Solarman or ESPHome) · 🧪 Sofar (Solarman or SolaX Modbus) · 🧪 Sigenergy · 🧪 Tesla Powerwall · 🧪 Enphase IQ Battery · 🧪 Victron (ESS) · 🧪 EcoFlow PowerStream · 🧪 Megarevo · 🧪 Huawei SUN2000/LUNA2000 · 🧪 SolaX · 🧪 Sungrow · 🧪 SolarEdge · 🧪 Fox ESS · 🧪 GivEnergy · 🧪 Solis · 🧪 Alpha ESS · any other by picking its controls yourself |
 | **EV charger** | ✅ KEBA · 🧪 Easee · 🧪 Zaptec · 🧪 go-e · 🧪 Wallbox · 🧪 Peblar · 🧪 OCPP · 🧪 Alfen · 🧪 Ohme · 🧪 myenergi zappi · any with a switch and a current setting |
-| **Prices** | ✅ Strømligning · ✅ built-in spot prices · 🧪 Nord Pool (built-in and HACS) · 🧪 Tibber · 🧪 Energi Data Service · 🧪 ENTSO-E · 🧪 Octopus Energy (import + export, Agile) · 🧪 Amber · 🧪 EDF Tempo · 🧪 EnergyZero · 🧪 easyEnergy · 🧪 Frank Energie · 🧪 Zonneplan · tariff plans |
-
-![Cards](docs/cards.png)
-
-## Install
-
-**Home Assistant OS / Supervised (recommended):**
-1. *Settings → Apps → App store → ⋮ → Repositories* → add `https://github.com/Clahen86/Energy-pilot`
-2. Install **Energipilot** and start it. It appears in the sidebar.
-3. The guide shows what it found – fix what's wrong and press *Get started*.
-4. Restart Home Assistant once: *Energipilot found* appears under *Devices & services* (buttons and sensors).
-
-**Sensors for your own dashboards and automations:** the decision now, the price now, the battery's target, what the
-plan saves, what the battery saved (today, month, year, in all), what the power in the battery cost, **next battery
-charge**, **next car charge**, **next sale from the battery** (with "until" and the battery level), **cheapest hour**
-(all of them as an attribute – start the dishwasher then), house use today and the solar forecast for today and tomorrow.
-
-**Docker (Home Assistant Container/Core):** see [`docker/docker-compose.yml`](docker/docker-compose.yml) – give it your
-Home Assistant address and a long-lived access token, open `http://<host>:8099`. Mount your Home Assistant config at
-`/homeassistant` to get the cards and the companion integration installed automatically.
+| **Prices** | ✅ Strømligning · ✅ built-in spot prices · 🧪 Nord Pool · 🧪 Tibber · 🧪 Energi Data Service · 🧪 ENTSO-E · 🧪 Octopus Energy (Agile, export) · 🧪 Amber · 🧪 EDF Tempo · 🧪 EnergyZero · 🧪 easyEnergy · 🧪 Frank Energie · 🧪 Zonneplan · tariff plans |
 
 ## FAQ
 
-**Can it run next to the system I use today?** Yes – that's what shadow is for. It never controls a part another
-system controls, and it never takes the battery while your own system plans it, unless you tell it to.
+<details><summary><b>Can it run next to the system I use today?</b></summary>
 
-**Does it send any data?** No. Everything runs in your home, the ML models too. It only fetches public data: weather
-(Open-Meteo), spot prices (Energi Data Service, energy-charts.info) and exchange rates (ECB via frankfurter.dev).
+Yes – that's what shadow is for. It never controls a part another system controls, unless you tell it to.
+</details>
 
-**What if the internet goes down?** It keeps planning with the prices and weather it already has, and your inverter
-keeps running as normal.
+<details><summary><b>Does it send any data?</b></summary>
 
-**Do I need a battery?** No. With just solar it plans and shows your day; with just an EV charger it charges in the
-cheapest slots.
+No. Everything runs in your home, the ML models too. It only fetches public data: weather (Open-Meteo), spot prices
+(Energi Data Service, energy-charts.info) and exchange rates (ECB).
+</details>
 
-**How good are the forecasts at first?** The simple forecast works from day one. The ML models need about three weeks
-of data before they get a say, and only take over when they're better.
+<details><summary><b>What if the internet goes down?</b></summary>
+
+It keeps planning with the prices and weather it already has, and your inverter keeps running as normal.
+</details>
+
+<details><summary><b>Do I need a battery?</b></summary>
+
+No. With just solar it plans and shows your day. With just a charger it charges the car in the cheapest slots.
+</details>
+
+<details><summary><b>Something looks wrong – what do I send?</b></summary>
+
+Press *Download diagnostics* under Settings and attach the file to an
+[issue](https://github.com/Clahen86/Energy-pilot/issues). It holds no passwords.
+</details>
 
 ## Good to know
 
-- The 🧪 profiles are built from each integration's known controls but not yet tried on real systems – run them in
-  shadow first, check the control test, and tell me how it goes.
-- Languages: English, Danish, German, French, Dutch, Swedish and Norwegian – it follows Home Assistant's language. Corrections from native speakers are very welcome.
+- The 🧪 profiles are not yet tried on real systems – run them in shadow first, check the control test, and tell me how it goes.
+- Languages: English, Danish, German, French, Dutch, Swedish and Norwegian – it follows Home Assistant's language.
+  Corrections from native speakers are very welcome.
 
----
-
-## Dansk
-
-**Husbatteri, solceller og elbil – planlagt til den laveste pris, i én app til Home Assistant, der lærer dit hjem og
-bliver bedre hver nat.** Den starter altid i *skygge*: den viser, hvad den ville gøre, men styrer intet, før du siger til.
-
-> 🧪 **Vi søger betatestere** – alle opsætninger tæller, også hvis du kun har en elbil-lader eller kun solceller.
-
-![Energipilot](docs/screens_da.png)
-
-- **Sat op på to minutter:** den finder selv dine ting i Home Assistant. Du trykker bare *Kom i gang* – ingen YAML.
-- **Lærer dit hus:** en simpel prognose fra dag ét, og ML-modeller, der trænes hver nat på dine egne data, overtager
-  efterhånden som de rammer bedre – for forbrug, sol og morgendagens priser før kl. 13. Rammer de ved siden af, tager den
-  simple over igen.
-- **Lærer batteriet at kende:** den rigtige brugbare kapacitet og virkningsgrad – navneværdien er ofte højere, og batterier slides.
-- **Effekttariffer** (Belgien, Norge, Sverige): skriv prisen pr. kW, så holder den selv øje med månedens top, bruger batteriet til at barbere toppene af og lægger bilens opladning uden for dem.
-- **Regner sliddet med:** finder selv batteritypen (LFP, NMC, natrium eller bly – fra inverterens indstilling eller batteriets model) og regner sliddet pr. kWh ud, så batteriet ikke bruges for få øres gevinst. Man kan skrive, hvad batteriet kostede, under Avanceret.
-- **Planlægger i kvarterer**, så batteri og bil bruger de billigste kvarterer.
-- **Målt besparelse** og batteriets kostpris.
-- **Aldrig en halv kommando:** mangler en kontrol, styrer den ikke, og en test i skygge viser, hvad den fandt.
-- **Bilen følger solen** minut for minut og **passer på hovedsikringen**.
-- **Bilens eget batteri i %** findes fra bilens integration – lad til et mål (80 % skåner batteriet), eller tryk
-  **"100 % til næste tur"** før en lang tur (slår selv fra, når bilen kører).
-- **Bilen tælles aldrig to gange** (alle ladere trækkes fra), og den kan køre din egen AppDaemon i skygge og sammenligne.
-- **To grænser for bilen:** lad fra nettet op til fx 80 %, og lad soloverskuddet fylde den op til 100 % gratis.
-- **Ingen husforbrug-sensor nødvendig:** uden en regner den husets forbrug ud fra historikken for net, sol, batteri og
-  bil – og lærer døgnets form med det samme.
-- **Enhver solprognose:** Solcast, Open-Meteo Solar Forecast eller det, der er sat op i Home Assistants Energi-panel
-  (Forecast.Solar m.fl.). Uden en laver den sin egen ud fra vejret og anlæggets historik.
-- **Passer til mange opsætninger:** flere solcelle-anlæg lægges sammen, den finder selv batteriets fortegn, og en
-  skiftende salgspris kan komme fra en sensor – eller fra din egen tarifplan med salgspris efter tid på døgnet og en
-  daglig grænse for betalt salg. Kan du ikke finde din sensor, kan du søge efter den.
-- **Holder sine indstillinger på plads:** en indstilling, der går tilbage af sig selv (Victron), sættes igen med det
-  samme, og ændrer noget andet hele tiden batteriet – Predbat, en automation – siger selvtjekket til.
-- **Kører på en Raspberry Pi** ved siden af Home Assistant – ingen cloud, intet abonnement.
-- **Ingen telemetri** – intet forlader dit hjem.
-- **Også off-grid:** uden elnet styrer den generatoren – den starter, før batteriet når reserven, kører længe ad gangen
-  og altid ved nødgrænsen.
-- **Sælger fra batteriet, når det betaler sig** (valgfrit) – med tab, slid og eksportgrænse regnet med.
-- **Flere husbatterier** – fx SolarEdge og Victron: findes selv (eller tilføjes under Husbatteri), planlægges som ét
-  batteri med størrelser og effekter lagt sammen, og hvert vises for sig. Hvert batteri styres gennem sin egen inverter (findes selv eller vælges i batteriets boks), starter i skygge og sættes til at styre for sig; effekten deles efter, hvad hvert kan klare.
-- **Flere ladebokse** – fx to KEBA-bokse: findes selv (eller tilføjes under Bil og lader), hver bil har sin egen
-  "lad nu", "klar kl." og "højst", planlægges for sig, og tilsammen holdes de under hovedsikringen. Hver ladeboks starter i skygge og kan sættes til at styre for sig (Skygge-siden); lader 1 kommer først – soloverskuddet og pladsen under sikringen går til den, og de andre skrues ned først.
-
-![To batterier og to ladebokse](docs/multi_da.png)
-
-- **Tjekker dine indstillinger** – en indstilling, der ødelægger planen (en importgrænse, der spærrer for billig
-  opladning, en batteristørrelse, der ikke passer med det målte, salg der aldrig kan betale sig), forklares med et
-  tryk til at rette den. De sjældne indstillinger ligger under "Avanceret", og én knap henter en diagnosefil.
-- **Sensorer til dine egne dashboards og automationer:** beslutningen nu, prisen nu, batteriets mål, hvad batteriet har
-  sparet, **næste opladning af batteriet**, **næste opladning af bilen**, **næste salg fra batteriet**, **billigste time**
-  (fx til opvaskeren), husets forbrug i dag og solprognosen for i dag og i morgen. *Batteri-styring* og *Bil-styring*
-  (Skygge / Styrer / Fra) lader en automation slå Energipilot til og fra.
-- **7 sprog:** dansk, engelsk, tysk, fransk, hollandsk, svensk og norsk – følger Home Assistants sprog.
-- **Styrer mange mærker** – se tabellen ovenfor (✅ testet, 🧪 venter på en betatester).
-
-**Installation:** *Indstillinger → Apps → Butik → ⋮ → Repositories* → tilføj
-`https://github.com/Clahen86/Energy-pilot`, installér **Energipilot**, start den, og følg guiden.
-
-MIT-licens.
+MIT licence.
