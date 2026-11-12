@@ -47,9 +47,13 @@ def over_cap(hours: list[Hour], p: Plan, cap: float) -> list[Hour]:
 
 
 def computed_house(grid: dict, pv: dict, batt: dict, ev: dict, grid_sign: int = 1, batt_sign: int = 1) -> list[tuple[datetime, float]]:
-    """kW per hour: grid (buying +) + sun - battery (charging +) - car; never below 0."""
+    """kW per hour: grid (buying +) + sun - battery (charging +) - car; never below 0.
+    An hour the battery has no history for is left out: counted as 0 its charging would look like house use
+    (a battery sensor made lately, or one that was unavailable for a while)."""
     out = []
     for t in sorted(set(grid) & set(pv)):
+        if batt and t not in batt:
+            continue
         kw = pv[t] + grid[t] * grid_sign - batt.get(t, 0.0) * batt_sign - ev.get(t, 0.0)
         out.append((t, round(max(0.0, kw), 3)))
     return out

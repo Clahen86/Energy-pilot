@@ -29,6 +29,17 @@ def test_house_worked_out_from_the_other_meters():
     assert computed_house({t[0]: -3.0}, {t[0]: 0.0}, {}, {}) == [(t[0], 0.0)]
 
 
+def test_hours_without_battery_history_are_left_out():
+    """A battery sensor made lately: the night's charging before it existed must not become house use."""
+    from energy_pilot.engine import computed_house
+
+    t = [datetime(2026, 11, 10, h, tzinfo=timezone.utc) for h in range(3)]
+    grid = {t[0]: 6.0, t[1]: 6.0, t[2]: 6.0}  # 1 kW house + 5 kW into the battery
+    pv = {x: 0.0 for x in t}
+    batt = {t[2]: 5.0}  # the sensor only has the last hour
+    assert computed_house(grid, pv, batt, {}) == [(t[2], 1.0)]
+
+
 def test_every_charger_is_taken_out():
     """Charger 1 and the extra chargers are added up when the cars are taken out of the house's history."""
     import asyncio
