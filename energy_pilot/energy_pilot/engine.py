@@ -383,6 +383,9 @@ class Engine:
         self.price_model = PriceModel(overview.file.parent)
         self.price_days = 0
         self.habits = Habits(self.learning.state)
+        from .ghost import Ghosts
+
+        self.ghosts = Ghosts(self.learning.state)
         self.batt_learn = BatteryLearner(self.learning.state)
         from .checks import GridPeak
 
@@ -1068,6 +1071,10 @@ class Engine:
         if car_plan:
             result["car"] = {"hours": car_plan["hours"], "need_kwh": car_plan["need"], "slot_min": slot_min}
         result["cars"] = self._more_cars(hours, now, f, car_plan, slot_min)
+        try:
+            self._ghost_plans(hours, now, f, slot_min)
+        except Exception:  # noqa: BLE001 - a comparison must never stop the plan
+            _LOGGER.debug("Shadow car plan failed", exc_info=True)
         self.result = result
         self._compare()
         return result
@@ -1111,6 +1118,40 @@ class Engine:
         if chosen is None:
             chosen = plan_car(hours, max(0.0, need), kw, ready, now, solar_only=st.get("ev_mode") == "solar", skip=skip)
         return {"hours": [t.isoformat() for t in chosen], "set": set(chosen), "need": round(max(0.0, need), 1)}
+
+    def _ghost_plans(self, hours: list[Hour], now: datetime, f: dict[str, Any], slot_min: int) -> None:
+        """A charger in shadow, just plugged in: the charge Energy Pilot would make, kept for comparison."""
+        from . import chargers
+
+        ctl = getattr(self.ov, "controller", None)
+        st = self.ov.settings
+        quiet = self.quiet_hours("car")
+        prices = {h.start: h.price for h in hours}
+        parts = [("car", None)] + [(f"car{i + 2}", c) for i, c in enumerate(chargers.extras(st))]
+        for part, c in parts:
+            if (ctl and ctl.mode(part) == "control") or not self.ghosts.wants_plan(part):
+                continue
+            if c is None:
+                ev = self.ov.ev() or {}
+                kw = float(st.get("charger_kw") or 7.4)
+                need = self.ghosts.need(part, self.habits.need(float(st.get("ev_need_kwh") or 20)))
+                if ev.get("soc") is not None and ev.get("car_kwh"):
+                    from . import evsoc
+
+                    need = evsoc.need_kwh(ev["soc"], ev["target"], ev["car_kwh"])
+                ready = None
+                if ev.get("ready") and ev["ready"] != "00:00:00":
+                    hh, mm = (int(x) for x in str(ev["ready"]).split(":")[:2])
+                    ready = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+                    ready += timedelta(days=1) if ready <= now else timedelta(0)
+                mode = st.get("ev_mode")
+            else:
+                kw = float(c.get("charger_kw") or 7.4)
+                need = self.ghosts.need(part, float(c.get("need_kwh") or 20))
+                ready, mode = chargers.ready_at(c, now), c.get("mode")
+            skip = {h.start for h in hours if h.start.hour in quiet}
+            chosen = plan_car(hours, max(0.0, need), kw, ready, now, solar_only=mode == "solar", skip=skip)
+            self.ghosts.set_plan(part, chosen, max(0.0, need), prices, kw, slot_min / 60)
 
     def _more_cars(self, hours: list[Hour], now: datetime, f: dict[str, Any], car_plan: dict[str, Any] | None,
                    slot_min: int) -> list[dict[str, Any]] | None:

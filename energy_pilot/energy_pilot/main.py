@@ -162,6 +162,12 @@ async def main() -> None:
                 engine.price_model.remember(prices, now)
                 ev = overview.ev() or {}
                 engine.habits.see(now, f.get("plug"), ev.get("session_kwh"))
+                # each charger's real charge, measured beside the one Energy Pilot would make (for chargers in shadow)
+                extra = f.get("cars") or []
+                own_w = None if f.get("ev") is None else f["ev"] - sum((c.get("power") or 0.0) for c in extra)
+                engine.ghosts.see("car", now, f.get("plug"), own_w, price, 30)
+                for i, c in enumerate(extra):
+                    engine.ghosts.see(f"car{i + 2}", now, c.get("plug"), c.get("power"), price, 30)
                 engine.car_size.see(f.get("plug"), ev.get("soc"), ev.get("session_kwh"))
                 from .evsoc import trip_done
 

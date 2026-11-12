@@ -522,6 +522,20 @@ class Overview:
         running = (lambda part: ctl.mode(part) == "control") if ctl else (lambda part: False)
         cars = [(res.get("car"), float(self.settings.get("charger_kw") or 7.4), "car")]
         cars += [(c, float(x.get("charger_kw") or 7.4), f"car{i + 2}") for i, (c, x) in enumerate(zip(res.get("cars") or [], chargers.extras(self.settings)))]
+        # A charger in shadow: the charge Energy Pilot would have made (kept from when the car was plugged in), drawn
+        # apart from real plans - to compare with what charges the car today, not as something that will happen.
+        ghosts = (getattr(self.engine, "ghosts", None).s if self.engine and getattr(self.engine, "ghosts", None) else {})
+        for _plan, kw, part in cars:
+            g = (ghosts.get(part) or {}).get("plan")
+            if running(part) or not g:
+                continue
+            left, step = float(g.get("need") or 0), float(g.get("slot_h") or 1)
+            for t in g.get("hours") or []:
+                if (h := slot(datetime.fromisoformat(t))) is not None:
+                    h["car_ghost"] = True
+                    got = min(float(g.get("kw") or kw) * step, left) if left > 0 else 0.0
+                    left -= got
+                    h["car_ghost_kwh"] = round(h.get("car_ghost_kwh", 0.0) + got, 2)
         for plan, kw, part in cars:
             if not running(part):
                 continue
@@ -600,6 +614,7 @@ class Overview:
             "house_other_appdaemon": bool(house_e and "appdaemon" in house_e),
             "settings": self.settings,
             "scene": self._scene(),
+            "ghosts": self.engine.ghosts.view() if self.engine and getattr(self.engine, "ghosts", None) else {},
         }
 
     def _scene(self) -> dict[str, Any] | None:

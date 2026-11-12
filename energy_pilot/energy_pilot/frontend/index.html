@@ -601,6 +601,28 @@ const T_PRIO = {
   sv: { t: "Sälja och ladda", h: "Vad Energy Pilot får göra med nätet" },
   nb: { t: "Salg og lading", h: "Hva Energy Pilot kan gjøre med nettet" },
 };
+const T_GHOST = {
+  da: { leg: "Ville lade (skygge)", title: "Ville lade – sammenlignet", ep: "Energy Pilot ville", own: "Det der skete", last: "Sidste opladning", now: "Denne opladning", avg: "snit {x}/kWh", learned: "Bilen tager normalt {x} kWh", none: "Venter på, at bilen sættes i" },
+  en: { leg: "Would charge (shadow)", title: "Would charge – compared", ep: "Energy Pilot would", own: "What happened", last: "Last charge", now: "This charge", avg: "avg {x}/kWh", learned: "The car usually takes {x} kWh", none: "Waiting for the car to be plugged in" },
+  de: { leg: "Würde laden (Schatten)", title: "Würde laden – verglichen", ep: "Energy Pilot würde", own: "Was passierte", last: "Letzte Ladung", now: "Diese Ladung", avg: "Ø {x}/kWh", learned: "Das Auto nimmt meist {x} kWh", none: "Wartet, bis das Auto angesteckt wird" },
+  fr: { leg: "Chargerait (ombre)", title: "Chargerait – comparé", ep: "Energy Pilot chargerait", own: "Ce qui s'est passé", last: "Dernière charge", now: "Cette charge", avg: "moy. {x}/kWh", learned: "La voiture prend en général {x} kWh", none: "En attente du branchement" },
+  nl: { leg: "Zou laden (schaduw)", title: "Zou laden – vergeleken", ep: "Energy Pilot zou", own: "Wat er gebeurde", last: "Laatste lading", now: "Deze lading", avg: "gem. {x}/kWh", learned: "De auto neemt meestal {x} kWh", none: "Wacht tot de auto is aangesloten" },
+  sv: { leg: "Skulle ladda (skugga)", title: "Skulle ladda – jämfört", ep: "Energy Pilot skulle", own: "Det som hände", last: "Senaste laddning", now: "Denna laddning", avg: "snitt {x}/kWh", learned: "Bilen tar oftast {x} kWh", none: "Väntar på att bilen kopplas in" },
+  nb: { leg: "Ville ladet (skygge)", title: "Ville ladet – sammenlignet", ep: "Energy Pilot ville", own: "Det som skjedde", last: "Siste lading", now: "Denne ladingen", avg: "snitt {x}/kWh", learned: "Bilen tar vanligvis {x} kWh", none: "Venter på at bilen kobles til" },
+};
+// Per charger in shadow: Energy Pilot's charge beside the real one - when, how much, and the average price of each
+function ghostView(part) {
+  const g = (data.ghosts || {})[part], G = T_GHOST[LANG] || T_GHOST.en;
+  if (!g) return "";
+  const span = (hs) => hs && hs.length ? `${clock(hs[0])}–${clock(new Date(new Date(hs[hs.length - 1]).getTime() + 3600e3 * (g.plan?.slot_h || 1)).toISOString())}` : "–";
+  const row = (lbl, x, when) => x ? `<tr><td>${lbl}</td><td>${when}</td><td>${num(x.kwh, 1)} kWh</td><td>${x.avg != null ? G.avg.replace("{x}", kr(x.avg)) : "–"}</td></tr>` : "";
+  const cur = g.plan || g.own ? { plan: g.plan, own: g.own } : null, last = g.last;
+  const hm = (iso) => { const d = new Date(iso); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
+  const ownWhen = (o) => o && o.first ? `${hm(o.first)}–${hm(o.last)}` : "–";
+  const block = (title, x) => x ? `<div class="muted" style="margin:8px 0 4px;font-weight:650">${title}</div><table>${row(G.ep, x.plan, span(x.plan?.hours))}${row(G.own, x.own, ownWhen(x.own))}</table>` : "";
+  return `<details class="more" open><summary>${G.title}</summary>${block(G.now, cur)}${block(G.last, last)}
+    ${g.learned_kwh ? `<div class="muted" style="margin-top:6px">${G.learned.replace("{x}", num(g.learned_kwh, 0))}</div>` : ""}${!cur && !last ? `<div class="muted">${G.none}</div>` : ""}</details>`;
+}
 const RINGED = new Set(["jul", "paaske", "halloween", "national", "thanksgiving", "lunar", "diwali", "eid"]);
 function sunIcon(sc) {
   const c = sc?.condition || "";
@@ -799,7 +821,7 @@ function planSvg(plan) {
   if (!hrs.length) return `<div class="muted">–</div>`;
   const W = 26, H = 250, top = 14, bottom = 22, n = hrs.length, width = n * W;  // big enough to tap an hour on a phone
   const pmin = Math.min(0, plan.price_min ?? 0), pmax = (plan.price_max || 1) * 1.08;
-  const eMax = Math.max(1, ...hrs.map((h) => h.sun || 0), ...hrs.map((h) => h.house || 0), ...hrs.map((h) => h.car_kwh || 0)) * 1.15;
+  const eMax = Math.max(1, ...hrs.map((h) => h.sun || 0), ...hrs.map((h) => h.house || 0), ...hrs.map((h) => h.car_kwh || 0), ...hrs.map((h) => h.car_ghost_kwh || 0)) * 1.15;
   const nowT = new Date(plan.now), y0 = H - bottom, ph = H - top - bottom;
   const col = (p) => { const x = (p - plan.price_min) / Math.max(0.01, plan.price_max - plan.price_min); return `hsl(${Math.round(150 - 150 * x)} 70% ${x > .66 ? 60 : 52}%)`; };
   const gridLines = [0.25, 0.5, 0.75, 1].map((g) => `<line x1="0" x2="${width}" y1="${y0 - g * ph}" y2="${y0 - g * ph}" stroke="var(--line)"/>`).join("");
@@ -820,6 +842,10 @@ function planSvg(plan) {
   const carIdx = hrs.map((h, i) => (h.car_kwh > 0 ? i : -1)).filter((i) => i >= 0);
   const carPts = carIdx.length ? hrs.map((h, i) => [i * W + W / 2, y0 - ((h.car_kwh || 0) / eMax) * ph])
     .slice(Math.max(0, carIdx[0] - 1), carIdx[carIdx.length - 1] + 2) : [];
+  // A charger in shadow: the charge Energy Pilot would have made, as a dashed outline - to compare, not to come
+  const ghIdx = hrs.map((h, i) => (h.car_ghost_kwh > 0 ? i : -1)).filter((i) => i >= 0);
+  const ghPts = ghIdx.length ? hrs.map((h, i) => [i * W + W / 2, y0 - ((h.car_ghost_kwh || 0) / eMax) * ph])
+    .slice(Math.max(0, ghIdx[0] - 1), ghIdx[ghIdx.length - 1] + 2) : [];
   const sunPath = smooth(sun);
   const nowI = hrs.findIndex((h) => { const t = new Date(h.t); return t.getHours() === nowT.getHours() && t.getDate() === nowT.getDate(); });
   const nowX = nowI >= 0 ? nowI * W + (nowT.getMinutes() / 60) * W : null;
@@ -829,6 +855,7 @@ function planSvg(plan) {
       ${gridLines}${bars}
       ${sun.length > 1 ? `<path d="${sunPath} L${sun[sun.length - 1][0]} ${y0} L${sun[0][0]} ${y0}Z" fill="url(#sung)"/><path d="${sunPath}" fill="none" stroke="var(--sun)" stroke-width="2"/>` : ""}
       ${carPts.length > 1 ? `<path d="${smooth(carPts)} L${carPts[carPts.length - 1][0]} ${y0} L${carPts[0][0]} ${y0}Z" fill="url(#carg)"/><path d="${smooth(carPts)}" fill="none" stroke="var(--car)" stroke-width="2"/>` : ""}
+      ${ghPts.length > 1 ? `<path d="${smooth(ghPts)} L${ghPts[ghPts.length - 1][0]} ${y0} L${ghPts[0][0]} ${y0}Z" fill="var(--car)" opacity=".06"/><path d="${smooth(ghPts)}" fill="none" stroke="var(--car)" stroke-width="1.8" stroke-dasharray="5 4" opacity=".85"/>` : ""}
       ${house.length > 1 ? `<path d="${smooth(house)}" fill="none" stroke="var(--house)" stroke-width="1.6" stroke-dasharray="4 3" opacity=".8"/>` : ""}
       ${(() => { const sp = hrs.map((h, i) => h.soc != null ? [i * W + W / 2, y0 - (h.soc / 100) * ph] : null).filter(Boolean);
         return sp.length > 1 ? `<path d="${smooth(sp)}" fill="none" stroke="var(--batt)" stroke-width="2.2"/>` : ""; })()}
@@ -839,6 +866,7 @@ function planSvg(plan) {
     <div class="legend"><span><i style="background:linear-gradient(90deg,hsl(150 70% 52%),hsl(0 70% 60%))"></i>${T.legPrice}</span><span><i style="background:var(--sun)"></i>${T.legSun}</span>
       <span><i style="background:var(--house)"></i>${T.legHouse}</span><span><i style="background:var(--batt)"></i>${T.legSoc}</span>
       ${hrs.some((h) => h.car) ? `<span><i style="background:var(--car)"></i>${T.legCar}</span>` : ""}
+      ${hrs.some((h) => h.car_ghost) ? `<span><i style="background:none;border:1.5px dashed var(--car)"></i>${(T_GHOST[LANG] || T_GHOST.en).leg}</span>` : ""}
       ${hrs.some((h) => h.export) ? `<span><i style="background:var(--grid)"></i>${T.legExport}</span>` : ""}</div>
     ${plan.cheapest.length ? `<div class="eyebrow" style="margin:16px 0 8px"><span>${T.cheapest}</span></div><div class="chips">${plan.cheapest.map((t) => `<span class="chip good">${clock(t)}</span>`).join("")}</div>` : ""}`;
 }
@@ -922,6 +950,7 @@ function controlView() {
     return `<div class="cpart"><div class="cp-head"><span class="sec-ic" style="--sc:${key.startsWith("car") ? "var(--car)" : "var(--batt)"}">${icon(ic)}</span><div><b>${title}</b>
         <span>${st.now ? `${c.now}: ${describe(key, st.now)}` : ""}${st.blocked ? `${st.now ? "<br>" : ""}<em class="blk">${c.blocked[st.blocked]}</em>` : ""}</span></div></div>
       ${st.mode === "shadow" && key !== "generator" ? readyList(st) : ""}
+      ${st.mode !== "control" && key.startsWith("car") ? ghostView(key) : ""}
       <div class="seg">${["shadow", "control", "off"].map((m) => `<button class="${m} ${st.mode === m ? "on" : ""}" data-cpart="${key}" data-cmode="${m}" ${m === "control" && st.blocked ? "disabled" : ""}>${T.modes[m]}</button>`).join("")}</div>
       ${st.calls.length ? `<details class="more"><summary>${c.calls} (${st.calls.length})</summary><table>${st.calls.map((x) => `<tr><td>${esc(x.domain + "." + x.service)}</td><td>${esc(JSON.stringify(x.data))}</td></tr>`).join("")}</table></details>` : ""}
     </div>`;
