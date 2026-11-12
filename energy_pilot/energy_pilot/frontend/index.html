@@ -613,7 +613,7 @@ const T_GHOST = {
 };
 // Per charger in shadow: Energy Pilot's charge beside the real one - when, how much, and the average price of each
 function ghostView(part) {
-  const g = (data.ghosts || {})[part], G = T_GHOST[LANG] || T_GHOST.en;
+  const g = (data.ghosts || {})[part], G = T_GHOST[L] || T_GHOST.en;
   if (!g) return "";
   const span = (hs) => hs && hs.length ? `${clock(hs[0])}–${clock(new Date(new Date(hs[hs.length - 1]).getTime() + 3600e3 * (g.plan?.slot_h || 1)).toISOString())}` : "–";
   const row = (lbl, x, when) => x ? `<tr><td>${lbl}</td><td>${when}</td><td>${num(x.kwh, 1)} kWh</td><td>${x.avg != null ? G.avg.replace("{x}", kr(x.avg)) : "–"}</td></tr>` : "";
@@ -761,7 +761,7 @@ function home() {
     ${savedCard()}
     ${d.ev ? carCard(d.ev, f) : ""}
     ${moreCars()}
-    ${d.plan && d.plan.cheapest && d.plan.cheapest.length ? `<div class="card fade"><div class="eyebrow"><span>${T.cheapest}</span><button class="link" data-tab="plan">${(T_SEEPLAN[LANG] || T_SEEPLAN.en)} →</button></div>
+    ${d.plan && d.plan.cheapest && d.plan.cheapest.length ? `<div class="card fade"><div class="eyebrow"><span>${T.cheapest}</span><button class="link" data-tab="plan">${(T_SEEPLAN[L] || T_SEEPLAN.en)} →</button></div>
       <div class="chips">${d.plan.cheapest.map((t) => `<span class="chip good">${clock(t)}</span>`).join("")}</div></div>` : ""}`;
 }
 function genCard() {
@@ -868,7 +868,7 @@ function planSvg(plan) {
     <div class="legend"><span><i style="background:linear-gradient(90deg,hsl(150 70% 52%),hsl(0 70% 60%))"></i>${T.legPrice}</span><span><i style="background:var(--sun)"></i>${T.legSun}</span>
       <span><i style="background:var(--house)"></i>${T.legHouse}</span><span><i style="background:var(--batt)"></i>${T.legSoc}</span>
       ${hrs.some((h) => h.car) ? `<span><i style="background:var(--car)"></i>${T.legCar}</span>` : ""}
-      ${hrs.some((h) => h.car_ghost) ? `<span><i style="background:none;border:1.5px dashed var(--car)"></i>${(T_GHOST[LANG] || T_GHOST.en).leg}</span>` : ""}
+      ${hrs.some((h) => h.car_ghost) ? `<span><i style="background:none;border:1.5px dashed var(--car)"></i>${(T_GHOST[L] || T_GHOST.en).leg}</span>` : ""}
       ${hrs.some((h) => h.export) ? `<span><i style="background:var(--grid)"></i>${T.legExport}</span>` : ""}</div>
     ${plan.cheapest.length ? `<div class="eyebrow" style="margin:16px 0 8px"><span>${T.cheapest}</span></div><div class="chips">${plan.cheapest.map((t) => `<span class="chip good">${clock(t)}</span>`).join("")}</div>` : ""}`;
 }
