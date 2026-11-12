@@ -171,7 +171,7 @@ class EnergipilotCard extends HTMLElement {
   static getConfigElement() { return document.createElement("energipilot-card-editor"); }
   static getStubConfig() { return { view: "flow" }; }
   getCardSize() { return { flow: 5, plan: 4, car: 3, battery: 2, overview: 10 }[this._config.view] || 5; }
-  getGridOptions() { return { columns: 12, min_columns: 6, rows: this.getCardSize() * 1.5 }; }
+  getGridOptions() { return { columns: 12, min_columns: 6, rows: "auto" }; }  // as tall as what it shows
 
   set hass(hass) {
     this._hass = hass;
