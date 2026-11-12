@@ -111,6 +111,7 @@ class Controller:
         except Exception:  # noqa: BLE001
             return
         by_id = {e["entity_id"]: e for e in entities}
+        self.phones = {e["entity_id"] for e in entities if e.get("platform") == "mobile_app"}  # phones and tablets
         try:
             devices = {d["id"]: d for d in await self.ha.command({"type": "config/device_registry/list"})}
             self._devices = devices

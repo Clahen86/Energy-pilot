@@ -39,6 +39,16 @@ def test_finds_the_victron_not_the_phone_or_the_motion_sensor():
     assert batteries.find(STATES, "sensor.solaredge_b1_state_of_energy", ["sensor.victron_battery_soc"], []) == []
 
 
+def test_a_phone_with_a_battery_power_sensor_is_not_a_home_battery():
+    # The Android companion app has "Battery power" beside the level - it looked like a home battery.
+    s = {**STATES, "sensor.sm_g998b_battery_level": st(80, name="SM-G998B Battery level"),
+         "sensor.sm_g998b_battery_power": st(2.1, "W", "power")}
+    main = "sensor.solaredge_b1_state_of_energy"
+    taken = ["sensor.victron_battery_soc"]
+    assert [f["soc"] for f in batteries.find(s, main, taken, [])] == ["sensor.sm_g998b_battery_level"]
+    assert batteries.find(s, main, taken, [], {"sensor.sm_g998b_battery_level", "sensor.sm_g998b_battery_power"}) == []
+
+
 def test_extras_need_a_level_sensor():
     assert batteries.extras({"batteries": [{"name": "x", "soc": ""}, {"soc": "sensor.victron_battery_soc"}]}) == [{"soc": "sensor.victron_battery_soc"}]
 

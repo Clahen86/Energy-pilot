@@ -100,7 +100,8 @@ def run(engine: Any, hours: list, b: Any, plan: Any, end_value: float) -> list[d
     if main and not st.get("offgrid"):
         more = batteries.extras(st)
         taken = [b.get("soc") for b in more] + [b.get("power") for b in more]
-        for cand in batteries.find(engine.ha.states, main, taken, list(st.get("battery_dismissed") or []))[:1]:
+        for cand in batteries.find(engine.ha.states, main, taken, list(st.get("battery_dismissed") or []),
+                                    getattr(getattr(engine.ov, "controller", None), "phones", None) or frozenset())[:1]:
             new = {"name": cand["name"], "soc": cand["soc"], "power": cand["power"]}
             out.append({"key": "battery_found", "level": "info", "vals": {"name": cand["name"]},
                         "fix": {"batteries": list(st.get("batteries") or []) + [new]},

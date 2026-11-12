@@ -71,15 +71,16 @@ def _device(entity: str) -> str:
     return re.split(r"[_.]", entity.split(".", 1)[1])[0]
 
 
-def find(states: dict[str, Any], main_soc: str | None, taken: list[str], dismissed: list[str]) -> list[dict[str, Any]]:
+def find(states: dict[str, Any], main_soc: str | None, taken: list[str], dismissed: list[str],
+         phones: set[str] | frozenset[str] = frozenset()) -> list[dict[str, Any]]:
     """Batteries in Home Assistant that aren't set up: a level sensor on another device than battery 1,
     with the battery power sensor beside it when there is one."""
     seen_devices = {_device(main_soc)} if main_soc else set()
     seen_devices |= {_device(e) for e in taken if e}
     out = []
     for e, s in sorted(states.items()):
-        if not e.startswith("sensor.") or e in taken or e in dismissed or e == main_soc:
-            continue
+        if not e.startswith("sensor.") or e in taken or e in dismissed or e == main_soc or e in phones:
+            continue  # the companion app's phone battery is never a home battery
         a = s.get("attributes") or {}
         obj = e.split(".", 1)[1]
         if not any(w in obj for w in SOC_WORDS) or any(w in obj for w in NOT_A_HOME_BATTERY):
