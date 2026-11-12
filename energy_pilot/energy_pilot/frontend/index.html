@@ -38,6 +38,17 @@
   /* flow */
   .flow { padding:8px 4px 2px; }
   .flow svg { width:100%; height:auto; display:block; overflow:visible; }
+  .flow { position:relative; overflow:hidden; } .flow > .scene { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; } .flow > #flow { position:relative; }
+  .sc-twinkle { animation:sctw 3.2s ease-in-out infinite; } @keyframes sctw { 50% { opacity:.25; } }
+  .sc-breathe { animation:scbr 4s ease-in-out infinite; } @keyframes scbr { 50% { opacity:.12; } }
+  .sc-fall { animation:scfall 12s linear infinite; } @keyframes scfall { from { transform:translate(0,0) rotate(var(--r,0deg)); } to { transform:translate(30px,420px) rotate(calc(var(--r,0deg) + 200deg)); } }
+  .sc-rain { animation:scrain 1.1s linear infinite; } @keyframes scrain { to { transform:translate(-14px,390px); } }
+  .sc-rise { animation:scrise 9s ease-out infinite; } @keyframes scrise { from { transform:translate(0,0); opacity:.8; } to { transform:translate(18px,-300px); opacity:0; } }
+  .sc-float { animation:scfl 12s ease-in-out infinite alternate; } @keyframes scfl { to { transform:translate(22px,-16px); } }
+  .sc-drift { animation:scdr 30s ease-in-out infinite alternate; } @keyframes scdr { to { transform:translateX(40px); } }
+  .sc-burst { animation:scbu 2.8s ease-out infinite; opacity:0; } @keyframes scbu { 0% { transform:scale(.1); opacity:0; } 12% { opacity:1; } 70% { transform:scale(1); opacity:.8; } 100% { transform:scale(1.1); opacity:0; } }
+  .sc-flash { opacity:0; animation:scfla 9s linear infinite; } @keyframes scfla { 0%,93%,100% { opacity:0; } 94% { opacity:.4; } 96% { opacity:.25; } }
+  @media (prefers-reduced-motion: reduce) { .sc-twinkle, .sc-breathe, .sc-fall, .sc-rain, .sc-rise, .sc-float, .sc-drift, .sc-burst, .sc-flash { animation:none !important; } .sc-burst { opacity:.8; } }
   .n-val { font:650 17px -apple-system, "SF Pro Display", Inter, system-ui, sans-serif; fill:var(--text); text-anchor:middle; letter-spacing:-.02em; }
   .n-unit { font:500 11px system-ui, sans-serif; fill:var(--muted); }
   .n-cap { font:600 10.5px system-ui, sans-serif; fill:var(--muted); text-anchor:middle; letter-spacing:.08em; text-transform:uppercase; }
@@ -496,11 +507,11 @@ const P = {
 const icon = (n, cls = "ic") => `<svg class="${cls}" viewBox="0 0 24 24">${P[n]}</svg>`;
 
 /* ---------- energy flow ---------- */
-function node(id, x, y, color, value, unit, caption, extra = "", capPos = "below", active = false) {
+function node(id, x, y, color, value, unit, caption, extra = "", capPos = "below", active = false, iconId = null) {
   const capY = capPos === "above" ? -42 : 50;
   return `<g transform="translate(${x} ${y})" class="node ${active ? "on" : ""}" style="--nc:${color}">
     <circle r="40" class="halo"/><circle r="33" class="nbg"/><circle r="33" fill="none" stroke="${color}" stroke-opacity=".55" stroke-width="1.4"/>${extra}
-    <g transform="translate(-10 -21) scale(.84)" style="color:${color}"><svg width="24" height="24" viewBox="0 0 24 24" class="ic ${id === "sun" && active ? "spin" : ""}" style="width:24px;height:24px">${P[id]}</svg></g>
+    <g transform="translate(-10 -21) scale(.84)" style="color:${color}"><svg width="24" height="24" viewBox="0 0 24 24" class="ic ${id === "sun" && active && !iconId ? "spin" : ""}" style="width:24px;height:24px">${iconId ? SCENE_ICONS[iconId] : P[id]}</svg></g>
     <text class="n-val" y="17" id="v-${id}">${value}<tspan class="n-unit" id="u-${id}">${unit ? " " + unit : ""}</tspan></text>
     ${caption != null ? `<text class="n-cap" y="${capY}" id="c-${id}">${caption}</text>` : ""}</g>`;
 }
@@ -543,19 +554,126 @@ function split(w) {
   const a = Math.abs(w);
   return a >= 1000 ? [num(a / 1000, a >= 10000 ? 0 : 1), "kW"] : [String(Math.round(a)), "W"];
 }
+/* ---------- the flow card dressed: time of day, real weather, the season and the day's holiday (by country) ----------
+   The card stays the same: a soft tint behind it, a few particles, and for a holiday a ring of lights around the house.
+   ?hol=jul&season=winter&wx=snowy&t=night previews another day. */
+const SCENE_ICONS = {
+  moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
+  cloudsun: '<path d="M12 4v1.5M6.3 6.3l1 1M4 12h1.5M17.7 6.3l-1 1"/><path d="M8 12a4 4 0 0 1 7.6-1.8"/><path d="M9 20h8.5a3.5 3.5 0 0 0 0-7h-.6A5 5 0 0 0 7 14.5 3 3 0 0 0 9 20z"/>',
+  cloud: '<path d="M7 18h10.5a3.5 3.5 0 0 0 0-7h-.6A5 5 0 0 0 7 12.5 3 3 0 0 0 7 18z"/>',
+  rain: '<path d="M7 15h10.5a3.5 3.5 0 0 0 0-7h-.6A5 5 0 0 0 7 9.5 3 3 0 0 0 7 15z"/><path d="M9 18l-1 3M13 18l-1 3M17 18l-1 3"/>',
+  snow: '<path d="M7 14h10.5a3.5 3.5 0 0 0 0-7h-.6A5 5 0 0 0 7 8.5 3 3 0 0 0 7 14z"/><path d="M9 18h.01M13 18h.01M17 18h.01M11 21h.01M15 21h.01"/>',
+  storm: '<path d="M7 14h10.5a3.5 3.5 0 0 0 0-7h-.6A5 5 0 0 0 7 8.5 3 3 0 0 0 7 14z"/><path d="M13 14l-2 4h3l-2 4"/>',
+};
+function sceneInfo() {
+  const s = data?.scene;
+  if (!s) return null;
+  const q = new URLSearchParams(location.search), out = { ...s };
+  if (q.get("wx")) out.condition = q.get("wx");
+  if (q.get("season")) out.season = q.get("season");
+  if (q.get("hol")) out.holiday = q.get("hol") === "none" ? null : { key: q.get("hol"), colours: SCENE_HOL[q.get("hol")] || ["#ffd34d"] };
+  const el = Number(out.elevation);
+  out.time = q.get("t") || (isNaN(el) ? "day" : el > 6 ? "day" : el > -6 ? "dusk" : "night");
+  out.dark = document.documentElement.dataset.theme === "dark" || (document.documentElement.dataset.theme !== "light" && !matchMedia("(prefers-color-scheme: light)").matches);
+  return out;
+}
+const SCENE_HOL = { jul: ["#ff4d5e", "#ffd34d", "#3ddc84", "#4dc3ff"], paaske: ["#ffb3cf", "#ffe680", "#a8e6a1", "#9fd0ff"], halloween: ["#ff8a2a", "#9b5de5"],
+  national: ["#c8102e", "#ffffff"], midsummer: ["#ffb02e", "#ff7a2a"], nytaar: ["#ff5d8f", "#ffd84d", "#5dd6ff"], carnival: ["#ff5d8f", "#ffd84d", "#5dd6ff", "#3ddc84", "#a78bfa"],
+  thanksgiving: ["#e8892c", "#c4542a", "#f0b04a"], lunar: ["#e0262a", "#ffd34d"], diwali: ["#ffb02e", "#ff7a2a", "#ffe08a"], eid: ["#1f9e5a", "#ffd34d"], bonfire: ["#ff7a2a", "#ffd84d"] };
+const T_FX = {
+  da: { t: "Vejr og højtider på forsiden", h: "Det rigtige vejr, årstiden og dagens højtid i energibilledet" },
+  en: { t: "Weather and holidays on the front page", h: "The real weather, the season and the day's holiday in the energy picture" },
+  de: { t: "Wetter und Feiertage auf der Startseite", h: "Das echte Wetter, die Jahreszeit und der Feiertag im Energiebild" },
+  fr: { t: "Météo et fêtes sur l'accueil", h: "La vraie météo, la saison et la fête du jour dans l'image d'énergie" },
+  nl: { t: "Weer en feestdagen op de voorpagina", h: "Het echte weer, het seizoen en de feestdag in het energiebeeld" },
+  sv: { t: "Väder och högtider på startsidan", h: "Det riktiga vädret, årstiden och dagens högtid i energibilden" },
+  nb: { t: "Vær og høytider på forsiden", h: "Det ekte været, årstiden og dagens høytid i energibildet" },
+};
+const RINGED = new Set(["jul", "paaske", "halloween", "national", "thanksgiving", "lunar", "diwali", "eid"]);
+function sunIcon(sc) {
+  const c = sc?.condition || "";
+  if (!sc) return null;
+  if (/lightning/.test(c)) return "storm";
+  if (/snow/.test(c)) return "snow";
+  if (/rain|pouring|hail/.test(c)) return "rain";
+  if (sc.time === "night") return "moon";
+  if (c === "cloudy" || c === "fog") return "cloud";
+  if (c === "partlycloudy" || (sc.cloud ?? 0) > 40) return "cloudsun";
+  return null;  // the plain sun
+}
+function houseRing(sc) {
+  const h = sc?.holiday;
+  if (!h) return "";
+  const cols = h.colours || SCENE_HOL[h.key] || [], light = !sc.dark;
+  let s = "";
+  if (["midsummer", "bonfire", "halloween", "paaske", "diwali"].includes(h.key)) s += `<circle r="44" fill="none" stroke="${cols[0]}" stroke-width="7" opacity="${h.key === "paaske" ? .22 : .3}" filter="url(#sc-blur4)" class="sc-breathe"/>`;
+  if (!RINGED.has(h.key)) return s;
+  const n = 18;
+  for (let k = 0; k < n; k++) {
+    const a = k / n * Math.PI * 2, x = (Math.cos(a) * 41).toFixed(1), y = (Math.sin(a) * 41).toFixed(1), c = cols[k % cols.length];
+    const edge = light && /^#f{3,6}$/i.test(c) ? ` stroke="#c9ced8" stroke-width=".6"` : "";
+    s += `<circle cx="${x}" cy="${y}" r="5.5" fill="${c}" opacity=".3" filter="url(#sc-blur2)"/><circle cx="${x}" cy="${y}" r="2.2" fill="${c}"${edge} class="sc-twinkle" style="animation-delay:${(k * .23).toFixed(2)}s"/>`;
+  }
+  return s;
+}
+function sceneSvg() {
+  const sc = sceneInfo();
+  if (!sc) return "";
+  const { time, dark } = sc, night = time === "night", dusk = time === "dusk", cond = sc.condition || "";
+  const W = 400, H = 360, rnd = (k) => { const h = Math.sin(k * 127.1 + 311.7) * 43758.5453; return h - Math.floor(h); };
+  const tint = { winter: "#cfe0ff", spring: "#d6f2c8", summer: "#ffecc0", autumn: "#ffd8b0" }[sc.season] || "#e6ecf5";
+  const top = night ? (dark ? "#2a3a78" : "#8f9fe0") : dusk ? "#ffb98a" : tint;
+  let s = `<defs><radialGradient id="sc-sky" cx=".5" cy="0" r="1.05"><stop offset="0" stop-color="${top}" stop-opacity="${dark ? (night ? .55 : .28) : (night ? .38 : .7)}"/><stop offset="1" stop-color="${top}" stop-opacity="0"/></radialGradient>
+    <filter id="sc-blur2" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="2"/></filter>
+    <filter id="sc-blur4" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter></defs>
+    <rect width="${W}" height="${H}" fill="url(#sc-sky)"/>`;
+  if (night) s += Array.from({ length: 20 }, (_, k) => `<circle class="sc-twinkle" cx="${(rnd(k) * W).toFixed(0)}" cy="${(rnd(k + 40) * 150 + 6).toFixed(0)}" r="${rnd(k + 9) > .8 ? 1.3 : .8}" fill="${dark ? "#fff" : "#5a68b8"}" opacity="${dark ? .7 : .45}" style="animation-delay:${(k * .37).toFixed(2)}s"/>`).join("");
+  // one kind of particles at a time: the holiday's, else the real weather's, else the season's
+  const h = sc.holiday?.key, cols = sc.holiday?.colours || [];
+  let parts = "";
+  if (h === "nytaar" || h === "bonfire" && (night || dusk)) {
+    parts = [[80, 52], [320, 44], [200, 26]].map(([x, y], i) => `<g class="sc-burst" style="animation-delay:${i * .9}s;transform-origin:${x}px ${y}px">${Array.from({ length: 12 }, (_, k) => { const a = k / 12 * Math.PI * 2; return `<line x1="${x + Math.cos(a) * 5}" y1="${y + Math.sin(a) * 5}" x2="${x + Math.cos(a) * 19}" y2="${y + Math.sin(a) * 19}" stroke="${(cols.length ? cols : SCENE_HOL.nytaar)[i % 3]}" stroke-width="1.8" stroke-linecap="round"/>`; }).join("")}</g>`).join("");
+  } else if (h === "carnival") {
+    parts = Array.from({ length: 26 }, (_, k) => `<rect class="sc-fall" x="${(rnd(k) * W).toFixed(0)}" y="${(rnd(k + 7) * H - H).toFixed(0)}" width="5" height="2.6" rx="1" fill="${cols[k % cols.length]}" opacity=".6" style="animation-delay:-${(rnd(k + 3) * 14).toFixed(1)}s;animation-duration:${(10 + rnd(k) * 6).toFixed(1)}s;--r:${(rnd(k + 5) * 360).toFixed(0)}deg"/>`).join("");
+  } else if (h === "midsummer" || h === "bonfire") {
+    parts = Array.from({ length: 18 }, (_, k) => `<circle class="sc-rise" cx="${(200 + (rnd(k) - .5) * 220).toFixed(0)}" cy="${H + 10}" r="${(1 + rnd(k + 4) * 1.6).toFixed(1)}" fill="${["#ffb02e", "#ff7a2a", "#fff0a0"][k % 3]}" opacity=".7" style="animation-delay:-${(rnd(k + 2) * 9).toFixed(1)}s;animation-duration:${(7 + rnd(k) * 4).toFixed(1)}s"/>`).join("");
+  } else if (h === "lunar" || h === "diwali" || h === "eid") {
+    parts = Array.from({ length: 14 }, (_, k) => `<circle class="sc-twinkle" cx="${(rnd(k) * W).toFixed(0)}" cy="${(rnd(k + 8) * H).toFixed(0)}" r="1.6" fill="${cols[k % cols.length]}" style="animation-delay:${(k * .4).toFixed(1)}s"/>`).join("");
+  } else if (/rain|pouring|lightning-rainy|hail/.test(cond)) {
+    parts = Array.from({ length: cond === "pouring" ? 34 : 22 }, (_, k) => `<line class="sc-rain" x1="${(rnd(k) * W).toFixed(0)}" y1="-14" x2="${(rnd(k) * W - 4).toFixed(0)}" y2="-2" stroke="${dark ? "#7cb7ff" : "#5b8fd6"}" stroke-width="1.2" opacity=".35" stroke-linecap="round" style="animation-delay:-${(rnd(k + 1) * 1.2).toFixed(2)}s"/>`).join("");
+  } else if (/snow/.test(cond)) {
+    parts = Array.from({ length: 26 }, (_, k) => `<circle class="sc-fall" cx="${(rnd(k) * W).toFixed(0)}" cy="${(rnd(k + 7) * H - H).toFixed(0)}" r="${(1.2 + rnd(k + 3) * 1.4).toFixed(1)}" fill="${dark ? "#ffffff" : "#8fb0dc"}" opacity="${dark ? .75 : .6}" style="animation-delay:-${(rnd(k + 3) * 14).toFixed(1)}s;animation-duration:${(9 + rnd(k) * 5).toFixed(1)}s"/>`).join("");
+  } else if (cond === "fog") {
+    parts = [0, 1, 2].map((k) => `<ellipse class="sc-drift" cx="${120 + k * 90}" cy="${120 + k * 70}" rx="190" ry="26" fill="${dark ? "#c9d3e6" : "#ffffff"}" opacity="${dark ? .08 : .5}" filter="url(#sc-blur4)" style="animation-delay:-${k * 9}s"/>`).join("");
+  } else if (sc.season === "spring") {
+    parts = Array.from({ length: 8 }, (_, k) => `<ellipse class="sc-fall" cx="${(rnd(k) * W).toFixed(0)}" cy="${(rnd(k + 9) * H - H).toFixed(0)}" rx="4" ry="2.3" fill="${["#ffc4d6", "#ffffff", "#ffd9e4"][k % 3]}" stroke="#f3a9c0" stroke-width=".6" opacity=".85" style="animation-delay:-${(rnd(k + 2) * 20).toFixed(1)}s;animation-duration:${(16 + rnd(k) * 8).toFixed(1)}s;--r:${(rnd(k + 5) * 360).toFixed(0)}deg"/>`).join("");
+  } else if (sc.season === "summer") {
+    const c = night || dusk ? "#d9ff7a" : "#ffd36b";
+    parts = Array.from({ length: 9 }, (_, k) => `<g class="sc-float" style="animation-delay:-${(rnd(k) * 12).toFixed(1)}s"><circle cx="${(rnd(k) * W).toFixed(0)}" cy="${(rnd(k + 9) * H).toFixed(0)}" r="1.8" fill="${c}" class="sc-twinkle" style="animation-delay:${(k * .5).toFixed(1)}s"/></g>`).join("");
+  } else if (sc.season === "autumn") {
+    parts = Array.from({ length: 8 }, (_, k) => `<path class="sc-fall" transform="translate(${(rnd(k) * W).toFixed(0)} ${(rnd(k + 9) * H - H).toFixed(0)})" d="M0 -5 q4 2.5 0 10 q-4 -7.5 0 -10z" fill="${["#e8892c", "#c4542a", "#f0b04a"][k % 3]}" opacity=".75" style="animation-delay:-${(rnd(k + 2) * 18).toFixed(1)}s;animation-duration:${(14 + rnd(k) * 6).toFixed(1)}s;--r:${(rnd(k + 5) * 360).toFixed(0)}deg"/>`).join("");
+  } else if (sc.season === "winter" && sc.outdoor != null && sc.outdoor <= 0) {
+    parts = [[118, 120], [282, 112], [42, 190], [356, 196], [118, 262], [282, 270], [200, 64]].map(([x, y], k) => `<g transform="translate(${x} ${y})" class="sc-twinkle" style="animation-delay:${k * .6}s"><path d="M0 -4 V4 M-4 0 H4 M-2.6 -2.6 L2.6 2.6 M-2.6 2.6 L2.6 -2.6" stroke="${dark ? "#dfe9ff" : "#8fb6e6"}" stroke-width="1" stroke-linecap="round"/></g>`).join("");
+  }
+  s += parts;
+  if (/lightning/.test(cond)) s += `<rect width="${W}" height="${H}" fill="#fff" class="sc-flash"/>`;
+  return `<svg class="scene" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${s}</svg>`;
+}
+
 function flowSvg(f) {
   const h = f.has, gridCol = (f.grid || 0) < -30 ? "var(--sell)" : "var(--grid)";
   const soc = f.soc ?? 0, r = 38, circ = 2 * Math.PI * r;
   const socRing = `<circle r="${r}" fill="none" stroke="var(--batt)" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="${circ}" stroke-dashoffset="${circ * (1 - soc / 100)}" transform="rotate(-90)" id="socring"/>`;
   const [pv, pvu] = split(f.pv), [ho, hou] = split(f.house), [gr, gru] = split(f.grid), [ev, evu] = split(f.ev);
   const battCap = f.battery > 30 ? `${T.charging}` : f.battery < -30 ? `${T.discharging}` : T.idle;
-  return `<svg viewBox="-20 -20 400 352"><defs><filter id="glow" filterUnits="userSpaceOnUse" x="-40" y="-40" width="480" height="430"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+  const sc = sceneInfo();
+  return `<svg viewBox="-20 -20 400 352"><defs><filter id="sc-blur2" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="2"/></filter><filter id="sc-blur4" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter><filter id="glow" filterUnits="userSpaceOnUse" x="-40" y="-40" width="480" height="430"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
     ${h.pv ? '<path class="base" d="M180 74 L180 116"/>' : ""}${h.grid ? '<path class="base" d="M286 150 L214 150"/>' : ""}
     ${h.battery ? '<path class="base" d="M74 150 L146 150"/>' : ""}${h.ev ? '<path class="base" d="M180 184 L180 228"/>' : ""}
     ${flowBeams(f, "glow")}
-    ${h.pv ? node("sun", 180, 40, "var(--sun)", pv, pvu, T.sun.toUpperCase(), "", "above", (f.pv || 0) > 30) : ""}
+    ${h.pv ? node("sun", 180, 40, "var(--sun)", pv, pvu, T.sun.toUpperCase(), "", "above", (f.pv || 0) > 30, sunIcon(sc)) : ""}
     ${h.grid ? node("grid", 320, 150, gridCol, gr, gru, (f.grid < -30 ? T.sell : f.grid > 30 ? T.buy : T.grid).toUpperCase(), "", "below", Math.abs(f.grid || 0) > 30) : ""}
-    ${node("house", 180, 150, "var(--house)", ho, hou, null, "", "below", true)}
+    ${node("house", 180, 150, "var(--house)", ho, hou, null, houseRing(sc), "below", true)}
     ${h.battery ? node("battery", 40, 150, "var(--batt)", `${num(f.soc, 0)}`, "%", `${battCap} ${f.battery && Math.abs(f.battery) > 30 ? kw(f.battery) : ""}`.trim().toUpperCase(), socRing, "below", Math.abs(f.battery || 0) > 30) : ""}
     ${h.ev ? node("car", 180, 260, "var(--car)", f.ev > 30 ? ev : "–", f.ev > 30 ? evu : "", (f.ev > 30 ? T.charging : f.plug ? T.plugged : T.notPlugged).toUpperCase(), "", "below", (f.ev || 0) > 30) : ""}
   </svg>`;
@@ -597,7 +715,7 @@ function home() {
     d.house_today != null ? metric("house", T.houseToday, num(d.house_today, 1), "kWh",
       d.house_other != null ? `${d.house_other_appdaemon ? (T.xYourAD) : (T.xOtherForecast)}: ${num(d.house_other, 1)}` : (T.xExpected)) : "",
   ].join("");
-  return `<div class="card flow fade" id="flow">${flowSvg(f)}</div>
+  return `<div class="card flow fade" id="flowcard">${sceneSvg()}<div id="flow">${flowSvg(f)}</div></div>
     ${dec ? `<div class="card status fade" style="--c:${DECCOL[dec.kind]}"><div class="dotc">${icon(DECICON[dec.kind])}</div>
       <div><h2>${esc(dec.text)}</h2><p>${esc(reason)}</p>${dec.engine && dec.saving > 0 ? `<p class="save">${T.saves.replace("{x}", kr(dec.saving))}</p>` : ""}
       ${dec.other ? `<p class="muted">${esc(T.otherSays.replace("{x}", dec.other.text.toLowerCase()))}</p>` : ""}
@@ -967,7 +1085,8 @@ function styleView() {
   const section = (ic, title, hint, body, id = ic) => body ? `<div class="card fade sec-card" id="sec-${id}"><div class="sec-head"><span class="sec-ic" style="--sc:${SC[ic]}">${icon(ic)}</span><div><b>${title}</b><span>${hint}</span></div></div>${body}</div>` : "";
   return `<div class="card fade"><div class="eyebrow"><span>${y.style}</span></div>
       <div class="styles">${STYLES.filter(([k]) => hasCar || !k.startsWith("car") && k !== "battery_first").map(([k, ic]) => `<button class="style ${style === k ? "on" : ""}" data-style="${k}">
-        ${icon(ic)}<b>${y.styles[k][0]}</b><span>${y.styles[k][1]}</span></button>`).join("")}</div></div>
+        ${icon(ic)}<b>${y.styles[k][0]}</b><span>${y.styles[k][1]}</span></button>`).join("")}</div>
+      ${row(T_FX[L]?.t || T_FX.en.t, T_FX[L]?.h || T_FX.en.h, tog("scene_fx", true))}</div>
     ${section("battery", y.secBattery, y.secBatteryH, hasBatt ? `${(v.batteries || []).length ? `<div class="muted" style="margin:2px 0 6px">${T.bat.hint}</div>` : ""}${row(y.minSoc, y.minSocH, `<div class="range"><input type="range" min="5" max="60" step="5" value="${v.battery_min_soc ?? 10}" data-range="battery_min_soc"><b id="r-battery_min_soc">${v.battery_min_soc ?? 10} %</b></div>`)}
       ${targetsRow()}
       ${row(y.grid, y.gridH, tog("grid_charge", true))}
