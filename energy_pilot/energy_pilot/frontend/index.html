@@ -98,12 +98,12 @@
   .ctl { display:flex; align-items:center; justify-content:space-between; padding:14px 0; border-top:1px solid var(--line); margin-top:14px; }
   .ctl + .ctl { margin-top:0; }
   .ctl .t b { display:block; font-weight:600; } .ctl .t span { font-size:12.5px; color:var(--muted); }
-  .toggle { width:51px; height:31px; border-radius:16px; border:0; background:var(--surface2); position:relative; cursor:pointer; flex:none; transition:.25s; box-shadow:inset 0 0 0 1px var(--line2); }
+  .toggle { width:51px; height:31px; border-radius:16px; border:0; background:color-mix(in srgb, var(--muted) 35%, var(--surface2)); position:relative; cursor:pointer; flex:none; transition:.25s; box-shadow:inset 0 0 0 1.5px color-mix(in srgb, var(--muted) 70%, transparent); }
   .toggle::after { content:""; position:absolute; top:2px; left:2px; width:27px; height:27px; border-radius:50%; background:#fff; transition:.25s; box-shadow:0 2px 6px rgba(0,0,0,.3); }
-  .toggle.on { background:var(--accent); box-shadow:none; } .toggle.car.on { background:var(--car); } .toggle.on::after { left:22px; }
+  .toggle.on { background:var(--ok); box-shadow:none; } .toggle.car.on { background:var(--car); } .toggle.on::after { left:22px; }
   input[type=time] { font:650 20px system-ui; color:var(--text); background:var(--surface2); border:1px solid var(--line); border-radius:12px; padding:6px 10px; color-scheme:dark; }
   @media (prefers-color-scheme: light) { input[type=time] { color-scheme:light; } }
-  .range { display:flex; align-items:center; gap:12px; min-width:52%; } .range input { flex:1; accent-color:var(--car); } .range b { min-width:62px; text-align:right; font-weight:650; }
+  .range { display:flex; align-items:center; gap:12px; min-width:52%; } .range input { flex:1; accent-color:var(--car); touch-action:pan-y; } .range b { min-width:62px; text-align:right; font-weight:650; }
   /* shadow */
   .app { display:grid; grid-template-columns:52px 1fr; gap:4px 14px; align-items:center; padding:16px 0; border-top:1px solid var(--line); }
   .app:first-of-type { border-top:0; padding-top:4px; }
@@ -245,7 +245,7 @@ const T_ALL = {
       sizeLearned: "Lært: {x} kWh brugbart – bruges, når feltet er tomt", sizeDiff: "Lært: {x} kWh brugbart, du har sat {y}. Navneværdien er ofte højere end det brugbare.",
       sizeLearning: "Lærer den brugbare kapacitet af op- og afladningerne", useLearned: "Brug det lærte", power: "Ladeeffekt", powerH: "Hvor hurtigt batteriet kan lade",
       powerOut: "Afladeeffekt", powerOutH: "Hvor hurtigt det kan aflade – tomt = som ladeeffekten",
-      sell: "Må sælge til nettet", sellH: "Overskud fra solen sælges, når det betaler sig", sellPrice: "Du får pr. kWh", fuse: "Importloft", fuseH: "Hovedsikringen - køb aldrig mere",
+      sell: "Sælg fra solen", sellH: "Overskud fra solen sælges, når det betaler sig", sellPrice: "Du får pr. kWh", fuse: "Importloft", fuseH: "Hovedsikringen - køb aldrig mere",
       carMode: "Bilen lader", carModes: { cheapest: "Billigst", solar: "Kun sol" }, charger: "Laderens effekt", chargerH: "Typisk 3,7 / 7,4 / 11 kW",
       quiet: "Stille timer", quietH: "Ingen opladning i dette tidsrum", quietBatt: "Gælder batteriet (kun strøm fra nettet - solen lader stadig)", quietCar: "Gælder bilen",
       source: "Elpris", sourceH: "Hvor priserne kommer fra", sources: { auto: "Automatisk", spot: "Spotpris", tou: "Egen tarif" },
@@ -315,7 +315,7 @@ const T_ALL = {
       capacity: "Batteriet har målt {learned} kWh brugbart, men der står {set} kWh. Brug det målte?",
       ev_house: "Det ser ud til, at bilen {seen} med i husets forbrug – valget står til det modsatte.", evYes: "er", evNo: "ikke er",
       export_blocked: "Salg fra batteriet er slået til, men inverter-styringen kan ikke sælge (eller mangler kontroller).",
-      export_no_price: "Salg fra batteriet er slået til, men planen kender ingen salgspris. Slå \"Må sælge til nettet\" til.",
+      export_no_price: "Salg fra batteriet er slået til, men planen kender ingen salgspris. Slå \"Sælg fra solen\" til.",
       export_no_gain: "Ingen time betaler sig at sælge i: den bedste salgspris ({sell}) er under det, strømmen er værd i huset (ca. {worth}).",
       no_soc: "Kan ikke se batteriniveauet – vælg sensoren under \"Det du har\".",
       follow_discharge: "Planen siger, batteriet skal dække huset, men det har stået stille i 10 minutter. Noget på inverteren holder det tilbage.", follow_discharge_why: "Planen siger, batteriet skal dække huset, men det har stået stille i 10 minutter. Disse indstillinger på inverteren står på 0, det laveste eller stopper batteriet: {list}", other_control: "Noget andet ændrer også batteriets indstillinger ({list}) – de er sat tilbage flere gange den sidste time. Er der en automation, Predbat eller inverterens egen plan, der også styrer? De to arbejder mod hinanden.", predbat_on: "Predbat styrer også batteriet (tilstand: {mode}). Sæt Predbat på \"Monitor\", mens Energy Pilot styrer, ellers arbejder de mod hinanden.", follow_charge: "Planen siger, batteriet skal lade, men det har stået stille i 10 minutter. Noget på inverteren holder det tilbage.", follow_charge_why: "Planen siger, batteriet skal lade, men det har stået stille i 10 minutter. Disse indstillinger på inverteren står på 0, det laveste eller stopper batteriet: {list}" },
@@ -356,7 +356,7 @@ const T_ALL = {
       sizeLearned: "Learned: {x} kWh usable – used when the field is empty", sizeDiff: "Learned: {x} kWh usable, you set {y}. The label is often higher than what's usable.",
       sizeLearning: "Learning the usable capacity from charging and discharging", useLearned: "Use the learned", power: "Charge power", powerH: "How fast the battery can charge",
       powerOut: "Discharge power", powerOutH: "How fast it can discharge – empty = same as charge",
-      sell: "May sell to the grid", sellH: "Solar surplus is sold when it pays", sellPrice: "You get per kWh", fuse: "Import limit", fuseH: "The main fuse - never buy more",
+      sell: "Sell from solar", sellH: "Solar surplus is sold when it pays", sellPrice: "You get per kWh", fuse: "Import limit", fuseH: "The main fuse - never buy more",
       carMode: "The car charges", carModes: { cheapest: "Cheapest", solar: "Sun only" }, charger: "Charger power", chargerH: "Typically 3.7 / 7.4 / 11 kW",
       quiet: "Quiet hours", quietH: "No charging in this period", quietBatt: "Applies to the battery (grid only - the sun still charges it)", quietCar: "Applies to the car",
       source: "Electricity price", sourceH: "Where prices come from", sources: { auto: "Automatic", spot: "Spot price", tou: "Own tariff" },
@@ -426,7 +426,7 @@ const T_ALL = {
       capacity: "The battery has measured {learned} kWh usable, but it says {set} kWh. Use the measured?",
       ev_house: "It looks like the car {seen} part of the house use – the choice says the opposite.", evYes: "is", evNo: "isn't",
       export_blocked: "Selling from the battery is on, but the inverter control can't sell (or controls are missing).",
-      export_no_price: "Selling from the battery is on, but the plan has no export price. Turn on \"May sell to the grid\".",
+      export_no_price: "Selling from the battery is on, but the plan has no export price. Turn on \"Sell from solar\".",
       export_no_gain: "No hour pays to sell: the best export rate ({sell}) is below what the power is worth in the house (about {worth}).",
       no_soc: "Can't see the battery level – pick the sensor under \"What you have\".",
       follow_discharge: "The plan wants the battery to cover the house, but it has stood still for 10 minutes. Something on the inverter holds it back.", follow_discharge_why: "The plan wants the battery to cover the house, but it has stood still for 10 minutes. These inverter settings are at 0, at their lowest or stop the battery: {list}", other_control: "Something else changes the battery settings too ({list}) – they were set back several times in the last hour. Is there an automation, Predbat or the inverter's own schedule steering as well? The two work against each other.", predbat_on: "Predbat is steering the battery too (mode: {mode}). Set Predbat to \"Monitor\" while Energy Pilot is in control, or they work against each other.", follow_charge: "The plan wants the battery to charge, but it has stood still for 10 minutes. Something on the inverter holds it back.", follow_charge_why: "The plan wants the battery to charge, but it has stood still for 10 minutes. These inverter settings are at 0, at their lowest or stop the battery: {list}" },
@@ -591,6 +591,15 @@ const T_FX = {
   nl: { t: "Weer en feestdagen op de voorpagina", h: "Het echte weer, het seizoen en de feestdag in het energiebeeld" },
   sv: { t: "Väder och högtider på startsidan", h: "Det riktiga vädret, årstiden och dagens högtid i energibilden" },
   nb: { t: "Vær og høytider på forsiden", h: "Det ekte været, årstiden og dagens høytid i energibildet" },
+};
+const T_PRIO = {
+  da: { t: "Salg og opladning", h: "Hvad Energy Pilot må gøre med nettet" },
+  en: { t: "Selling and charging", h: "What Energy Pilot may do with the grid" },
+  de: { t: "Verkaufen und Laden", h: "Was Energy Pilot mit dem Netz tun darf" },
+  fr: { t: "Vente et charge", h: "Ce qu'Energy Pilot peut faire avec le réseau" },
+  nl: { t: "Verkopen en laden", h: "Wat Energy Pilot met het net mag doen" },
+  sv: { t: "Sälja och ladda", h: "Vad Energy Pilot får göra med nätet" },
+  nb: { t: "Salg og lading", h: "Hva Energy Pilot kan gjøre med nettet" },
 };
 const RINGED = new Set(["jul", "paaske", "halloween", "national", "thanksgiving", "lunar", "diwali", "eid"]);
 function sunIcon(sc) {
@@ -1090,12 +1099,14 @@ function styleView() {
       <div class="styles">${STYLES.filter(([k]) => hasCar || !k.startsWith("car") && k !== "battery_first").map(([k, ic]) => `<button class="style ${style === k ? "on" : ""}" data-style="${k}">
         ${icon(ic)}<b>${y.styles[k][0]}</b><span>${y.styles[k][1]}</span></button>`).join("")}</div>
       ${row(T_FX[L]?.t || T_FX.en.t, T_FX[L]?.h || T_FX.en.h, tog("scene_fx", true))}</div>
-    ${section("battery", y.secBattery, y.secBatteryH, hasBatt ? `${(v.batteries || []).length ? `<div class="muted" style="margin:2px 0 6px">${T.bat.hint}</div>` : ""}${row(y.minSoc, y.minSocH, `<div class="range"><input type="range" min="5" max="60" step="5" value="${v.battery_min_soc ?? 10}" data-range="battery_min_soc"><b id="r-battery_min_soc">${v.battery_min_soc ?? 10} %</b></div>`)}
-      ${targetsRow()}
-      ${row(y.grid, y.gridH, tog("grid_charge", true))}
+    ${section("grid", (T_PRIO[L] || T_PRIO.en).t, (T_PRIO[L] || T_PRIO.en).h, `${row(y.sell, y.sellH, tog("sell"))}
+      ${v.sell ? `<div class="muted" style="margin:4px 0 2px">${y.sellSensorH}</div>${roleRows(["sell_price"])}` : ""}
+      ${hasBatt ? `${row(y.grid, y.gridH, tog("grid_charge", true))}
       ${row(y.export, y.exportH, tog("battery_export"))}
       ${v.battery_export ? row(y.exportLimit, y.exportLimitH, numIn("export_limit_kw", "", "0.1", "kW")) : ""}
-      ${v.battery_export ? row(y.noExpCheap, y.noExpCheapH, tog("battery_no_export_cheap")) : ""}
+      ${v.battery_export ? row(y.noExpCheap, y.noExpCheapH, tog("battery_no_export_cheap")) : ""}` : ""}`, "prio")}
+    ${section("battery", y.secBattery, y.secBatteryH, hasBatt ? `${(v.batteries || []).length ? `<div class="muted" style="margin:2px 0 6px">${T.bat.hint}</div>` : ""}${row(y.minSoc, y.minSocH, `<div class="range"><input type="range" min="5" max="60" step="5" value="${v.battery_min_soc ?? 10}" data-range="battery_min_soc"><b id="r-battery_min_soc">${v.battery_min_soc ?? 10} %</b></div>`)}
+      ${targetsRow()}
       ${(v.batteries || []).length ? `<h4 class="bathead">${T.bat.n.replace("{n}", 1)}</h4>` : ""}
       ${row(y.size, (v.batteries || []).length ? "" : capHint(v), `<span class="capbox">${numIn("battery_kwh", settings.capacity_learned ?? settings.capacity_guess ?? 10, "0.1", "kWh")}${
         settings.capacity_learned && v.battery_kwh && Math.abs(v.battery_kwh - settings.capacity_learned) / settings.capacity_learned > 0.05
@@ -1138,8 +1149,6 @@ function styleView() {
     ${section("grid", y.secGrid, y.secGridH, `${row(y.fuse, y.fuseH, numIn("import_limit_kw", 10, "1", "kW"))}
       ${row(T.pt.title, ptHint(), numIn("power_tariff_price", "", "0.5", SYM() + "/kW"))}
       ${v.power_tariff_price ? row(T.pt.kind, "", `<div class="seg mini">${["auto", "hour", "top3", "15min"].map((k) => `<button class="${(v.power_tariff_kind || "auto") === k ? "on" : ""}" data-ptkind="${k}">${T.pt.kinds[k]}</button>`).join("")}</div>`) : ""}
-      ${row(y.sell, y.sellH, tog("sell"))}
-      ${v.sell ? `<div class="muted" style="margin:4px 0 2px">${y.sellSensorH}</div>${roleRows(["sell_price"])}` : ""}
       ${adv("grid", `${v.sell ? row(y.sellPrice, settings.roles.sell_price ? y.sellFromSensor : "", numIn("sell_price", "0.5", "0.05", SYM())) : ""}
       ${row(y.gsign, settings.grid_sign_found === -1 ? y.gsignRev : settings.grid_sign_found === 1 ? y.gsignNorm : y.gsignUnknown,
         `<div class="seg mini">${[["auto", null], ["norm", 1], ["rev", -1]].map(([k, val]) => `<button class="${(v.grid_sign ?? null) === val ? "on" : ""}" data-gsign="${k}">${y.gsigns[k]}</button>`).join("")}</div>`)}
@@ -1209,7 +1218,7 @@ const advOpen = new Set();
 function render(quiet = false) {
   const root = $("#root");
   if (!data) return;
-  const control = (data.shadow || []).filter((a) => a.mode === "control").length;
+  const control = (data.shadow || []).filter((a) => a.mode === "control").length + (data.in_control || []).length;
   const body = tab === "setup" ? setupView() : tab === "plan" ? planView() : tab === "shadow" ? shadowView() : tab === "settings" ? settingsView() : home();
   document.querySelector("nav").style.display = tab === "setup" ? "none" : "";
   const html = `<div class="top"><div class="brand"><span class="logo"><svg viewBox="0 0 24 24" fill="#fff"><path d="${"M13 2 4 14h7l-1 8 9-12h-7z"}"/></svg></span><h1>${T.title}</h1></div>
@@ -1305,7 +1314,13 @@ function wire() {
   document.querySelectorAll("[data-btt]").forEach((i) => i.onchange = () => { const a = bts(); if (a[+i.dataset.btt]) a[+i.dataset.btt].time = i.value; saveSet({ battery_targets: a }); });
   document.querySelectorAll("[data-bts]").forEach((i) => i.onchange = () => { const a = bts(); if (a[+i.dataset.bts]) a[+i.dataset.bts].soc = Math.min(100, Math.max(5, Number(i.value) || 80)); saveSet({ battery_targets: a }); });
   document.querySelectorAll("[data-text]").forEach((i) => i.onchange = () => saveSet({ [i.dataset.text]: i.value || null }));
-  document.querySelectorAll("[data-range]").forEach((i) => { i.oninput = () => ($("#r-" + i.dataset.range).textContent = `${i.value} %`); i.onchange = () => saveSet({ [i.dataset.range]: Number(i.value) }); });
+  document.querySelectorAll("[data-range]").forEach((i) => { i.oninput = () => ($("#r-" + i.dataset.range).textContent = `${i.value} %`); i.onchange = () => {
+    if (i._scroll) { i.value = i.defaultValue; $("#r-" + i.dataset.range).textContent = `${i.value} %`; return; }  // a scroll, not a choice
+    saveSet({ [i.dataset.range]: Number(i.value) }); };
+    // on a phone a finger scrolling the page can catch the slider: a mostly vertical drag puts it back
+    i.addEventListener("touchstart", (e) => { i._y = e.touches[0].clientY; i._x = e.touches[0].clientX; i._scroll = false; }, { passive: true });
+    i.addEventListener("touchmove", (e) => { const t = e.touches[0]; if (Math.abs(t.clientY - i._y) > Math.abs(t.clientX - i._x) + 4) i._scroll = true; }, { passive: true });
+  });
   document.querySelectorAll("[data-psrc]").forEach((b) => b.onclick = () => saveSet({ price_source: b.dataset.psrc === "auto" ? null : b.dataset.psrc }));
   document.querySelectorAll("[data-sval]").forEach((b) => b.onclick = () => saveSet({ solar_value: b.dataset.sval }));
   const bats = () => JSON.parse(JSON.stringify(settings.settings.batteries || []));

@@ -138,7 +138,15 @@ class Overview:
         except (OSError, ValueError):
             return {"roles": {}, "battery_kwh": None, "import_limit_kw": 10}
 
-    def save(self, changes: dict[str, Any]) -> None:
+    def save(self, changes: dict[str, Any], source: str | None = None) -> None:
+        # Who changed what, when (the last 40): a setting that "moves by itself" shows where it came from in the diagnosis.
+        if source:
+            log = list(self.settings.get("change_log") or [])
+            for key, value in changes.items():
+                old = self.settings.get(key)
+                if key != "roles" and not isinstance(value, (dict, list)) and value != old:
+                    log.append({"t": datetime.now(ZoneInfo(self.ha.config.get("time_zone") or "UTC")).isoformat(timespec="seconds"), "key": key, "from": old, "to": value, "by": source})
+            self.settings["change_log"] = log[-40:]
         for key, value in changes.items():
             if key == "roles":
                 self.settings.setdefault("roles", {}).update({k: v for k, v in value.items() if k in ROLES})

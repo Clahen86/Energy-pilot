@@ -26,6 +26,8 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
         st = runner.status()
         data["shadow"] = [{k: a[k] for k in ("name", "mode", "agree", "checks", "errors")} for a in st["apps"]]
         data["connected"] = st["connected"]
+        c = overview.controller
+        data["in_control"] = [p for p in c.parts() if c.mode(p) == "control"] if c else []  # Energy Pilot's own parts
         data["setup_done"] = bool(overview.settings.get("setup_done"))
         data["currency"] = runner.ha.config.get("currency") or "EUR"
         data["price_info"] = overview.price_info
@@ -103,7 +105,8 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
 
     async def save_settings(req: web.Request) -> web.Response:
         body = await req.json()
-        overview.save(body)
+        ua = req.headers.get("User-Agent") or ""
+        overview.save(body, "home_assistant" if "HomeAssistant" in ua or "aiohttp" in ua.lower() else "app")
         if overview.controller and ("ev_switch" in body or "chargers" in body):
             try:
                 await overview.controller.discover()  # the chosen switch is used at once

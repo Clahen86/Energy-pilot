@@ -87,7 +87,7 @@ def run(engine: Any, hours: list, b: Any, plan: Any, end_value: float) -> list[d
         if not b.export:
             out.append({"key": "export_blocked", "level": "info", "vals": {}, "goto": "battery"})
         elif not st.get("sell") and not engine.ov.role("sell_price"):
-            out.append({"key": "export_no_price", "level": "warn", "vals": {}, "fix": {"sell": True}, "goto": "grid"})
+            out.append({"key": "export_no_price", "level": "warn", "vals": {}, "fix": {"sell": True}, "goto": "prio"})
         elif plan is not None and hours and not any(s.action == "export" for s in plan.steps):
             best = max(h.sell for h in hours)
             # What the power in the battery saves: the cheapest hour the plan lets the battery cover the house in.
