@@ -1261,8 +1261,14 @@ function render(quiet = false) {
   $("#tabs").innerHTML = Object.entries(T.tabs).map(([k, v]) => `<button class="${tab === k ? "on" : ""}" data-tab="${k}">${icon(TABICON[k])}<span>${v}</span></button>`).join("");
   flowKey = flowSig(data.flow);
   wire();
-  const pw = $("#planwrap"), now = pw?.querySelector("line[stroke='var(--text)']");
-  if (pw && now) pw.scrollLeft = Math.max(0, Number(now.getAttribute("x1")) - pw.clientWidth / 3);
+  // the plan opens at the time now - once it has a width (a page just opened may not have one yet)
+  const toNow = (tries = 0) => {
+    const pw = $("#planwrap"), now = pw?.querySelector("line[stroke='var(--text)']");
+    if (!pw || !now) return;
+    if (!pw.clientWidth) { if (tries < 40) setTimeout(() => toNow(tries + 1), 150); return; }
+    pw.scrollLeft = Math.max(0, Number(now.getAttribute("x1")) - pw.clientWidth / 3);
+  };
+  requestAnimationFrame(() => toNow());
 }
 function patch() {
   // Only the numbers - the beams keep running.

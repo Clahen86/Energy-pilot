@@ -325,8 +325,16 @@ class EnergipilotCard extends HTMLElement {
     r.querySelectorAll("[data-sw]").forEach((b) => b.onclick = () => { const on = !b.classList.contains("on"); b.classList.toggle("on", on); h.callService("switch", on ? "turn_on" : "turn_off", { entity_id: b.dataset.sw }); });
     r.querySelectorAll("[data-time]").forEach((i) => i.onchange = () => h.callService("input_datetime", "set_datetime", { entity_id: i.dataset.time, time: i.value + ":00" }));
     r.querySelectorAll("[data-cap]").forEach((i) => { i.oninput = () => (r.getElementById("capv").textContent = `${i.value} kWh`); i.onchange = () => h.callService("input_number", "set_value", { entity_id: i.dataset.cap, value: Number(i.value) }); });
-    const pw = r.querySelector(".pw"), nl = pw?.querySelector("line[stroke-width='1.3']");
-    if (pw && nl) pw.scrollLeft = Math.max(0, Number(nl.getAttribute("x1")) - pw.clientWidth / 3);
+    // The plan opens at the time now, not at midnight. The card is often drawn before Home Assistant shows it
+    // (no width yet), so it waits until it has one.
+    const toNow = (tries = 0) => {
+      const pw = r.querySelector(".pw"), nl = pw?.querySelector("line[stroke-width='1.3']");
+      if (!pw || !nl) return;
+      if (!pw.clientWidth) { if (tries < 40) setTimeout(() => toNow(tries + 1), 150); return; }
+      const svg = pw.querySelector("svg"), vb = svg?.viewBox?.baseVal, scale = vb && vb.width ? svg.getBoundingClientRect().width / vb.width : 1;
+      pw.scrollLeft = Math.max(0, Number(nl.getAttribute("x1")) * scale - pw.clientWidth / 3);
+    };
+    requestAnimationFrame(() => toNow());
   }
 }
 
