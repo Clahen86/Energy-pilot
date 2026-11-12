@@ -19,6 +19,17 @@ def test_taper_learned_from_what_it_really_takes():
     assert BatteryLearner({}).taper() == ()  # nothing seen: no guess
 
 
+def test_taper_never_lower_than_a_level_above():
+    """A user's battery learned 20 % at 85 % but 88 % at 90 %: slow charging that was asked for, not the battery."""
+    bl = BatteryLearner({})
+    for _ in range(25):
+        bl.see(8000, 50, 30 / 3600)
+    for _ in range(12):
+        bl.see(1600, 86, 30 / 3600)  # the plan's last half hour, charging gently
+        bl.see(7040, 91, 30 / 3600)  # full speed higher up
+    assert bl.taper() == ((85.0, 0.88), (90.0, 0.88))
+
+
 def test_plan_respects_the_taper():
     hours = [Hour(T0 + timedelta(hours=i), 0.1 if i < 4 else 2.0, 0.0, 0.5, 0.0) for i in range(12)]
     b = Battery(capacity_kwh=10, max_charge_kw=5, grid_charge=True, taper=((90.0, 0.2),))

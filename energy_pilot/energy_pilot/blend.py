@@ -343,13 +343,20 @@ class BatteryLearner:
         if len(low) < 20:
             return ()
         ref = low[int(len(low) * 0.9)]
-        out = []
+        seen = {}
         for band in sorted(TAPER_BANDS):
             vals = sorted(cw.get(str(band)) or [])
             if len(vals) >= 10:
-                share = max(0.2, min(1.0, vals[int(len(vals) * 0.9)] / ref))
-                if share < 0.95:
-                    out.append((float(band), round(share, 2)))
+                seen[band] = max(0.2, min(1.0, vals[int(len(vals) * 0.9)] / ref))
+        # A battery never charges faster higher up: what was seen at 90 % it can do at 85 % too. Slow charging that
+        # was asked for (the plan's last half hour, a little sun) would otherwise look like a battery that can't.
+        out, best = [], 0.0
+        for band in sorted(seen, reverse=True):
+            best = max(best, seen[band])
+            seen[band] = best
+        for band in sorted(seen):
+            if seen[band] < 0.95:
+                out.append((float(band), round(seen[band], 2)))
         return tuple(out)
 
     def _medians(self) -> tuple[float, float, int] | None:

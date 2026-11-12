@@ -48,3 +48,13 @@ def test_a_selling_setpoint_is_never_kept_as_the_owners():
     assert back[0]["data"]["value"] == 0
     states["number.ess_ac_grid_setpoint"]["state"] = "40"
     assert c._restore("battery", "normal") == []  # the owner's own positive value is left alone
+
+
+def test_growatt_lets_go_of_the_selling_slot():
+    """Selling turns on grid-first slot 1 for the whole day: normal and hold must turn it off again."""
+    from energy_pilot import adapters
+
+    for intent in ("normal", "hold"):
+        steps = adapters.PROFILES["growatt"][intent]
+        assert any(p.endswith("grid_first_slot_1_enabled$") and kind == "off" for p, kind, _ in steps)
+    assert any(p.endswith("grid_first_slot_1_enabled$") for p in adapters.PROFILES["growatt"]["optional"])

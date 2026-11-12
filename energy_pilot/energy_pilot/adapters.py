@@ -40,12 +40,15 @@ PROFILES: dict[str, dict[str, Any]] = {
         "normal": [(r"select\..*work_mode_priority$", "select", "Load first"), (r"number\..*load_first_stop_discharge$", "number", "{min_soc}"),
                    (r"select\..*battery_first_grid_charge$", "select", "Disabled"),
                    (r"number\..*free_mode_discharge_rate$", "number", "100"), (r"number\..*free_mode_charge_rate$", "number", "100"),
-                   (r"number\..*load_first_stop_charge$", "number", "100"), (r"switch\..*battery_first_slot_1_enabled$", "off", None)],
+                   (r"number\..*load_first_stop_charge$", "number", "100"), (r"switch\..*battery_first_slot_1_enabled$", "off", None),
+                   (r"switch\..*grid_first_slot_1_enabled$", "off", None)],  # selling's all-day time slot off again
         "hold": [(r"select\..*work_mode_priority$", "select", "Load first"), (r"number\..*load_first_stop_discharge$", "number", "{soc}"),
                  (r"select\..*battery_first_grid_charge$", "select", "Disabled"),
                  (r"number\..*free_mode_discharge_rate$", "number", "0"), (r"number\..*free_mode_charge_rate$", "number", "100"),
-                 (r"number\..*load_first_stop_charge$", "number", "100"), (r"switch\..*battery_first_slot_1_enabled$", "off", None)],
-        "optional": [r"number\..*free_mode_discharge_rate$", r"number\..*free_mode_charge_rate$", r"number\..*load_first_stop_charge$"],
+                 (r"number\..*load_first_stop_charge$", "number", "100"), (r"switch\..*battery_first_slot_1_enabled$", "off", None),
+                   (r"switch\..*grid_first_slot_1_enabled$", "off", None)],  # selling's all-day time slot off again
+        "optional": [r"number\..*free_mode_discharge_rate$", r"number\..*free_mode_charge_rate$", r"number\..*load_first_stop_charge$",
+                     r"switch\..*grid_first_slot_1_enabled$"],
         "charge": [(r"switch\..*battery_first_slot_1_enabled$", "on", None), (r"select\..*battery_first_slot_1_start$", "select", "00:00"),
                    (r"select\..*battery_first_slot_1_end$", "select", "23:59"), (r"number\..*battery_first_charge_rate$", "number", "{rate}"),
                    (r"number\..*battery_first_stop_charge$", "number", "{target}"), (r"select\..*battery_first_grid_charge$", "select", "Enabled"),
