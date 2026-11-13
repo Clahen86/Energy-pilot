@@ -1,8 +1,19 @@
 // Energipilot dashboard cards: energy flow, today's plan, the car, the battery - or all of them.
-// type: custom:energipilot-card   view: flow | plan | car | battery | overview
+// type: custom:energipilot-card   view: flow | plan | car | battery | savings | overview
 // Live numbers come straight from your own sensors (sensor.energipilot tells which ones), so they move at once.
 
 const SENSOR = "sensor.energipilot";
+// What the battery saved - the companion integration's sensors, found by what they are (their names follow the language).
+const SAVE_T = {
+  da: { view: "Sparet", today: "Sparet i dag", yesterday: "I går", month: "Måned", year: "År", total: "I alt" },
+  en: { view: "Saved", today: "Saved today", yesterday: "Yesterday", month: "Month", year: "Year", total: "In all" },
+  de: { view: "Gespart", today: "Heute gespart", yesterday: "Gestern", month: "Monat", year: "Jahr", total: "Insgesamt" },
+  fr: { view: "Économisé", today: "Économisé aujourd'hui", yesterday: "Hier", month: "Mois", year: "Année", total: "Au total" },
+  nl: { view: "Bespaard", today: "Vandaag bespaard", yesterday: "Gisteren", month: "Maand", year: "Jaar", total: "Totaal" },
+  sv: { view: "Sparat", today: "Sparat i dag", yesterday: "I går", month: "Månad", year: "År", total: "Totalt" },
+  nb: { view: "Spart", today: "Spart i dag", yesterday: "I går", month: "Måned", year: "År", total: "Totalt" },
+};
+const SAVE_KEYS = { today: "saved_today", yesterday: "saved_yesterday", month: "saved_month", year: "saved_year", total: "saved_total" };
 const P = {
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
   grid: '<path d="M12 2 7 22M12 2l5 20M8.5 9h7M7.3 15h9.4M5 6h14"/>',
@@ -170,14 +181,14 @@ class EnergipilotCard extends HTMLElement {
   setConfig(config) { this._config = { view: "overview", ...config }; if (!this.shadowRoot) this.attachShadow({ mode: "open" }); this._uid = Math.random().toString(36).slice(2, 7); }
   static getConfigElement() { return document.createElement("energipilot-card-editor"); }
   static getStubConfig() { return { view: "flow" }; }
-  getCardSize() { return { flow: 5, plan: 4, car: 3, battery: 2, overview: 10 }[this._config.view] || 5; }
+  getCardSize() { return { flow: 5, plan: 4, car: 3, battery: 2, savings: 3, overview: 11 }[this._config.view] || 5; }
   getGridOptions() { return { columns: 12, min_columns: 6, rows: "auto" }; }  // as tall as what it shows
 
   set hass(hass) {
     this._hass = hass;
     const ep = hass.states[SENSOR];
     const roles = ep?.attributes?.roles || {};
-    const live = Object.values(roles).filter(Boolean).map((e) => hass.states[e]?.state).join("|");
+    const live = Object.values(roles).filter(Boolean).map((e) => hass.states[e]?.state).join("|") + "|" + (this._savedId("today") ? hass.states[this._savedId("today")]?.state : "");
     const key = (ep?.last_updated || "") + live + hass.themes?.darkMode;
     if (key === this._key) return;
     const shape = (ep?.last_updated || "") + this._sig();
@@ -217,7 +228,8 @@ class EnergipilotCard extends HTMLElement {
     let body;
     if (!ep) body = `<div class="empty">${ic("bolt", 22)}<div>${t.noData}</div></div>`;
     else body = v === "plan" ? this._planHtml() : v === "car" ? this._carHtml() : v === "battery" ? this._batteryHtml() : v === "flow" ? this._flowHtml()
-      : `${this._flowHtml()}${this._statusHtml()}${this._batteryHtml(true)}${this._carHtml(true)}${this._planHtml(true)}`;
+      : v === "savings" ? this._savingsHtml()
+      : `${this._flowHtml()}${this._statusHtml()}${this._savingsHtml(true)}${this._batteryHtml(true)}${this._carHtml(true)}${this._planHtml(true)}`;
     this.shadowRoot.innerHTML = `<style>${CSS}</style><ha-card>${this._config.title ? `<div class="title">${esc(this._config.title)}</div>` : ""}${body}</ha-card>`;
     this._wire();
   }
@@ -230,6 +242,46 @@ class EnergipilotCard extends HTMLElement {
     const ring = root.getElementById("soc"); if (ring) ring.setAttribute("stroke-dashoffset", 2 * Math.PI * 38 * (1 - (f.soc || 0) / 100));
     const bs = root.getElementById("bsoc"); if (bs?.firstChild) bs.firstChild.nodeValue = this._n(f.soc, 0);
     const bb = root.getElementById("bbar"); if (bb) bb.style.width = `${f.soc || 0}%`;
+    this._countTo(this._saved("today"));
+  }
+  _savedId(period) {
+    const reg = this._hass?.entities || {};
+    this._ids = this._ids || {};
+    if (!(period in this._ids)) this._ids[period] = Object.values(reg).find((e) => e.platform === "energy_pilot" && e.translation_key === SAVE_KEYS[period])?.entity_id || null;
+    return this._ids[period];
+  }
+  _saved(period) { return this._num(this._savedId(period)); }
+  _money(v) {
+    if (v == null) return "–";
+    const e = this._savedId("today"), cur = (e && this._hass.states[e]?.attributes.unit_of_measurement) || "DKK";
+    try { return new Intl.NumberFormat(this._hass.locale?.language || lang(this._hass), { style: "currency", currency: cur }).format(v); }
+    catch { return `${this._n(v, 2)} ${cur}`; }
+  }
+  _countTo(target) {
+    // The amount counts up softly to the new value - you can see the money come in.
+    const el = this.shadowRoot?.getElementById("svtoday");
+    if (!el || target == null) return;
+    const from = this._shown ?? target;
+    this._shown = target;
+    if (from === target) { el.textContent = this._money(target); return; }
+    const t0 = performance.now(), ms = 1500;
+    cancelAnimationFrame(this._raf);
+    const step = (now) => {
+      const k = Math.min(1, (now - t0) / ms), e = 1 - Math.pow(1 - k, 3);
+      el.textContent = this._money(from + (target - from) * e);
+      if (k < 1) this._raf = requestAnimationFrame(step);
+    };
+    this._raf = requestAnimationFrame(step);
+  }
+  _savingsHtml(inline = false) {
+    if (!this._savedId("today")) return "";
+    const st = SAVE_T[lang(this._hass)] || SAVE_T.en, today = this._saved("today");
+    this._shown = today;
+    if (inline) return `<div class="sec"><div class="saveline">${ic("bolt", 16)}<span>${st.today}</span><b id="svtoday">${this._money(today)}</b></div></div>`;
+    const tile = (p) => this._savedId(p) ? `<div class="stile"><span>${st[p]}</span><b>${this._money(this._saved(p))}</b></div>` : "";
+    return `<div class="pad"><div class="eyebrow">${ic("bolt")} ${st.today}</div>
+      <div class="bigsave" id="svtoday">${this._money(today)}</div>
+      <div class="stiles">${tile("yesterday")}${tile("month")}${tile("year")}${tile("total")}</div></div>`;
   }
 
   _node(id, x, y, color, value, unit, cap, extra = "", above = false, active = false, iconId = null) {
@@ -370,6 +422,12 @@ const CSS = `
   .sic { width:34px; height:34px; border-radius:10px; display:grid; place-items:center; color:var(--c); background:color-mix(in srgb, var(--c) 16%, transparent); flex:none; }
   .status b { display:block; font-weight:600; } .status span { font-size:13px; color:var(--secondary-text-color); }
   .pad { padding:14px 16px; } .sec { padding:14px 16px; border-top:1px solid var(--divider-color); margin-top:6px; }
+  .saveline { display:flex; align-items:center; gap:8px; padding:10px 12px; border-radius:12px; background:color-mix(in srgb, #3ddc97 10%, transparent); color:var(--primary-text-color); }
+  .saveline svg { color:#3ddc97; } .saveline span { flex:1; color:var(--secondary-text-color); font-size:13px; } .saveline b { font-size:16px; color:#3ddc97; font-variant-numeric:tabular-nums; }
+  .bigsave { font-size:38px; font-weight:750; color:#3ddc97; letter-spacing:-.02em; margin:4px 0 12px; font-variant-numeric:tabular-nums; }
+  .stiles { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .stile { padding:10px 12px; border-radius:12px; background:var(--secondary-background-color, rgba(127,127,127,.12)); }
+  .stile span { display:block; font-size:12px; color:var(--secondary-text-color); } .stile b { font-size:15px; font-variant-numeric:tabular-nums; }
   .eyebrow { display:flex; align-items:center; gap:6px; font-size:11px; font-weight:650; text-transform:uppercase; letter-spacing:.09em; color:var(--secondary-text-color); margin-bottom:8px; }
   .eyebrow span { margin-left:auto; letter-spacing:.02em; text-transform:none; font-weight:600; }
   .big { font-size:28px; font-weight:650; letter-spacing:-.03em; } .big small { font-size:13px; color:var(--secondary-text-color); font-weight:500; }
@@ -411,7 +469,7 @@ class EnergipilotCardEditor extends HTMLElement {
     this._form.hass = this._hass;
     this._form.data = { view: "overview", ...this._config };
     this._form.schema = [
-      { name: "view", selector: { select: { mode: "list", options: Object.entries(t.views).map(([value, label]) => ({ value, label })) } } },
+      { name: "view", selector: { select: { mode: "list", options: Object.entries({ ...t.views, savings: (SAVE_T[lang(this._hass)] || SAVE_T.en).view }).map(([value, label]) => ({ value, label })) } } },
       { name: "title", selector: { text: {} } },
     ];
   }
