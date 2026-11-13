@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 from datetime import datetime
 from pathlib import Path
 
@@ -12,6 +14,11 @@ from .overview import Overview
 from .runner import CONTROL, OFF, SHADOW, Runner
 
 FRONTEND = Path(__file__).parent / "frontend"
+
+
+# Where "Send to the developer" goes (report-worker/worker.js on Cloudflare). Empty: the button falls back to a
+# GitHub issue and the diagnostics download.
+REPORT_URL = os.environ.get("EP_REPORT_URL", "")
 
 
 def _tested(overview: Overview) -> dict | None:
@@ -203,8 +210,8 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
             await overview.controller.release()
         return web.json_response({"ok": True})
 
-    async def diagnostics(req: web.Request) -> web.Response:
-        """One file to send when something looks wrong: what it sees, what it planned and why - no tokens or passwords."""
+    def build_diagnostics() -> dict:
+        """What it sees, what it planned and why - no tokens or passwords."""
         import os
         from datetime import datetime as _dt
 
@@ -234,6 +241,13 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
                              "result": eng.result, "checks": eng.checks, "learning": eng.learning.summary(),
                              "blend": eng.blend_info(), "sources": eng.sources_used(), "grid_peak_kw": eng.grid_peak.kw(),
                              "sell_prices": {k.isoformat(): v for k, v in sorted(eng.sell_prices().items())}}
+        return out
+
+    async def diagnostics(req: web.Request) -> web.Response:
+        """One file to send when something looks wrong."""
+        from datetime import datetime as _dt
+
+        out = build_diagnostics()
         name = f"energy_pilot_diagnostics_{_dt.now():%Y%m%d_%H%M}.json"
         return web.json_response(out, dumps=lambda o: __import__("json").dumps(o, default=str, indent=1),
                                  headers={"Content-Disposition": f'attachment; filename="{name}"'})
@@ -295,6 +309,43 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
             a.undo(str(body["undo"]))
         return web.json_response({"fixed": a.lines() if a else []})
 
+    async def report(req: web.Request) -> web.Response:
+        """'Send to the developer': the test result and the diagnostics go to the report receiver (report-worker/),
+        which files them in a private repository - no GitHub account needed. Only when the user presses it."""
+        import aiohttp
+
+        url = REPORT_URL
+        if not url:
+            return web.json_response({"error": "not_configured"}, status=503)
+        body = await req.json() if req.can_read_body else {}
+        diag = build_diagnostics()
+        ctl = diag.get("control") or {}
+        for part in ctl.values():  # every control in Home Assistant: long, and names of rooms and people
+            if isinstance(part, dict) and isinstance(part.get("profile"), dict):
+                part["profile"].pop("all_controls", None)
+        t = getattr(overview, "selftest", None)
+        test = t.status() if t else {}
+        test.pop("report_url", None)
+        c = overview.controller
+        payload = {"note": str(body.get("note") or "")[:2000], "test": test, "diagnostics": diag,
+                   "profile": c.profile_key("battery") if c else None}
+        try:
+            async with aiohttp.ClientSession() as s:
+                async with s.post(url, json=payload, headers={"x-ep-client": "energy-pilot"},
+                                  timeout=aiohttp.ClientTimeout(total=30)) as r:
+                    res = await r.json(content_type=None)
+                    if r.status != 200:
+                        return web.json_response({"error": res.get("error") or f"http_{r.status}"}, status=502)
+        except Exception as err:  # noqa: BLE001
+            return web.json_response({"error": "unreachable", "detail": str(err)[:200]}, status=502)
+        overview.save({"last_report": {"id": res.get("id"), "t": __import__("time").time()}})
+        return web.json_response({"ok": True, "id": res.get("id")})
+
+    async def report_info(_req: web.Request) -> web.Response:
+        return web.json_response({"available": bool(REPORT_URL), "last": overview.settings.get("last_report")})
+
+    app.router.add_post("/api/report", report)
+    app.router.add_get("/api/report", report_info)
     app.router.add_post("/api/autofix", autofix_post)
     app.router.add_get("/api/selftest", selftest_get)
     app.router.add_post("/api/selftest", selftest_post)

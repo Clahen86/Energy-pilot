@@ -262,6 +262,10 @@
   .nudge .row2 { display:flex; gap:8px; } .nudge .row2 > * { flex:1; margin:0; }
   .testexplain { text-align:left; margin:14px 0 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:8px; }
   .testexplain li { display:flex; gap:10px; padding:10px 12px; border-radius:12px; background:var(--surface2); border:1px solid var(--line); font-size:13.5px; }
+
+  .reppanel { margin-top:12px; padding:12px; border-radius:14px; border:1px solid var(--line2); background:var(--surface2); }
+  .reppanel ul { margin:6px 0 10px; padding-left:18px; color:var(--muted); font-size:13px; } .reppanel li { margin:2px 0; }
+  .reppanel textarea { width:100%; box-sizing:border-box; min-height:64px; border-radius:10px; border:1px solid var(--line2); background:var(--surface); color:var(--text); font:inherit; font-size:13.5px; padding:8px; }
 </style>
 </head>
 <body>
@@ -1369,7 +1373,7 @@ function testNudge() {
   if (!t) return "";
   const tt = T_TEST[L] || T_TEST.en;
   if (t.result === "failed" && t.report_url) return `<div class="card fade stcard nudge"><b>⚠️ ${TF.failed}</b>
-    <a class="stgo" style="margin:0" href="${esc(t.report_url)}" target="_blank" rel="noopener">${tt.send}</a><button class="ghostbtn" style="margin:0" data-gotest>${tt.title}</button></div>`;
+    <button class="stgo" style="margin:0" data-gotest>${tt.send}</button></div>`;
   if (t.result !== "none" || t.skipped || t.running) return "";
   return `<div class="card fade stcard nudge"><div class="sthead"><span class="stic">✓</span><div><b>${tt.title}</b><span>${TF.nudge}</span></div></div>
     <div class="row2"><button class="stgo" data-gotest>${TF.nudgeGo}</button><button class="ghostbtn" data-testskip>${TF.skip}</button></div></div>`;
@@ -1386,6 +1390,41 @@ function wireFix() {
     tab = "shadow"; localStorage.setItem("ep_tab", tab); status = await api("/api/status"); control = await api("/api/control"); render(); window.scrollTo(0, 0);
   });
   $("[data-g3skip]")?.addEventListener("click", async () => { await api("/api/settings", { setup_done: true, test_skipped: true }); await load(); tab = "home"; localStorage.setItem("ep_tab", tab); render(); });
+}
+const T_REP = {
+  da: { send: "Send til udvikleren", what: "Det her bliver sendt:", items: ["Testresultatet", "Version, mærke og land", "Dine indstillinger (uden koder)", "Målinger fra batteri, sol, net og bil", "Planen og hvad Energipilot sendte"], no: "Ingen navne, adresser, koder eller placering. Kun udvikleren ser det.", note: "Skriv evt. hvad der er galt (valgfrit)", ok: "Send", cancel: "Annuller", sending: "Sender…", sent: "Sendt ✓ – dit nummer er {id}. Nævn det, hvis du skriver til udvikleren.", fail: "Kunne ikke sende lige nu. Brug knapperne herunder i stedet." },
+  en: { send: "Send to the developer", what: "This is sent:", items: ["The test result", "Version, brand and country", "Your settings (no passwords)", "Readings from battery, solar, grid and car", "The plan and what Energy Pilot sent"], no: "No names, addresses, passwords or location. Only the developer sees it.", note: "Tell what's wrong (optional)", ok: "Send", cancel: "Cancel", sending: "Sending…", sent: "Sent ✓ – your number is {id}. Mention it if you write to the developer.", fail: "Couldn't send right now. Use the buttons below instead." },
+  de: { send: "An den Entwickler senden", what: "Das wird gesendet:", items: ["Das Testergebnis", "Version, Marke und Land", "Deine Einstellungen (ohne Passwörter)", "Messwerte von Batterie, Solar, Netz und Auto", "Der Plan und was Energy Pilot gesendet hat"], no: "Keine Namen, Adressen, Passwörter oder Standort. Nur der Entwickler sieht es.", note: "Was ist falsch? (optional)", ok: "Senden", cancel: "Abbrechen", sending: "Sende…", sent: "Gesendet ✓ – deine Nummer ist {id}.", fail: "Senden geht gerade nicht. Nutze die Knöpfe unten." },
+  fr: { send: "Envoyer au développeur", what: "Ceci est envoyé :", items: ["Le résultat du test", "Version, marque et pays", "Vos réglages (sans mots de passe)", "Mesures batterie, solaire, réseau et voiture", "Le plan et ce qu'Energy Pilot a envoyé"], no: "Aucun nom, adresse, mot de passe ni position. Seul le développeur le voit.", note: "Décrivez le problème (facultatif)", ok: "Envoyer", cancel: "Annuler", sending: "Envoi…", sent: "Envoyé ✓ – votre numéro est {id}.", fail: "Envoi impossible pour l'instant. Utilisez les boutons ci-dessous." },
+  nl: { send: "Stuur naar de ontwikkelaar", what: "Dit wordt verstuurd:", items: ["Het testresultaat", "Versie, merk en land", "Je instellingen (zonder wachtwoorden)", "Metingen van batterij, zon, net en auto", "Het plan en wat Energy Pilot stuurde"], no: "Geen namen, adressen, wachtwoorden of locatie. Alleen de ontwikkelaar ziet het.", note: "Wat is er mis? (optioneel)", ok: "Versturen", cancel: "Annuleren", sending: "Versturen…", sent: "Verstuurd ✓ – je nummer is {id}.", fail: "Versturen lukt nu niet. Gebruik de knoppen hieronder." },
+  sv: { send: "Skicka till utvecklaren", what: "Det här skickas:", items: ["Testresultatet", "Version, märke och land", "Dina inställningar (utan lösenord)", "Mätningar från batteri, sol, nät och bil", "Planen och vad Energy Pilot skickade"], no: "Inga namn, adresser, lösenord eller plats. Bara utvecklaren ser det.", note: "Vad är fel? (valfritt)", ok: "Skicka", cancel: "Avbryt", sending: "Skickar…", sent: "Skickat ✓ – ditt nummer är {id}.", fail: "Kunde inte skicka just nu. Använd knapparna nedan." },
+  nb: { send: "Send til utvikleren", what: "Dette blir sendt:", items: ["Testresultatet", "Versjon, merke og land", "Innstillingene dine (uten passord)", "Målinger fra batteri, sol, nett og bil", "Planen og hva Energy Pilot sendte"], no: "Ingen navn, adresser, passord eller posisjon. Bare utvikleren ser det.", note: "Hva er galt? (valgfritt)", ok: "Send", cancel: "Avbryt", sending: "Sender…", sent: "Sendt ✓ – nummeret ditt er {id}.", fail: "Kunne ikke sende nå. Bruk knappene under." },
+};
+const TR = T_REP[L] || T_REP.en;
+let repInfo = null, repState = null;  // repState: null | "open" | "sending" | {id} | "fail"
+async function loadRep() { repInfo = await api("/api/report").catch(() => null); }
+function reportBlock(fallbackUrl) {
+  const tt = T_TEST[L] || T_TEST.en;
+  const fallback = `${fallbackUrl ? `<a class="stgo" href="${esc(fallbackUrl)}" target="_blank" rel="noopener">${tt.send}</a><div class="muted" style="margin-top:6px">${tt.sendH}</div>` : ""}
+    <a class="ghostbtn" style="display:block;text-align:center;text-decoration:none" href="api/diagnostics" download>${tt.diag}</a>`;
+  if (!repInfo?.available) return fallback;
+  if (repState && repState.id) return `<div class="stnote">${TR.sent.replace("{id}", esc(repState.id))}</div>`;
+  if (repState === "fail") return `<div class="stnote warn">${TR.fail}</div>${fallback}`;
+  if (repState === "open" || repState === "sending") return `<div class="reppanel"><b>${TR.what}</b><ul>${TR.items.map((x) => `<li>${x}</li>`).join("")}</ul>
+      <div class="muted" style="margin-bottom:8px">${TR.no}</div><textarea id="repnote" placeholder="${esc(TR.note)}"></textarea>
+      <button class="stgo" data-rep-send ${repState === "sending" ? "disabled" : ""}>${repState === "sending" ? TR.sending : TR.ok}</button>
+      <button class="ghostbtn" style="margin-top:8px" data-rep-cancel>${TR.cancel}</button></div>`;
+  return `<button class="stgo" data-rep-open>${TR.send}</button>`;
+}
+function wireRep() {
+  $("[data-rep-open]")?.addEventListener("click", () => { repState = "open"; render(); });
+  $("[data-rep-cancel]")?.addEventListener("click", () => { repState = null; render(); });
+  $("[data-rep-send]")?.addEventListener("click", async () => {
+    const note = $("#repnote")?.value || "";
+    repState = "sending"; render();
+    const r = await api("/api/report", { note }).catch(() => null);
+    repState = r && r.ok ? { id: r.id } : "fail"; render();
+  });
 }
 function testCard() {
   const t = T_TEST[L] || T_TEST.en, s = selftest;
@@ -1424,8 +1463,7 @@ function testCard() {
     const left = (s.restored && s.restored.left) || [];
     foot = `${bad ? `<div class="stnote warn">${t.failNote}</div>` : fixed ? `<div class="stnote">${t.fixedNote.replace("{n}", fixed)}</div>` : `<div class="stnote">${t.allOk}</div>`}
       ${left.length ? `<div class="stnote warn">${t.left.replace("{x}", left.map((x) => `${esc(x.entity)} = ${esc(x.value)}`).join(", "))}</div>` : `<div class="muted" style="margin-top:8px">${t.back}</div>`}
-      ${s.report_url ? `<a class="stgo" href="${esc(s.report_url)}" target="_blank" rel="noopener">${t.send}</a><div class="muted" style="margin-top:6px">${t.sendH}</div>` : ""}
-      <a class="ghostbtn" style="display:block;text-align:center;text-decoration:none" href="api/diagnostics" download>${t.diag}</a>
+      ${reportBlock(s.report_url)}
       <button class="ghostbtn" style="margin-top:8px" data-st-clear>${t.again}</button>`;
   }
   return `<div class="card fade stcard">${head}<ul class="ststeps">${rows.join("")}</ul>${foot}</div>`;
@@ -1434,7 +1472,7 @@ function wireTest() {
   document.querySelectorAll("[data-st-part]").forEach((b) => b.onclick = () => { const p = b.dataset.stPart; stParts.has(p) ? stParts.delete(p) : stParts.add(p); render(); });
   $("[data-st-start]")?.addEventListener("click", async () => { selftest = await api("/api/selftest", { action: "start", parts: [...stParts] }); render(); });
   $("[data-st-stop]")?.addEventListener("click", async () => { selftest = await api("/api/selftest", { action: "stop" }); render(); });
-  $("[data-st-clear]")?.addEventListener("click", async () => { stParts = null; selftest = await api("/api/selftest", { action: "clear" }); render(); });
+  $("[data-st-clear]")?.addEventListener("click", async () => { stParts = null; repState = null; selftest = await api("/api/selftest", { action: "clear" }); render(); });
   document.querySelectorAll("[data-st-undo]").forEach((b) => b.onclick = async () => {
     const [part, intent, entity] = b.dataset.stUndo.split("|");
     selftest = await api("/api/selftest", { action: "undo", part, intent, entity }); render();
@@ -1709,7 +1747,7 @@ function settingsView() {
   return `${checksCard()}${styleView()}<div class="card fade" id="sec-roles"><div class="eyebrow"><span>${T.setTitle}</span><button class="link" data-redetect>${T.findAgain}</button></div><div class="muted">${T.setHint}</div>
     ${Object.entries(GROUPS).map(([g, roles]) => `<div class="group"><h4>${icon(GROUPICON[g])}${T.groups[g]}</h4>${roleRows(roles)}</div>`).join("")}
     <button class="ghostbtn" data-setup>${T.runGuide}</button></div>
-    <div class="card fade"><button class="stgo" style="margin:0 0 10px" data-gotest>✓ ${(T_TEST[L] || T_TEST.en).testBtn}</button><a class="ghostbtn" style="display:block;text-align:center;text-decoration:none;margin-top:0" href="api/diagnostics" download>${T.chk.diag}</a>
+    <div class="card fade"><button class="stgo" style="margin:0 0 10px" data-gotest>✓ ${(T_TEST[L] || T_TEST.en).testBtn}</button>${repInfo?.available ? reportBlock(null) : `<a class="ghostbtn" style="display:block;text-align:center;text-decoration:none;margin-top:0" href="api/diagnostics" download>${T.chk.diag}</a>`}
     <div class="muted" style="margin-top:8px">${T.chk.diagH}</div></div>`;
 }
 let step = 1;
@@ -1778,6 +1816,7 @@ function wire() {
   wireThings();
   wireTest();
   wireFix();
+  wireRep();
   document.querySelectorAll("[data-tab]").forEach((b) => b.onclick = async () => {
     tab = b.dataset.tab; localStorage.setItem("ep_tab", tab);
     if (tab === "shadow") { status = await api("/api/status"); control = await api("/api/control"); selftest = await api("/api/selftest").catch(() => null); }
@@ -1922,6 +1961,7 @@ document.querySelectorAll("[data-evsun]").forEach((b) => b.onclick = async () =>
 async function load() { data = await api("/api/overview?lang=" + L).catch(() => data); }
 (async () => {
   await load();
+  loadRep();
   if (data && !data.setup_done) tab = "setup";
   if (tab === "setup") settings = await api("/api/settings");
   if (tab === "shadow") { status = await api("/api/status"); control = await api("/api/control"); selftest = await api("/api/selftest").catch(() => null); }
