@@ -71,6 +71,19 @@ Home Assistant address and a long-lived access token, and open `http://<host>:80
 - **"100 % for the next trip"** – turns itself off when the car leaves.
 - **Never counted twice** – if your house sensor includes the car, it takes it out.
 
+### 🔌 Runs cheaply
+Small batteries and machines on the sun or in the cheapest hours – **after** the house battery and the car.
+
+- **Batteries** (robot mower, e-bike, tool batteries) on a smart plug: switched on in the best hours, off when the
+  charger stops drawing power – full.
+- **Machines** (washing machine, dryer, dishwasher): tap **▶ Ready** and it starts at the best time. Never switched off
+  mid-programme. Without remote start it tells you when to press start.
+- **One choice:** *Sun, else cheap*, *Sun only* or *Cheapest time* – plus an optional "done by".
+- **Learns** how much and how long each thing takes, and **finds them by itself** – never phones, lights or the car.
+- Only the sun that would otherwise be sold, and always within the main fuse.
+
+<p align="center"><img src="docs/things_en.png" width="640" alt="Runs cheaply"></p>
+
 ### 🧠 It learns your home
 
 Two ways of forecasting side by side, and the better one decides:
@@ -81,6 +94,8 @@ Two ways of forecasting side by side, and the better one decides:
   to miss – a new heat pump, a new car – their share drops again by itself.
 - **Also learned:** the solar forecast's usual error on cloudy and clear days, a safety margin for the dear hours, and
   the car's habits.
+- **No statistics in Home Assistant?** If your house sensor has no `state_class`, it says so – and can keep the
+  history itself with one tap.
 
 <p align="center"><img src="docs/learn_en.png" width="380" alt="What it has learned"></p>
 

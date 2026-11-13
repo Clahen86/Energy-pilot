@@ -71,6 +71,19 @@ Home Assistant-adresse og et langtidsadgangstoken, og åbn `http://<vært>:8099`
 - **"100 % til næste tur"** – slår selv fra, når bilen kører.
 - **Tælles aldrig to gange** – er bilen med i husets sensor, trækker den bilen fra.
 
+### 🔌 Kører billigt
+Små batterier og maskiner på sol eller i de billigste timer – **efter** husbatteriet og bilen.
+
+- **Batterier** (robotplæneklipper, elcykel, værktøjsbatterier) på et smart stik: tændes i de bedste timer og slukkes,
+  når laderen holder op med at trække strøm – fuld.
+- **Maskiner** (vaskemaskine, tørretumbler, opvaskemaskine): tryk **▶ Klar**, og den starter på det bedste tidspunkt.
+  Slukkes aldrig midt i et program. Uden fjernstart siger den til, når du skal trykke start.
+- **Ét valg:** *Sol, ellers billigt*, *Kun sol* eller *Billigste tid* – og et "færdig senest", hvis du vil.
+- **Lærer** hvor meget og hvor længe hver ting tager, og **finder dem selv** – aldrig telefoner, lys eller bilen.
+- Kun den sol, der ellers ville blive solgt, og altid inden for hovedsikringen.
+
+<p align="center"><img src="docs/things_da.png" width="640" alt="Kører billigt"></p>
+
 ### 🧠 Den lærer dit hjem
 
 To slags prognoser side om side, og den bedste bestemmer:
@@ -80,6 +93,8 @@ To slags prognoser side om side, og den bedste bestemmer:
   de er ude. De får intet at sige de første tre uger, derefter en andel, der følger, hvor godt de rammer. Rammer de ved
   siden af – en ny varmepumpe, en ny bil – falder andelen igen af sig selv.
 - **Lærer også:** solprognosens sædvanlige fejl på skyede og klare dage, en sikkerhedsmargin i de dyre timer og bilens vaner.
+- **Ingen statistik i Home Assistant?** Har din forbrugs-sensor ingen `state_class`, siger den til – og kan selv gemme
+  historikken med ét tryk.
 
 <p align="center"><img src="docs/learn_da.png" width="380" alt="Det har den lært"></p>
 
