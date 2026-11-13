@@ -21,7 +21,6 @@ from .web import make_app
 DEFAULT_APPS = [
     {"name": "growatt_parallel", "module": "growatt_parallel", "class": "GrowattParallel"},
     {"name": "ev_charge_controller", "module": "ev_charge_controller", "class": "EvChargeController"},
-    {"name": "husmodel", "module": "husmodel", "class": "HusModel"},
 ]
 
 
@@ -66,8 +65,8 @@ async def main() -> None:
     data_dir.mkdir(parents=True, exist_ok=True)
     source = opts.get("seed_from") or os.environ.get("SEED_FROM")
     seed(data_dir, Path(source) if source else None,
-         opts.get("seed_files") or ["growatt_*", "ev_session_state.json", "husmodel_state.json", "husmodel"],
-         opts.get("shared") or ["indeklima_varme_data"])
+         opts.get("seed_files") or ["growatt_*", "ev_session_state.json"],
+         opts.get("shared") or [])
     ha = HomeAssistant()
     # Your own AppDaemon apps run only when they are there (in Docker and for most homes: none - the engine plans).
     apps = [a for a in (opts.get("apps") or DEFAULT_APPS) if (apps_dir / f"{a['module']}.py").is_file()]
