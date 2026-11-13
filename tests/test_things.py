@@ -100,3 +100,12 @@ def test_find_offers_machines_and_mowers_not_phones():
     assert [(c["name"], c["kind"], c["icon"]) for c in out] == [("Opvaskemaskine", "machine", "dish"), ("Robotplæneklipper", "battery", "mower")]
     assert out[0]["start"] == "button.bosch_dishwasher_start"
     assert find(reg, devs, states, {"switch.shelly_mower"}, ["d1"]) == []
+
+
+def test_find_skips_room_sensors_and_robot_mowers():
+    reg = [{"entity_id": "button.vaskerum_fp300_restart_device", "device_id": "r", "platform": "zha"},
+           {"entity_id": "lawn_mower.garden", "device_id": "g", "platform": "husqvarna"},
+           {"entity_id": "switch.garden_advanced_mode", "device_id": "g", "platform": "husqvarna"}]
+    devs = {"r": {"name": "Vaskerum_fp300"}, "g": {"name": "Græsslåmaskine"}}
+    states = {e["entity_id"]: {"state": "on", "attributes": {}} for e in reg}
+    assert find(reg, devs, states, set(), []) == []

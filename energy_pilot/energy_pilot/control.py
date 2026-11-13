@@ -52,6 +52,7 @@ class Controller:
         self.chosen: dict[str, str] = {}  # the switch picked for a charger in the settings
         self.switch_options: list[dict[str, Any]] = []
         self._devices: dict[str, dict[str, Any]] = {}
+        self.discovered = False  # the controls looked up at least once since the start
         self.thing_candidates: list[dict[str, Any]] = []  # machines and small batteries worth offering (things.find)
         # Controls that went back to another value after they were set (Victron's defaults, Predbat, an automation):
         # part -> [(time, entity)], the last hour.
@@ -189,6 +190,7 @@ class Controller:
                                                  list(self.ov.settings.get("things_dismissed") or []))
         except Exception:  # noqa: BLE001
             self.thing_candidates = []
+        self.discovered = True
 
         # The extra batteries: the controls of the inverter their level sensor sits on.
         from . import batteries

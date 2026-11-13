@@ -311,6 +311,11 @@ NOT_THING = re.compile(r"phone|iphone|pixel|galaxy|ipad|tablet|laptop|macbook|wa
                        r"light|lys|lamp|inverter|growatt|battery_soc|ev_|charger|wallbox|keba|easee|zappi|car_", re.I)
 
 
+ROOM_WORDS = re.compile(r"vaskerum|bryggers|laundry|utility|waschk|buanderie|wasruimte|tvättstuga|vaskerom|_room|rum_|fp300|presence|motion|sensor", re.I)
+SMART_DOMAINS = ("lawn_mower", "vacuum")
+START = re.compile(r"(?<!re)(?<!re_)start(?!_time)", re.I)
+
+
 def icon_for(text: str) -> str:
     t = text.lower()
     for key, words in (("dish", r"dish|opvask|geschirr|vaisselle|vaatwas|disk|oppvask|spül|spuel"),
@@ -341,16 +346,19 @@ def find(registry: list[dict[str, Any]], devices: dict[str, dict[str, Any]], sta
         dname = str(d.get("name_by_user") or d.get("name") or "")
         text = " ".join([dname, str(d.get("model") or ""), str(d.get("manufacturer") or "")]
                         + [e["entity_id"] for e in ents]).lower().replace(" ", "_")
-        if NOT_THING.search(dname.lower().replace(" ", "_")):
-            continue
+        dn = dname.lower().replace(" ", "_")
+        if NOT_THING.search(dn) or ROOM_WORDS.search(dn):
+            continue  # a sensor in the laundry room is not the washing machine
         ids = [e["entity_id"] for e in ents]
-        if any(i in taken for i in ids):
-            continue
+        if any(i in taken for i in ids) or any(i.split(".")[0] in SMART_DOMAINS for i in ids):
+            continue  # a robot mower or vacuum runs its own dock: nothing to switch
         power = next((i for i in ids if i.startswith("sensor.") and (states[i].get("attributes") or {}).get("device_class") == "power"), None)
-        switch = next((i for i in ids if i.startswith("switch.") and not re.search(r"child|lock|led|light|lys|sound|beep", i)), None)
-        start = next((i for i in ids if i.startswith("button.") and re.search(r"start", i)), None) or \
-            next((i for i in ids if i.startswith("switch.") and re.search(r"remote_start|start", i)), None)
-        if MACHINE_WORDS.search(text) and (start or power):
+        switch = next((i for i in ids if i.startswith("switch.") and not re.search(r"child|lock|led|light|lys|sound|beep|mode|indicator", i)), None)
+        if switch and not power and not re.search(r"plug|outlet|socket|stik|stikkontakt|relay|relæ|power|strom|steckdose|prise|shelly|tasmota|sonoff|grillplats|tradfri", switch + " " + text):
+            switch = None  # only a switch that powers something: a smart plug or a relay
+        start = next((i for i in ids if i.startswith("button.") and START.search(i)), None) or \
+            next((i for i in ids if i.startswith("switch.") and re.search(r"remote_start", i)), None)
+        if MACHINE_WORDS.search(dn + " " + str(d.get("model") or "").lower()) and (start or power):
             out.append({"device": dev, "kind": "machine", "name": dname or ids[0], "icon": icon_for(text), "start": start, "power": power,
                         "remote": bool(start)})
         elif BATTERY_WORDS.search(text) and switch:

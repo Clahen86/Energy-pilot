@@ -102,7 +102,7 @@ async def main() -> None:
                 await engine.refresh_house_today()
                 engine.run()
                 await engine.review()
-                if (not controller.entities["battery"] and not controller.entities["car"] or int(asyncio.get_running_loop().time()) % 3600 < 300
+                if (not controller.discovered or not controller.entities["battery"] and not controller.entities["car"] or int(asyncio.get_running_loop().time()) % 3600 < 300
                         or any(p not in controller.entities for p in controller.car_parts() + controller.bat_parts())):  # a charger or battery was just added
                     await controller.discover()
                 await controller.tick()
