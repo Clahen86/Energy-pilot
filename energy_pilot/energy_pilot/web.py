@@ -18,7 +18,7 @@ FRONTEND = Path(__file__).parent / "frontend"
 
 # Where "Send to the developer" goes (report-worker/worker.js on Cloudflare). Empty: the button falls back to a
 # GitHub issue and the diagnostics download.
-REPORT_URL = os.environ.get("EP_REPORT_URL", "")
+REPORT_URL = os.environ.get("EP_REPORT_URL", "https://ep-reports.clahen86.workers.dev")
 
 
 def _tested(overview: Overview) -> dict | None:
