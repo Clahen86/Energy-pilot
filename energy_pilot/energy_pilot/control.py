@@ -60,6 +60,7 @@ class Controller:
         self.drift: dict[str, list[tuple[float, str]]] = {}
         self._gone: dict[str, set[str]] = {}  # controls seen unavailable since the last send (sent again when back)
         self.testing: set[str] = set()  # parts the self-test drives right now - left alone meanwhile
+        self.community_used: dict[str, dict[str, Any]] = {}  # shared fixes in use here (shown with an undo)
         self.safe_until: dict[str, float] = {}  # the battery did the opposite of what it was told: normal until then
         self._wrong: dict[str, float] = {}
         self._car_idle: dict[str, float] = {}
@@ -653,12 +654,28 @@ class Controller:
         return self._bat_lock
 
     def _fixed(self, part: str, intent: str, calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """An option the test found works on this installation is used instead of the profile's (see selftest.py)."""
+        """An option the test found works on this installation is used instead of the profile's (see selftest.py);
+        else one that 3 other installations with the same profile found (telemetry.py) - only when this inverter
+        offers it, and never one the user undid."""
         fx = (((self.ov.settings.get("profile_fixes") or {}).get(part) or {}).get(intent)) or {}
-        if not fx:
+        shared = [f for f in ((self.ov.settings.get("community") or {}).get("fixes") or [])
+                  if f.get("profile") == self.profile_key(part) and f.get("intent") == intent
+                  and f"{intent}|{f.get('from')}|{f.get('to')}" not in (self.ov.settings.get("community_ignore") or [])]
+        if not fx and not shared:
             return calls
-        return [{**c, "data": {**c["data"], "option": fx[c["data"]["entity_id"]]["to"]}}
-                if c.get("service") == "select_option" and c["data"].get("entity_id") in fx else c for c in calls]
+        out = []
+        for c in calls:
+            e = c["data"].get("entity_id")
+            if c.get("service") == "select_option" and e in fx:
+                c = {**c, "data": {**c["data"], "option": fx[e]["to"]}}
+            elif c.get("service") == "select_option":
+                opts = ((self.ha.states.get(e) or {}).get("attributes") or {}).get("options") or []
+                hit = next((f for f in shared if f.get("from") == c["data"].get("option") and f.get("to") in opts), None)
+                if hit:
+                    c = {**c, "data": {**c["data"], "option": hit["to"]}}
+                    self.__dict__.setdefault("community_used", {})[f"{intent}|{hit['from']}|{hit['to']}"] = {"intent": intent, "from": hit["from"], "to": hit["to"]}
+            out.append(c)
+        return out
 
     @staticmethod
     def _forced(prof: dict[str, Any]) -> bool:
@@ -876,7 +893,9 @@ class Controller:
         out["profile"] = {"key": key, "name": prof.get("name") or ("custom" if key == "custom" else None),
                           "choices": {k: p["name"] for k, p in sorted(adapters.PROFILES.items(), key=lambda kv: kv[1]["name"].lower())},
                           "tested_keys": [k for k, p in adapters.PROFILES.items() if p.get("tested")],
-                          "model": self.model, "tested": bool(prof.get("tested")) if key != "custom" else None, "check": self.check()}
+                          "model": self.model, "tested": bool(prof.get("tested")) if key != "custom" else None, "check": self.check(),
+                          # how many other installations with this profile have run the self-test (telemetry.py)
+                          "community": ((self.ov.settings.get("community") or {}).get("tested") or {}).get(key or "")}
         # For "Chosen by you": every control in Home Assistant - the inverter's own first - not only the device
         # the battery level was found on (that could be the wrong one, e.g. a car).
         own = set(self.entities["battery"])

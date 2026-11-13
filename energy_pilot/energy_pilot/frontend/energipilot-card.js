@@ -247,7 +247,8 @@ class EnergipilotCard extends HTMLElement {
   _savedId(period) {
     const reg = this._hass?.entities || {};
     this._ids = this._ids || {};
-    if (!(period in this._ids)) this._ids[period] = Object.values(reg).find((e) => e.platform === "energy_pilot" && e.translation_key === SAVE_KEYS[period])?.entity_id || null;
+    // only a found one is kept: right after a restart the list may not be loaded yet
+    if (!this._ids[period]) this._ids[period] = Object.values(reg).find((e) => e.platform === "energy_pilot" && e.translation_key === SAVE_KEYS[period])?.entity_id || null;
     return this._ids[period];
   }
   _saved(period) { return this._num(this._savedId(period)); }

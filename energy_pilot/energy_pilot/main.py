@@ -91,6 +91,18 @@ async def main() -> None:
     from .autofix import AutoFix
 
     overview.autofix = AutoFix(overview)
+    from .telemetry import ErrorHandler, Telemetry
+    from .web import REPORT_URL
+
+    overview.telemetry = Telemetry(overview, REPORT_URL)
+    logging.getLogger("energy_pilot").addHandler(ErrorHandler(overview.telemetry))
+
+    async def run_telemetry() -> None:
+        await ha.connected.wait()
+        await asyncio.sleep(600)  # let it settle first: the plan, the parts, the ledger
+        await overview.telemetry.run()
+
+    asyncio.create_task(run_telemetry())
 
     async def run_recover() -> None:
         """A test cut short by a restart: its saved settings go back first."""

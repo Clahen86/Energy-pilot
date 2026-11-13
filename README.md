@@ -179,10 +179,18 @@ Yes – that's what shadow is for. It never controls a part another system contr
 
 <details><summary><b>Does it send any data?</b></summary>
 
-Only when you press **Get help** – and you see exactly what is sent before you send it: the test result, your
-settings (no passwords), the readings and the plan, plus your note and pictures. No names, addresses or location.
-It goes privately to the developer. Otherwise nothing leaves your home – the ML models run there too. It only fetches
-public data: weather (Open-Meteo), spot prices (Energi Data Service, energy-charts.info) and exchange rates (ECB).
+Two things, both private to the developer:
+
+- **Learning together** (on unless you turn it off under *Settings*): once a day a small anonymous line – version,
+  country, which inverter/charger/price source, what your house has, Shadow or Control, savings this month (rounded)
+  – plus self-test results, what it mended by itself, and errors in the app. When three homes with the same inverter
+  find the same fix, everyone with that inverter gets it. **Never** names, address, location, entity names or your use
+  hour by hour.
+- **Get help** – only when you press it, and you see exactly what is sent first: the test result, your settings (no
+  passwords), the readings and the plan, plus your note and pictures.
+
+Everything else stays in your home – the ML models run there too. It fetches public data: weather (Open-Meteo), spot
+prices (Energi Data Service, energy-charts.info) and exchange rates (ECB).
 </details>
 
 <details><summary><b>What if the internet goes down?</b></summary>

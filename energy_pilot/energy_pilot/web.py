@@ -21,6 +21,16 @@ FRONTEND = Path(__file__).parent / "frontend"
 REPORT_URL = os.environ.get("EP_REPORT_URL", "https://ep-reports.clahen86.workers.dev")
 
 
+def _fixed_lines(overview: Overview) -> list:
+    """What was mended by itself, and the shared fixes from other installations in use here."""
+    a = getattr(overview, "autofix", None)
+    lines = a.lines() if a else []
+    c = overview.controller
+    for k, f in ((c.__dict__.get("community_used") or {}) if c else {}).items():
+        lines.append({"key": f"community|{k}", "what": "community", "from": f["from"], "to": f["to"], "intent": f["intent"], "t": 0})
+    return lines
+
+
 def _tested(overview: Overview) -> dict | None:
     """The last self-test in short, for the status light: none / ok / fixed / failed, and whether it runs."""
     t = getattr(overview, "selftest", None)
@@ -87,7 +97,7 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
                               "agree": round(100 * a["same"] / a["checks"]) if a["checks"] else None, "checks": a["checks"],
                               "profile": bool(eng.profile), "car": eng.result.get("car"), "cars": eng.result.get("cars"), "things": eng.things.view(overview.settings, datetime.now(eng.tz)), "generator": eng.result.get("generator"), "sources": eng.sources_used(), "learning": eng.learning.summary(), "blend": eng.blend_info(),
                               "decision": overview.engine_decision(lang(req)), "selfcheck": eng.follow.check() + eng.checks + (overview.controller.watch_checks() if overview.controller else []),
-                              "fixed": overview.autofix.lines() if getattr(overview, "autofix", None) else [],
+                              "fixed": _fixed_lines(overview),
                               "tested": _tested(overview)}
         return web.json_response(data)
 
@@ -305,9 +315,17 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
     async def autofix_post(req: web.Request) -> web.Response:
         a = getattr(overview, "autofix", None)
         body = await req.json()
-        if a and body.get("undo"):
-            a.undo(str(body["undo"]))
-        return web.json_response({"fixed": a.lines() if a else []})
+        key = str(body.get("undo") or "")
+        if key.startswith("community|"):  # a shared fix undone: never used here again
+            ign = list(overview.settings.get("community_ignore") or [])
+            k = key.split("|", 1)[1]
+            overview.save({"community_ignore": ign + [k]})
+            if overview.controller:
+                overview.controller.__dict__.get("community_used", {}).pop(k, None)
+                overview.controller.last.pop("battery", None)
+        elif a and key:
+            a.undo(key)
+        return web.json_response({"fixed": _fixed_lines(overview)})
 
     async def report(req: web.Request) -> web.Response:
         """'Send to the developer': the test result and the diagnostics go to the report receiver (report-worker/),

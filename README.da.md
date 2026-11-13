@@ -176,10 +176,17 @@ Ja – det er det, skygge er til. Den styrer aldrig en del, som et andet system 
 
 <details><summary><b>Sender den data nogen steder hen?</b></summary>
 
-Kun når du trykker på **Få hjælp** – og du ser præcis, hvad der sendes, før du sender: testresultatet, dine
-indstillinger (uden adgangskoder), målingerne og planen, plus din besked og dine billeder. Ingen navne, adresser eller
-placering. Det går privat til udvikleren. Ellers forlader intet dit hjem – ML-modellerne kører også der. Den henter
-kun offentlige data: vejr (Open-Meteo), spotpriser (Energi Data Service, energy-charts.info) og valutakurser (ECB).
+To ting, begge privat til udvikleren:
+
+- **Lær sammen** (slået til, medmindre du slår det fra under *Indstillinger*): én gang i døgnet en lille anonym linje –
+  version, land, hvilken inverter/lader/priskilde, hvad huset har, Skygge eller Styrer, sparet denne måned (afrundet) –
+  plus testresultater, hvad den har rettet selv, og fejl i appen. Når tre hjem med samme inverter finder samme
+  rettelse, får alle med den inverter den. **Aldrig** navne, adresse, placering, sensornavne eller forbrug time for time.
+- **Få hjælp** – kun når du trykker, og du ser præcis, hvad der sendes, først: testresultatet, dine indstillinger (uden
+  adgangskoder), målingerne og planen, plus din besked og dine billeder.
+
+Alt andet bliver hjemme hos dig – ML-modellerne kører også der. Den henter offentlige data: vejr (Open-Meteo),
+spotpriser (Energi Data Service, energy-charts.info) og valutakurser (ECB).
 </details>
 
 <details><summary><b>Hvad hvis internettet går ned?</b></summary>

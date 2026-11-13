@@ -48,6 +48,9 @@ class AutoFix:
     def _done(self, key: str, what: str, old: Any, new: Any, change: dict[str, Any]) -> None:
         entry = {"key": key, "what": what, "from": old, "to": new, "t": time.time()}
         self.ov.save({**change, "autofix_log": ([e for e in self.log if e["key"] != key] + [entry])[-20:]})
+        tel = getattr(self.ov, "telemetry", None)
+        if tel:
+            tel.mended(key, what)
 
     def undo(self, key: str) -> None:
         e = next((x for x in self.log if x["key"] == key), None)

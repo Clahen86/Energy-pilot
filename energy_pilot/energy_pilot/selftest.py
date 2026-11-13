@@ -156,6 +156,9 @@ class SelfTest:
             for p in parts:
                 self.ctl.last.pop(p, None)  # the plan takes over again at once
             self._save(step=None, finished=time.time(), stopped=self._stop)
+            tel = getattr(self.ov, "telemetry", None)
+            if tel and not self._stop:
+                tel.test_result(self.state.get("results") or [])
 
     def _result(self, part: str, step: str, result: str, **kw: Any) -> None:
         res = [r for r in self.state.get("results") or [] if not (r["part"] == part and r["step"] == step)]
