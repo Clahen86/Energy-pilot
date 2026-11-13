@@ -653,19 +653,23 @@ class Controller:
                     or self.mode(part) != "control" or self.blocked(part) or self._lock().locked()):
                 continue
             ids = {c["data"].get("entity_id") for c in prev["calls"] if isinstance(c["data"].get("entity_id"), str)}
-            down = {e for e in ids if (self.ha.states.get(e) or {}).get("state") in ("unavailable", "unknown")}
+            state = {e: (self.ha.states.get(e) or {}).get("state") for e in ids}
+            down = {e for e, v in state.items() if v == "unavailable"}
+            # "unknown" isn't gone: Victron's integration shows it when the GX hasn't repeated the value for 5
+            # minutes - writing it now brings it back.
+            blank = {e for e, v in state.items() if v == "unknown"}
             back = self._gone.get(part, set()) - down
             self._gone[part] = (self._gone.get(part, set()) & ids) | down
             if down:
                 continue  # nothing can be written while it's away
-            why = "back" if back else "due" if now_t - prev["t"] > prof["reassert_s"] else None
+            why = "back" if back else "unknown" if blank else "due" if now_t - prev["t"] > prof["reassert_s"] else None
             if not why:
                 continue
             self._gone[part] = set()
             if why == "back":
                 _LOGGER.info("%s controls are back (%s) - set again", part, ", ".join(sorted(back)))
             async with self._lock():
-                prev["result"] = await self._send(prev["calls"], force=why == "back" or bool(prof.get("resets_itself")))
+                prev["result"] = await self._send(prev["calls"], force=why != "due" or bool(prof.get("resets_itself")))
             prev["t"] = time.time()
             self._note_resent(part, why)
 

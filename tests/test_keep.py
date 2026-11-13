@@ -17,6 +17,7 @@ def ctl(state="-4400"):
 
     async def call_service(domain, service, data):
         sent.append(data)
+        c.ha.states[data["entity_id"]] = {"state": str(data["value"])}  # HA shows the new value
 
     c.ha = SimpleNamespace(states={"number.ess_ac_grid_setpoint": {"state": state}}, call_service=call_service)
     c.ov = SimpleNamespace(settings={"control": {"battery": "control"}}, save=lambda d: None)
@@ -67,3 +68,11 @@ def test_shadow_is_left_alone():
     c.last["battery"]["t"] -= 999
     run(c)
     assert sent == []
+
+
+def test_unknown_is_written_at_once():
+    """A user's Victron setpoint showed Unknown 5 minutes after each write - it can still be written."""
+    c, sent = ctl("unknown")
+    run(c)
+    assert sent == [CALL["data"]]
+    assert c.log["battery"][0]["resent_last"]["why"] == "unknown"
