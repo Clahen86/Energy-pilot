@@ -548,7 +548,7 @@ class Controller:
                 calls = calls + restored
                 entry["calls"] = calls
                 # The same values again on time: an inverter that forgets them (Victron) gets them written anyway.
-                force = not changed and bool(prof.get("resets_itself")) and self.is_battery(part)
+                force = not changed and self._forced(prof) and self.is_battery(part)
                 if self.is_battery(part):
                     async with self._lock():
                         entry["result"] = await self._send(calls, force=force)
@@ -640,6 +640,12 @@ class Controller:
             self._bat_lock = asyncio.Lock()
         return self._bat_lock
 
+    @staticmethod
+    def _forced(prof: dict[str, Any]) -> bool:
+        """Written again on time even when Home Assistant shows the value: the inverter forgets it (Victron) or a
+        remote-control timer only starts over on a write (Solis, SolarEdge)."""
+        return bool(prof.get("resets_itself") or prof.get("keepalive"))
+
     def _prof(self, part: str) -> dict[str, Any]:
         return (adapters.PROFILES.get(self.profile_key(part) or "") or {}) if self.is_battery(part) else {}
 
@@ -677,7 +683,7 @@ class Controller:
             if why == "back":
                 _LOGGER.info("%s controls are back (%s) - set again", part, ", ".join(sorted(back)))
             async with self._lock():
-                prev["result"] = await self._send(prev["calls"], force=why != "due" or bool(prof.get("resets_itself")))
+                prev["result"] = await self._send(prev["calls"], force=why != "due" or self._forced(prof))
             prev["t"] = time.time()
             self._note_resent(part, why)
 

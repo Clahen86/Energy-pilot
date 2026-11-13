@@ -331,6 +331,9 @@ PROFILES: dict[str, dict[str, Any]] = {
     "solaredge_modbus_multi": {
         "name": "SolarEdge (Modbus Multi)",
         "match": r"solaredge",
+        # Remote control ends when its command timeout (1 hour) runs out - written again every 30 minutes.
+        "reassert_s": 1800,
+        "keepalive": True,
         "normal": [(r"select\..*storage_control_mode$", "select", "Maximize Self Consumption")],
         "source": "integration",
         "hold": [(r"select\..*storage_control_mode$", "select", "Remote Control"), (r"number\..*storage_command_timeout$", "number", "3600"),
@@ -385,6 +388,7 @@ PROFILES: dict[str, dict[str, Any]] = {
         "match": r"solis",
         "source": "integration",
         "reassert_s": 600,
+        "keepalive": True,  # the timer only starts again when written - so written even if HA shows the value
         "normal": [(r"select\..*rc_force_charge_discharge$", "select", "None")],
         "hold": [(r"select\..*rc_force_charge_discharge$", "select", "Solis RC Force Battery Charge"),
                  (r"number\..*rc_force_battery_charge_power$", "number", "0"), (r"number\..*rc_timeout$", "number", "30")],

@@ -76,3 +76,16 @@ def test_unknown_is_written_at_once():
     run(c)
     assert sent == [CALL["data"]]
     assert c.log["battery"][0]["resent_last"]["why"] == "unknown"
+
+
+def test_solis_and_solaredge_timers_are_kept_alive():
+    """Their remote control ends when its timer runs out, and only a write starts it again."""
+    from energy_pilot import adapters
+
+    for key, every in (("solis_modbus", 600), ("solaredge_modbus_multi", 1800)):
+        c, sent = ctl()
+        c.profile_key = lambda *a, k=key: k
+        c.last["battery"]["t"] -= every + 10
+        run(c)
+        assert sent == [CALL["data"]], key  # written although HA shows the value
+        assert adapters.PROFILES[key]["reassert_s"] == every
