@@ -39,6 +39,7 @@
 1. *Indstillinger → Apps → Butik → ⋮ → Repositories* → tilføj `https://github.com/Clahen86/Energy-pilot`
 2. Installér **Energipilot**, og start den. Den kommer i sidepanelet.
 3. Guiden viser, hvad den fandt. Ret det, der er forkert, og tryk **Kom i gang**.
+   Bagefter tilbyder den at **teste dit system** (ca. 10 minutter) – eller spring over og test senere.
 4. Genstart Home Assistant én gang. Så kommer *Energipilot* under *Enheder og tjenester* med knapper og sensorer.
 
 **Docker (Home Assistant Container/Core):** se [`docker/docker-compose.yml`](docker/docker-compose.yml). Giv den din
@@ -49,8 +50,9 @@ Home Assistant-adresse og et langtidsadgangstoken, og åbn `http://<vært>:8099`
 1. **Finder det, du har** – og viser kun det. Intet batteri? Ingen batterisider.
 2. **Lægger en plan** for i dag og i morgen – hvornår batteriet skal lade, hvornår det skal bruges, hvornår bilen skal lade.
 3. **Kører i skygge** ved siden af det, du bruger i dag, og viser, hvad den ville sende til inverter og lader.
-4. **Lærer hver nat** af det, der faktisk skete.
-5. **Du slår den til** del for del – batteri, bil – når du stoler på den. Ét tryk sætter alt tilbage i skygge.
+4. **Tester dit system**, når du trykker på knappen – den tjekker, at inverter og lader faktisk gør, hvad de får besked på.
+5. **Lærer hver nat** af det, der faktisk skete.
+6. **Du slår den til** del for del – batteri, bil – når du stoler på den. Ét tryk sætter alt tilbage i skygge.
 
 ## Funktioner
 
@@ -97,6 +99,21 @@ To slags prognoser side om side, og den bedste bestemmer:
   historikken med ét tryk.
 
 <p align="center"><img src="docs/learn_da.png" width="380" alt="Det har den lært"></p>
+
+### 🛡️ Sikker og nem
+- **Test dit system** – prøver at holde, lade og sælge (og laderen, hvis bilen er sat til) ved højst 1 kW i et par
+  minutter hver og tjekker, at batteriet faktisk gør det. Fejler et trin, prøver den selv inverterens andre sikre
+  muligheder og beholder den, der virker (kan fortrydes). Alt sættes tilbage bagefter – også hvis Home Assistant
+  genstarter undervejs.
+- **Få hjælp** – skriv hvad der er galt, vedhæft op til 3 billeder, og tryk *Send*. Testresultatet og diagnosen går
+  privat til udvikleren, og du får et nummer. Du ser præcis, hvad der sendes, først.
+- **Retter selv enkle fejl**, vist som én linje med Fortryd: hovedsikring skrevet i ampere, batteriprocent som 0–1,
+  effekt i kW uden enhed, pris i øre, en sensor der har skiftet navn eller er gået i stå.
+- **En statuslampe** øverst – grøn, gul eller rød – med ét tryk til det, der skal ses på.
+- **Altid den sikre vej:** gør batteriet det modsatte af det, det får besked på, kører det normalt i en time med en
+  advarsel; en lader, der ikke vil starte, genstartes én gang.
+
+<p align="center"><img src="docs/test_da.png" width="300" alt="Test dit system"> <img src="docs/help_da.png" width="300" alt="Få hjælp"></p>
 
 ### 🏠 Inde i Home Assistant
 - Et panel i sidepanelet på 7 sprog, lyst og mørkt – med det rigtige vejr, årstider og højtider i energibilledet.
@@ -159,8 +176,10 @@ Ja – det er det, skygge er til. Den styrer aldrig en del, som et andet system 
 
 <details><summary><b>Sender den data nogen steder hen?</b></summary>
 
-Nej. Alt kører hjemme hos dig, også ML-modellerne. Den henter kun offentlige data: vejr (Open-Meteo), spotpriser
-(Energi Data Service, energy-charts.info) og valutakurser (ECB).
+Kun når du trykker på **Få hjælp** – og du ser præcis, hvad der sendes, før du sender: testresultatet, dine
+indstillinger (uden adgangskoder), målingerne og planen, plus din besked og dine billeder. Ingen navne, adresser eller
+placering. Det går privat til udvikleren. Ellers forlader intet dit hjem – ML-modellerne kører også der. Den henter
+kun offentlige data: vejr (Open-Meteo), spotpriser (Energi Data Service, energy-charts.info) og valutakurser (ECB).
 </details>
 
 <details><summary><b>Hvad hvis internettet går ned?</b></summary>
@@ -173,15 +192,16 @@ Den planlægger videre med de priser og det vejr, den allerede har, og invertere
 Nej. Med kun solceller planlægger og viser den din dag. Med kun en lader lader den bilen i de billigste perioder.
 </details>
 
-<details><summary><b>Noget ser forkert ud – hvad sender jeg?</b></summary>
+<details><summary><b>Noget ser forkert ud – hvad gør jeg?</b></summary>
 
-Tryk *Hent diagnosefil* under Indstillinger, og vedhæft filen i et
-[issue](https://github.com/Clahen86/Energy-pilot/issues). Den indeholder ingen adgangskoder.
+Kør **Test dit system** (under Styring), og tryk så på **Få hjælp** – skriv hvad der er galt, og vedhæft gerne et
+billede. Det kræver ingen GitHub-konto. Du kan også *Hente diagnosefil* under Indstillinger og vedhæfte den i et
+[issue](https://github.com/Clahen86/Energy-pilot/issues).
 </details>
 
 ## Godt at vide
 
-- 🧪-profilerne er ikke prøvet på rigtige anlæg endnu – kør dem i skygge først, tjek kontroltesten, og fortæl, hvordan det går.
+- 🧪-profilerne er ikke prøvet på rigtige anlæg endnu – kør **Test dit system** først, og tryk *Få hjælp* for at sende mig resultatet.
 - Sprog: dansk, engelsk, tysk, fransk, hollandsk, svensk og norsk – følger Home Assistants sprog.
 
 MIT-licens.

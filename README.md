@@ -39,6 +39,7 @@ One app for Home Assistant that finds what you have, learns your home and gets b
 1. *Settings → Apps → App store → ⋮ → Repositories* → add `https://github.com/Clahen86/Energy-pilot`
 2. Install **Energipilot** and start it. It appears in the sidebar.
 3. The guide shows what it found. Fix anything that's wrong and press **Get started**.
+   It then offers to **test your system** (about 10 minutes) – or skip it and test later.
 4. Restart Home Assistant once. *Energipilot* then appears under *Devices & services* with buttons and sensors.
 
 **Docker (Home Assistant Container/Core):** see [`docker/docker-compose.yml`](docker/docker-compose.yml). Give it your
@@ -49,8 +50,9 @@ Home Assistant address and a long-lived access token, and open `http://<host>:80
 1. **Finds what you have** – and only shows that. No battery? No battery screens.
 2. **Makes a plan** for today and tomorrow – when to charge the battery, when to use it, when to charge the car.
 3. **Runs in shadow** next to what you use today and shows what it would send to your inverter and charger.
-4. **Learns every night** from what really happened.
-5. **You switch it on** part by part – battery, car – when you trust it. One tap puts everything back in shadow.
+4. **Tests your system** when you press the button – it checks that your inverter and charger really do what they're told.
+5. **Learns every night** from what really happened.
+6. **You switch it on** part by part – battery, car – when you trust it. One tap puts everything back in shadow.
 
 ## Features
 
@@ -98,6 +100,21 @@ Two ways of forecasting side by side, and the better one decides:
   history itself with one tap.
 
 <p align="center"><img src="docs/learn_en.png" width="380" alt="What it has learned"></p>
+
+### 🛡️ Safe and easy
+- **Test your system** – tries hold, charge and sell (and the charger if the car is plugged in) at most 1 kW for a
+  couple of minutes each, and checks that the battery really does it. If a step fails, it tries the inverter's other
+  safe options by itself and keeps the one that works (you can undo it). Everything is put back afterwards – also if
+  Home Assistant restarts in the middle.
+- **Get help** – write what's wrong, attach up to 3 pictures and press *Send*. The test result and diagnostics go
+  privately to the developer, and you get a reference number. You see exactly what is sent first.
+- **Fixes simple mistakes by itself**, shown as one line with an undo: a main fuse written in amps, a battery level
+  given as 0–1, power in kW without a unit, a price in cents, a sensor that was renamed or stopped updating.
+- **A status light** at the top – green, yellow or red – with one tap to what needs attention.
+- **Always the safe way:** a battery doing the opposite of what it's told goes back to normal for an hour with a
+  warning; a charger that won't start is restarted once.
+
+<p align="center"><img src="docs/test_en.png" width="300" alt="Test your system"> <img src="docs/help_en.png" width="300" alt="Get help"></p>
 
 ### 🏠 Inside Home Assistant
 - A sidebar panel in 7 languages, in light and dark – with the real weather, seasons and holidays on the energy picture.
@@ -162,8 +179,10 @@ Yes – that's what shadow is for. It never controls a part another system contr
 
 <details><summary><b>Does it send any data?</b></summary>
 
-No. Everything runs in your home, the ML models too. It only fetches public data: weather (Open-Meteo), spot prices
-(Energi Data Service, energy-charts.info) and exchange rates (ECB).
+Only when you press **Get help** – and you see exactly what is sent before you send it: the test result, your
+settings (no passwords), the readings and the plan, plus your note and pictures. No names, addresses or location.
+It goes privately to the developer. Otherwise nothing leaves your home – the ML models run there too. It only fetches
+public data: weather (Open-Meteo), spot prices (Energi Data Service, energy-charts.info) and exchange rates (ECB).
 </details>
 
 <details><summary><b>What if the internet goes down?</b></summary>
@@ -176,15 +195,16 @@ It keeps planning with the prices and weather it already has, and your inverter 
 No. With just solar it plans and shows your day. With just a charger it charges the car in the cheapest slots.
 </details>
 
-<details><summary><b>Something looks wrong – what do I send?</b></summary>
+<details><summary><b>Something looks wrong – what do I do?</b></summary>
 
-Press *Download diagnostics* under Settings and attach the file to an
-[issue](https://github.com/Clahen86/Energy-pilot/issues). It holds no passwords.
+Run **Test your system** (under Control), then press **Get help** – write what's wrong and attach a picture if you
+like. No GitHub account needed. You can also *Download diagnostics* under Settings and attach the file to an
+[issue](https://github.com/Clahen86/Energy-pilot/issues).
 </details>
 
 ## Good to know
 
-- The 🧪 profiles are not yet tried on real systems – run them in shadow first, check the control test, and tell me how it goes.
+- The 🧪 profiles are not yet tried on real systems – run **Test your system** first, and press *Get help* to send me the result.
 - Languages: English, Danish, German, French, Dutch, Swedish and Norwegian – it follows Home Assistant's language.
   Corrections from native speakers are very welcome.
 
