@@ -272,7 +272,11 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
                 cost += abs(delta) * b.wear  # every kWh in or out wears the battery: a move must pay for that too
                 if b.peak_kw is not None and b.peak_price and grid / h.length > b.peak_kw:
                     cost += (grid / h.length - b.peak_kw) * b.peak_price  # a new peak raises the month's power tariff
-                total = cost + best[i + 1][k]
+                # Equal prices (a night tariff): charge in the first slots, not the last - a battery that slows down
+                # near full, or a slot the supplier moves, then still leaves it full. Far too small to change a choice
+                # where prices differ (at most 0.0002 per kWh over two days of quarter hours).
+                early = delta * i * 1e-6 if delta > 0 else 0.0
+                total = cost + early + best[i + 1][k]
                 if total < best[i][j] - 1e-12:
                     best[i][j] = total
                     choice[i][j] = (k, action, grid, cost)

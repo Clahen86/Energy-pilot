@@ -203,3 +203,15 @@ def test_grid_limit_at_or_below_the_minimum_is_ignored(tmp_path):
     assert e.grid_max_soc("lfp") == 95.0
     ov.settings = {"battery_grid_max": 80, "battery_min_soc": 20}
     assert e.grid_max_soc("lfp") == 80.0
+
+
+def test_equal_cheap_slots_charge_from_the_start():
+    """Intelligent Go: six cheap hours at one price. A tester saw 'hold' for the first 1.5 h and charging only after -
+    a battery that slows near full (or a moved slot) could then miss full. Ties go to the earliest slots."""
+    T = datetime(2026, 11, 13, 23, 30)
+    hours = [Hour(T + timedelta(minutes=30 * i), 0.038 if i < 12 else 0.267, 0.0, 0.4, 0.0, 0.5) for i in range(30)]
+    p = plan_battery(hours, soc_now=10, b=Battery(capacity_kwh=34.5, max_charge_kw=8, taper=((95.0, 0.48), (98.0, 0.33))))
+    acts = [s.action for s in p.steps]
+    assert acts[0] == "charge_grid"
+    assert all(a != "charge_grid" for a in acts[12:])
+    assert p.steps[11].soc_end >= 99
