@@ -336,6 +336,9 @@ class Controller:
                 "max_power_w": round(bat.max_discharge_kw * 1000), "max_charge_w": round(bat.max_charge_kw * 1000),
                 "power_kw": round(charge_kw, 2), "max_charge_kw": round(bat.max_charge_kw, 2), "max_power_kw": round(bat.max_discharge_kw, 2), "export_w": export_w,
                 "device_id": getattr(self, "battery_device", None) or "", "serial": getattr(self, "battery_serial", "") or ""}}
+            if any("{charge_a}" in str(self.profile_steps(p) or {}) for p in ["battery", *self.bat_parts()]):
+                # Deye limits charging from the grid by a current: the planned power over the battery's voltage.
+                out["battery"]["ctx"]["charge_a"] = max(1, round(charge_kw * 1000 / self._battery_volt()))
             if "{house_w}" in str(self.profile_steps() or {}):
                 # Only for profiles that use it (EcoFlow), rounded - so others aren't re-sent at every small change.
                 out["battery"]["ctx"]["house_w"] = int(round((f.get("house") or 0.0) / 50) * 50)
@@ -406,6 +409,7 @@ class Controller:
                  "max_power_w": round(ctx["max_power_w"] * dshare), "max_power_kw": round(ctx["max_power_kw"] * dshare, 2),
                  "max_charge_w": round(ctx["max_charge_w"] * cshare), "max_charge_kw": round(ctx["max_charge_kw"] * cshare, 2),
                  "export_w": int(round(ctx.get("export_w", 0) * dshare / 50) * 50),
+                 **({"charge_a": max(1, round(ctx["charge_a"] * cshare))} if "charge_a" in ctx else {}),
                  "device_id": info.get("device") or "", "serial": info.get("serial") or ""}
             out[part] = {"intent": want["intent"], "ctx": c}
         return out
@@ -529,12 +533,13 @@ class Controller:
                 continue
             entry = {"t": time.time(), "intent": want["intent"], "ctx": want["ctx"], "calls": calls, "mode": mode}
             if mode == "control" and not self.blocked(part):
-                calls = calls + self._restore(part, want["intent"])
+                restored = self._restore(part, want["intent"])
+                calls = calls + restored
                 entry["calls"] = calls
                 entry["result"] = await self._send(calls)
                 if entry["result"] == "ok" and want["intent"] != "export" and self.is_battery(part):
-                    pool = set(self._pool(part))  # this inverter's own settings are back
-                    left = {e: v for e, v in (self.ov.settings.get("restore_values") or {}).items() if e not in pool}
+                    back = {c["data"].get("entity_id") for c in calls[len(calls) - len(restored):]} if restored else set()
+                    left = {e: v for e, v in (self.ov.settings.get("restore_values") or {}).items() if e not in back}
                     if left != (self.ov.settings.get("restore_values") or {}):
                         self.ov.save({"restore_values": left})
             elif mode == "control":
@@ -543,25 +548,51 @@ class Controller:
             if changed:
                 self.log.setdefault(part, deque(maxlen=60)).appendleft(entry)
 
+    def _battery_volt(self) -> float:
+        """The battery's voltage: the BMS voltage on the battery level sensor, a battery voltage sensor, else 52 V."""
+        states = self.ha.states
+        try:
+            soc = self.ov.roles().get("battery_soc")
+        except Exception:  # noqa: BLE001
+            soc = None
+        for k in ("BMS Voltage", "bms_voltage", "voltage"):
+            v = _num(((states.get(soc) or {}).get("attributes") or {}).get(k)) if soc else None
+            if v and 40 <= v <= 1000:
+                return v
+        pre = soc.split(".", 1)[1].rsplit("_battery", 1)[0] if soc and "_battery" in soc else ""
+        for e in sorted(states, key=lambda e: (pre not in e, e)):
+            if re.fullmatch(r"sensor\..*battery_voltage", e):
+                v = _num((states[e] or {}).get("state"))
+                if v and 40 <= v <= 1000:
+                    return v
+        return 52.0
+
     def _restore(self, part: str, intent: str) -> list[dict[str, Any]]:
-        """Settings that are the owner's own (Victron's grid setpoint, Deye's work mode): remembered before selling,
-        put back when selling stops - kept on disk, so a restart in between doesn't lose them."""
-        pats = ((adapters.PROFILES.get(self.profile_key(part) or "") or {}).get("restore") or []) if self.is_battery(part) else []
+        """Settings that are the owner's own (Victron's grid setpoint, Deye's work mode when selling, Deye's grid charge
+        current when charging): remembered before EP changes them, put back when that stops - kept on disk, so a
+        restart in between doesn't lose them."""
+        prof = (adapters.PROFILES.get(self.profile_key(part) or "") or {}) if self.is_battery(part) else {}
+        by_intent = {"export": prof.get("restore") or [], "charge": prof.get("restore_charge") or []}
+        pats = by_intent["export"] + by_intent["charge"]
         if not pats:
             return []
         pool = self._pool(part)
         saved = dict(self.ov.settings.get("restore_values") or {})
-        mine = {e: v for e, v in saved.items() if e in pool}  # each inverter remembers its own
+        keep = set()  # what EP sets now: remembered (once), not put back
+        for p in by_intent.get(intent) or []:
+            e = adapters._find(p, pool)
+            if not e:
+                continue
+            keep.add(e)
+            st = (self.ha.states.get(e) or {}).get("state")
+            if e not in saved and st not in (None, "unknown", "unavailable"):
+                saved[e] = "0" if _negative(e, st) else st  # a setpoint already selling is ours, not the owner's
+        if saved != (self.ov.settings.get("restore_values") or {}):
+            self.ov.save({"restore_values": saved})
         if intent == "export":
-            if not mine:
-                for p in pats:
-                    e = adapters._find(p, pool)
-                    st = (self.ha.states.get(e) or {}).get("state") if e else None
-                    if e and st not in (None, "unknown", "unavailable"):
-                        saved[e] = "0" if _negative(e, st) else st  # a setpoint already selling is ours, not the owner's
-                if saved != (self.ov.settings.get("restore_values") or {}):
-                    self.ov.save({"restore_values": saved})
             return []
+        mine = {e: v for e, v in saved.items() if e in pool and e not in keep}  # each inverter remembers its own
+        pats = by_intent["export"]
         out = []
         # Not selling any more: a grid setpoint still below 0 keeps the inverter selling (Victron does exactly what it
         # is told) - back to 0, also when nothing was remembered (an older version kept a selling value as the owner's).
@@ -690,6 +721,13 @@ class Controller:
         everything = [e for e in self.ha.states if e.split(".")[0] in ("select", "number", "switch", "button", "time")]
         out["profile"]["all_controls"] = sorted(own) + sorted(e for e in everything if e not in own)
         return out
+
+
+def _num(v: Any) -> float | None:
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
 
 
 def _negative(entity: str, value: Any) -> bool:

@@ -11,7 +11,7 @@ Each brand is a profile: for each intent, which control to set to what. Controls
 entities by pattern (select.*work_mode_priority …), so one profile fits every installation of that integration.
 A brand that isn't built in gets a profile the user makes in the panel: pick the control and value for each intent.
 
-Values may use {min_soc}, {soc}, {target}, {rate} (% of max power), {power_w}, {current} and {house_w} (the house's
+Values may use {min_soc}, {soc}, {target}, {rate} (% of max power), {power_w}, {charge_a} (the charge power in amps at the battery's voltage), {current} and {house_w} (the house's
 use now - for a micro-inverter that is told how many watts to give, like EcoFlow PowerStream).
 
 Models: one integration can cover inverter models that are controlled differently (Growatt SPH/SPA work with
@@ -99,7 +99,8 @@ PROFILES: dict[str, dict[str, Any]] = {
         + [(rf"select\..*program_{n}_charging$", "select", "Disabled") for n in range(1, 7)],
         "charge": [(r"select\..*time_of_use$", "select", "Week"), (r"switch\..*battery_grid_charging$", "grid", None)]
         + [(rf"number\..*program_{n}_soc$", "number", "{target}") for n in range(1, 7)]
-        + [(rf"select\..*program_{n}_charging$", "select", "Grid") for n in range(1, 7)],
+        + [(rf"select\..*program_{n}_charging$", "select", "Grid") for n in range(1, 7)]
+        + [(r"number\..*battery_grid_charging_current$", "number", "{charge_a}")],
         # Selling from the battery (davidrapan/ha-solarman deye_hybrid): Work Mode "Export First" with its
         # "Export Surplus Power", every programme down to the target.
         "export": [(r"select\..*time_of_use$", "select", "Week"), (r"switch\..*battery_grid_charging$", "grid", None)]
@@ -109,6 +110,9 @@ PROFILES: dict[str, dict[str, Any]] = {
            (r"select\..*(?<!energy_pattern_)work_mode$", "select", "Export First")],
         # The owner's own work mode (Zero Export To CT …) and export power are put back after selling.
         "restore": [r"select\..*(?<!energy_pattern_)work_mode$", r"number\..*export_surplus_power$"],
+        # The grid charge current is limited to the planned power while charging; the owner's own is put back after.
+        "restore_charge": [r"number\..*battery_grid_charging_current$"],
+        "optional": [r"number\..*battery_grid_charging_current$"],
     },
     # Deye via ESPHome and local Modbus (klatremis/esphome-for-deye): the six "Time point" programmes, set alike.
     "deye_esphome": {
@@ -123,7 +127,8 @@ PROFILES: dict[str, dict[str, Any]] = {
         + [(rf"switch\..*time_point_{n}_charge_enable$", "off", None) for n in range(1, 7)],
         "charge": [(r"switch\..*time_of_use$", "on", None), (r"switch\..*grid_charge$", "grid", None)]
         + [(rf"number\..*time_point_{n}_capacity$", "number", "{target}") for n in range(1, 7)]
-        + [(rf"switch\..*time_point_{n}_charge_enable$", "on", None) for n in range(1, 7)],
+        + [(rf"switch\..*time_point_{n}_charge_enable$", "on", None) for n in range(1, 7)]
+        + [(r"number\..*maximum_battery_grid_charge_current$", "number", "{charge_a}")],
         # Selling (klatremis/esphome-for-deye): "Limit control mode" = "Selling first" with "Max Solar Sell Power",
         # every time point down to the target. The owner's own limit mode and sell power are put back after.
         "export": [(r"switch\..*time_of_use$", "on", None), (r"switch\..*grid_charge$", "grid", None)]
@@ -133,7 +138,8 @@ PROFILES: dict[str, dict[str, Any]] = {
            (r"number\..*max_solar_sell_power$", "number", "{power_w}"),
            (r"select\..*limit_control_mode$", "select", "Selling first")],
         "restore": [r"select\..*limit_control_mode$", r"number\..*max_solar_sell_power$", r"switch\..*solar_sell$"],
-        "optional": [r"switch\..*solar_sell$"],
+        "restore_charge": [r"number\..*maximum_battery_grid_charge_current$"],
+        "optional": [r"switch\..*solar_sell$", r"number\..*maximum_battery_grid_charge_current$"],
     },
     # Sofar hybrid (HYD, ESI …) via Solarman (sofar_g3hyd definition). Normal is "Self Use"; hold and charge use
     # "Passive", where the battery's power is kept between a minimum and a maximum (positive = charging):
@@ -502,7 +508,10 @@ def resolve(steps: list, entities: list[str], ctx: dict[str, Any]) -> list[dict[
         if kind == "select":
             calls.append({"domain": domain, "service": "select_option", "data": {"entity_id": entity, "option": str(fill(value, ctx))}})
         elif kind == "number":
-            calls.append({"domain": domain, "service": "set_value", "data": {"entity_id": entity, "value": fill(value, ctx)}})
+            try:
+                calls.append({"domain": domain, "service": "set_value", "data": {"entity_id": entity, "value": fill(value, ctx)}})
+            except KeyError:  # a value this plan doesn't give (no {charge_a} for a second inverter of another make)
+                continue
         elif kind == "grid":
             # Deye's global grid-charge switch follows the setting "may charge from the grid" - set, not toggled:
             # the programmes decide when (each "Grid" or "Disabled").

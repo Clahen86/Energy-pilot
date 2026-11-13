@@ -58,3 +58,32 @@ def test_growatt_lets_go_of_the_selling_slot():
         steps = adapters.PROFILES["growatt"][intent]
         assert any(p.endswith("grid_first_slot_1_enabled$") and kind == "off" for p, kind, _ in steps)
     assert any(p.endswith("grid_first_slot_1_enabled$") for p in adapters.PROFILES["growatt"]["optional"])
+
+
+def test_deye_grid_charge_current_follows_the_plan_and_is_put_back():
+    """A tester's Deye charged with 10 kW from the grid while the setting said 5: the current was never set."""
+    from energy_pilot import adapters
+
+    ents = ["number.deye_inverter_battery_grid_charging_current", "number.deye_inverter_battery_generator_charging_current",
+            "select.deye_inverter_program_1_charging"]
+    calls = adapters.resolve(adapters.PROFILES["solarman"]["charge"], ents, {"target": 80, "charge_a": 86, "grid_charge": True})
+    cur = [c for c in calls if c["data"]["entity_id"].endswith("grid_charging_current")]
+    assert cur == [{"domain": "number", "service": "set_value", "data": {"entity_id": ents[0], "value": 86}}]
+    assert "{charge_a}" in str(adapters.PROFILES["deye_esphome"]["charge"])
+    # without the amps (another make's ctx) the step is left out, not an error
+    assert not [c for c in adapters.resolve(adapters.PROFILES["solarman"]["charge"], ents, {"target": 80})
+                if c["data"]["entity_id"] == ents[0]]
+
+    states = {ents[0]: {"state": "185"}, "select.deye_work_mode": {"state": "Zero Export To CT"}}
+    c, store = ctl(states, "solarman")
+    c.is_battery = lambda part: True
+    assert c._restore("battery", "charge") == []  # remembered, not put back while charging
+    assert store["restore_values"] == {ents[0]: "185"}
+    states[ents[0]]["state"] = "86"
+    c._restore("battery", "charge")
+    assert store["restore_values"][ents[0]] == "185"  # the owner's, not EP's
+    c._restore("battery", "export")  # charging → selling: the current goes back, the work mode is remembered
+    assert store["restore_values"]["select.deye_work_mode"] == "Zero Export To CT"
+    back = c._restore("battery", "hold")
+    assert {"domain": "number", "service": "set_value", "data": {"entity_id": ents[0], "value": 185}} in back
+    assert {"domain": "select", "service": "select_option", "data": {"entity_id": "select.deye_work_mode", "option": "Zero Export To CT"}} in back

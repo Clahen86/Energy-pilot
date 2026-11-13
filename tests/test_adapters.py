@@ -73,7 +73,7 @@ def test_deye_solarman_sets_all_six_programmes():
     assert adapters.guess_profile(deye, {"solarman"}) == "solarman"
     p = adapters.PROFILES["solarman"]
     steps = {i: p[i] for i in ("normal", "hold", "charge")}
-    assert adapters.missing(adapters.check(steps, deye)) == []
+    assert adapters.missing(adapters.check(steps, deye, optional=adapters.PROFILES["solarman"]["optional"])) == []
     charge = adapters.resolve(p["charge"], deye, CTX)
     assert {"entity_id": "number.deye_program_4_soc", "value": 90} in [c["data"] for c in charge]
     assert {"entity_id": "select.deye_program_6_charging", "option": "Grid"} in [c["data"] for c in charge]
@@ -116,7 +116,7 @@ def test_deye_esphome_klatremis():
     assert adapters.guess_profile(d, {"esphome"}) == "deye_esphome"
     p = adapters.PROFILES["deye_esphome"]
     steps = {i: p[i] for i in ("normal", "hold", "charge")}
-    assert adapters.missing(adapters.check(steps, d)) == []
+    assert adapters.missing(adapters.check(steps, d, optional=p["optional"])) == []
     charge = adapters.resolve(p["charge"], d, CTX)
     assert {"entity_id": "number.deye_time_point_3_capacity", "value": 90} in [c["data"] for c in charge]
     assert {"domain": "switch", "service": "turn_on", "data": {"entity_id": "switch.deye_time_point_6_charge_enable"}} in charge
