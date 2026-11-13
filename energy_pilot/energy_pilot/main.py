@@ -131,6 +131,19 @@ async def main() -> None:
 
     asyncio.create_task(run_car())
 
+    async def run_keep() -> None:
+        """Every minute: inverters that forget their settings (Victron) get them again on time (see Controller.keep)."""
+        await ha.connected.wait()
+        await asyncio.sleep(90)
+        while True:
+            try:
+                await controller.keep()
+            except Exception:  # noqa: BLE001
+                logging.getLogger("energy_pilot.engine").debug("Keep-alive failed", exc_info=True)
+            await asyncio.sleep(60)
+
+    asyncio.create_task(run_keep())
+
     async def run_ledger() -> None:
         """Every half minute: what the battery holds and what it cost, and what it saved."""
         from datetime import datetime as _dt

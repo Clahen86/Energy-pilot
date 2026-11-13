@@ -58,6 +58,8 @@ class Controller:
         # Controls that went back to another value after they were set (Victron's defaults, Predbat, an automation):
         # part -> [(time, entity)], the last hour.
         self.drift: dict[str, list[tuple[float, str]]] = {}
+        self._gone: dict[str, set[str]] = {}  # controls seen unavailable since the last send (sent again when back)
+        self._bat_lock = asyncio.Lock()  # the battery's round and the minute's keep-alive never send at once
 
     # ---------- settings ----------
 
@@ -516,7 +518,8 @@ class Controller:
             calls = self.calls(part, want)
             prev = self.last.get(part)
             changed = prev is None or prev["intent"] != want["intent"] or prev["ctx"] != want["ctx"]
-            again = (adapters.PROFILES.get(self.profile_key(part) or "") or {}).get("reassert_s", REASSERT_S) if self.is_battery(part) else REASSERT_S
+            prof = self._prof(part)
+            again = prof.get("reassert_s", REASSERT_S) if self.is_battery(part) else REASSERT_S
             due = prev is None or time.time() - prev["t"] > again  # Solis' remote control times out after 30 min
             # A value that held and then changed by itself is set again at once (at most once a minute) - the
             # inverter put back its default, or something else changed it.
@@ -536,7 +539,15 @@ class Controller:
                 restored = self._restore(part, want["intent"])
                 calls = calls + restored
                 entry["calls"] = calls
-                entry["result"] = await self._send(calls)
+                # The same values again on time: an inverter that forgets them (Victron) gets them written anyway.
+                force = not changed and bool(prof.get("resets_itself")) and self.is_battery(part)
+                if self.is_battery(part):
+                    async with self._lock():
+                        entry["result"] = await self._send(calls, force=force)
+                else:
+                    entry["result"] = await self._send(calls)
+                if not changed:
+                    self._note_resent(part, "due")
                 if entry["result"] == "ok" and want["intent"] != "export" and self.is_battery(part):
                     back = {c["data"].get("entity_id") for c in calls[len(calls) - len(restored):]} if restored else set()
                     left = {e: v for e, v in (self.ov.settings.get("restore_values") or {}).items() if e not in back}
@@ -616,10 +627,52 @@ class Controller:
                 out.append({"domain": e.split(".")[0], "service": "set_value", "data": {"entity_id": e, "value": int(num) if num.is_integer() else num}})
         return out
 
-    async def _send(self, calls: list[dict[str, Any]]) -> str:
+    def _lock(self) -> asyncio.Lock:
+        if getattr(self, "_bat_lock", None) is None:
+            self._bat_lock = asyncio.Lock()
+        return self._bat_lock
+
+    def _prof(self, part: str) -> dict[str, Any]:
+        return (adapters.PROFILES.get(self.profile_key(part) or "") or {}) if self.is_battery(part) else {}
+
+    def _note_resent(self, part: str, why: str) -> None:
+        """The log lists changes only; a value sent again is counted on the change it repeats (seen in diagnostics)."""
+        log = self.log.get(part)
+        if log:
+            log[0]["resent"] = int(log[0].get("resent", 0)) + 1
+            log[0]["resent_last"] = {"t": time.time(), "why": why}
+
+    async def keep(self) -> None:
+        """Every minute, for inverters that forget what they were told (Victron, EcoFlow): the last values are sent
+        again on time - not up to a round later - and at once when a control is back after being unavailable."""
+        now_t = time.time()
+        for part in ["battery", *self.bat_parts()]:
+            prof = self._prof(part)
+            prev = self.last.get(part)
+            if (not prof.get("reassert_s") or not prev or prev.get("mode") != "control" or "result" not in prev
+                    or self.mode(part) != "control" or self.blocked(part) or self._lock().locked()):
+                continue
+            ids = {c["data"].get("entity_id") for c in prev["calls"] if isinstance(c["data"].get("entity_id"), str)}
+            down = {e for e in ids if (self.ha.states.get(e) or {}).get("state") in ("unavailable", "unknown")}
+            back = self._gone.get(part, set()) - down
+            self._gone[part] = (self._gone.get(part, set()) & ids) | down
+            if down:
+                continue  # nothing can be written while it's away
+            why = "back" if back else "due" if now_t - prev["t"] > prof["reassert_s"] else None
+            if not why:
+                continue
+            self._gone[part] = set()
+            if why == "back":
+                _LOGGER.info("%s controls are back (%s) - set again", part, ", ".join(sorted(back)))
+            async with self._lock():
+                prev["result"] = await self._send(prev["calls"], force=why == "back" or bool(prof.get("resets_itself")))
+            prev["t"] = time.time()
+            self._note_resent(part, why)
+
+    async def _send(self, calls: list[dict[str, Any]], force: bool = False) -> str:
         """Send the calls - only those whose value isn't already set (some links, like Solarman, drop writes now
-        and then, so fewer writes is safer). A value that didn't stick is sent once more."""
-        todo = [c for c in calls if not self._matches(c)]
+        and then, so fewer writes is safer), or all of them when forced. A value that didn't stick is sent once more."""
+        todo = list(calls) if force else [c for c in calls if not self._matches(c)]
         for attempt in range(2):
             for c in todo:
                 try:
