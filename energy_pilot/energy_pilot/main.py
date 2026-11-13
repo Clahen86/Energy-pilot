@@ -213,7 +213,8 @@ async def main() -> None:
                 engine.grid_peak.see(now, f.get("grid"))
                 engine.house_hist.see(now, f.get("house"))  # the house's own history (used when HA keeps no statistics)
                 if st.get("things"):
-                    await engine.things.tick(ha, st, now, price, sell, f.get("grid"))
+                    # in shadow nothing is switched: the things act only when Energy Pilot controls something
+                    await engine.things.tick(ha, st, now, price, sell, f.get("grid"), act=any(controller.mode(p) == "control" for p in controller.parts()))
                 bp = controller.last.get("battery") if hasattr(controller, "last") else None
                 engine.follow.see(now, controller.mode("battery"), bp, f,
                                   ha.states, controller.entities.get("battery") or [])

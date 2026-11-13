@@ -109,3 +109,23 @@ def test_find_skips_room_sensors_and_robot_mowers():
     devs = {"r": {"name": "Vaskerum_fp300"}, "g": {"name": "Græsslåmaskine"}}
     states = {e["entity_id"]: {"state": "on", "attributes": {}} for e in reg}
     assert find(reg, devs, states, set(), []) == []
+
+
+def test_shadow_never_switches_and_a_hand_turned_charger_is_left_on():
+    """A user's mower charger was switched off in shadow, a moment after he turned it on."""
+    th = Things({})
+    st = {"things": [{"id": "m", "kind": "battery", "switch": "switch.m", "power": "sensor.m", "kwh": 0.5, "kw": 0.25, "mode": "sun_cheap"}]}
+    hs = hours([1.0] * 24)
+    hs[2] = Hour(hs[2].start, 0.1, 0.05, 0.5, 0)
+    th.plan(st, hs, T0, {}, {}, None)
+    ha = FakeHA({"switch.m": {"state": "on"}, "sensor.m": {"state": "80"}})
+    now = T0 + timedelta(hours=10)  # outside its hours
+    asyncio.run(th.tick(ha, st, now, 1.0, 0.05, 100, act=False))
+    assert ha.calls == []  # shadow: nothing switched
+    for i in range(10):  # in control too: turned on by hand, charging - left on
+        asyncio.run(th.tick(ha, st, now + timedelta(seconds=30 * i), 1.0, 0.05, 100))
+    assert ha.states["switch.m"]["state"] == "on" and ha.calls == []
+    asyncio.run(th.tick(ha, st, T0 + timedelta(hours=2, minutes=1), 0.1, 0.05, 100, act=False))
+    ha.states["switch.m"]["state"] = "off"
+    asyncio.run(th.tick(ha, st, T0 + timedelta(hours=2, minutes=2), 0.1, 0.05, 100, act=False))
+    assert ha.states["switch.m"]["state"] == "off"  # its hour in shadow: not switched on either

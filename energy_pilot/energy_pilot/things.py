@@ -154,14 +154,15 @@ class Things:
     # ---------- running them ----------
 
     async def tick(self, ha: Any, settings: dict[str, Any], now: datetime, price: float | None, sell: float,
-                   grid_w: float | None, dt_s: float = 30) -> None:
-        """Every half minute: switch the batteries, start the machines, measure what they use."""
+                   grid_w: float | None, dt_s: float = 30, act: bool = True) -> None:
+        """Every half minute: switch the batteries, start the machines, measure what they use. act=False (shadow):
+        only plan, measure and learn - nothing is switched or started."""
         for t in self.items(settings):
             try:
                 if t.get("kind") == "machine":
-                    await self._tick_machine(ha, t, now, price, sell, grid_w, dt_s)
+                    await self._tick_machine(ha, t, now, price, sell, grid_w, dt_s, act)
                 else:
-                    await self._tick_battery(ha, t, now, price, sell, grid_w, dt_s)
+                    await self._tick_battery(ha, t, now, price, sell, grid_w, dt_s, act)
             except Exception:  # noqa: BLE001 - one thing must never stop the others
                 import logging
 
@@ -188,29 +189,34 @@ class Things:
         length = timedelta(hours=p.get("slot_h") or 1)
         return any(datetime.fromisoformat(x) <= now < datetime.fromisoformat(x) + length for x in p.get("hours") or [])
 
-    async def _switch(self, ha: Any, entity: str, on: bool, now: datetime) -> None:
+    async def _switch(self, ha: Any, entity: str, on: bool, now: datetime) -> bool:
         state = (ha.states.get(entity) or {}).get("state")
         if state == ("on" if on else "off"):
-            return
+            return False
         last = self._sent.get(entity)
         if last and (now - last).total_seconds() < 120:
-            return  # it was just told: give it time
+            return False  # it was just told: give it time
         self._sent[entity] = now
         await ha.call_service("homeassistant", "turn_on" if on else "turn_off", {"entity_id": entity})
+        return True
 
     async def _tick_battery(self, ha: Any, t: dict[str, Any], now: datetime, price: float | None, sell: float,
-                            grid_w: float | None, dt_s: float) -> None:
+                            grid_w: float | None, dt_s: float, act: bool = True) -> None:
         tid, s, sw = t["id"], self.st(t["id"]), t.get("switch")
         if not sw:
             return
         if s.get("done") and not self.full_today(tid, now):
             s["done"] = None  # a new day: charge again
         on = (ha.states.get(sw) or {}).get("state") == "on"
+        if not on:
+            s["on_by_us"] = False
+        # Turned on by the user (not by Energy Pilot): left on until the battery is full - never cut off mid-charge.
+        by_hand = on and not s.get("on_by_us")
         w = _num(ha.states.get(t["power"])) if t.get("power") else None
         _, minutes, kw = self.need(t)
         if on:
             self._measure(s, w if w is not None else kw * 1000, now, self._price_now(price, sell, grid_w), dt_s)
-        want = self._in_hours(tid, now) and not self.full_today(tid, now)
+        want = (self._in_hours(tid, now) or by_hand) and not self.full_today(tid, now)
         if on and w is not None and float(s.get("min_now") or 0) >= 5:
             if w < IDLE_W:  # on, but the charger takes nothing: full (or the battery is not on it)
                 s["quiet_since"] = s.get("quiet_since") or now.isoformat()
@@ -224,10 +230,13 @@ class Things:
             s["done"] = now.isoformat()  # no power sensor: charged for as long as it takes
             self._finish(s, now)
             want = False
-        await self._switch(ha, sw, want, now)
+        if not act:
+            return  # shadow: the plan is shown, nothing is switched
+        if await self._switch(ha, sw, want, now) and want:
+            s["on_by_us"] = True
 
     async def _tick_machine(self, ha: Any, t: dict[str, Any], now: datetime, price: float | None, sell: float,
-                            grid_w: float | None, dt_s: float) -> None:
+                            grid_w: float | None, dt_s: float, act: bool = True) -> None:
         """A machine is never switched off: only started when it is ready and the time has come."""
         tid, s = t["id"], self.st(t["id"])
         w = _num(ha.states.get(t["power"])) if t.get("power") else None
@@ -235,7 +244,7 @@ class Things:
         if s.get("armed") and not s.get("running") and not s.get("start_sent") and p.get("start") \
                 and datetime.fromisoformat(p["start"]) <= now:
             s["start_sent"] = now.isoformat()
-            if st := t.get("start"):
+            if (st := t.get("start")) and act:  # in shadow the user is only told
                 domain = st.split(".")[0]
                 if domain == "button":
                     await ha.call_service("button", "press", {"entity_id": st})
