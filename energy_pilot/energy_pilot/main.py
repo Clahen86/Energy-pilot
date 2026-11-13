@@ -85,6 +85,20 @@ async def main() -> None:
     overview.engine = engine
     controller = Controller(ha, overview, engine)
     overview.controller = controller
+    from .selftest import SelfTest
+
+    overview.selftest = SelfTest(controller, overview)
+
+    async def run_recover() -> None:
+        """A test cut short by a restart: its saved settings go back first."""
+        await ha.connected.wait()
+        await asyncio.sleep(15)
+        try:
+            await overview.selftest.recover()
+        except Exception:  # noqa: BLE001
+            logging.getLogger("energy_pilot.selftest").warning("Could not put the test's settings back", exc_info=True)
+
+    asyncio.create_task(run_recover())
 
     async def run_engine() -> None:
         await ha.connected.wait()

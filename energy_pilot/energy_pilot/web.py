@@ -251,6 +251,29 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
         runner.all_to_shadow()
         return web.json_response({"ok": True})
 
+    async def selftest_get(_req: web.Request) -> web.Response:
+        t = getattr(overview, "selftest", None)
+        return web.json_response(t.status() if t else {})
+
+    async def selftest_post(req: web.Request) -> web.Response:
+        t = getattr(overview, "selftest", None)
+        if not t:
+            return web.json_response({"error": "not ready"}, status=503)
+        body = await req.json()
+        act = body.get("action")
+        if act == "start":
+            t.start(list(body.get("parts") or ["battery"]))
+        elif act == "stop":
+            t.stop()
+        elif act == "undo":
+            t.undo(str(body.get("part")), str(body.get("intent")), str(body.get("entity")))
+        elif act == "clear":
+            if not t.status()["running"]:
+                overview.save({"selftest": {}})
+        return web.json_response(t.status())
+
+    app.router.add_get("/api/selftest", selftest_get)
+    app.router.add_post("/api/selftest", selftest_post)
     app.router.add_get("/api/control", control_status)
     app.router.add_post("/api/control", control_mode)
     app.router.add_post("/api/control/release", control_release)

@@ -59,6 +59,7 @@ class Controller:
         # part -> [(time, entity)], the last hour.
         self.drift: dict[str, list[tuple[float, str]]] = {}
         self._gone: dict[str, set[str]] = {}  # controls seen unavailable since the last send (sent again when back)
+        self.testing: set[str] = set()  # parts the self-test drives right now - left alone meanwhile
         self._bat_lock = asyncio.Lock()  # the battery's round and the minute's keep-alive never send at once
 
     # ---------- settings ----------
@@ -473,7 +474,8 @@ class Controller:
         if self.is_battery(part):
             steps = self.profile_steps(part) or {}
             # A profile without a way to sell runs normally instead (the plan doesn't sell then anyway).
-            return self._clamp(adapters.resolve(steps.get(want["intent"]) or steps.get("normal", []), self._pool(part), want["ctx"]))
+            calls = self._clamp(adapters.resolve(steps.get(want["intent"]) or steps.get("normal", []), self._pool(part), want["ctx"]))
+            return self._fixed(part, want["intent"], calls)
         if part.startswith("car") and part != "car":
             return self._clamp(adapters.charger_calls(want["intent"], self.entities.get(part, []), self.platforms.get(part),
                                                       want["ctx"]["current"], self.car_devices.get(part), self.ha.states,
@@ -517,7 +519,10 @@ class Controller:
         return calls
 
     async def tick(self, parts: tuple[str, ...] | None = None) -> None:
+        testing = getattr(self, "testing", set())
         for part, want in self.intents().items():
+            if part in testing or (part.startswith("car") and "car" in testing):
+                continue  # the test drives it now (selftest.py)
             if parts is not None and part not in parts and not (part.startswith("car") and "car" in parts):
                 continue
             mode = self.mode(part)
@@ -640,6 +645,14 @@ class Controller:
             self._bat_lock = asyncio.Lock()
         return self._bat_lock
 
+    def _fixed(self, part: str, intent: str, calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """An option the test found works on this installation is used instead of the profile's (see selftest.py)."""
+        fx = (((self.ov.settings.get("profile_fixes") or {}).get(part) or {}).get(intent)) or {}
+        if not fx:
+            return calls
+        return [{**c, "data": {**c["data"], "option": fx[c["data"]["entity_id"]]["to"]}}
+                if c.get("service") == "select_option" and c["data"].get("entity_id") in fx else c for c in calls]
+
     @staticmethod
     def _forced(prof: dict[str, Any]) -> bool:
         """Written again on time even when Home Assistant shows the value: the inverter forgets it (Victron) or a
@@ -661,6 +674,8 @@ class Controller:
         again on time - not up to a round later - and at once when a control is back after being unavailable."""
         now_t = time.time()
         for part in ["battery", *self.bat_parts()]:
+            if part in getattr(self, "testing", set()):
+                continue
             prof = self._prof(part)
             prev = self.last.get(part)
             if (not prof.get("reassert_s") or not prev or prev.get("mode") != "control" or "result" not in prev

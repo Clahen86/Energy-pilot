@@ -224,6 +224,32 @@
   .thpick { display:flex; flex-direction:column; align-items:flex-end; gap:4px; max-width:60%; } .thpick select { max-width:100%; }
   .thall { font-size:12px; }
   .thhead { display:flex; align-items:center; gap:8px; }
+
+  /* test your system */
+  .stcard { border:1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); background:linear-gradient(160deg, color-mix(in srgb, var(--accent) 10%, var(--surface)), var(--surface)); }
+  .sthead { display:flex; gap:12px; align-items:center; }
+  .sthead .stic { width:42px; height:42px; border-radius:13px; display:grid; place-items:center; flex:none; background:linear-gradient(135deg, var(--accent), #22d3ee); color:#fff; font-size:21px; }
+  .sthead b { font-size:17px; display:block; } .sthead span { color:var(--muted); font-size:13px; }
+  .stparts { display:flex; gap:8px; margin:14px 0 4px; flex-wrap:wrap; }
+  .stparts button { flex:1; min-width:130px; padding:11px; border-radius:13px; border:1px solid var(--line2); background:var(--surface2); color:var(--text); font:inherit; font-weight:600; cursor:pointer; }
+  .stparts button.on { border-color:var(--accent); background:color-mix(in srgb, var(--accent) 16%, transparent); }
+  .stparts button:disabled { opacity:.45; cursor:default; }
+  .stparts small { display:block; font-weight:500; color:var(--muted); font-size:11.5px; margin-top:2px; }
+  .stgo { width:100%; margin-top:12px; padding:14px; border:0; border-radius:14px; font:inherit; font-weight:700; font-size:15.5px; color:#fff; cursor:pointer;
+    background:linear-gradient(135deg, var(--accent), #22d3ee); box-shadow:0 6px 18px color-mix(in srgb, var(--accent) 35%, transparent); text-align:center; display:block; text-decoration:none; }
+  .stgo:disabled { opacity:.5; cursor:default; box-shadow:none; }
+  .ststeps { list-style:none; margin:14px 0 0; padding:0; display:flex; flex-direction:column; gap:8px; }
+  .ststeps li { display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border-radius:12px; background:var(--surface2); border:1px solid var(--line); }
+  .ststeps li .m { width:22px; flex:none; text-align:center; font-size:16px; line-height:20px; }
+  .ststeps li b { display:block; font-weight:650; } .ststeps li span { color:var(--muted); font-size:12.5px; }
+  .ststeps li.now { border-color:var(--accent); }
+  .ststeps li.bad { border-color:color-mix(in srgb, var(--bad) 40%, transparent); }
+  .ststeps li.fix { border-color:color-mix(in srgb, var(--warn) 45%, transparent); }
+  .stspin { width:16px; height:16px; margin:2px auto 0; border-radius:50%; border:2px solid color-mix(in srgb, var(--accent) 30%, transparent); border-top-color:var(--accent); animation:stspin .9s linear infinite; }
+  @keyframes stspin { to { transform:rotate(360deg); } }
+  .stnote { margin-top:12px; padding:10px 12px; border-radius:12px; font-size:13px; background:color-mix(in srgb, var(--ok) 9%, transparent); border:1px solid color-mix(in srgb, var(--ok) 30%, transparent); }
+  .stnote.warn { background:color-mix(in srgb, var(--warn) 10%, transparent); border-color:color-mix(in srgb, var(--warn) 35%, transparent); }
+  .stundo { margin-left:auto; flex:none; padding:5px 10px; border-radius:9px; border:1px solid var(--line2); background:transparent; color:var(--text); font:inherit; font-size:12.5px; cursor:pointer; }
 </style>
 </head>
 <body>
@@ -1171,11 +1197,135 @@ function controlView() {
   return `<div class="eyebrow" style="margin-top:18px"><span>${c.title}</span>${control.profile?.name ? `<span>${esc(control.profile.name)}</span>` : ""}</div>
     <div class="muted" style="margin-bottom:6px">${c.hint}</div>${part("battery", (control.bat_parts || []).length ? T.bat.n.replace("{n}", 1) : T.y.secBattery, "battery")}${checkView()}${(control.bat_parts || []).map((k, i) => part(k, `${T.bat.n.replace("{n}", i + 2)}${control[k]?.name ? ` · ${esc(control[k].name)}` : ""}`, "battery") + checkView(control[k]?.profile)).join("")}${part("car", T.y.secCar, "car")}${(control.car_parts || []).map((k, i) => part(k, `${T.chg.n.replace("{n}", i + 2)}${control[k]?.name ? ` · ${esc(control[k].name)}` : ""}`, "car")).join("")}${part("generator", T.gen.title, "bolt")}`;
 }
+const T_TEST = {
+  da: { title: "Test dit system", sub: "Ca. 10 min · højst 1 kW · alt sættes tilbage bagefter", battery: "Husbatteri", car: "Ladeboks",
+    start: "Start test", stop: "Stop og sæt alt tilbage", again: "Test igen", send: "Send resultatet til udvikleren", sendH: "Åbner GitHub med resultatet udfyldt – du ser teksten, før du sender. Ingen navne, adresser eller koder.",
+    diag: "Hent diagnosefil", running: "Tester – lad siden være åben eller kom tilbage senere", trying: "Prøver «{o}»", waiting: "Venter", allOk: "Alt virker – Energipilot kan styre dit system.",
+    fixedNote: "Energipilot rettede selv {n} ting og bruger rettelsen fremover.", failNote: "Noget virkede ikke. Send resultatet, så profilen kan blive rettet for alle.", undo: "Fortryd",
+    left: "Kunne ikke sætte tilbage: {x} – sæt dem selv i inverterens app.", back: "Alt er sat tilbage, som det var.", testBtn: "Test dit system",
+    steps: { hold: "Hold batteriet", charge: "Lad fra nettet", export: "Sælg fra batteriet", normal: "Tilbage til normal", start: "Start opladning", low: "Skru ned til 6 A", stop: "Stop opladning", error: "Testen" },
+    res: { ok: "Virker", fixed: "Rettet: «{a}» → «{b}»", failed: "Virker ikke", skipped: "Sprunget over" },
+    why: { full: "batteriet er fuldt", empty: "batteriet er næsten tomt", not_charging: "bilen ladede ikke", rejected: "værdien blev afvist", no_reaction: "batteriet gjorde ikke det, det skulle", no_data: "ingen måling af effekten", error: "uventet fejl" },
+    cant: { no_battery: "Intet batteri at styre", no_power: "Mangler sensor for batteriets effekt", not_plugged: "Sæt bilen i først", no_charger: "Ingen ladeboks" } },
+  en: { title: "Test your system", sub: "About 10 min · at most 1 kW · everything put back afterwards", battery: "Home battery", car: "EV charger",
+    start: "Start test", stop: "Stop and put everything back", again: "Test again", send: "Send the result to the developer", sendH: "Opens GitHub with the result filled in – you see the text before you send it. No names, addresses or passwords.",
+    diag: "Download diagnostics", running: "Testing – keep this page open or come back later", trying: "Trying “{o}”", waiting: "Waiting", allOk: "Everything works – Energy Pilot can control your system.",
+    fixedNote: "Energy Pilot fixed {n} thing(s) by itself and will use the fix from now on.", failNote: "Something didn't work. Send the result so the profile can be fixed for everyone.", undo: "Undo",
+    left: "Couldn't put back: {x} – set them in the inverter's app.", back: "Everything is back as it was.", testBtn: "Test your system",
+    steps: { hold: "Hold the battery", charge: "Charge from the grid", export: "Sell from the battery", normal: "Back to normal", start: "Start charging", low: "Turn down to 6 A", stop: "Stop charging", error: "The test" },
+    res: { ok: "Works", fixed: "Fixed: “{a}” → “{b}”", failed: "Doesn't work", skipped: "Skipped" },
+    why: { full: "the battery is full", empty: "the battery is nearly empty", not_charging: "the car didn't charge", rejected: "the value was refused", no_reaction: "the battery didn't do what it should", no_data: "no power reading", error: "unexpected error" },
+    cant: { no_battery: "No battery to control", no_power: "Needs a battery power sensor", not_plugged: "Plug in the car first", no_charger: "No charger" } },
+  de: { title: "System testen", sub: "Ca. 10 Min · höchstens 1 kW · danach wird alles zurückgesetzt", battery: "Hausbatterie", car: "Wallbox",
+    start: "Test starten", stop: "Stoppen und alles zurücksetzen", again: "Erneut testen", send: "Ergebnis an den Entwickler senden", sendH: "Öffnet GitHub mit dem Ergebnis – du siehst den Text vor dem Senden. Keine Namen, Adressen oder Passwörter.",
+    diag: "Diagnose herunterladen", running: "Test läuft – Seite offen lassen oder später wiederkommen", trying: "Probiere „{o}“", waiting: "Wartet", allOk: "Alles funktioniert – Energy Pilot kann dein System steuern.",
+    fixedNote: "Energy Pilot hat {n} Sache(n) selbst korrigiert und nutzt das künftig.", failNote: "Etwas hat nicht funktioniert. Sende das Ergebnis, damit das Profil für alle korrigiert wird.", undo: "Rückgängig",
+    left: "Nicht zurückgesetzt: {x} – bitte in der App des Wechselrichters einstellen.", back: "Alles ist wie vorher.", testBtn: "System testen",
+    steps: { hold: "Batterie halten", charge: "Aus dem Netz laden", export: "Aus der Batterie verkaufen", normal: "Zurück zu normal", start: "Laden starten", low: "Auf 6 A senken", stop: "Laden stoppen", error: "Der Test" },
+    res: { ok: "Funktioniert", fixed: "Korrigiert: „{a}“ → „{b}“", failed: "Funktioniert nicht", skipped: "Übersprungen" },
+    why: { full: "Batterie ist voll", empty: "Batterie ist fast leer", not_charging: "Auto hat nicht geladen", rejected: "Wert wurde abgelehnt", no_reaction: "Batterie hat nicht reagiert", no_data: "keine Leistungsmessung", error: "unerwarteter Fehler" },
+    cant: { no_battery: "Keine Batterie", no_power: "Sensor für Batterieleistung fehlt", not_plugged: "Erst das Auto anstecken", no_charger: "Keine Wallbox" } },
+  fr: { title: "Tester votre système", sub: "Env. 10 min · 1 kW max · tout est remis ensuite", battery: "Batterie", car: "Borne de recharge",
+    start: "Lancer le test", stop: "Arrêter et tout remettre", again: "Tester à nouveau", send: "Envoyer le résultat au développeur", sendH: "Ouvre GitHub avec le résultat – vous voyez le texte avant l'envoi. Aucun nom, adresse ou mot de passe.",
+    diag: "Télécharger le diagnostic", running: "Test en cours – gardez la page ouverte ou revenez plus tard", trying: "Essai « {o} »", waiting: "En attente", allOk: "Tout fonctionne – Energy Pilot peut piloter votre système.",
+    fixedNote: "Energy Pilot a corrigé {n} élément(s) et l'utilisera désormais.", failNote: "Quelque chose n'a pas fonctionné. Envoyez le résultat pour corriger le profil pour tous.", undo: "Annuler",
+    left: "Non remis : {x} – réglez-les dans l'app de l'onduleur.", back: "Tout est revenu comme avant.", testBtn: "Tester votre système",
+    steps: { hold: "Maintenir la batterie", charge: "Charger depuis le réseau", export: "Vendre depuis la batterie", normal: "Retour à la normale", start: "Démarrer la charge", low: "Baisser à 6 A", stop: "Arrêter la charge", error: "Le test" },
+    res: { ok: "Fonctionne", fixed: "Corrigé : « {a} » → « {b} »", failed: "Ne fonctionne pas", skipped: "Ignoré" },
+    why: { full: "batterie pleine", empty: "batterie presque vide", not_charging: "la voiture n'a pas chargé", rejected: "valeur refusée", no_reaction: "la batterie n'a pas réagi", no_data: "aucune mesure de puissance", error: "erreur inattendue" },
+    cant: { no_battery: "Aucune batterie", no_power: "Capteur de puissance batterie manquant", not_plugged: "Branchez d'abord la voiture", no_charger: "Aucune borne" } },
+  nl: { title: "Test je systeem", sub: "Ca. 10 min · max 1 kW · alles wordt teruggezet", battery: "Thuisbatterij", car: "Laadpaal",
+    start: "Start test", stop: "Stop en zet alles terug", again: "Opnieuw testen", send: "Stuur het resultaat naar de ontwikkelaar", sendH: "Opent GitHub met het resultaat – je ziet de tekst voordat je verstuurt. Geen namen, adressen of wachtwoorden.",
+    diag: "Diagnose downloaden", running: "Bezig met testen – laat de pagina open of kom later terug", trying: "Probeer “{o}”", waiting: "Wacht", allOk: "Alles werkt – Energy Pilot kan je systeem sturen.",
+    fixedNote: "Energy Pilot heeft {n} ding(en) zelf gerepareerd en gebruikt dat voortaan.", failNote: "Iets werkte niet. Stuur het resultaat zodat het profiel voor iedereen gerepareerd kan worden.", undo: "Ongedaan maken",
+    left: "Niet teruggezet: {x} – stel ze in via de app van de omvormer.", back: "Alles staat weer zoals het was.", testBtn: "Test je systeem",
+    steps: { hold: "Batterij vasthouden", charge: "Laden van het net", export: "Verkopen uit de batterij", normal: "Terug naar normaal", start: "Laden starten", low: "Naar 6 A", stop: "Laden stoppen", error: "De test" },
+    res: { ok: "Werkt", fixed: "Gerepareerd: “{a}” → “{b}”", failed: "Werkt niet", skipped: "Overgeslagen" },
+    why: { full: "batterij is vol", empty: "batterij is bijna leeg", not_charging: "auto laadde niet", rejected: "waarde geweigerd", no_reaction: "batterij reageerde niet", no_data: "geen vermogensmeting", error: "onverwachte fout" },
+    cant: { no_battery: "Geen batterij", no_power: "Sensor voor batterijvermogen ontbreekt", not_plugged: "Sluit eerst de auto aan", no_charger: "Geen laadpaal" } },
+  sv: { title: "Testa ditt system", sub: "Ca 10 min · högst 1 kW · allt återställs efteråt", battery: "Hembatteri", car: "Laddbox",
+    start: "Starta test", stop: "Stoppa och återställ allt", again: "Testa igen", send: "Skicka resultatet till utvecklaren", sendH: "Öppnar GitHub med resultatet ifyllt – du ser texten innan du skickar. Inga namn, adresser eller lösenord.",
+    diag: "Ladda ner diagnostik", running: "Testar – låt sidan vara öppen eller kom tillbaka senare", trying: "Provar ”{o}”", waiting: "Väntar", allOk: "Allt fungerar – Energy Pilot kan styra ditt system.",
+    fixedNote: "Energy Pilot rättade {n} sak(er) själv och använder det framöver.", failNote: "Något fungerade inte. Skicka resultatet så att profilen kan rättas för alla.", undo: "Ångra",
+    left: "Kunde inte återställa: {x} – ställ in dem i växelriktarens app.", back: "Allt är återställt.", testBtn: "Testa ditt system",
+    steps: { hold: "Håll batteriet", charge: "Ladda från nätet", export: "Sälj från batteriet", normal: "Tillbaka till normal", start: "Starta laddning", low: "Sänk till 6 A", stop: "Stoppa laddning", error: "Testet" },
+    res: { ok: "Fungerar", fixed: "Rättat: ”{a}” → ”{b}”", failed: "Fungerar inte", skipped: "Hoppades över" },
+    why: { full: "batteriet är fullt", empty: "batteriet är nästan tomt", not_charging: "bilen laddade inte", rejected: "värdet avvisades", no_reaction: "batteriet reagerade inte", no_data: "ingen effektmätning", error: "oväntat fel" },
+    cant: { no_battery: "Inget batteri", no_power: "Saknar sensor för batteriets effekt", not_plugged: "Anslut bilen först", no_charger: "Ingen laddbox" } },
+  nb: { title: "Test systemet ditt", sub: "Ca. 10 min · maks 1 kW · alt settes tilbake etterpå", battery: "Husbatteri", car: "Ladeboks",
+    start: "Start test", stop: "Stopp og sett alt tilbake", again: "Test igjen", send: "Send resultatet til utvikleren", sendH: "Åpner GitHub med resultatet utfylt – du ser teksten før du sender. Ingen navn, adresser eller passord.",
+    diag: "Last ned diagnose", running: "Tester – la siden være åpen eller kom tilbake senere", trying: "Prøver «{o}»", waiting: "Venter", allOk: "Alt virker – Energy Pilot kan styre systemet ditt.",
+    fixedNote: "Energy Pilot rettet {n} ting selv og bruker rettelsen fremover.", failNote: "Noe virket ikke. Send resultatet så profilen kan rettes for alle.", undo: "Angre",
+    left: "Kunne ikke sette tilbake: {x} – still dem i vekselretterens app.", back: "Alt er satt tilbake som det var.", testBtn: "Test systemet ditt",
+    steps: { hold: "Hold batteriet", charge: "Lad fra nettet", export: "Selg fra batteriet", normal: "Tilbake til normal", start: "Start lading", low: "Skru ned til 6 A", stop: "Stopp lading", error: "Testen" },
+    res: { ok: "Virker", fixed: "Rettet: «{a}» → «{b}»", failed: "Virker ikke", skipped: "Hoppet over" },
+    why: { full: "batteriet er fullt", empty: "batteriet er nesten tomt", not_charging: "bilen ladet ikke", rejected: "verdien ble avvist", no_reaction: "batteriet reagerte ikke", no_data: "ingen effektmåling", error: "uventet feil" },
+    cant: { no_battery: "Ingen batteri", no_power: "Mangler sensor for batteriets effekt", not_plugged: "Koble til bilen først", no_charger: "Ingen ladeboks" } },
+};
+let selftest = null, stParts = null;
+const ST_ORDER = { battery: ["hold", "charge", "export", "normal"], car: ["start", "low", "stop"] };
+function testCard() {
+  const t = T_TEST[L] || T_TEST.en, s = selftest;
+  if (!s || !s.can) return "";
+  const can = s.can, avail = Object.keys(can).filter((p) => can[p] == null);
+  if (!stParts) stParts = new Set(avail.filter((p) => p === "battery" || avail.length === 1));
+  const res = s.results || [], running = s.running;
+  const head = `<div class="sthead"><span class="stic">✓</span><div><b>${t.title}</b><span>${t.sub}</span></div></div>`;
+  if (!running && !res.length) {
+    const btn = (p) => `<button class="${stParts.has(p) && can[p] == null ? "on" : ""}" data-st-part="${p}" ${can[p] != null ? "disabled" : ""}>${t[p]}${can[p] != null ? `<small>${t.cant[can[p]] || ""}</small>` : ""}</button>`;
+    const any = [...stParts].some((p) => can[p] == null);
+    return `<div class="card fade stcard">${head}<div class="stparts">${btn("battery")}${btn("car")}</div>
+      <button class="stgo" data-st-start ${any ? "" : "disabled"}>${t.start}</button></div>`;
+  }
+  const parts = s.parts || [];
+  const rows = parts.flatMap((p) => ST_ORDER[p].filter((k) => p !== "battery" || k !== "export" || res.some((r) => r.step === "export") || running).map((k) => {
+    const r = res.find((x) => x.part === p && x.step === k), now = running && s.step && s.step.part === p && s.step.step === k;
+    let m = "○", cls = "", line = t.waiting;
+    if (now) { m = `<div class="stspin"></div>`; cls = "now"; line = s.step.trying ? t.trying.replace("{o}", esc(s.step.trying.option)) : "…"; }
+    if (r) {
+      m = { ok: "✅", fixed: "🔧", failed: "❌", skipped: "⏭️" }[r.result] || "•";
+      cls = r.result === "failed" ? "bad" : r.result === "fixed" ? "fix" : "";
+      line = r.result === "fixed" ? t.res.fixed.replace("{a}", esc(r.option_from)).replace("{b}", esc(r.option_to))
+        : `${t.res[r.result] || r.result}${r.why ? ` – ${t.why[r.why] || esc(r.why)}` : ""}`;
+    }
+    const undo = r && r.result === "fixed" && (s.fixes || []).some((f) => f.entity === r.entity && f.intent === k)
+      ? `<button class="stundo" data-st-undo="${p}|${k}|${esc(r.entity)}">${t.undo}</button>` : "";
+    return `<li class="${cls}"><span class="m">${m}</span><div><b>${(p === "car" ? "🚗 " : "")}${t.steps[k]}</b><span>${line}</span></div>${undo}</li>`;
+  }));
+  const err = res.find((r) => r.step === "error");
+  if (err) rows.push(`<li class="bad"><span class="m">❌</span><div><b>${t.steps.error}</b><span>${t.why.error}</span></div></li>`);
+  let foot = "";
+  if (running) foot = `<div class="muted" style="margin-top:10px">${t.running}</div><button class="stopall" data-st-stop>${t.stop}</button>`;
+  else {
+    const bad = res.some((r) => r.result === "failed"), fixed = res.filter((r) => r.result === "fixed").length;
+    const left = (s.restored && s.restored.left) || [];
+    foot = `${bad ? `<div class="stnote warn">${t.failNote}</div>` : fixed ? `<div class="stnote">${t.fixedNote.replace("{n}", fixed)}</div>` : `<div class="stnote">${t.allOk}</div>`}
+      ${left.length ? `<div class="stnote warn">${t.left.replace("{x}", left.map((x) => `${esc(x.entity)} = ${esc(x.value)}`).join(", "))}</div>` : `<div class="muted" style="margin-top:8px">${t.back}</div>`}
+      ${s.report_url ? `<a class="stgo" href="${esc(s.report_url)}" target="_blank" rel="noopener">${t.send}</a><div class="muted" style="margin-top:6px">${t.sendH}</div>` : ""}
+      <a class="ghostbtn" style="display:block;text-align:center;text-decoration:none" href="api/diagnostics" download>${t.diag}</a>
+      <button class="ghostbtn" style="margin-top:8px" data-st-clear>${t.again}</button>`;
+  }
+  return `<div class="card fade stcard">${head}<ul class="ststeps">${rows.join("")}</ul>${foot}</div>`;
+}
+function wireTest() {
+  document.querySelectorAll("[data-st-part]").forEach((b) => b.onclick = () => { const p = b.dataset.stPart; stParts.has(p) ? stParts.delete(p) : stParts.add(p); render(); });
+  $("[data-st-start]")?.addEventListener("click", async () => { selftest = await api("/api/selftest", { action: "start", parts: [...stParts] }); render(); });
+  $("[data-st-stop]")?.addEventListener("click", async () => { selftest = await api("/api/selftest", { action: "stop" }); render(); });
+  $("[data-st-clear]")?.addEventListener("click", async () => { stParts = null; selftest = await api("/api/selftest", { action: "clear" }); render(); });
+  document.querySelectorAll("[data-st-undo]").forEach((b) => b.onclick = async () => {
+    const [part, intent, entity] = b.dataset.stUndo.split("|");
+    selftest = await api("/api/selftest", { action: "undo", part, intent, entity }); render();
+  });
+  $("[data-gotest]")?.addEventListener("click", async () => {
+    tab = "shadow"; localStorage.setItem("ep_tab", tab);
+    status = await api("/api/status"); control = await api("/api/control"); selftest = await api("/api/selftest"); render(); window.scrollTo(0, 0);
+  });
+}
 function shadowView() {
   if (!status) return `<div class="card">…</div>`;
   const control = status.apps.some((a) => a.mode === "control");
   const apps = status.apps.length ? `<div class="eyebrow"><span>${T.shadowTitle}</span></div><div class="muted" style="margin-bottom:10px">${T.shadowHint}</div>` : "";
-  return `<div class="card fade">${apps}
+  return `${testCard()}<div class="card fade">${apps}
     ${status.apps.map((a) => `<div class="app">${ring(a.agree)}<div class="t"><b>${T.names[a.name] || esc(a.name)}</b><span>${a.agree == null ? "–" : a.agree + " % " + T.agree} · ${a.checks} ${T.compare} · ${a.errors} ${T.errors}</span></div>
       <div class="seg">${["shadow", "control", "off"].map((m) => `<button class="${m} ${a.mode === m ? "on" : ""}" data-app="${a.name}" data-mode="${m}">${T.modes[m]}</button>`).join("")}</div></div>
       <details class="more"><summary>${T.xDetails}</summary><table><tr><th>Sensor</th><th>${T.xCopy}</th><th>${T.xYourSystem}</th></tr>
@@ -1436,7 +1586,7 @@ function settingsView() {
   return `${checksCard()}${styleView()}<div class="card fade" id="sec-roles"><div class="eyebrow"><span>${T.setTitle}</span><button class="link" data-redetect>${T.findAgain}</button></div><div class="muted">${T.setHint}</div>
     ${Object.entries(GROUPS).map(([g, roles]) => `<div class="group"><h4>${icon(GROUPICON[g])}${T.groups[g]}</h4>${roleRows(roles)}</div>`).join("")}
     <button class="ghostbtn" data-setup>${T.runGuide}</button></div>
-    <div class="card fade"><a class="ghostbtn" style="display:block;text-align:center;text-decoration:none;margin-top:0" href="api/diagnostics" download>${T.chk.diag}</a>
+    <div class="card fade"><button class="stgo" style="margin:0 0 10px" data-gotest>✓ ${(T_TEST[L] || T_TEST.en).testBtn}</button><a class="ghostbtn" style="display:block;text-align:center;text-decoration:none;margin-top:0" href="api/diagnostics" download>${T.chk.diag}</a>
     <div class="muted" style="margin-top:8px">${T.chk.diagH}</div></div>`;
 }
 let step = 1;
@@ -1499,9 +1649,10 @@ function patch() {
 }
 function wire() {
   wireThings();
+  wireTest();
   document.querySelectorAll("[data-tab]").forEach((b) => b.onclick = async () => {
     tab = b.dataset.tab; localStorage.setItem("ep_tab", tab);
-    if (tab === "shadow") { status = await api("/api/status"); control = await api("/api/control"); }
+    if (tab === "shadow") { status = await api("/api/status"); control = await api("/api/control"); selftest = await api("/api/selftest").catch(() => null); }
     if (tab === "settings") { settings = await api("/api/settings"); control = await api("/api/control"); }
     render(); window.scrollTo(0, 0);
   });
@@ -1645,14 +1796,14 @@ async function load() { data = await api("/api/overview?lang=" + L).catch(() => 
   await load();
   if (data && !data.setup_done) tab = "setup";
   if (tab === "setup") settings = await api("/api/settings");
-  if (tab === "shadow") { status = await api("/api/status"); control = await api("/api/control"); }
+  if (tab === "shadow") { status = await api("/api/status"); control = await api("/api/control"); selftest = await api("/api/selftest").catch(() => null); }
   if (tab === "settings") { settings = await api("/api/settings"); control = await api("/api/control"); }
   render();
   setInterval(async () => {
     if (document.hidden) return;
     await load();
     if (tab === "home") patch();
-    if (tab === "shadow") { status = await api("/api/status"); control = await api("/api/control"); if (!document.querySelector("details[open]")) render(true); }
+    if (tab === "shadow") { status = await api("/api/status"); control = await api("/api/control"); selftest = await api("/api/selftest").catch(() => selftest); if (!document.querySelector("details[open]")) render(true); }
   }, 4000);
   setInterval(() => { if (tab === "home" || tab === "plan") render(true); }, 300000);
 })();
