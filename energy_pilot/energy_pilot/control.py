@@ -483,7 +483,8 @@ class Controller:
 
     def _clamp(self, calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Numbers within the control's own min/max - Home Assistant refuses a value outside them. A select value
-        written "re:<pattern>" is the control's own option that matches (SolarAssistant names a mode its own way)."""
+        written "re:<pattern>" is the control's own option that matches (SolarAssistant names a mode its own way); any
+        other option not in the control's list is matched to it ignoring case, spaces and underscores."""
         out = []
         for c in calls:
             d = c["data"]
@@ -494,6 +495,13 @@ class Controller:
                     _LOGGER.warning("No option like %s on %s", d["option"][3:], d.get("entity_id"))
                     continue
                 d["option"] = opt
+            elif c.get("service") == "select_option" and d.get("option") is not None:
+                # A profile's option written as the label ("Maximise self consumption") where the integration has
+                # the value ("maximise_self_consumption"), or the other way round: the control's own one is used.
+                opts = ((self.ha.states.get(d.get("entity_id")) or {}).get("attributes") or {}).get("options") or []
+                if opts and d["option"] not in opts:
+                    key = re.sub(r"[^a-z0-9]", "", str(d["option"]).lower())
+                    d["option"] = next((o for o in opts if re.sub(r"[^a-z0-9]", "", str(o).lower()) == key), d["option"])
             out.append(c)
         calls = out
         for c in calls:

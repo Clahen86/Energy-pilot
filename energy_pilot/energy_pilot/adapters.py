@@ -281,18 +281,19 @@ PROFILES: dict[str, dict[str, Any]] = {
         # where feed-in is allowed). Normal sets it back to the house.
         "export": [(r"number\..*custom_load_power.*$", "number", "{power_w}")],
     },
-    # Huawei (wlcrs/huawei_solar): "Working Mode" ("Maximise self consumption"), maximum discharging power, and the
+    # Huawei (wlcrs/huawei_solar): "Working Mode" (newer versions: "maximise_self_consumption", older: the label
+    # "Maximise self consumption" - the control's own option is picked), maximum discharging power, and the
     # forcible_charge_soc service (needs the battery's device_id); "Stop forcible charge" ends a charge.
     "huawei_solar": {
         "name": "Huawei SUN2000 / LUNA2000",
         "match": r"huawei|sun2000|luna|batteries_",
         "source": "integration",
         "normal": [(r"button\..*stop_forcible_charge$", "press", None),
-                   (r"select\..*(?<!emma_)working_mode(_settings)?$", "select", "Maximise self consumption"),
+                   (r"select\..*(?<!emma_)working_mode(_settings)?$", "select", "re:maximi[sz]e.?self.?consum"),
                    (r"number\..*maximum_discharging_power$", "number", "{max_power_w}"),
                    (r"number\..*maximum_charging_power$", "number", "{max_charge_w}")],
         "hold": [(r"button\..*stop_forcible_charge$", "press", None),
-                 (r"select\..*(?<!emma_)working_mode(_settings)?$", "select", "Maximise self consumption"),
+                 (r"select\..*(?<!emma_)working_mode(_settings)?$", "select", "re:maximi[sz]e.?self.?consum"),
                  (r"number\..*maximum_discharging_power$", "number", "0"),
                  (r"number\..*maximum_charging_power$", "number", "{max_charge_w}")],
         "charge": [(r"number\..*maximum_discharging_power$", "number", "{max_power_w}"),

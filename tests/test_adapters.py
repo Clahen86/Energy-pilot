@@ -141,7 +141,7 @@ def test_profiles_from_the_integrations_own_names():
     """Entity names as the integrations create them (from their source code)."""
     cases = {
         "huawei_solar": (["select.batteries_working_mode", "number.batteries_maximum_discharging_power", "button.batteries_stop_forcible_charge",
-                          "select.emma_ess_control_mode"], "hold", "select.batteries_working_mode", "Maximise self consumption"),
+                          "select.emma_ess_control_mode"], "hold", "select.batteries_working_mode", "re:maximi[sz]e.?self.?consum"),
         "solaredge_modbus_multi": (["select.solaredge_b1_storage_control_mode", "select.solaredge_b1_storage_command_mode", "select.solaredge_b1_ac_charge_policy",
                                     "number.solaredge_b1_storage_charge_limit", "number.solaredge_b1_storage_command_timeout"],
                                    "charge", "select.solaredge_b1_ac_charge_policy", "Always Allowed"),
@@ -324,3 +324,20 @@ def test_megarevo_through_solarassistant():
 def test_victron_is_told_again_every_few_minutes():
     """Victron puts its ESS settings back after about 10 minutes - they are re-sent before that."""
     assert adapters.PROFILES["victron"]["reassert_s"] < 600
+
+
+def test_select_option_label_or_value_is_matched_to_the_controls_own():
+    """A GitHub user's Huawei: the integration has 'maximise_self_consumption', the profile said the label."""
+    from types import SimpleNamespace
+
+    from energy_pilot import control as C
+
+    opts = ["adaptive", "fixed_charge_discharge", "maximise_self_consumption", "fully_fed_to_grid", "time_of_use_luna2000"]
+    c = C.Controller.__new__(C.Controller)
+    c.ha = SimpleNamespace(states={"select.battery_working_mode": {"state": "adaptive", "attributes": {"options": opts}},
+                                   "select.inverter_work_mode": {"state": "x", "attributes": {"options": ["Self Use", "Feed-in Priority"]}}})
+    steps = adapters.resolve(adapters.PROFILES["huawei_solar"]["normal"], list(c.ha.states), CTX)
+    out = c._clamp([s for s in steps if s.get("service") == "select_option"])
+    assert out[0]["data"]["option"] == "maximise_self_consumption"
+    other = c._clamp([{"domain": "select", "service": "select_option", "data": {"entity_id": "select.inverter_work_mode", "option": "self_use"}}])
+    assert other[0]["data"]["option"] == "Self Use"
