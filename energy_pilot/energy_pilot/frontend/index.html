@@ -548,7 +548,7 @@ function flowPaths(f) {
   // Who feeds whom (W): the sun first to the house, then the car, the battery, the grid; the battery to the house and
   // the car; the grid covers the rest.
   const src = { pv: Math.max(0, f.pv || 0), batt: Math.max(0, -quiet(f.battery ?? f.batt)), grid: Math.max(0, quiet(f.grid, GRID_NOISE_W)) };
-  const need = { house: Math.max(0, f.house || 0), ev: Math.max(0, f.ev || 0), batt: Math.max(0, quiet(f.battery ?? f.batt)), grid: Math.max(0, -quiet(f.grid, GRID_NOISE_W)) };
+  const need = { house: Math.max(0, f.house || 0), ev: Math.max(0, quiet(f.ev)), batt: Math.max(0, quiet(f.battery ?? f.batt)), grid: Math.max(0, -quiet(f.grid, GRID_NOISE_W)) };
   const out = {};
   for (const s of ["pv", "batt", "grid"]) {
     for (const d of ["house", "ev", "batt", "grid"]) {
@@ -736,7 +736,7 @@ function flowSvg(f) {
     ${h.grid ? node("grid", 320, 150, gridCol, gr, gru, (f.grid < -GRID_NOISE_W ? T.sell : f.grid > GRID_NOISE_W ? T.buy : T.grid).toUpperCase(), "", "below", Math.abs(f.grid || 0) > GRID_NOISE_W) : ""}
     ${node("house", 180, 150, "var(--house)", ho, hou, null, houseRing(sc), "below", true)}
     ${h.battery ? node("battery", 40, 150, "var(--batt)", `${num(f.soc, 0)}`, "%", `${battCap} ${f.battery && Math.abs(f.battery) > NOISE_W ? kw(f.battery) : ""}`.trim().toUpperCase(), socRing, "below", Math.abs(f.battery || 0) > NOISE_W) : ""}
-    ${h.ev ? node("car", 180, 260, "var(--car)", f.ev > 30 ? ev : "–", f.ev > 30 ? evu : "", (f.ev > 30 ? T.charging : f.plug ? T.plugged : T.notPlugged).toUpperCase(), "", "below", (f.ev || 0) > 30) : ""}
+    ${h.ev ? node("car", 180, 260, "var(--car)", f.ev > NOISE_W ? ev : "–", f.ev > NOISE_W ? evu : "", (f.ev > NOISE_W ? T.charging : f.plug ? T.plugged : T.notPlugged).toUpperCase(), "", "below", (f.ev || 0) > 30) : ""}
   </svg>`;
 }
 function flowSig(f) {
