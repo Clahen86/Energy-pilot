@@ -100,12 +100,13 @@ def companions(states: dict[str, dict], entity_id: str) -> list[str]:
     return out
 
 
-def now_price(states: dict[str, dict], entity_id: str | None, tz: ZoneInfo) -> float | None:
-    """The price now: the entity's state, or (an event entity like Octopus') the slot now from its rates."""
+def now_price(states: dict[str, dict], entity_id: str | None, tz: ZoneInfo, scale: float = 1.0) -> float | None:
+    """The price now: the entity's state, or (an event entity like Octopus') the slot now from its rates. scale: a
+    price given in øre/cents is turned into kroner/euros (found by autofix.py)."""
     if not entity_id or not (s := states.get(entity_id)):
         return None
     try:
-        return float(s.get("state"))
+        return float(s.get("state")) * scale
     except (TypeError, ValueError):
         pass
     now = datetime.now(tz)
@@ -113,11 +114,11 @@ def now_price(states: dict[str, dict], entity_id: str | None, tz: ZoneInfo) -> f
     for e in companions(states, entity_id):
         prices.update(parse((states.get(e) or {}).get("attributes") or {}, tz, now.replace(hour=0, minute=0, second=0, microsecond=0)))
     past = [k for k in prices if k <= now]
-    return prices[max(past)] if past else None
+    return prices[max(past)] * scale if past else None
 
 
 def collect(states: dict[str, dict], entity_id: str | None, own: list[dict[str, Any]], tz: ZoneInfo,
-            service: list[dict[str, Any]] | None = None) -> tuple[dict[datetime, float], dict[str, Any]]:
+            service: list[dict[str, Any]] | None = None, scale: float = 1.0) -> tuple[dict[datetime, float], dict[str, Any]]:
     """All known prices from the integration, with the missing hours filled from Energy Pilot's own prices.
     Returns (prices, info) - info says what was filled and if tomorrow is still missing."""
     now = datetime.now(tz)
@@ -136,6 +137,8 @@ def collect(states: dict[str, dict], entity_id: str | None, own: list[dict[str, 
             if tempo.found(states):
                 prices.update(tempo.prices(states, tz, now))
                 own = []  # spot prices say nothing about tomorrow's colour - don't fill with them
+        if scale != 1.0:
+            prices = {k: v * scale for k, v in prices.items()}
     mine = {}
     for p in own or []:
         when = _when(p.get("start"), tz)

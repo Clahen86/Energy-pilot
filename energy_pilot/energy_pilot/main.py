@@ -88,6 +88,9 @@ async def main() -> None:
     from .selftest import SelfTest
 
     overview.selftest = SelfTest(controller, overview)
+    from .autofix import AutoFix
+
+    overview.autofix = AutoFix(overview)
 
     async def run_recover() -> None:
         """A test cut short by a restart: its saved settings go back first."""
@@ -150,10 +153,15 @@ async def main() -> None:
         await ha.connected.wait()
         await asyncio.sleep(90)
         while True:
+            for job in (controller.keep, controller.guard):
+                try:
+                    await job()
+                except Exception:  # noqa: BLE001
+                    logging.getLogger("energy_pilot.engine").debug("Minute check failed", exc_info=True)
             try:
-                await controller.keep()
+                overview.autofix.run()
             except Exception:  # noqa: BLE001
-                logging.getLogger("energy_pilot.engine").debug("Keep-alive failed", exc_info=True)
+                logging.getLogger("energy_pilot.autofix").debug("Autofix failed", exc_info=True)
             await asyncio.sleep(60)
 
     asyncio.create_task(run_keep())
@@ -171,7 +179,7 @@ async def main() -> None:
             try:
                 tz = _Z(ha.config.get("time_zone") or "UTC")
                 now = _dt.now(tz)
-                prices, _ = collect(ha.states, overview.role("price"), engine.own_prices or [], tz, engine.service_prices or [])
+                prices, _ = collect(ha.states, overview.role("price"), engine.own_prices or [], tz, engine.service_prices or [], overview.price_scale())
                 past = [k for k in prices if k <= now]
                 price = prices[max(past)] if past else None
                 st, b = overview.settings, engine.settings()

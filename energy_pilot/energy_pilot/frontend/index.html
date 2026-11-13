@@ -250,6 +250,18 @@
   .stnote { margin-top:12px; padding:10px 12px; border-radius:12px; font-size:13px; background:color-mix(in srgb, var(--ok) 9%, transparent); border:1px solid color-mix(in srgb, var(--ok) 30%, transparent); }
   .stnote.warn { background:color-mix(in srgb, var(--warn) 10%, transparent); border-color:color-mix(in srgb, var(--warn) 35%, transparent); }
   .stundo { margin-left:auto; flex:none; padding:5px 10px; border-radius:9px; border:1px solid var(--line2); background:transparent; color:var(--text); font:inherit; font-size:12.5px; cursor:pointer; }
+
+  /* status light + guide step */
+  .slight { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; border:1px solid var(--line2); background:var(--surface2); font:inherit; font-size:12.5px; font-weight:650; color:var(--text); cursor:pointer; margin-right:6px; }
+  .slight i { width:9px; height:9px; border-radius:50%; background:var(--ok); box-shadow:0 0 0 3px color-mix(in srgb, var(--ok) 25%, transparent); }
+  .slight.y i { background:var(--warn); box-shadow:0 0 0 3px color-mix(in srgb, var(--warn) 25%, transparent); }
+  .slight.r i { background:var(--bad); box-shadow:0 0 0 3px color-mix(in srgb, var(--bad) 25%, transparent); }
+  .fixrow { display:flex; gap:10px; align-items:center; padding:9px 0; border-top:1px solid var(--line); font-size:13.5px; }
+  .fixrow:first-of-type { border-top:0; } .fixrow p { margin:0; flex:1; }
+  .nudge { display:flex; flex-direction:column; gap:8px; }
+  .nudge .row2 { display:flex; gap:8px; } .nudge .row2 > * { flex:1; margin:0; }
+  .testexplain { text-align:left; margin:14px 0 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:8px; }
+  .testexplain li { display:flex; gap:10px; padding:10px 12px; border-radius:12px; background:var(--surface2); border:1px solid var(--line); font-size:13.5px; }
 </style>
 </head>
 <body>
@@ -780,14 +792,14 @@ function level(p, plan) {
 const DECCOL = { discharge: "var(--batt)", charge: "var(--sun)", grid: "var(--grid)", hold: "var(--accent)", export: "var(--grid)" };
 const DECICON = { discharge: "arrowDown", charge: "arrowUp", grid: "bolt", hold: "pause", export: "arrowDown" };
 function checksCard() {
-  const list = data?.engine?.selfcheck || [], c = T.chk;
-  if (!list.length) return "";
+  const list = data?.engine?.selfcheck || [], c = { ...TF.chk, ...T.chk }, fixed = fixedLines();
+  if (!list.length && !fixed) return "";
   const val = (k, v) => typeof v === "string" ? v : k === "x" || k === "sell" || k === "worth" ? kr(v) : k === "seen" ? (v ? c.evYes : c.evNo) : num(v, 1);
   const text = (x) => Object.entries(x.vals || {}).reduce((t, [k, v]) => t.replaceAll(`{${k}}`, val(k, v)), c[x.key] || x.key);
   return `<div class="card fade chkcard"><div class="eyebrow"><span>${c.title}</span></div>${list.map((x) => `<div class="chkrow ${x.level}">
     <p>${esc(text(x))}</p><div class="chkbtns">${x.fix ? `<button class="link" data-fix='${esc(JSON.stringify(x.fix))}'>${c.fix}</button>` : ""}
     ${x.dismiss ? `<button class="link" data-fix='${esc(JSON.stringify(x.dismiss))}'>${c.no}</button>` : ""}
-    ${x.goto && !x.dismiss ? `<button class="link" data-goto="${x.goto}">${c.show}</button>` : ""}</div></div>`).join("")}</div>`;
+    ${x.goto && !x.dismiss ? `<button class="link" data-goto="${x.goto}">${c.show}</button>` : ""}</div></div>`).join("")}${fixed}</div>`;
 }
 /* ---------- Things that run cheaply: small batteries and machines, below the battery and the car ---------- */
 const TH_SVG = {
@@ -986,7 +998,7 @@ function home() {
     d.house_today != null ? metric("house", T.houseToday, num(d.house_today, 1), "kWh",
       d.house_other != null ? `${d.house_other_appdaemon ? (T.xYourAD) : (T.xOtherForecast)}: ${num(d.house_other, 1)}` : (T.xExpected)) : "",
   ].join("");
-  return `<div class="card flow fade" id="flowcard">${sceneSvg()}<div id="flow">${flowSvg(f)}</div></div>
+  return `${testNudge()}<div class="card flow fade" id="flowcard">${sceneSvg()}<div id="flow">${flowSvg(f)}</div></div>
     ${dec ? `<div class="card status fade" style="--c:${DECCOL[dec.kind]}"><div class="dotc">${icon(DECICON[dec.kind])}</div>
       <div><h2>${esc(dec.text)}</h2><p>${esc(reason)}</p>${dec.engine && dec.saving > 0 ? `<p class="save">${T.saves.replace("{x}", kr(dec.saving))}</p>` : ""}
       ${dec.other ? `<p class="muted">${esc(T.otherSays.replace("{x}", dec.other.text.toLowerCase()))}</p>` : ""}
@@ -1176,7 +1188,7 @@ function readyList(st) {
   if (st.blocked) return "";  // why it can't take over is already said above
   const r = T.ready, days = data?.engine?.learning?.days ?? 0;
   const items = [[!st.blocked, st.blocked ? T.ctl.blocked[st.blocked] || r.controls : r.controls], [!!st.now, r.plan],
-    [days >= 2, r.days.replace("{n}", days)]];
+    [days >= 2, r.days.replace("{n}", days)], [["ok", "fixed"].includes(data?.engine?.tested?.result), TF.ready]];
   const all = items.every(([ok]) => ok);
   return `<div class="ready ${all ? "ok" : ""}"><b>${all ? r.okTitle : r.title}</b>${items.map(([ok, t]) => `<span>${ok ? "✓" : "○"} ${esc(t)}</span>`).join("")}</div>`;
 }
@@ -1264,6 +1276,117 @@ const T_TEST = {
 };
 let selftest = null, stParts = null;
 const ST_ORDER = { battery: ["hold", "charge", "export", "normal"], car: ["start", "low", "stop"] };
+const T_FIX = {
+  da: { light: { g: "Alt i orden", y: "Se her", r: "Noget virker ikke" }, fixedTitle: "Rettet automatisk", undo: "Fortryd",
+    what: { fuse: "Hovedsikring {from} → {to} kW (var skrevet i ampere)", soc_scale: "Batteriprocent læses nu som 0–100", kw_scale: "{role} læses nu i kW",
+      price_scale: "Prisen var i øre – læses nu i kr", renamed: "{role}: {from} fik nyt navn → {to}", stuck: "{role}: {from} stod stille → {to}" },
+    roles: { pv_power: "Solens effekt", battery_power: "Batteriets effekt", grid_power: "Nettets effekt", house_power: "Husets forbrug", ev_power: "Bilens effekt", battery_soc: "Batteriprocent" },
+    chk: { acting_wrong: "Batteriet gjorde det modsatte af det, det fik besked på – det kører normalt i en time. Kør testen under Styring for at finde fejlen.",
+      charger_stuck: "Bilen tager ikke strøm, selv om laderen er startet – den kan være fuld eller vente på sin egen timer." },
+    nudge: "Test dit system, før du slår Styrer til. Det tager ca. 10 min, og alt sættes tilbage bagefter.", nudgeGo: "Test nu", skip: "Spring over",
+    failed: "Testen fandt noget, der ikke virker.", ready: "Systemet testet",
+    g3title: "Test dit system", g3text: "Energipilot kan prøve, om den kan styre dit batteri og din lader – før den styrer noget for alvor.",
+    g3a: "Den prøver at holde, lade og sælge – ca. 10 min ved højst 1 kW.", g3b: "Alt sættes tilbage bagefter – også hvis noget går i stå undervejs.",
+    g3c: "Virker noget ikke, prøver den selv at rette det. Du kan altid fortryde.", g3d: "Du kan springe over og teste senere under Styring.", g3go: "Start test", g3skip: "Spring over – test senere" },
+  en: { light: { g: "All good", y: "Have a look", r: "Something doesn't work" }, fixedTitle: "Fixed by itself", undo: "Undo",
+    what: { fuse: "Main fuse {from} → {to} kW (it was written in amps)", soc_scale: "Battery level now read as 0–100", kw_scale: "{role} now read in kW",
+      price_scale: "The price was in cents – now read in full units", renamed: "{role}: {from} was renamed → {to}", stuck: "{role}: {from} stood still → {to}" },
+    roles: { pv_power: "Solar power", battery_power: "Battery power", grid_power: "Grid power", house_power: "House use", ev_power: "Car power", battery_soc: "Battery level" },
+    chk: { acting_wrong: "The battery did the opposite of what it was told – it runs normally for an hour. Run the test under Control to find out why.",
+      charger_stuck: "The car takes no power although the charger was started – it may be full or wait for its own timer." },
+    nudge: "Test your system before you turn on Control. It takes about 10 min, and everything is put back afterwards.", nudgeGo: "Test now", skip: "Skip",
+    failed: "The test found something that doesn't work.", ready: "System tested",
+    g3title: "Test your system", g3text: "Energy Pilot can check that it can control your battery and charger – before it controls anything for real.",
+    g3a: "It tries to hold, charge and sell – about 10 min at most 1 kW.", g3b: "Everything is put back afterwards – also if something stops on the way.",
+    g3c: "If something doesn't work, it tries to fix it itself. You can always undo.", g3d: "You can skip and test later under Control.", g3go: "Start test", g3skip: "Skip – test later" },
+  de: { light: { g: "Alles in Ordnung", y: "Bitte ansehen", r: "Etwas funktioniert nicht" }, fixedTitle: "Selbst korrigiert", undo: "Rückgängig",
+    what: { fuse: "Hauptsicherung {from} → {to} kW (war in Ampere eingetragen)", soc_scale: "Batteriestand wird jetzt als 0–100 gelesen", kw_scale: "{role} wird jetzt in kW gelesen",
+      price_scale: "Der Preis war in Cent – wird jetzt in Euro gelesen", renamed: "{role}: {from} wurde umbenannt → {to}", stuck: "{role}: {from} stand still → {to}" },
+    roles: { pv_power: "Solarleistung", battery_power: "Batterieleistung", grid_power: "Netzleistung", house_power: "Hausverbrauch", ev_power: "Autoleistung", battery_soc: "Batteriestand" },
+    chk: { acting_wrong: "Die Batterie hat das Gegenteil getan – sie läuft eine Stunde normal. Starte den Test unter Steuerung.", charger_stuck: "Das Auto nimmt keinen Strom – vielleicht voll oder es wartet auf seinen eigenen Timer." },
+    nudge: "Teste dein System, bevor du Steuern einschaltest. Ca. 10 Min, danach wird alles zurückgesetzt.", nudgeGo: "Jetzt testen", skip: "Überspringen",
+    failed: "Der Test hat etwas gefunden, das nicht funktioniert.", ready: "System getestet",
+    g3title: "System testen", g3text: "Energy Pilot kann prüfen, ob es Batterie und Wallbox steuern kann – bevor es wirklich steuert.",
+    g3a: "Es versucht zu halten, zu laden und zu verkaufen – ca. 10 Min, höchstens 1 kW.", g3b: "Danach wird alles zurückgesetzt – auch wenn unterwegs etwas hängt.",
+    g3c: "Funktioniert etwas nicht, versucht es dies selbst zu korrigieren. Du kannst es immer rückgängig machen.", g3d: "Du kannst überspringen und später unter Steuerung testen.", g3go: "Test starten", g3skip: "Überspringen – später testen" },
+  fr: { light: { g: "Tout va bien", y: "À regarder", r: "Quelque chose ne marche pas" }, fixedTitle: "Corrigé automatiquement", undo: "Annuler",
+    what: { fuse: "Disjoncteur {from} → {to} kW (saisi en ampères)", soc_scale: "Niveau de batterie lu en 0–100", kw_scale: "{role} lu en kW",
+      price_scale: "Le prix était en centimes – lu en euros", renamed: "{role} : {from} renommé → {to}", stuck: "{role} : {from} figé → {to}" },
+    roles: { pv_power: "Puissance solaire", battery_power: "Puissance batterie", grid_power: "Puissance réseau", house_power: "Consommation maison", ev_power: "Puissance voiture", battery_soc: "Niveau batterie" },
+    chk: { acting_wrong: "La batterie a fait l'inverse de ce qui était demandé – elle fonctionne normalement pendant une heure. Lancez le test sous Pilotage.", charger_stuck: "La voiture ne prend pas de courant – elle est peut-être pleine ou attend sa propre minuterie." },
+    nudge: "Testez votre système avant d'activer le pilotage. Env. 10 min, tout est remis ensuite.", nudgeGo: "Tester", skip: "Passer",
+    failed: "Le test a trouvé quelque chose qui ne marche pas.", ready: "Système testé",
+    g3title: "Tester votre système", g3text: "Energy Pilot peut vérifier qu'il sait piloter votre batterie et votre borne – avant de piloter pour de vrai.",
+    g3a: "Il essaie de maintenir, charger et vendre – env. 10 min, 1 kW max.", g3b: "Tout est remis ensuite – même si quelque chose s'arrête en route.",
+    g3c: "Si quelque chose ne marche pas, il essaie de corriger lui-même. Vous pouvez toujours annuler.", g3d: "Vous pouvez passer et tester plus tard sous Pilotage.", g3go: "Lancer le test", g3skip: "Passer – tester plus tard" },
+  nl: { light: { g: "Alles in orde", y: "Even kijken", r: "Iets werkt niet" }, fixedTitle: "Zelf gerepareerd", undo: "Ongedaan maken",
+    what: { fuse: "Hoofdzekering {from} → {to} kW (stond in ampère)", soc_scale: "Batterijniveau nu gelezen als 0–100", kw_scale: "{role} nu gelezen in kW",
+      price_scale: "De prijs was in centen – nu in euro", renamed: "{role}: {from} hernoemd → {to}", stuck: "{role}: {from} stond stil → {to}" },
+    roles: { pv_power: "Zonnevermogen", battery_power: "Batterijvermogen", grid_power: "Netvermogen", house_power: "Huisverbruik", ev_power: "Autovermogen", battery_soc: "Batterijniveau" },
+    chk: { acting_wrong: "De batterij deed het tegenovergestelde – ze draait een uur normaal. Start de test onder Sturing.", charger_stuck: "De auto neemt geen stroom – misschien vol of wacht op zijn eigen timer." },
+    nudge: "Test je systeem voordat je Sturen aanzet. Ca. 10 min, daarna wordt alles teruggezet.", nudgeGo: "Nu testen", skip: "Overslaan",
+    failed: "De test vond iets dat niet werkt.", ready: "Systeem getest",
+    g3title: "Test je systeem", g3text: "Energy Pilot kan controleren of hij je batterij en laadpaal kan sturen – voordat hij echt stuurt.",
+    g3a: "Hij probeert vast te houden, te laden en te verkopen – ca. 10 min, max 1 kW.", g3b: "Daarna wordt alles teruggezet – ook als er onderweg iets vastloopt.",
+    g3c: "Werkt iets niet, dan probeert hij het zelf te repareren. Je kunt altijd ongedaan maken.", g3d: "Je kunt overslaan en later testen onder Sturing.", g3go: "Start test", g3skip: "Overslaan – later testen" },
+  sv: { light: { g: "Allt i ordning", y: "Titta här", r: "Något fungerar inte" }, fixedTitle: "Rättat automatiskt", undo: "Ångra",
+    what: { fuse: "Huvudsäkring {from} → {to} kW (var angiven i ampere)", soc_scale: "Batterinivå läses nu som 0–100", kw_scale: "{role} läses nu i kW",
+      price_scale: "Priset var i öre – läses nu i kronor", renamed: "{role}: {from} bytte namn → {to}", stuck: "{role}: {from} stod still → {to}" },
+    roles: { pv_power: "Soleffekt", battery_power: "Batterieffekt", grid_power: "Näteffekt", house_power: "Husets förbrukning", ev_power: "Bilens effekt", battery_soc: "Batterinivå" },
+    chk: { acting_wrong: "Batteriet gjorde motsatsen – det körs normalt i en timme. Kör testet under Styrning.", charger_stuck: "Bilen tar ingen ström – den kan vara full eller vänta på sin egen timer." },
+    nudge: "Testa ditt system innan du slår på Styr. Ca 10 min, allt återställs efteråt.", nudgeGo: "Testa nu", skip: "Hoppa över",
+    failed: "Testet hittade något som inte fungerar.", ready: "Systemet testat",
+    g3title: "Testa ditt system", g3text: "Energy Pilot kan kontrollera att den kan styra ditt batteri och din laddbox – innan den styr på riktigt.",
+    g3a: "Den försöker hålla, ladda och sälja – ca 10 min, högst 1 kW.", g3b: "Allt återställs efteråt – även om något stannar på vägen.",
+    g3c: "Fungerar något inte försöker den rätta det själv. Du kan alltid ångra.", g3d: "Du kan hoppa över och testa senare under Styrning.", g3go: "Starta test", g3skip: "Hoppa över – testa senare" },
+  nb: { light: { g: "Alt i orden", y: "Se her", r: "Noe virker ikke" }, fixedTitle: "Rettet automatisk", undo: "Angre",
+    what: { fuse: "Hovedsikring {from} → {to} kW (var skrevet i ampere)", soc_scale: "Batterinivå leses nå som 0–100", kw_scale: "{role} leses nå i kW",
+      price_scale: "Prisen var i øre – leses nå i kroner", renamed: "{role}: {from} fikk nytt navn → {to}", stuck: "{role}: {from} sto stille → {to}" },
+    roles: { pv_power: "Soleffekt", battery_power: "Batterieffekt", grid_power: "Netteffekt", house_power: "Husets forbruk", ev_power: "Bilens effekt", battery_soc: "Batterinivå" },
+    chk: { acting_wrong: "Batteriet gjorde det motsatte – det går normalt i en time. Kjør testen under Styring.", charger_stuck: "Bilen tar ikke strøm – den kan være full eller vente på sin egen timer." },
+    nudge: "Test systemet før du slår på Styrer. Ca. 10 min, alt settes tilbake etterpå.", nudgeGo: "Test nå", skip: "Hopp over",
+    failed: "Testen fant noe som ikke virker.", ready: "Systemet testet",
+    g3title: "Test systemet ditt", g3text: "Energy Pilot kan sjekke at den kan styre batteriet og laderen din – før den styrer på ordentlig.",
+    g3a: "Den prøver å holde, lade og selge – ca. 10 min, maks 1 kW.", g3b: "Alt settes tilbake etterpå – også hvis noe stopper underveis.",
+    g3c: "Virker noe ikke, prøver den å rette det selv. Du kan alltid angre.", g3d: "Du kan hoppe over og teste senere under Styring.", g3go: "Start test", g3skip: "Hopp over – test senere" },
+};
+const TF = T_FIX[L] || T_FIX.en;
+function lightState() {
+  const e = data?.engine || {}, list = e.selfcheck || [], t = e.tested || {};
+  if (t.result === "failed" || list.some((x) => x.key === "acting_wrong")) return "r";
+  if (list.some((x) => x.level === "warn") || (t.result === "none" && !t.skipped && !t.running)) return "y";
+  return "g";
+}
+function fixedLines() {
+  const fx = data?.engine?.fixed || [];
+  if (!fx.length) return "";
+  const role = (k) => TF.roles[k.split(":")[1]] || k.split(":")[1] || "";
+  return `<div class="fixblock"><div class="eyebrow" style="margin-top:6px"><span>${TF.fixedTitle}</span></div>${fx.map((x) => `<div class="fixrow"><p>🔧 ${esc((TF.what[x.what] || x.what)
+    .replace("{from}", x.from).replace("{to}", x.to).replace("{role}", role(x.key)))}</p><button class="stundo" data-fixundo="${esc(x.key)}">${TF.undo}</button></div>`).join("")}</div>`;
+}
+function testNudge() {
+  const t = data?.engine?.tested;
+  if (!t) return "";
+  const tt = T_TEST[L] || T_TEST.en;
+  if (t.result === "failed" && t.report_url) return `<div class="card fade stcard nudge"><b>⚠️ ${TF.failed}</b>
+    <a class="stgo" style="margin:0" href="${esc(t.report_url)}" target="_blank" rel="noopener">${tt.send}</a><button class="ghostbtn" style="margin:0" data-gotest>${tt.title}</button></div>`;
+  if (t.result !== "none" || t.skipped || t.running) return "";
+  return `<div class="card fade stcard nudge"><div class="sthead"><span class="stic">✓</span><div><b>${tt.title}</b><span>${TF.nudge}</span></div></div>
+    <div class="row2"><button class="stgo" data-gotest>${TF.nudgeGo}</button><button class="ghostbtn" data-testskip>${TF.skip}</button></div></div>`;
+}
+function wireFix() {
+  document.querySelectorAll("[data-fixundo]").forEach((b) => b.onclick = async () => { await api("/api/autofix", { undo: b.dataset.fixundo }); await load(); render(); });
+  $("[data-testskip]")?.addEventListener("click", async () => { await api("/api/settings", { test_skipped: true }); await load(); render(); });
+  $("[data-light]")?.addEventListener("click", async () => {
+    tab = "settings"; localStorage.setItem("ep_tab", tab); settings = await api("/api/settings"); control = await api("/api/control"); render(); window.scrollTo(0, 0);
+  });
+  $("[data-g3go]")?.addEventListener("click", async () => {
+    await api("/api/settings", { setup_done: true }); await load();
+    selftest = await api("/api/selftest", { action: "start", parts: ["battery"] });
+    tab = "shadow"; localStorage.setItem("ep_tab", tab); status = await api("/api/status"); control = await api("/api/control"); render(); window.scrollTo(0, 0);
+  });
+  $("[data-g3skip]")?.addEventListener("click", async () => { await api("/api/settings", { setup_done: true, test_skipped: true }); await load(); tab = "home"; localStorage.setItem("ep_tab", tab); render(); });
+}
 function testCard() {
   const t = T_TEST[L] || T_TEST.en, s = selftest;
   if (!s || !s.can) return "";
@@ -1596,7 +1719,11 @@ function setupView() {
       <h2>${T.g2title}</h2><p class="muted">${T.g2text}</p>
       <ul class="steps"><li>${icon("layers")}<div><b>${T.g2a}</b><span>${T.g2aT}</span></div></li><li>${icon("chart")}<div><b>${T.g2b}</b><span>${T.g2bT}</span></div></li>
         <li>${icon("bolt")}<div><b>${T.g2c}</b><span>${T.g2cT}</span></div></li></ul>
-      <button class="cta" data-finish>${T.start}</button><button class="link" data-step="1">${T.back}</button></div>`;
+      <button class="cta" data-step="3">${T.start}</button><button class="link" data-step="1">${T.back}</button></div>`;
+  if (step === 3) return `<div class="hero fade"><div class="logo big" style="font-size:30px;color:#fff">✓</div>
+      <h2>${TF.g3title}</h2><p class="muted">${TF.g3text}</p>
+      <ul class="testexplain"><li>⚡ <span>${TF.g3a}</span></li><li>↩️ <span>${TF.g3b}</span></li><li>🔧 <span>${TF.g3c}</span></li><li>⏭️ <span>${TF.g3d}</span></li></ul>
+      <button class="cta" data-g3go>${TF.g3go}</button><button class="link" data-g3skip>${TF.g3skip}</button></div>`;
   const parts = Object.entries(GROUPS).filter(([g]) => g !== "data");
   const foundCount = Object.values(settings.roles).filter(Boolean).length;
   return `<div class="hero fade"><div class="logo big"><svg viewBox="0 0 24 24" fill="#fff"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></div>
@@ -1615,7 +1742,7 @@ function render(quiet = false) {
   const body = tab === "setup" ? setupView() : tab === "plan" ? planView() : tab === "shadow" ? shadowView() : tab === "settings" ? settingsView() : home();
   document.querySelector("nav").style.display = tab === "setup" ? "none" : "";
   const html = `<div class="top"><div class="brand"><span class="logo"><svg viewBox="0 0 24 24" fill="#fff"><path d="${"M13 2 4 14h7l-1 8 9-12h-7z"}"/></svg></span><h1>${T.title}</h1></div>
-    <span class="badge ${control ? "live" : ""}"><i></i>${control ? `${control} ${T.modes.control.toLowerCase()}` : T.modes.shadow}</span></div>${body}`;
+    <span style="display:flex;align-items:center">${tab !== "setup" && data.engine ? `<button class="slight ${lightState()}" data-light><i></i>${TF.light[lightState()]}</button>` : ""}<span class="badge ${control ? "live" : ""}"><i></i>${control ? `${control} ${T.modes.control.toLowerCase()}` : T.modes.shadow}</span></span></div>${body}`;
   if (quiet && html === lastHtml) return;  // nothing changed: leave the page alone (no blinking)
   root.classList.toggle("nofade", quiet);  // updates don't fade in again
   root.innerHTML = lastHtml = html;
@@ -1650,6 +1777,7 @@ function patch() {
 function wire() {
   wireThings();
   wireTest();
+  wireFix();
   document.querySelectorAll("[data-tab]").forEach((b) => b.onclick = async () => {
     tab = b.dataset.tab; localStorage.setItem("ep_tab", tab);
     if (tab === "shadow") { status = await api("/api/status"); control = await api("/api/control"); selftest = await api("/api/selftest").catch(() => null); }

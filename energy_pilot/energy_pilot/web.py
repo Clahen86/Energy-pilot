@@ -14,6 +14,20 @@ from .runner import CONTROL, OFF, SHADOW, Runner
 FRONTEND = Path(__file__).parent / "frontend"
 
 
+def _tested(overview: Overview) -> dict | None:
+    """The last self-test in short, for the status light: none / ok / fixed / failed, and whether it runs."""
+    t = getattr(overview, "selftest", None)
+    if not t:
+        return None
+    st = t.state
+    res = st.get("results") or []
+    running = bool(t._task and not t._task.done())
+    if not res and not running:
+        return {"result": "none", "skipped": bool(overview.settings.get("test_skipped"))}
+    worst = "failed" if any(r["result"] == "failed" for r in res) else "fixed" if any(r["result"] == "fixed" for r in res) else "ok"
+    return {"result": worst, "running": running, "report_url": t.report_url() if res and worst == "failed" else None}
+
+
 def make_app(runner: Runner, overview: Overview) -> web.Application:
     app = web.Application()
 
@@ -65,7 +79,9 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
             data["engine"] = {"saving": b.get("saving"), "now": b.get("now"), "capacity": b.get("capacity"),
                               "agree": round(100 * a["same"] / a["checks"]) if a["checks"] else None, "checks": a["checks"],
                               "profile": bool(eng.profile), "car": eng.result.get("car"), "cars": eng.result.get("cars"), "things": eng.things.view(overview.settings, datetime.now(eng.tz)), "generator": eng.result.get("generator"), "sources": eng.sources_used(), "learning": eng.learning.summary(), "blend": eng.blend_info(),
-                              "decision": overview.engine_decision(lang(req)), "selfcheck": eng.follow.check() + eng.checks + (overview.controller.watch_checks() if overview.controller else [])}
+                              "decision": overview.engine_decision(lang(req)), "selfcheck": eng.follow.check() + eng.checks + (overview.controller.watch_checks() if overview.controller else []),
+                              "fixed": overview.autofix.lines() if getattr(overview, "autofix", None) else [],
+                              "tested": _tested(overview)}
         return web.json_response(data)
 
     async def get_settings(_req: web.Request) -> web.Response:
@@ -272,6 +288,14 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
                 overview.save({"selftest": {}})
         return web.json_response(t.status())
 
+    async def autofix_post(req: web.Request) -> web.Response:
+        a = getattr(overview, "autofix", None)
+        body = await req.json()
+        if a and body.get("undo"):
+            a.undo(str(body["undo"]))
+        return web.json_response({"fixed": a.lines() if a else []})
+
+    app.router.add_post("/api/autofix", autofix_post)
     app.router.add_get("/api/selftest", selftest_get)
     app.router.add_post("/api/selftest", selftest_post)
     app.router.add_get("/api/control", control_status)

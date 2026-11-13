@@ -60,6 +60,11 @@ class Controller:
         self.drift: dict[str, list[tuple[float, str]]] = {}
         self._gone: dict[str, set[str]] = {}  # controls seen unavailable since the last send (sent again when back)
         self.testing: set[str] = set()  # parts the self-test drives right now - left alone meanwhile
+        self.safe_until: dict[str, float] = {}  # the battery did the opposite of what it was told: normal until then
+        self._wrong: dict[str, float] = {}
+        self._car_idle: dict[str, float] = {}
+        self._kicked: dict[str, bool] = {}
+        self.car_stuck: dict[str, bool] = {}
         self._bat_lock = asyncio.Lock()  # the battery's round and the minute's keep-alive never send at once
 
     # ---------- settings ----------
@@ -523,6 +528,8 @@ class Controller:
         for part, want in self.intents().items():
             if part in testing or (part.startswith("car") and "car" in testing):
                 continue  # the test drives it now (selftest.py)
+            if time.time() < getattr(self, "safe_until", {}).get(part, 0) and want.get("intent") not in (None, "normal"):
+                want = {**want, "intent": "normal"}  # it did the opposite of what it was told: safe until checked
             if parts is not None and part not in parts and not (part.startswith("car") and "car" in parts):
                 continue
             mode = self.mode(part)
@@ -742,6 +749,71 @@ class Controller:
             return str(state) == str(want)
 
     OTHER = 3  # changed back this many times in an hour: something else is steering too
+    WRONG_S = 15 * 60  # the battery doing the opposite this long: back to normal …
+    SAFE_S = 3600  # … for an hour, with a warning
+    CAR_IDLE_S = 10 * 60  # told to charge, plugged in, nothing flows this long: stop and start once
+
+    @staticmethod
+    def _opposite(intent: str, f: dict[str, Any]) -> bool:
+        """Clearly the opposite of what it was told - not just slower (a full battery, a taper, the house's use)."""
+        b = f.get("battery")
+        if b is None:
+            return False
+        if intent == "charge":
+            return b < -300
+        if intent == "export":
+            return b > 300 and (f.get("grid") or 0) > 300
+        if intent == "hold":
+            return b < -800
+        return False
+
+    async def guard(self) -> None:
+        """Every minute while Energy Pilot controls: a battery doing the opposite of what it was told goes back to
+        normal (the safe way) and the user is told; a charger that doesn't start is stopped and started once."""
+        now_t = time.time()
+        f = self.ov.flow()
+        prev = self.last.get("battery")
+        if (self.mode("battery") == "control" and "battery" not in self.testing and prev and prev.get("result") == "ok"
+                and not self.blocked("battery") and not self.bat_parts() and now_t >= self.safe_until.get("battery", 0)):
+            if self._opposite(prev["intent"], f):
+                since = self._wrong.setdefault("battery", now_t)
+                if now_t - since >= self.WRONG_S and now_t - prev["t"] >= self.WRONG_S:
+                    _LOGGER.warning("The battery did the opposite of %s for %d min - back to normal for an hour", prev["intent"], self.WRONG_S // 60)
+                    self.safe_until["battery"] = now_t + self.SAFE_S
+                    self.safe_why = prev["intent"]
+                    self._wrong.pop("battery", None)
+                    self.last.pop("battery", None)
+                    await self.tick(("battery",))
+            else:
+                self._wrong.pop("battery", None)
+        else:
+            self._wrong.pop("battery", None)
+        # The charger: told to charge, the car in, nothing flowing.
+        prev = self.last.get("car")
+        if not f.get("plug"):
+            self._car_idle.pop("car", None)
+            self._kicked.pop("car", None)
+            self.car_stuck.pop("car", None)
+            return
+        if (self.mode("car") != "control" or "car" in self.testing or not prev or prev.get("intent") != "charge"
+                or prev.get("result") != "ok" or (f.get("ev") or 0) >= 100):
+            self._car_idle.pop("car", None)
+            if (f.get("ev") or 0) >= 100:
+                self.car_stuck.pop("car", None)
+            return
+        since = self._car_idle.setdefault("car", now_t)
+        if now_t - since < self.CAR_IDLE_S or now_t - prev["t"] < self.CAR_IDLE_S:
+            return
+        if not self._kicked.get("car"):
+            _LOGGER.info("The car is in and told to charge, but nothing flows - stopping and starting the charger once")
+            self._kicked["car"] = True
+            await self._send(self.calls("car", {"intent": "stop", "ctx": prev.get("ctx") or {"current": 6}}), force=True)
+            await asyncio.sleep(30)
+            self.last.pop("car", None)
+            self._car_idle.pop("car", None)
+            await self.tick(("car",))
+        else:
+            self.car_stuck["car"] = True  # shown as a note: the car may be full or wait for its own timer
 
     def watch_checks(self) -> list[dict[str, Any]]:
         """Warnings for the self-check: another system steers the battery too (Predbat, an automation, the inverter's
@@ -753,6 +825,10 @@ class Controller:
             if self.mode(part) == "control" and len(recent) >= self.OTHER:
                 names = ", ".join(sorted({e.split(".", 1)[1] for e in recent}))
                 out.append({"key": "other_control", "level": "warn", "vals": {"list": names}, "goto": "battery"})
+        if now_t < getattr(self, "safe_until", {}).get("battery", 0):
+            out.append({"key": "acting_wrong", "level": "warn", "vals": {"intent": getattr(self, "safe_why", "")}, "goto": "battery"})
+        if getattr(self, "car_stuck", {}).get("car"):
+            out.append({"key": "charger_stuck", "level": "info", "vals": {}, "goto": "car"})
         pm = str((self.ha.states.get("select.predbat_mode") or {}).get("state") or "")
         if self.mode("battery") == "control" and pm and pm.lower() not in ("monitor", "unavailable", "unknown"):
             out.append({"key": "predbat_on", "level": "warn", "vals": {"mode": pm}, "goto": "battery"})

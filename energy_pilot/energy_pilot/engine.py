@@ -947,6 +947,7 @@ class Engine:
             socs = by_hour(await self._hourly_kw(self.ov.role("battery_soc"), 2))
             first = socs.get(day.strftime("%Y-%m-%dT00"))
             soc_start = first * 1000 if first is not None else None  # _hourly_kw divides by 1000 for non-kW units
+            soc_start = self.ov.scaled("battery_soc", soc_start) if hasattr(self.ov, "scaled") else soc_start
         if not house:
             return
         report = self.learning.review(day, house, pv, self.settings(), prices, soc_start)

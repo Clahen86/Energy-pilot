@@ -168,7 +168,7 @@ class Overview:
         """An event entity (Octopus' current day rates) has no number as its state: the slot now from its rates."""
         from .pricefeed import now_price
 
-        return now_price(self.ha.states, self.role("price"), ZoneInfo(self.ha.config.get("time_zone") or "UTC"))
+        return now_price(self.ha.states, self.role("price"), ZoneInfo(self.ha.config.get("time_zone") or "UTC"), self.price_scale())
 
     def grid_sign(self) -> int:
         """+1: positive grid power is buying (most meters). -1: positive is selling (Solis/SolaX PCC …). Chosen, or found."""
@@ -202,6 +202,15 @@ class Overview:
         if not hasattr(self, "_grid_votes"):
             self._grid_votes = deque(maxlen=30)
         self._grid_votes.append(vote)
+
+    def price_scale(self) -> float:
+        """1, or 0.01 when the price sensor gives øre/cents (found by autofix.py)."""
+        return float(self.settings.get("price_scale") or 1.0)
+
+    def scaled(self, role: str, v: float | None) -> float | None:
+        """A sensor read the right way: a battery level given as 0-1, or kW without saying so (autofix.py)."""
+        k = (self.settings.get("role_scale") or {}).get(role)
+        return v * k if v is not None and k else v
 
     def battery_sign(self) -> int:
         """+1: positive battery power is charging (Growatt). -1: positive is discharging (Fox ESS). Chosen, or found."""
@@ -325,12 +334,12 @@ class Overview:
     def flow(self) -> dict[str, Any]:
         r, st = self.roles(), self.ha.states
         arrays = [w for e in self.role_all("pv_power") if (w := _watts(st.get(e))) is not None]
-        pv = sum(arrays) if arrays else None  # several arrays are added up
-        house = _watts(st.get(r["house_power"])) if r["house_power"] else None
-        batt = _watts(st.get(r["battery_power"])) if r["battery_power"] else None
+        pv = self.scaled("pv_power", sum(arrays) if arrays else None)  # several arrays are added up
+        house = self.scaled("house_power", _watts(st.get(r["house_power"])) if r["house_power"] else None)
+        batt = self.scaled("battery_power", _watts(st.get(r["battery_power"])) if r["battery_power"] else None)
         if batt is not None:
             batt *= self.battery_sign()  # some integrations (Fox ESS Modbus …) count discharging as positive
-        soc = _num(st.get(r["battery_soc"])) if r["battery_soc"] else None
+        soc = self.scaled("battery_soc", _num(st.get(r["battery_soc"])) if r["battery_soc"] else None)
         packs = None
         from . import batteries
 
@@ -340,11 +349,11 @@ class Overview:
             others = [batteries.read(st, b) for b in more]
             soc, batt = batteries.combine(main, others)
             packs = [main] + others
-        grid = _watts(st.get(r["grid_power"])) if r["grid_power"] else None
+        grid = self.scaled("grid_power", _watts(st.get(r["grid_power"])) if r["grid_power"] else None)
         if grid is not None:
-            self._watch_grid(grid, house, pv, batt, _watts(st.get(r["ev_power"])) if r["ev_power"] else None)
+            self._watch_grid(grid, house, pv, batt, self.scaled("ev_power", _watts(st.get(r["ev_power"])) if r["ev_power"] else None))
             grid *= self.grid_sign()  # some meters (Solis/SolaX PCC …) count buying as negative
-        ev = _watts(st.get(r["ev_power"])) if r["ev_power"] else None
+        ev = self.scaled("ev_power", _watts(st.get(r["ev_power"])) if r["ev_power"] else None)
         from . import chargers
 
         plug = chargers.is_plugged((st.get(r["ev_plug"]) or {}).get("state")) if r["ev_plug"] else None
@@ -416,7 +425,7 @@ class Overview:
 
         prices, self.price_info = collect(self.ha.states, self.role("price"),
                                           (self.engine.own_prices if self.engine else []) or [], tz,
-                                          (self.engine.service_prices if self.engine else []) or [])
+                                          (self.engine.service_prices if self.engine else []) or [], self.price_scale())
         self.fine_prices = prices  # quarter/half-hour prices as they come - the engine plans in those slots
         if prices:
             buckets: dict[str, list[float]] = {}
