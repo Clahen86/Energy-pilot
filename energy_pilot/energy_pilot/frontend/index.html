@@ -266,6 +266,12 @@
   .reppanel { margin-top:12px; padding:12px; border-radius:14px; border:1px solid var(--line2); background:var(--surface2); }
   .reppanel ul { margin:6px 0 10px; padding-left:18px; color:var(--muted); font-size:13px; } .reppanel li { margin:2px 0; }
   .reppanel textarea { width:100%; box-sizing:border-box; min-height:64px; border-radius:10px; border:1px solid var(--line2); background:var(--surface); color:var(--text); font:inherit; font-size:13.5px; padding:8px; }
+
+  .repimgs { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+  .repimg { position:relative; width:72px; height:72px; border-radius:10px; overflow:hidden; border:1px solid var(--line2); }
+  .repimg img { width:100%; height:100%; object-fit:cover; display:block; }
+  .repimg button { position:absolute; top:3px; right:3px; width:22px; height:22px; border-radius:50%; border:0; background:rgba(0,0,0,.6); color:#fff; font-size:12px; cursor:pointer; }
+  .repattach { display:block; text-align:center; margin-top:8px; }
 </style>
 </head>
 <body>
@@ -1392,17 +1398,30 @@ function wireFix() {
   $("[data-g3skip]")?.addEventListener("click", async () => { await api("/api/settings", { setup_done: true, test_skipped: true }); await load(); tab = "home"; localStorage.setItem("ep_tab", tab); render(); });
 }
 const T_REP = {
-  da: { send: "Send til udvikleren", what: "Det her bliver sendt:", items: ["Testresultatet", "Version, mærke og land", "Dine indstillinger (uden koder)", "Målinger fra batteri, sol, net og bil", "Planen og hvad Energipilot sendte"], no: "Ingen navne, adresser, koder eller placering. Kun udvikleren ser det.", note: "Skriv evt. hvad der er galt (valgfrit)", ok: "Send", cancel: "Annuller", sending: "Sender…", sent: "Sendt ✓ – dit nummer er {id}. Nævn det, hvis du skriver til udvikleren.", fail: "Kunne ikke sende lige nu. Brug knapperne herunder i stedet." },
-  en: { send: "Send to the developer", what: "This is sent:", items: ["The test result", "Version, brand and country", "Your settings (no passwords)", "Readings from battery, solar, grid and car", "The plan and what Energy Pilot sent"], no: "No names, addresses, passwords or location. Only the developer sees it.", note: "Tell what's wrong (optional)", ok: "Send", cancel: "Cancel", sending: "Sending…", sent: "Sent ✓ – your number is {id}. Mention it if you write to the developer.", fail: "Couldn't send right now. Use the buttons below instead." },
-  de: { send: "An den Entwickler senden", what: "Das wird gesendet:", items: ["Das Testergebnis", "Version, Marke und Land", "Deine Einstellungen (ohne Passwörter)", "Messwerte von Batterie, Solar, Netz und Auto", "Der Plan und was Energy Pilot gesendet hat"], no: "Keine Namen, Adressen, Passwörter oder Standort. Nur der Entwickler sieht es.", note: "Was ist falsch? (optional)", ok: "Senden", cancel: "Abbrechen", sending: "Sende…", sent: "Gesendet ✓ – deine Nummer ist {id}.", fail: "Senden geht gerade nicht. Nutze die Knöpfe unten." },
-  fr: { send: "Envoyer au développeur", what: "Ceci est envoyé :", items: ["Le résultat du test", "Version, marque et pays", "Vos réglages (sans mots de passe)", "Mesures batterie, solaire, réseau et voiture", "Le plan et ce qu'Energy Pilot a envoyé"], no: "Aucun nom, adresse, mot de passe ni position. Seul le développeur le voit.", note: "Décrivez le problème (facultatif)", ok: "Envoyer", cancel: "Annuler", sending: "Envoi…", sent: "Envoyé ✓ – votre numéro est {id}.", fail: "Envoi impossible pour l'instant. Utilisez les boutons ci-dessous." },
-  nl: { send: "Stuur naar de ontwikkelaar", what: "Dit wordt verstuurd:", items: ["Het testresultaat", "Versie, merk en land", "Je instellingen (zonder wachtwoorden)", "Metingen van batterij, zon, net en auto", "Het plan en wat Energy Pilot stuurde"], no: "Geen namen, adressen, wachtwoorden of locatie. Alleen de ontwikkelaar ziet het.", note: "Wat is er mis? (optioneel)", ok: "Versturen", cancel: "Annuleren", sending: "Versturen…", sent: "Verstuurd ✓ – je nummer is {id}.", fail: "Versturen lukt nu niet. Gebruik de knoppen hieronder." },
-  sv: { send: "Skicka till utvecklaren", what: "Det här skickas:", items: ["Testresultatet", "Version, märke och land", "Dina inställningar (utan lösenord)", "Mätningar från batteri, sol, nät och bil", "Planen och vad Energy Pilot skickade"], no: "Inga namn, adresser, lösenord eller plats. Bara utvecklaren ser det.", note: "Vad är fel? (valfritt)", ok: "Skicka", cancel: "Avbryt", sending: "Skickar…", sent: "Skickat ✓ – ditt nummer är {id}.", fail: "Kunde inte skicka just nu. Använd knapparna nedan." },
-  nb: { send: "Send til utvikleren", what: "Dette blir sendt:", items: ["Testresultatet", "Versjon, merke og land", "Innstillingene dine (uten passord)", "Målinger fra batteri, sol, nett og bil", "Planen og hva Energy Pilot sendte"], no: "Ingen navn, adresser, passord eller posisjon. Bare utvikleren ser det.", note: "Hva er galt? (valgfritt)", ok: "Send", cancel: "Avbryt", sending: "Sender…", sent: "Sendt ✓ – nummeret ditt er {id}.", fail: "Kunne ikke sende nå. Bruk knappene under." },
+  da: { send: "Få hjælp", sub: "Skriv hvad der er galt, og vedhæft gerne billeder. Udvikleren får også testresultatet og diagnosen.", attach: "📷 Vedhæft billeder", max3: "Højst 3 billeder", whatq: "Hvad bliver sendt?", rm: "Fjern", what: "Det her bliver sendt:", items: ["Testresultatet", "Version, mærke og land", "Dine indstillinger (uden koder)", "Målinger fra batteri, sol, net og bil", "Planen og hvad Energipilot sendte"], no: "Ingen navne, adresser, koder eller placering. Kun udvikleren ser det.", note: "Skriv evt. hvad der er galt (valgfrit)", ok: "Send", cancel: "Annuller", sending: "Sender…", sent: "Sendt ✓ – dit nummer er {id}. Nævn det, hvis du skriver til udvikleren.", fail: "Kunne ikke sende lige nu. Brug knapperne herunder i stedet." },
+  en: { send: "Get help", sub: "Tell what's wrong and attach pictures if you like. The developer also gets the test result and the diagnostics.", attach: "📷 Attach pictures", max3: "At most 3 pictures", whatq: "What is sent?", rm: "Remove", what: "This is sent:", items: ["The test result", "Version, brand and country", "Your settings (no passwords)", "Readings from battery, solar, grid and car", "The plan and what Energy Pilot sent"], no: "No names, addresses, passwords or location. Only the developer sees it.", note: "Tell what's wrong (optional)", ok: "Send", cancel: "Cancel", sending: "Sending…", sent: "Sent ✓ – your number is {id}. Mention it if you write to the developer.", fail: "Couldn't send right now. Use the buttons below instead." },
+  de: { send: "Hilfe holen", sub: "Beschreibe, was nicht stimmt, und hänge gern Bilder an. Der Entwickler bekommt auch das Testergebnis und die Diagnose.", attach: "📷 Bilder anhängen", max3: "Höchstens 3 Bilder", whatq: "Was wird gesendet?", rm: "Entfernen", what: "Das wird gesendet:", items: ["Das Testergebnis", "Version, Marke und Land", "Deine Einstellungen (ohne Passwörter)", "Messwerte von Batterie, Solar, Netz und Auto", "Der Plan und was Energy Pilot gesendet hat"], no: "Keine Namen, Adressen, Passwörter oder Standort. Nur der Entwickler sieht es.", note: "Was ist falsch? (optional)", ok: "Senden", cancel: "Abbrechen", sending: "Sende…", sent: "Gesendet ✓ – deine Nummer ist {id}.", fail: "Senden geht gerade nicht. Nutze die Knöpfe unten." },
+  fr: { send: "Obtenir de l'aide", sub: "Décrivez le problème et joignez des images si vous voulez. Le développeur reçoit aussi le résultat du test et le diagnostic.", attach: "📷 Joindre des images", max3: "3 images maximum", whatq: "Qu'est-ce qui est envoyé ?", rm: "Retirer", what: "Ceci est envoyé :", items: ["Le résultat du test", "Version, marque et pays", "Vos réglages (sans mots de passe)", "Mesures batterie, solaire, réseau et voiture", "Le plan et ce qu'Energy Pilot a envoyé"], no: "Aucun nom, adresse, mot de passe ni position. Seul le développeur le voit.", note: "Décrivez le problème (facultatif)", ok: "Envoyer", cancel: "Annuler", sending: "Envoi…", sent: "Envoyé ✓ – votre numéro est {id}.", fail: "Envoi impossible pour l'instant. Utilisez les boutons ci-dessous." },
+  nl: { send: "Hulp vragen", sub: "Vertel wat er mis is en voeg gerust afbeeldingen toe. De ontwikkelaar krijgt ook het testresultaat en de diagnose.", attach: "📷 Afbeeldingen toevoegen", max3: "Maximaal 3 afbeeldingen", whatq: "Wat wordt verstuurd?", rm: "Verwijderen", what: "Dit wordt verstuurd:", items: ["Het testresultaat", "Versie, merk en land", "Je instellingen (zonder wachtwoorden)", "Metingen van batterij, zon, net en auto", "Het plan en wat Energy Pilot stuurde"], no: "Geen namen, adressen, wachtwoorden of locatie. Alleen de ontwikkelaar ziet het.", note: "Wat is er mis? (optioneel)", ok: "Versturen", cancel: "Annuleren", sending: "Versturen…", sent: "Verstuurd ✓ – je nummer is {id}.", fail: "Versturen lukt nu niet. Gebruik de knoppen hieronder." },
+  sv: { send: "Få hjälp", sub: "Skriv vad som är fel och bifoga gärna bilder. Utvecklaren får också testresultatet och diagnostiken.", attach: "📷 Bifoga bilder", max3: "Högst 3 bilder", whatq: "Vad skickas?", rm: "Ta bort", what: "Det här skickas:", items: ["Testresultatet", "Version, märke och land", "Dina inställningar (utan lösenord)", "Mätningar från batteri, sol, nät och bil", "Planen och vad Energy Pilot skickade"], no: "Inga namn, adresser, lösenord eller plats. Bara utvecklaren ser det.", note: "Vad är fel? (valfritt)", ok: "Skicka", cancel: "Avbryt", sending: "Skickar…", sent: "Skickat ✓ – ditt nummer är {id}.", fail: "Kunde inte skicka just nu. Använd knapparna nedan." },
+  nb: { send: "Få hjelp", sub: "Skriv hva som er galt, og legg gjerne ved bilder. Utvikleren får også testresultatet og diagnosen.", attach: "📷 Legg ved bilder", max3: "Maks 3 bilder", whatq: "Hva blir sendt?", rm: "Fjern", what: "Dette blir sendt:", items: ["Testresultatet", "Versjon, merke og land", "Innstillingene dine (uten passord)", "Målinger fra batteri, sol, nett og bil", "Planen og hva Energy Pilot sendte"], no: "Ingen navn, adresser, passord eller posisjon. Bare utvikleren ser det.", note: "Hva er galt? (valgfritt)", ok: "Send", cancel: "Avbryt", sending: "Sender…", sent: "Sendt ✓ – nummeret ditt er {id}.", fail: "Kunne ikke sende nå. Bruk knappene under." },
 };
 const TR = T_REP[L] || T_REP.en;
-let repInfo = null, repState = null;  // repState: null | "open" | "sending" | {id} | "fail"
+let repInfo = null, repState = null, repNote = "", repImgs = [];  // repState: null | "open" | "sending" | {id} | "fail"
 async function loadRep() { repInfo = await api("/api/report").catch(() => null); }
+function shrink(file) {  // a picture made smaller in the browser: at most 1600 px, JPEG - a phone photo becomes ~300 kB
+  return new Promise((ok) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const k = Math.min(1, 1600 / Math.max(img.width, img.height)), c = document.createElement("canvas");
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+      ok({ name: file.name, url: c.toDataURL("image/jpeg", 0.8) });
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); ok(null); };
+    img.src = url;
+  });
+}
 function reportBlock(fallbackUrl) {
   const tt = T_TEST[L] || T_TEST.en;
   const fallback = `${fallbackUrl ? `<a class="stgo" href="${esc(fallbackUrl)}" target="_blank" rel="noopener">${tt.send}</a><div class="muted" style="margin-top:6px">${tt.sendH}</div>` : ""}
@@ -1410,20 +1429,32 @@ function reportBlock(fallbackUrl) {
   if (!repInfo?.available) return fallback;
   if (repState && repState.id) return `<div class="stnote">${TR.sent.replace("{id}", esc(repState.id))}</div>`;
   if (repState === "fail") return `<div class="stnote warn">${TR.fail}</div>${fallback}`;
-  if (repState === "open" || repState === "sending") return `<div class="reppanel"><b>${TR.what}</b><ul>${TR.items.map((x) => `<li>${x}</li>`).join("")}</ul>
-      <div class="muted" style="margin-bottom:8px">${TR.no}</div><textarea id="repnote" placeholder="${esc(TR.note)}"></textarea>
+  if (repState === "open" || repState === "sending") return `<div class="reppanel"><b>${TR.send}</b><div class="muted" style="margin:4px 0 8px">${TR.sub}</div>
+      <textarea id="repnote" placeholder="${esc(TR.note)}">${esc(repNote)}</textarea>
+      <div class="repimgs">${repImgs.map((x, i) => `<span class="repimg"><img src="${x.url}" alt=""><button data-rep-rm="${i}" aria-label="${TR.rm}">✕</button></span>`).join("")}</div>
+      ${repImgs.length < 3 ? `<label class="ghostbtn repattach">${TR.attach}<input type="file" accept="image/*" multiple data-rep-file hidden></label>` : `<div class="muted">${TR.max3}</div>`}
+      <details class="more" style="margin-top:8px"><summary>${TR.whatq}</summary><ul>${TR.items.map((x) => `<li>${x}</li>`).join("")}</ul><div class="muted">${TR.no}</div></details>
       <button class="stgo" data-rep-send ${repState === "sending" ? "disabled" : ""}>${repState === "sending" ? TR.sending : TR.ok}</button>
       <button class="ghostbtn" style="margin-top:8px" data-rep-cancel>${TR.cancel}</button></div>`;
-  return `<button class="stgo" data-rep-open>${TR.send}</button>`;
+  return `<button class="stgo" data-rep-open>${TR.send}</button><div class="muted" style="margin-top:6px">${TR.sub}</div>`;
 }
 function wireRep() {
   $("[data-rep-open]")?.addEventListener("click", () => { repState = "open"; render(); });
-  $("[data-rep-cancel]")?.addEventListener("click", () => { repState = null; render(); });
+  $("[data-rep-cancel]")?.addEventListener("click", () => { repState = null; repNote = ""; repImgs = []; render(); });
+  $("#repnote")?.addEventListener("input", (e) => { repNote = e.target.value; });
+  $("[data-rep-file]")?.addEventListener("change", async (e) => {
+    const files = [...e.target.files].slice(0, 3 - repImgs.length);
+    for (const f of files) { const x = await shrink(f); if (x) repImgs.push(x); }
+    render();
+  });
+  document.querySelectorAll("[data-rep-rm]").forEach((b) => b.onclick = () => { repImgs.splice(Number(b.dataset.repRm), 1); render(); });
   $("[data-rep-send]")?.addEventListener("click", async () => {
-    const note = $("#repnote")?.value || "";
+    repNote = $("#repnote")?.value || repNote;
     repState = "sending"; render();
-    const r = await api("/api/report", { note }).catch(() => null);
-    repState = r && r.ok ? { id: r.id } : "fail"; render();
+    const images = repImgs.map((x) => ({ name: x.name, data: x.url.split(",")[1] }));
+    const r = await api("/api/report", { note: repNote, images, lang: L }).catch(() => null);
+    if (r && r.ok) { repState = { id: r.id }; repNote = ""; repImgs = []; } else repState = "fail";
+    render();
   });
 }
 function testCard() {
@@ -1971,7 +2002,7 @@ async function load() { data = await api("/api/overview?lang=" + L).catch(() => 
     if (document.hidden) return;
     await load();
     if (tab === "home") patch();
-    if (tab === "shadow") { status = await api("/api/status"); control = await api("/api/control"); selftest = await api("/api/selftest").catch(() => selftest); if (!document.querySelector("details[open]")) render(true); }
+    if (tab === "shadow") { status = await api("/api/status"); control = await api("/api/control"); selftest = await api("/api/selftest").catch(() => selftest); if (!document.querySelector("details[open]") && repState !== "open" && repState !== "sending") render(true); }
   }, 4000);
   setInterval(() => { if (tab === "home" || tab === "plan") render(true); }, 300000);
 })();

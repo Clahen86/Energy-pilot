@@ -8,7 +8,7 @@
 //   GITHUB_TOKEN  (secret) fine-grained token with Contents + Issues: read and write on the private repository only
 //   REPORT_REPO   (text)   owner/name of the private repository, e.g. Clahen86/energy-pilot-reports
 
-const MAX_BYTES = 3_000_000; // a diagnostics file is usually 50-300 kB
+const MAX_BYTES = 9_000_000; // a diagnostics file is usually 50-300 kB, plus up to 3 pictures
 const PER_HOUR = 5; // reports from one address per hour
 
 export default {
@@ -48,7 +48,16 @@ export default {
       body: JSON.stringify(data),
     });
 
-    // 1. The full file in the private repository.
+    // 1. The pictures (if any) and the full file in the private repository.
+    const base = `https://github.com/${repo}/blob/main`;
+    const pics = [];
+    for (const [n, img] of (Array.isArray(body.images) ? body.images.slice(0, 3) : []).entries()) {
+      if (!img || typeof img.data !== "string" || img.data.length > 3_000_000) continue;
+      const name = `reports/${id}-${n + 1}.jpg`;
+      const r = await gh(`contents/${name}`, "PUT", { message: `Report ${id} picture ${n + 1}`, content: img.data });
+      if (r.ok) pics.push(`![${String(img.name || "picture").replaceAll("]", "")}](${base}/${name}?raw=true)`);
+    }
+    delete body.images;
     const file = `reports/${id}.json`;
     const pretty = JSON.stringify(body, null, 1);
     const put = await gh(`contents/${file}`, "PUT", { message: `Report ${id}`, content: b64(pretty) });
@@ -60,10 +69,11 @@ export default {
     const lines = [
       `**${id}** · Energy Pilot ${diag.version} · profile \`${body.profile || "?"}\` · ${diag.ha?.country || "?"}`,
       "",
-      body.note ? `> ${String(body.note).slice(0, 2000).replaceAll("\n", "\n> ")}\n` : "",
+      body.note ? `> ${String(body.note).slice(0, 4000).replaceAll("\n", "\n> ")}\n` : "",
+      pics.length ? `${pics.join("\n")}\n` : "",
       results.length ? ["| Part | Step | Result | Details |", "|---|---|---|---|", ...results].join("\n") : "_No test result - diagnostics only._",
       "",
-      `Diagnostics: [${file}](../blob/main/${file})`,
+      `Diagnostics: [${file}](${base}/${file})${body.lang ? ` · language ${body.lang}` : ""}`,
     ];
     const failed = (t.results || []).some((r) => r.result === "failed");
     const issue = await gh("issues", "POST", {

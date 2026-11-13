@@ -36,7 +36,7 @@ def _tested(overview: Overview) -> dict | None:
 
 
 def make_app(runner: Runner, overview: Overview) -> web.Application:
-    app = web.Application()
+    app = web.Application(client_max_size=10 * 1024 * 1024)  # "Get help" may carry a few pictures
 
     def lang(req: web.Request) -> str:
         code = str(req.query.get("lang", overview.settings.get("language") or "da"))[:2].lower()
@@ -327,12 +327,16 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
         test = t.status() if t else {}
         test.pop("report_url", None)
         c = overview.controller
-        payload = {"note": str(body.get("note") or "")[:2000], "test": test, "diagnostics": diag,
-                   "profile": c.profile_key("battery") if c else None}
+        # Up to 3 pictures (screenshots), already made smaller by the page - kept small here too.
+        images = [{"name": str(i.get("name") or "billede")[:60], "data": i["data"]}
+                  for i in (body.get("images") or [])[:3]
+                  if isinstance(i, dict) and isinstance(i.get("data"), str) and len(i["data"]) <= 2_000_000]
+        payload = {"note": str(body.get("note") or "")[:4000], "test": test, "diagnostics": diag, "images": images,
+                   "profile": c.profile_key("battery") if c else None, "lang": str(body.get("lang") or "")[:5]}
         try:
             async with aiohttp.ClientSession() as s:
                 async with s.post(url, json=payload, headers={"x-ep-client": "energy-pilot"},
-                                  timeout=aiohttp.ClientTimeout(total=30)) as r:
+                                  timeout=aiohttp.ClientTimeout(total=60)) as r:
                     res = await r.json(content_type=None)
                     if r.status != 200:
                         return web.json_response({"error": res.get("error") or f"http_{r.status}"}, status=502)
