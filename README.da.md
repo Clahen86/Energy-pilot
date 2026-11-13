@@ -146,9 +146,9 @@ Alt går gennem enhedens egen Home Assistant-integration.<br>
 
 | | |
 |---|---|
-| **Inverter / batteri** | ✅ Growatt SPH (SPA) · 🧪 Growatt MIN/MOD TL-XH · 🧪 Deye (Solarman eller ESPHome) · 🧪 Sofar · 🧪 Sigenergy · 🧪 Tesla Powerwall · 🧪 Enphase IQ Battery · 🧪 Victron (ESS) · 🧪 EcoFlow PowerStream · 🧪 Megarevo · 🧪 Huawei · 🧪 SolaX · 🧪 Sungrow · 🧪 SolarEdge · 🧪 Fox ESS · 🧪 GivEnergy · 🧪 Solis · 🧪 Alpha ESS · alle andre ved at vælge kontrollerne selv |
+| **Inverter / batteri** | ✅ Growatt SPH (SPA) · ✅ Victron (ESS) · ✅ Deye (Solarman) · 🧪 Deye (ESPHome) · 🧪 Growatt MIN/MOD TL-XH · 🧪 Sofar · 🧪 Sigenergy · 🧪 Tesla Powerwall · 🧪 Enphase IQ Battery · 🧪 EcoFlow PowerStream · 🧪 Megarevo · 🧪 Huawei · 🧪 SolaX · 🧪 Sungrow · 🧪 SolarEdge · 🧪 Fox ESS · 🧪 GivEnergy · 🧪 Solis · 🧪 Alpha ESS · alle andre ved at vælge kontrollerne selv |
 | **Elbil-lader** | ✅ KEBA · 🧪 Easee · 🧪 Zaptec · 🧪 go-e · 🧪 Wallbox · 🧪 Peblar · 🧪 OCPP · 🧪 Alfen · 🧪 Ohme · 🧪 myenergi zappi · alle med en kontakt og en strømindstilling |
-| **Priser** | ✅ Strømligning · ✅ indbyggede spotpriser · 🧪 Nord Pool · 🧪 Tibber · 🧪 Energi Data Service · 🧪 ENTSO-E · 🧪 Octopus · 🧪 Amber · 🧪 EDF Tempo · 🧪 EnergyZero · 🧪 easyEnergy · 🧪 Frank Energie · 🧪 Zonneplan · tarifplaner |
+| **Priser** | ✅ Strømligning · ✅ indbyggede spotpriser · ✅ Octopus · 🧪 Nord Pool · 🧪 Tibber · 🧪 Energi Data Service · 🧪 ENTSO-E · 🧪 Amber · 🧪 EDF Tempo · 🧪 EnergyZero · 🧪 easyEnergy · 🧪 Frank Energie · 🧪 Zonneplan · tarifplaner |
 
 ## Spørgsmål
 
