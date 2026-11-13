@@ -203,6 +203,25 @@
   .fade { animation:fade .4s cubic-bezier(.2,.8,.2,1) both; } .nofade .fade { animation:none; } @keyframes fade { from { opacity:0; transform:translateY(8px); } }
   @media (max-width:640px) { .metrics { grid-template-columns:repeat(2, 1fr); } }
   @media (prefers-reduced-motion: reduce) { * { animation:none !important; } }
+  .thline { display:flex; align-items:center; gap:10px; width:100%; text-align:left; font:inherit; color:var(--text); cursor:pointer; padding:11px 14px; }
+  .thchips { display:flex; gap:6px; flex-wrap:wrap; flex:1; } .thmore { color:var(--faint); font-size:18px; }
+  .thchip { display:inline-flex; align-items:center; gap:5px; background:var(--surface2); border-radius:99px; padding:3px 9px 3px 4px; font-size:12px; }
+  .thgrid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:6px; }
+  .thtile { background:color-mix(in srgb, var(--text) 3%, transparent); border:1px solid var(--line); border-radius:18px; padding:12px; display:flex; flex-direction:column; gap:8px; }
+  .thring { width:54px; height:54px; position:relative; } .thring span { position:absolute; inset:0; display:grid; place-items:center; }
+  .thn { font-weight:700; font-size:14px; } .ths { font-size:12px; color:var(--muted); }
+  .thpill { align-self:flex-start; font-size:11px; font-weight:800; padding:4px 9px; border-radius:99px; background:var(--surface2); }
+  .thbtn { border:0; border-radius:12px; padding:9px; font:inherit; font-weight:800; font-size:13px; background:var(--accent); color:#fff; cursor:pointer; }
+  .thbtn.off { background:var(--surface2); color:var(--muted); }
+  .thstrip { display:flex; gap:2px; height:26px; align-items:end; margin-top:14px; } .thstrip i { flex:1; border-radius:3px 3px 1px 1px; }
+  .thlbl { display:flex; justify-content:space-between; font-size:10px; color:var(--faint); margin-top:4px; }
+  .thicons { display:grid; grid-template-columns:repeat(8,1fr); gap:6px; margin-top:8px; }
+  .thicons button { aspect-ratio:1; min-width:0; border-radius:12px; border:2px solid transparent; background:var(--surface2); display:grid; place-items:center; cursor:pointer; }
+  .thicons button.on { border-color:var(--accent); }
+  .thmodes { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:8px; }
+  .thmodes button { border-radius:14px; padding:10px 4px; background:var(--surface2); border:2px solid transparent; font:inherit; font-size:12px; font-weight:700; color:var(--muted); cursor:pointer; }
+  .thmodes button span { display:block; font-size:22px; margin-bottom:2px; } .thmodes button.on { border-color:var(--sun); color:var(--text); background:color-mix(in srgb, var(--sun) 10%, var(--surface2)); }
+  .thhead { display:flex; align-items:center; gap:8px; }
 </style>
 </head>
 <body>
@@ -741,6 +760,176 @@ function checksCard() {
     ${x.dismiss ? `<button class="link" data-fix='${esc(JSON.stringify(x.dismiss))}'>${c.no}</button>` : ""}
     ${x.goto && !x.dismiss ? `<button class="link" data-goto="${x.goto}">${c.show}</button>` : ""}</div></div>`).join("")}</div>`;
 }
+/* ---------- Things that run cheaply: small batteries and machines, below the battery and the car ---------- */
+const TH_SVG = {
+  mower: `<path d="M8 30c0-7 6-12 16-12s16 5 16 12v2H8z"/><circle cx="14" cy="34" r="5"/><circle cx="34" cy="34" r="5"/><path d="M20 18l2-5h6l2 5"/><path d="M4 42c4-2 6 0 8-2M36 42c4-2 6 0 8-2" opacity=".6"/>`,
+  bike: `<circle cx="11" cy="32" r="7"/><circle cx="37" cy="32" r="7"/><path d="M11 32l7-13h12l7 13M18 19l6 13h-13M30 19l-2-5h-5"/><rect x="19" y="21" width="9" height="5" rx="1.5"/>`,
+  tool: `<path d="M8 14h22a6 6 0 0 1 6 6v0a6 6 0 0 1-6 6H22l-3 14h-7l3-14H8z"/><path d="M36 18h6M36 22h6"/><rect x="11" y="38" width="10" height="5" rx="1.5"/>`,
+  battery: `<rect x="10" y="10" width="28" height="32" rx="5"/><path d="M19 6h10"/><path d="M26 17l-6 10h8l-6 10"/>`,
+  dish: `<rect x="9" y="6" width="30" height="36" rx="4"/><path d="M9 14h30"/><circle cx="15" cy="10" r="1"/><circle cx="20" cy="10" r="1"/><path d="M15 36v-12M20 36v-14M25 36v-12M30 36v-14" opacity=".8"/>`,
+  wash: `<rect x="9" y="5" width="30" height="38" rx="4"/><path d="M9 13h30"/><circle cx="15" cy="9" r="1"/><circle cx="24" cy="28" r="10"/><path d="M17 29c3-3 6 2 9-1s5 1 5 1"/>`,
+  dryer: `<rect x="9" y="5" width="30" height="38" rx="4"/><path d="M9 13h30"/><circle cx="15" cy="9" r="1"/><circle cx="24" cy="28" r="10"/><path d="M21 24c-2 2 2 4 0 6M27 24c-2 2 2 4 0 6"/>`,
+  plug: `<path d="M18 6v10M30 6v10M12 16h24v8a12 12 0 0 1-24 0z"/><path d="M24 36v8"/>`,
+};
+const TH_COL = { mower: "#3ddc97", bike: "#6ea8fe", tool: "#f5b544", battery: "#a78bfa", dish: "#7c6cff", wash: "#38bdf8", dryer: "#fb923c", plug: "#8b93a3" };
+const TH_ICONS = Object.keys(TH_SVG);
+const thIcon = (k, size = 26, sw = 2) => { const n = TH_SVG[k] ? k : "plug"; return `<svg viewBox="0 0 48 48" width="${size}" height="${size}" fill="none" stroke="${TH_COL[n]}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${TH_SVG[n]}</svg>`; };
+function thGuess(name) {
+  const t = String(name || "").toLowerCase();
+  const m = [["dish", /dish|opvask|geschirr|vaisselle|vaatwas|disk|oppvask|spül/], ["dryer", /dryer|tørre|tumble|trockner|sèche|seche|droger|tork/],
+    ["wash", /wash|vask|linge|wasmachine|tvätt/], ["mower", /mower|plæne|rasenm|tondeuse|maaier|klipp/], ["bike", /bike|cykel|fahrrad|vélo|velo|fiets|sykkel/],
+    ["tool", /tool|værktøj|werkzeug|outil|gereedschap|verktyg/]];
+  return (m.find(([, r]) => r.test(t)) || ["plug"])[0];
+}
+const T_TH = {
+  da: { title: "Kører billigt", st: { charging: "lader", planned: "lader {x}", full: "fuld", idle: "venter", armed: "finder tid", plannedM: "starter {x}", running: "kører", waiting_start: "tryk start", done: "færdig" },
+    sun: "på sol", of: "{a} af {b} kWh", ready: "Klar", cancel: "Annullér", fill: "Tryk Klar, når den er fyldt", noTime: "ingen god tid endnu", spent: "{k} kWh · {c}",
+    sec: "Kører billigt", secH: "Små batterier og maskiner – på sol eller i billige timer. Husbatteriet og bilen kommer altid først.", add: "Tilføj ting", remove: "Fjern",
+    name: "Navn", kind: "Slags", kinds: { battery: "Batteri", machine: "Maskine" }, icon: "Ikon",
+    sw: "Kontakt", swH: "Den EP tænder og slukker", start: "Fjernstart", startH: "Knap eller kontakt, der starter maskinen. Tom: EP giver besked, når du skal trykke start", none: "– ingen –",
+    power: "Strøm-sensor", powerH: "Valgfri. Så ser EP, når den er fuld eller færdig, og lærer hvor længe den tager",
+    mode: "Hvornår må den køre?", modes: { sun_cheap: "Sol, ellers billigt", sun: "Kun sol", cheap: "Billigste tid" }, readyBy: "Færdig senest", readyByH: "Tom: inden for et døgn",
+    kwh: "Hvor meget", kwhH: "Pr. gang", learned: "lært af {n} gange · {t}", neverOff: "EP starter kun maskinen – den slukkes aldrig midt i et program.",
+    found: "Fandt: {name}. Skal EP køre den på sol eller i billige timer?" },
+  en: { title: "Runs cheaply", st: { charging: "charging", planned: "charges {x}", full: "full", idle: "waiting", armed: "finding a time", plannedM: "starts {x}", running: "running", waiting_start: "press start", done: "done" },
+    sun: "on sun", of: "{a} of {b} kWh", ready: "Ready", cancel: "Cancel", fill: "Tap Ready when it's loaded", noTime: "no good time yet", spent: "{k} kWh · {c}",
+    sec: "Runs cheaply", secH: "Small batteries and machines – on the sun or in cheap hours. The house battery and the car always come first.", add: "Add a thing", remove: "Remove",
+    name: "Name", kind: "Kind", kinds: { battery: "Battery", machine: "Machine" }, icon: "Icon",
+    sw: "Switch", swH: "The one EP turns on and off", start: "Remote start", startH: "Button or switch that starts the machine. Empty: EP tells you when to press start", none: "– none –",
+    power: "Power sensor", powerH: "Optional. EP then sees when it's full or done, and learns how long it takes",
+    mode: "When may it run?", modes: { sun_cheap: "Sun, else cheap", sun: "Sun only", cheap: "Cheapest time" }, readyBy: "Done by", readyByH: "Empty: within a day",
+    kwh: "How much", kwhH: "Per run", learned: "learned from {n} runs · {t}", neverOff: "EP only starts a machine – it is never switched off mid-programme.",
+    found: "Found: {name}. Should EP run it on the sun or in cheap hours?" },
+  de: { title: "Läuft günstig", st: { charging: "lädt", planned: "lädt {x}", full: "voll", idle: "wartet", armed: "sucht Zeit", plannedM: "startet {x}", running: "läuft", waiting_start: "Start drücken", done: "fertig" },
+    sun: "mit Sonne", of: "{a} von {b} kWh", ready: "Bereit", cancel: "Abbrechen", fill: "Tippe Bereit, wenn sie beladen ist", noTime: "noch keine gute Zeit", spent: "{k} kWh · {c}",
+    sec: "Läuft günstig", secH: "Kleine Akkus und Geräte – mit Sonne oder in günstigen Stunden. Hausbatterie und Auto kommen immer zuerst.", add: "Gerät hinzufügen", remove: "Entfernen",
+    name: "Name", kind: "Art", kinds: { battery: "Akku", machine: "Gerät" }, icon: "Symbol",
+    sw: "Schalter", swH: "Den EP ein- und ausschaltet", start: "Fernstart", startH: "Taste oder Schalter, der das Gerät startet. Leer: EP sagt dir, wann du Start drücken sollst", none: "– keiner –",
+    power: "Leistungssensor", powerH: "Optional. Dann sieht EP, wann es voll oder fertig ist, und lernt die Dauer",
+    mode: "Wann darf es laufen?", modes: { sun_cheap: "Sonne, sonst günstig", sun: "Nur Sonne", cheap: "Günstigste Zeit" }, readyBy: "Fertig bis", readyByH: "Leer: innerhalb eines Tages",
+    kwh: "Wie viel", kwhH: "Pro Lauf", learned: "gelernt aus {n} Läufen · {t}", neverOff: "EP startet ein Gerät nur – es wird nie mitten im Programm ausgeschaltet.",
+    found: "Gefunden: {name}. Soll EP es mit Sonne oder in günstigen Stunden laufen lassen?" },
+  fr: { title: "Tourne pas cher", st: { charging: "charge", planned: "charge {x}", full: "pleine", idle: "attend", armed: "cherche l'heure", plannedM: "démarre {x}", running: "tourne", waiting_start: "appuyez sur départ", done: "fini" },
+    sun: "au soleil", of: "{a} sur {b} kWh", ready: "Prêt", cancel: "Annuler", fill: "Touchez Prêt une fois chargée", noTime: "pas encore de bon moment", spent: "{k} kWh · {c}",
+    sec: "Tourne pas cher", secH: "Petites batteries et appareils – au soleil ou aux heures creuses. La batterie de la maison et la voiture passent toujours d'abord.", add: "Ajouter", remove: "Retirer",
+    name: "Nom", kind: "Type", kinds: { battery: "Batterie", machine: "Appareil" }, icon: "Icône",
+    sw: "Interrupteur", swH: "Celui qu'EP allume et éteint", start: "Démarrage à distance", startH: "Bouton ou interrupteur qui démarre l'appareil. Vide : EP vous dit quand appuyer", none: "– aucun –",
+    power: "Capteur de puissance", powerH: "Facultatif. EP voit alors quand c'est plein ou fini, et apprend la durée",
+    mode: "Quand peut-il tourner ?", modes: { sun_cheap: "Soleil, sinon pas cher", sun: "Soleil seul", cheap: "Moins cher" }, readyBy: "Fini avant", readyByH: "Vide : dans la journée",
+    kwh: "Combien", kwhH: "Par cycle", learned: "appris de {n} cycles · {t}", neverOff: "EP ne fait que démarrer un appareil – jamais coupé en plein programme.",
+    found: "Trouvé : {name}. EP doit-il le faire tourner au soleil ou aux heures creuses ?" },
+  nl: { title: "Draait goedkoop", st: { charging: "laadt", planned: "laadt {x}", full: "vol", idle: "wacht", armed: "zoekt tijd", plannedM: "start {x}", running: "draait", waiting_start: "druk op start", done: "klaar" },
+    sun: "op zon", of: "{a} van {b} kWh", ready: "Klaar", cancel: "Annuleren", fill: "Tik Klaar als hij gevuld is", noTime: "nog geen goede tijd", spent: "{k} kWh · {c}",
+    sec: "Draait goedkoop", secH: "Kleine accu's en apparaten – op zon of in goedkope uren. De thuisbatterij en de auto gaan altijd voor.", add: "Toevoegen", remove: "Verwijderen",
+    name: "Naam", kind: "Soort", kinds: { battery: "Accu", machine: "Apparaat" }, icon: "Pictogram",
+    sw: "Schakelaar", swH: "Die EP aan- en uitzet", start: "Start op afstand", startH: "Knop of schakelaar die het apparaat start. Leeg: EP zegt wanneer je op start moet drukken", none: "– geen –",
+    power: "Vermogenssensor", powerH: "Optioneel. Dan ziet EP wanneer hij vol of klaar is, en leert hoe lang het duurt",
+    mode: "Wanneer mag hij draaien?", modes: { sun_cheap: "Zon, anders goedkoop", sun: "Alleen zon", cheap: "Goedkoopste tijd" }, readyBy: "Klaar om", readyByH: "Leeg: binnen een dag",
+    kwh: "Hoeveel", kwhH: "Per keer", learned: "geleerd van {n} keer · {t}", neverOff: "EP start een apparaat alleen – het wordt nooit midden in een programma uitgezet.",
+    found: "Gevonden: {name}. Moet EP het op zon of in goedkope uren laten draaien?" },
+  sv: { title: "Körs billigt", st: { charging: "laddar", planned: "laddar {x}", full: "full", idle: "väntar", armed: "letar tid", plannedM: "startar {x}", running: "kör", waiting_start: "tryck start", done: "klar" },
+    sun: "på sol", of: "{a} av {b} kWh", ready: "Redo", cancel: "Avbryt", fill: "Tryck Redo när den är fylld", noTime: "ingen bra tid än", spent: "{k} kWh · {c}",
+    sec: "Körs billigt", secH: "Små batterier och maskiner – på sol eller billiga timmar. Husbatteriet och bilen går alltid först.", add: "Lägg till", remove: "Ta bort",
+    name: "Namn", kind: "Typ", kinds: { battery: "Batteri", machine: "Maskin" }, icon: "Ikon",
+    sw: "Brytare", swH: "Den EP slår på och av", start: "Fjärrstart", startH: "Knapp eller brytare som startar maskinen. Tom: EP säger till när du ska trycka start", none: "– ingen –",
+    power: "Effektsensor", powerH: "Valfri. Då ser EP när den är full eller klar, och lär sig hur lång tid det tar",
+    mode: "När får den köra?", modes: { sun_cheap: "Sol, annars billigt", sun: "Bara sol", cheap: "Billigaste tid" }, readyBy: "Klar senast", readyByH: "Tom: inom ett dygn",
+    kwh: "Hur mycket", kwhH: "Per gång", learned: "lärt av {n} gånger · {t}", neverOff: "EP startar bara maskinen – den stängs aldrig av mitt i ett program.",
+    found: "Hittade: {name}. Ska EP köra den på sol eller billiga timmar?" },
+  nb: { title: "Kjører billig", st: { charging: "lader", planned: "lader {x}", full: "full", idle: "venter", armed: "finner tid", plannedM: "starter {x}", running: "kjører", waiting_start: "trykk start", done: "ferdig" },
+    sun: "på sol", of: "{a} av {b} kWh", ready: "Klar", cancel: "Avbryt", fill: "Trykk Klar når den er fylt", noTime: "ingen god tid ennå", spent: "{k} kWh · {c}",
+    sec: "Kjører billig", secH: "Små batterier og maskiner – på sol eller i billige timer. Husbatteriet og bilen kommer alltid først.", add: "Legg til", remove: "Fjern",
+    name: "Navn", kind: "Type", kinds: { battery: "Batteri", machine: "Maskin" }, icon: "Ikon",
+    sw: "Bryter", swH: "Den EP slår av og på", start: "Fjernstart", startH: "Knapp eller bryter som starter maskinen. Tom: EP sier fra når du skal trykke start", none: "– ingen –",
+    power: "Effektsensor", powerH: "Valgfri. Da ser EP når den er full eller ferdig, og lærer hvor lenge den tar",
+    mode: "Når kan den kjøre?", modes: { sun_cheap: "Sol, ellers billig", sun: "Bare sol", cheap: "Billigste tid" }, readyBy: "Ferdig senest", readyByH: "Tom: innen et døgn",
+    kwh: "Hvor mye", kwhH: "Per gang", learned: "lært av {n} ganger · {t}", neverOff: "EP starter bare maskinen – den slås aldri av midt i et program.",
+    found: "Fant: {name}. Skal EP kjøre den på sol eller i billige timer?" },
+};
+const TH = T_TH[L] || T_TH.en;
+T.chk.thing_found = TH.found;
+let thOpen = (() => { try { return localStorage.getItem("ep_things_open") === "1"; } catch { return false; } })();
+const thMin = (m) => m >= 60 ? `${Math.floor(m / 60)} t ${String(Math.round(m % 60)).padStart(2, "0")}`.replace(" t ", L === "en" ? " h " : " t ") : `${Math.round(m)} min`;
+function thStatus(x) {
+  const s = TH.st, first = x.hours[0] ? clock(x.hours[0]) : "";
+  if (x.kind === "machine") return x.status === "planned" ? s.plannedM.replace("{x}", clock(x.start)) : s[x.status] || s.idle;
+  return x.status === "planned" ? s.planned.replace("{x}", first) : s[x.status] || s.idle;
+}
+function thColor(x) {
+  return ["full", "done"].includes(x.status) ? "var(--ok)" : x.sun || x.status === "charging" && x.sun ? "var(--sun)" : ["running", "charging"].includes(x.status) ? "var(--sun)"
+    : ["planned", "armed", "waiting_start"].includes(x.status) ? "#b3aaff" : "var(--faint)";
+}
+function thRing(x) {
+  const r = 23, c = 2 * Math.PI * r, p = ["full", "done"].includes(x.status) ? 1 : x.need_kwh ? Math.min(1, x.kwh_now / x.need_kwh) : 0;
+  const dash = x.kind === "machine" && ["planned", "armed"].includes(x.status) ? `stroke-dasharray="4 6"` : `stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c * (1 - p)).toFixed(1)}"`;
+  return `<div class="thring"><svg width="54" height="54" viewBox="0 0 54 54"><circle cx="27" cy="27" r="${r}" stroke="var(--surface2)" stroke-width="5" fill="none"/>
+    ${p > 0 || dash.includes("4 6") ? `<circle cx="27" cy="27" r="${r}" stroke="${thColor(x)}" stroke-width="5" fill="none" stroke-linecap="round" ${dash} transform="rotate(-90 27 27)"/>` : ""}</svg><span>${thIcon(x.icon || thGuess(x.name), 26)}</span></div>`;
+}
+function thingsCard() {
+  const list = data?.engine?.things || [];
+  if (!list.length) return "";
+  const chip = (x) => `<span class="thchip">${thIcon(x.icon || thGuess(x.name), 22)}<b style="color:${thColor(x)}">${["full", "done"].includes(x.status) ? "✓" : x.sun && x.status !== "idle" ? "☀ " + esc(thStatus(x)) : esc(thStatus(x))}</b></span>`;
+  if (!thOpen) return `<button class="card fade thline" data-thopen="1"><span class="eyebrow" style="margin:0"><span>${TH.title}</span></span><span class="thchips">${list.map(chip).join("")}</span><span class="thmore">›</span></button>`;
+  const tile = (x) => {
+    const sub = x.kind === "machine"
+      ? (x.status === "running" ? TH.of.replace("{a}", num(x.kwh_now, 1)).replace("{b}", num(x.need_kwh, 1)) : x.status === "done" && x.last ? TH.spent.replace("{k}", num(x.last.kwh, 1)).replace("{c}", kr(x.last.cost))
+        : x.status === "armed" ? TH.noTime : x.status === "idle" ? TH.fill : thMin(x.minutes))
+      : (x.status === "full" && x.last ? TH.spent.replace("{k}", num(x.last.kwh, 1)).replace("{c}", kr(x.last.cost)) : TH.of.replace("{a}", num(x.kwh_now, 1)).replace("{b}", num(x.need_kwh, 1)));
+    const btn = x.kind === "machine" && ["idle", "done", "armed", "planned"].includes(x.status)
+      ? `<button class="thbtn ${x.armed ? "off" : ""}" data-tharm="${esc(x.id)}" data-armed="${x.armed ? 0 : 1}">${x.armed ? TH.cancel : "▶ " + TH.ready}</button>` : "";
+    return `<div class="thtile">${thRing(x)}<div><div class="thn">${esc(x.name || TH.kinds[x.kind])}</div><div class="ths">${esc(sub)}</div></div>
+      <span class="thpill" style="color:${thColor(x)}">${x.sun && !["full", "done", "idle"].includes(x.status) ? "☀ " : ""}${esc(thStatus(x))}</span>${btn}</div>`;
+  };
+  return `<div class="card fade thcard"><div class="eyebrow"><span>${TH.title}</span><button class="link" data-thopen="0">✕</button></div>
+    <div class="thgrid">${list.map(tile).join("")}</div>${thStrip(list)}</div>`;
+}
+function thStrip(list) {
+  const now = new Date(), slots = [];
+  for (let i = 0; i < 24; i++) { const t = new Date(now); t.setMinutes(0, 0, 0); t.setHours(t.getHours() + i); slots.push(t); }
+  const who = (t) => list.find((x) => (x.hours || []).some((h) => { const a = new Date(h); return a.getHours() === t.getHours() && a.getDate() === t.getDate(); })
+    || (x.start && (() => { const a = new Date(x.start), b = new Date(a.getTime() + x.minutes * 60000); return t < b && new Date(t.getTime() + 3600000) > a; })()));
+  return `<div class="thstrip">${slots.map((t) => { const x = who(t); return `<i style="background:${x ? TH_COL[x.icon || thGuess(x.name)] : "var(--surface2)"};height:${x ? 100 : 35}%"></i>`; }).join("")}</div>
+    <div class="thlbl">${[0, 6, 12, 18].map((i) => `<span>${String(slots[i].getHours()).padStart(2, "0")}</span>`).join("")}<span></span></div>`;
+}
+function thingsSection(v, row) {
+  const list = v.things || [], o = settings.thing_options || { switches: [], power: [] };
+  const sel = (i, key, opts, cur) => `<select data-th="${i}:${key}"><option value="">${TH.none}</option>${opts.map((x) => `<option value="${esc(x.entity_id)}" ${cur === x.entity_id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>`;
+  const box = (x, i) => {
+    const lr = (data?.engine?.things || []).find((t) => t.id === x.id)?.learned, kind = x.kind || "battery", ic = x.icon || thGuess(x.name);
+    return `<div class="batbox"><h4 class="bathead thhead">${thIcon(ic, 22)} ${esc(x.name || TH.kinds[kind])}</h4>
+      ${row(TH.name, "", `<input class="pname" data-tht="${i}:name" value="${esc(x.name || "")}">`)}
+      <div class="ctl" style="display:block"><div class="t"><b>${TH.icon}</b></div><div class="thicons">${TH_ICONS.map((k) => `<button class="${ic === k ? "on" : ""}" data-thicon="${i}:${k}">${thIcon(k, 24)}</button>`).join("")}</div></div>
+      ${row(TH.kind, "", `<div class="seg mini">${["battery", "machine"].map((k) => `<button class="${kind === k ? "on" : ""}" data-thkind="${i}:${k}">${TH.kinds[k]}</button>`).join("")}</div>`)}
+      ${kind === "machine" ? row(TH.start, TH.startH, sel(i, "start", o.switches, x.start)) : row(TH.sw, TH.swH, sel(i, "switch", o.switches.filter((s) => !s.entity_id.startsWith("button.")), x.switch))}
+      ${row(TH.power, TH.powerH, sel(i, "power", o.power, x.power))}
+      <div class="ctl" style="display:block"><div class="t"><b>${TH.mode}</b></div><div class="thmodes">${[["sun_cheap", "☀️"], ["sun", "🌞"], ["cheap", "💸"]].map(([k, e]) =>
+        `<button class="${(x.mode || "sun_cheap") === k ? "on" : ""}" data-thmode="${i}:${k}"><span>${e}</span>${TH.modes[k]}</button>`).join("")}</div></div>
+      ${row(TH.readyBy, TH.readyByH, `<input type="time" data-tht="${i}:ready" value="${esc(x.ready || "")}">`)}
+      ${row(TH.kwh, lr ? TH.learned.replace("{n}", lr.n).replace("{t}", `${num(lr.kwh, 2)} kWh, ${thMin(lr.min)}`) : TH.kwhH, `<span class="unitin"><input class="numin" type="number" inputmode="decimal" step="0.1" data-thn="${i}:kwh" value="${x.kwh ?? ""}" placeholder="${kind === "machine" ? "1.0" : "0.5"}"><i>kWh</i></span>`)}
+      ${kind === "machine" ? `<div class="muted" style="margin-top:6px">${TH.neverOff}</div>` : ""}
+      <button class="link" data-thdel="${i}">${TH.remove}</button></div>`;
+  };
+  return `<div class="card fade sec-card" id="sec-things"><div class="sec-head"><span class="sec-ic" style="--sc:var(--ok)">${thIcon("plug", 22)}</span><div><b>${TH.sec}</b><span>${TH.secH}</span></div></div>
+    ${list.map(box).join("")}<button class="ghostbtn" data-thadd>+ ${TH.add}</button></div>`;
+}
+function wireThings() {
+  document.querySelectorAll("[data-thopen]").forEach((b) => b.onclick = () => { thOpen = b.dataset.thopen === "1"; try { localStorage.setItem("ep_things_open", thOpen ? "1" : "0"); } catch {} render(); });
+  document.querySelectorAll("[data-tharm]").forEach((b) => b.onclick = async () => { await api("/api/things/arm", { id: b.dataset.tharm, armed: b.dataset.armed === "1" }); await load(); render(); });
+  const ths = () => JSON.parse(JSON.stringify((settings?.settings || data.settings).things || []));
+  const save = async (l) => { await api("/api/settings", { things: l }); settings = await api("/api/settings"); await load(); render(); };
+  $("[data-thadd]")?.addEventListener("click", () => save([...ths(), { id: Math.random().toString(16).slice(2, 10), kind: "battery", mode: "sun_cheap", name: "" }]));
+  document.querySelectorAll("[data-thdel]").forEach((x) => x.onclick = () => { const l = ths(); l.splice(Number(x.dataset.thdel), 1); save(l); });
+  const set = (spec, fn) => { const [i, v] = spec.split(":"), l = ths(); fn(l[Number(i)], v); save(l); };
+  document.querySelectorAll("[data-thicon]").forEach((b) => b.onclick = () => set(b.dataset.thicon, (x, v) => { x.icon = v; }));
+  document.querySelectorAll("[data-thkind]").forEach((b) => b.onclick = () => set(b.dataset.thkind, (x, v) => { x.kind = v; }));
+  document.querySelectorAll("[data-thmode]").forEach((b) => b.onclick = () => set(b.dataset.thmode, (x, v) => { x.mode = v; }));
+  document.querySelectorAll("[data-th],[data-tht],[data-thn]").forEach((el) => el.onchange = () => {
+    const [i, key] = (el.dataset.th || el.dataset.tht || el.dataset.thn).split(":"), l = ths(), x = l[Number(i)];
+    x[key] = el.dataset.thn ? (el.value === "" ? null : Number(el.value.replace(",", "."))) : el.value || null;
+    if (key === "name" && !x.icon) x.icon = thGuess(x.name);
+    save(l);
+  });
+}
 function home() {
   const d = data, f = d.flow, dec = d.decision;
   const reason = dec ? T.reasons[dec.kind].replace("{p}", kr(d.price.now)) : "";
@@ -765,6 +954,7 @@ function home() {
     ${savedCard()}
     ${d.ev ? carCard(d.ev, f) : ""}
     ${moreCars()}
+    ${thingsCard()}
     ${d.plan && d.plan.cheapest && d.plan.cheapest.length ? `<div class="card fade"><div class="eyebrow"><span>${T.cheapest}</span><button class="link" data-tab="plan">${(T_SEEPLAN[L] || T_SEEPLAN.en)} →</button></div>
       <div class="chips">${d.plan.cheapest.map((t) => `<span class="chip good">${clock(t)}</span>`).join("")}</div></div>` : ""}`;
 }
@@ -1169,6 +1359,7 @@ function styleView() {
       ${row(y.evInHouse, settings.ev_detected == null ? y.evInHouseUnknown : settings.ev_detected ? y.evInHouseYes : y.evInHouseNo,
         `<div class="seg mini">${[["auto", null], ["yes", true], ["no", false]].map(([k, val]) => `<button class="${(v.ev_in_house ?? null) === val ? "on" : ""}" data-evhouse="${k}">${y.evHouse[k]}</button>`).join("")}</div>`)}`)}
       ${chargerList(v, row)}` : "")}
+    ${thingsSection(v, row)}
     ${section("bolt", y.secPrice, y.secPriceH, `${row(y.source, y.sourceH, `<div class="seg mini wide">${["auto", "spot", "tou"].map((m) => `<button class="${(v.price_source || "auto") === m ? "on" : ""}" data-psrc="${m}">${y.sources[m]}</button>`).join("")}</div>`)}
       ${v.price_source === "tou" ? touEditor(v) : ""}
       ${!settings.roles.price && v.price_source !== "tou" && (settings.zones || []).length ? `${row(y.area, settings.country === "DK" ? y.areaH : "", `<div class="seg mini">${(settings.zones || ["DK1", "DK2"]).map((a) => `<button class="${(v.price_area || settings.area_guess) === a ? "on" : ""}" data-area="${a}">${a}</button>`).join("")}</div>`)}
@@ -1290,6 +1481,7 @@ function patch() {
   if (ring) ring.setAttribute("stroke-dashoffset", 2 * Math.PI * 38 * (1 - (f.soc || 0) / 100));
 }
 function wire() {
+  wireThings();
   document.querySelectorAll("[data-tab]").forEach((b) => b.onclick = async () => {
     tab = b.dataset.tab; localStorage.setItem("ep_tab", tab);
     if (tab === "shadow") { status = await api("/api/status"); control = await api("/api/control"); }

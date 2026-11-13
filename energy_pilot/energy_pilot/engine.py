@@ -389,6 +389,9 @@ class Engine:
         from .househist import HouseHistory
 
         self.house_hist = HouseHistory(self.learning.state)
+        from .things import Things
+
+        self.things = Things(self.learning.state)
         self.batt_learn = BatteryLearner(self.learning.state)
         from .checks import GridPeak
 
@@ -1084,12 +1087,40 @@ class Engine:
             result["car"] = {"hours": car_plan["hours"], "need_kwh": car_plan["need"], "slot_min": slot_min}
         result["cars"] = self._more_cars(hours, now, f, car_plan, slot_min)
         try:
+            result["things"] = self._things(hours, now, result, car_plan)
+        except Exception:  # noqa: BLE001 - the small things must never stop the plan
+            _LOGGER.debug("Things plan failed", exc_info=True)
+        try:
             self._ghost_plans(hours, now, f, slot_min)
         except Exception:  # noqa: BLE001 - a comparison must never stop the plan
             _LOGGER.debug("Shadow car plan failed", exc_info=True)
         self.result = result
         self._compare()
         return result
+
+    def _things(self, hours: list[Hour], now: datetime, result: dict[str, Any], car_plan: dict[str, Any] | None) -> list[dict[str, Any]]:
+        """The small things, after the battery and the cars: only the sun the plan would sell, and the fuse with the cars."""
+        st = self.ov.settings
+        if not st.get("things"):
+            return []
+        steps = {datetime.fromisoformat(x["t"]): x for x in ((result.get("battery") or {}).get("steps") or [])}
+        load: dict[datetime, float] = {}
+        if car_plan:
+            for t in car_plan.get("set") or []:
+                load[t] = load.get(t, 0.0) + float(st.get("charger_kw") or 7.4)
+        from . import chargers
+
+        for c, p in zip(chargers.extras(st), result.get("cars") or []):
+            for x in p.get("hours") or []:
+                t = datetime.fromisoformat(x)
+                load[t] = load.get(t, 0.0) + float(c.get("charger_kw") or 7.4)
+        left = {}
+        for h in hours:
+            s = steps.get(h.start)
+            spare = -float(s["grid"]) if s and s.get("grid") is not None else h.sun - h.house  # what the plan would sell
+            left[h.start] = max(0.0, spare - load.get(h.start, 0.0) * h.length)
+        limit = float(st["import_limit_kw"]) if st.get("import_limit_kw") else None
+        return self.things.plan(st, hours, now, left, load, limit)
 
     def _car(self, hours: list[Hour], now: datetime, f: dict[str, Any], skip: set) -> dict[str, Any] | None:
         ev, st = self.ov.ev(), self.ov.settings

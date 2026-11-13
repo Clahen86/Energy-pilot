@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 from aiohttp import web
@@ -63,7 +64,7 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
             a = eng.agree
             data["engine"] = {"saving": b.get("saving"), "now": b.get("now"), "capacity": b.get("capacity"),
                               "agree": round(100 * a["same"] / a["checks"]) if a["checks"] else None, "checks": a["checks"],
-                              "profile": bool(eng.profile), "car": eng.result.get("car"), "cars": eng.result.get("cars"), "generator": eng.result.get("generator"), "sources": eng.sources_used(), "learning": eng.learning.summary(), "blend": eng.blend_info(),
+                              "profile": bool(eng.profile), "car": eng.result.get("car"), "cars": eng.result.get("cars"), "things": eng.things.view(overview.settings, datetime.now(eng.tz)), "generator": eng.result.get("generator"), "sources": eng.sources_used(), "learning": eng.learning.summary(), "blend": eng.blend_info(),
                               "decision": overview.engine_decision(lang(req)), "selfcheck": eng.follow.check() + eng.checks + (overview.controller.watch_checks() if overview.controller else [])}
         return web.json_response(data)
 
@@ -87,7 +88,19 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
                                   "wear_default": overview.engine.wear(own=False) if overview.engine else None,
                                   "battery_type_found": overview.engine.battery_type() if overview.engine else None,
                                   "roles_all": {r: overview.role_all(r) for r in ("pv_power", "solar_today", "solar_tomorrow")},
-                                  "charger_switches": switches()})
+                                  "charger_switches": switches(), "thing_options": thing_options()})
+
+    def thing_options() -> dict[str, list[dict[str, str]]]:
+        """For Settings → Things that run cheaply: the switches (and start buttons) and the power sensors to pick from."""
+        def name(e: str, s: dict) -> str:
+            return str((s.get("attributes") or {}).get("friendly_name") or e)
+
+        phones = getattr(overview.controller, "phones", set()) if overview.controller else set()
+        sw = [{"entity_id": e, "name": name(e, s)} for e, s in runner.ha.states.items()
+              if e.split(".")[0] in ("switch", "button", "input_boolean") and e not in phones]
+        pw = [{"entity_id": e, "name": name(e, s)} for e, s in runner.ha.states.items()
+              if e.startswith("sensor.") and (s.get("attributes") or {}).get("device_class") == "power" and e not in phones]
+        return {"switches": sorted(sw, key=lambda x: x["name"].lower()), "power": sorted(pw, key=lambda x: x["name"].lower())}
 
     def switches() -> dict | None:
         """For Settings → Car → Control: the switches that can start a charger, and what each charger uses now."""
@@ -107,7 +120,7 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
         body = await req.json()
         ua = req.headers.get("User-Agent") or ""
         overview.save(body, "home_assistant" if "HomeAssistant" in ua or "aiohttp" in ua.lower() else "app")
-        if overview.controller and ("ev_switch" in body or "chargers" in body):
+        if overview.controller and ("ev_switch" in body or "chargers" in body or "things" in body or "things_dismissed" in body):
             try:
                 await overview.controller.discover()  # the chosen switch is used at once
             except Exception:  # noqa: BLE001
@@ -117,6 +130,18 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
                 overview.engine.run()  # the new choices show at once
             except Exception:  # noqa: BLE001
                 pass
+        return web.json_response({"ok": True})
+
+    async def things_arm(req: web.Request) -> web.Response:
+        """A machine is ready (loaded, door shut): Energy Pilot may start it at the best time - or not after all."""
+        body = await req.json()
+        if not overview.engine or not body.get("id"):
+            return web.json_response({"error": "bad request"}, status=400)
+        overview.engine.things.arm(str(body["id"]), bool(body.get("armed")))
+        try:
+            overview.engine.run()
+        except Exception:  # noqa: BLE001
+            pass
         return web.json_response({"ok": True})
 
     async def ev(req: web.Request) -> web.Response:
@@ -234,6 +259,7 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
     app.router.add_post("/api/control", control_mode)
     app.router.add_post("/api/control/release", control_release)
     app.router.add_post("/api/ev", ev)
+    app.router.add_post("/api/things/arm", things_arm)
     app.router.add_post("/api/mode", mode)
     app.router.add_post("/api/shadow_all", stop_all)
     app.router.add_static("/static", FRONTEND)

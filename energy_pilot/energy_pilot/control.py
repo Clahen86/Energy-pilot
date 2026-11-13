@@ -52,6 +52,7 @@ class Controller:
         self.chosen: dict[str, str] = {}  # the switch picked for a charger in the settings
         self.switch_options: list[dict[str, Any]] = []
         self._devices: dict[str, dict[str, Any]] = {}
+        self.thing_candidates: list[dict[str, Any]] = []  # machines and small batteries worth offering (things.find)
         # Controls that went back to another value after they were set (Victron's defaults, Predbat, an automation):
         # part -> [(time, entity)], the last hour.
         self.drift: dict[str, list[tuple[float, str]]] = {}
@@ -179,6 +180,15 @@ class Controller:
         # control on its device (Tuya Local, ESPHome …) sets the speed. Only charging switches are offered.
         skip = {d for d in [getattr(self, "battery_device", None)] if d}
         self._chosen_switches(entities, by_id, skip)
+        try:
+            from . import things as _things
+
+            taken = {x for t in (self.ov.settings.get("things") or []) for x in (t.get("switch"), t.get("start"), t.get("power")) if x}
+            taken |= {x for x in (self.ov.role("ev_power"), self.ov.role("battery_power"), self.ov.role("house_power")) if x}
+            self.thing_candidates = _things.find(entities, self._devices, self.ha.states, taken,
+                                                 list(self.ov.settings.get("things_dismissed") or []))
+        except Exception:  # noqa: BLE001
+            self.thing_candidates = []
 
         # The extra batteries: the controls of the inverter their level sensor sits on.
         from . import batteries

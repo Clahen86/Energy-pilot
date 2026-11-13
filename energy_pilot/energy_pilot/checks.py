@@ -123,6 +123,16 @@ def run(engine: Any, hours: list, b: Any, plan: Any, end_value: float) -> list[d
                         "fix": {"chargers": list(st.get("chargers") or []) + [new]},
                         "dismiss": {"charger_dismissed": list(st.get("charger_dismissed") or []) + [cand["power"]]}, "goto": "car"})
 
+    # 6b. A machine or a small battery that could run cheaply (Settings → Things that run cheaply) - one at a time.
+    ctl = getattr(engine.ov, "controller", None)
+    for cand in (getattr(ctl, "thing_candidates", None) or [])[:1]:
+        import uuid
+
+        new = {"id": uuid.uuid4().hex[:8], "mode": "sun_cheap"} | {k: v for k, v in cand.items() if k not in ("device", "remote") and v}
+        out.append({"key": "thing_found", "level": "info", "vals": {"name": cand["name"]},
+                    "fix": {"things": list(st.get("things") or []) + [new]},
+                    "dismiss": {"things_dismissed": list(st.get("things_dismissed") or []) + [cand["device"]]}, "goto": "things"})
+
     # 7. Things it can't see.
     if f.get("soc") is None and not st.get("offgrid"):
         out.append({"key": "no_soc", "level": "warn", "vals": {}, "goto": "roles"})

@@ -177,6 +177,8 @@ async def main() -> None:
                 engine.batt_learn.see(f.get("battery"), f.get("soc"), 30 / 3600)
                 engine.grid_peak.see(now, f.get("grid"))
                 engine.house_hist.see(now, f.get("house"))  # the house's own history (used when HA keeps no statistics)
+                if st.get("things"):
+                    await engine.things.tick(ha, st, now, price, sell, f.get("grid"))
                 bp = controller.last.get("battery") if hasattr(controller, "last") else None
                 engine.follow.see(now, controller.mode("battery"), bp, f,
                                   ha.states, controller.entities.get("battery") or [])
