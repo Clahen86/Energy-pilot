@@ -52,6 +52,7 @@ class Controller:
         self.chosen: dict[str, str] = {}  # the switch picked for a charger in the settings
         self.switch_options: list[dict[str, Any]] = []
         self._devices: dict[str, dict[str, Any]] = {}
+        self.registry: list[dict[str, Any]] = []
         self.discovered = False  # the controls looked up at least once since the start
         self.thing_candidates: list[dict[str, Any]] = []  # machines and small batteries worth offering (things.find)
         # Controls that went back to another value after they were set (Victron's defaults, Predbat, an automation):
@@ -180,6 +181,7 @@ class Controller:
         # The switch chosen for a charger (Settings → Car → Control): it starts and stops the car, and a current
         # control on its device (Tuya Local, ESPHome …) sets the speed. Only charging switches are offered.
         skip = {d for d in [getattr(self, "battery_device", None)] if d}
+        self.registry = entities  # for Settings → Runs cheaply (what to pick from)
         self._chosen_switches(entities, by_id, skip)
         try:
             from . import things as _things

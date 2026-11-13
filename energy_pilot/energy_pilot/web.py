@@ -90,27 +90,13 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
                                   "roles_all": {r: overview.role_all(r) for r in ("pv_power", "solar_today", "solar_tomorrow")},
                                   "charger_switches": switches(), "thing_options": thing_options()})
 
-    def thing_options() -> dict[str, list[dict[str, str]]]:
-        """For Settings → Things that run cheaply: the switches (and start buttons) and the power sensors to pick from."""
-        def name(e: str, s: dict) -> str:
-            return str((s.get("attributes") or {}).get("friendly_name") or e)
+    def thing_options() -> dict[str, Any]:
+        """For Settings → Runs cheaply: the switches, start buttons and power sensors that make sense (and all, on request)."""
+        from . import things as _things
 
-        phones = getattr(overview.controller, "phones", set()) if overview.controller else set()
-        sw = [{"entity_id": e, "name": name(e, s)} for e, s in runner.ha.states.items()
-              if e.split(".")[0] in ("switch", "button", "input_boolean") and e not in phones]
-        pw = [{"entity_id": e, "name": name(e, s)} for e, s in runner.ha.states.items()
-              if e.startswith("sensor.") and (s.get("attributes") or {}).get("device_class") == "power" and e not in phones]
-        return {"switches": sorted(sw, key=lambda x: x["name"].lower()), "power": sorted(pw, key=lambda x: x["name"].lower())}
-
-    def switches() -> dict | None:
-        """For Settings → Car → Control: the switches that can start a charger, and what each charger uses now."""
         c = overview.controller
-        if not c:
-            return None
-        parts = ["car", *c.car_parts()]
-        return {"options": c.switch_options, "used": {p: c.auto_switch(p) for p in parts},
-                "onoff": {p: c.onoff(p) for p in parts},
-                "native": {p: c.platforms.get(p) in adapters.CHARGER_SERVICES for p in parts}}
+        used = {e for e in (overview.role(r) for r in ("pv_power", "grid_power", "house_power", "battery_power", "ev_power")) if e}
+        return _things.options(getattr(c, "registry", []) or [], getattr(c, "_devices", {}) or {}, runner.ha.states, used)
 
     async def redetect(_req: web.Request) -> web.Response:
         await overview.async_detect()

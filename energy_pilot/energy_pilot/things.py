@@ -364,3 +364,47 @@ def find(registry: list[dict[str, Any]], devices: dict[str, dict[str, Any]], sta
         elif BATTERY_WORDS.search(text) and switch:
             out.append({"device": dev, "kind": "battery", "name": dname or ids[0], "icon": icon_for(text), "switch": switch, "power": power})
     return sorted(out, key=lambda c: (c["kind"] != "machine", c["name"].lower()))
+
+
+# ---------- what to pick from (Settings) ----------
+
+PLUG_WORDS = re.compile(r"plug|outlet|socket|stik|stikkontakt|relay|relæ|power|strom|steckdose|prise|shelly|tasmota|sonoff|grillplats|tradfri", re.I)
+NOT_SWITCH = re.compile(r"growatt|inverter|varmepumpe|heat.?pump|child|lock|led|light|lys|lamp|sound|beep|mode|indicator|display|buzzer|alarm|update|auto|ai_|schedule|night|eco|"
+                        r"boost|vacation|frost|mop|wash_|dock|camera|motion|privacy", re.I)
+MAIN_POWER = re.compile(r"(^|[._])(pv|ev|l1|l2|l3|net|grid|sol|solar|house|load)([._]|$)|inverter|growatt|battery|batteri|husets|phase|charger|"
+                        r"lader|keba|easee|zappi|wallbox|kamst|meter|måler|maaler|gateway|elmåler", re.I)
+
+
+def options(registry: list[dict[str, Any]], devices: dict[str, dict[str, Any]], states: dict[str, Any], used: set[str]) -> dict[str, Any]:
+    """The switches, start buttons and power sensors that make sense for a thing - and all of them, for 'show all'."""
+    by_id = {e["entity_id"]: e for e in registry}
+    phones = {e["entity_id"] for e in registry if e.get("platform") == "mobile_app"}
+    power_devs = {e.get("device_id") for e in registry if e["entity_id"].startswith("sensor.") and e.get("device_id")
+                  and (states.get(e["entity_id"], {}).get("attributes") or {}).get("device_class") == "power"}
+    smart = {e.get("device_id") for e in registry if e["entity_id"].split(".")[0] in ("lawn_mower", "vacuum", "light", "climate", "media_player")}
+
+    def row(e: str) -> dict[str, Any]:
+        return {"entity_id": e, "name": str((states[e].get("attributes") or {}).get("friendly_name") or e),
+                "device": (by_id.get(e) or {}).get("device_id") or ""}
+
+    sw_all, pw_all, switches, starts, power = [], [], [], [], []
+    for e, s in states.items():
+        if e in phones or e in used:
+            continue
+        domain = e.split(".")[0]
+        dev = (by_id.get(e) or {}).get("device_id")
+        if domain in ("switch", "button", "input_boolean"):
+            sw_all.append(row(e))
+            text = e + " " + str((s.get("attributes") or {}).get("friendly_name") or "").lower().replace(" ", "_")
+            if (domain == "button" and START.search(e) or re.search(r"remote_start", e)) and not re.search(r"stream|p2p|camera|record|doorbell|ringeklokke", text):
+                starts.append(row(e))
+            elif domain == "switch" and not NOT_SWITCH.search(text) and dev not in smart and (dev in power_devs or PLUG_WORDS.search(text)):
+                switches.append(row(e))
+        elif domain == "sensor" and (s.get("attributes") or {}).get("device_class") == "power":
+            pw_all.append(row(e))
+            name = e + " " + str((s.get("attributes") or {}).get("friendly_name") or "").lower().replace(" ", "_")
+            if not MAIN_POWER.search(name) and dev and dev not in smart:
+                power.append(row(e))
+    key = lambda x: x["name"].lower()  # noqa: E731
+    return {"switches": sorted(switches, key=key), "starts": sorted(starts, key=key), "power": sorted(power, key=key),
+            "all_switches": sorted(sw_all, key=key), "all_power": sorted(pw_all, key=key)}
