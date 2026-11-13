@@ -341,3 +341,12 @@ def test_select_option_label_or_value_is_matched_to_the_controls_own():
     assert out[0]["data"]["option"] == "maximise_self_consumption"
     other = c._clamp([{"domain": "select", "service": "select_option", "data": {"entity_id": "select.inverter_work_mode", "option": "self_use"}}])
     assert other[0]["data"]["option"] == "Self Use"
+
+
+def test_identifiers_stay_text():
+    """A GitHub user's Easee charger has device_id "45" - Easee refuses it as a number."""
+    assert adapters.fill({"device_id": "{device_id}", "action_command": "pause"}, {"device_id": "45"}) == \
+        {"device_id": "45", "action_command": "pause"}
+    assert adapters.fill({"serial": "{serial}"}, {"serial": "123456"}) == {"serial": "123456"}
+    assert adapters.fill({"current": "{current}", "target_soc": "{target}"}, {"current": "16", "target": 80}) == \
+        {"current": 16, "target_soc": 80}

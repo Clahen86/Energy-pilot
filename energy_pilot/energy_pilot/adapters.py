@@ -454,6 +454,8 @@ def fill(value: Any, ctx: dict[str, Any]) -> Any:
         return float(value) if "." in value else int(value)  # a plain number in a profile ("0")
     if isinstance(value, str) and "{" in value:
         out = value.format(**{k: (round(v, 2) if isinstance(v, float) else v) for k, v in ctx.items()})
+        if re.fullmatch(r"\{(serial|\w*_?id)\}", value):
+            return str(out)  # an identifier stays text, even "45" (Easee refuses a number as device_id)
         try:
             return float(out) if "." in out else int(out)
         except ValueError:
