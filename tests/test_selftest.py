@@ -105,3 +105,15 @@ def test_a_cut_short_test_puts_the_settings_back_after_a_restart():
         C.asyncio.sleep = orig
     assert inv.states[SEL]["state"] == "Self Use" and inv.states[NUM]["state"] == "3000"
     assert store["selftest"]["saved"] == {}
+
+
+def test_the_real_settings_keep_the_test_and_the_fixes(tmp_path):
+    """The first real test lost its result: the settings file only kept keys it knew."""
+    from energy_pilot.overview import Overview
+
+    o = Overview(SimpleNamespace(states={}, config={}), tmp_path)
+    keys = {"selftest": {"results": [1]}, "profile_fixes": {"battery": {}}, "test_skipped": True, "autofix_log": [1],
+            "autofix_ignore": ["fuse"], "role_scale": {"battery_soc": 100}, "price_scale": 0.01}
+    o.save(keys)
+    again = Overview(SimpleNamespace(states={}, config={}), tmp_path)
+    assert {k: again.settings.get(k) for k in keys} == keys

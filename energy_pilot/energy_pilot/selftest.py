@@ -138,7 +138,11 @@ class SelfTest:
     async def _run(self, parts: list[str]) -> None:
         self.ctl.testing = set(parts)
         try:
-            self._save(saved=self._snapshot(parts))
+            snap = self._snapshot(parts)
+            self._mem = snap  # kept here too: put back even if the file can't hold it
+            self._save(saved=snap)
+            if snap and self.state.get("saved") != snap:
+                raise RuntimeError("the saved settings could not be stored - nothing is tried")
             if "battery" in parts:
                 await self._battery()
             if "car" in parts and not self._stop:
@@ -190,7 +194,7 @@ class SelfTest:
         return out
 
     async def _restore(self) -> None:
-        saved = self.state.get("saved") or {}
+        saved = self.state.get("saved") or getattr(self, "_mem", None) or {}
         calls = []
         for e, v in saved.items():
             d = e.split(".")[0]
@@ -206,6 +210,7 @@ class SelfTest:
                 calls.append({"domain": "switch", "service": f"turn_{v}", "data": {"entity_id": e}})
         result = await self.ctl._send(calls) if calls else "ok"
         left = [c["data"]["entity_id"] for c in calls if self.ctl._matches(c) is False]
+        self._mem = {}
         self._save(saved={}, restored={"result": result, "left": [{"entity": e, "value": saved[e]} for e in left]})
 
     async def _watch(self, check: Any, wait_s: int, base: dict[str, Any]) -> tuple[bool | None, dict[str, Any]]:

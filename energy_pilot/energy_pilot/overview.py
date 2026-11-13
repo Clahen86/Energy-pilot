@@ -158,7 +158,9 @@ class Overview:
                          "quiet_from", "quiet_to", "quiet_battery", "quiet_car",
                          "quiet_battery_from", "quiet_battery_to", "quiet_car_from", "quiet_car_to",
                          "control", "inverter_profile", "custom_profile", "battery_takeover", "ev_now", "ev_target", "ev_sun_target", "ev_trip", "ev_battery_kwh", "charger_phases", "ev_ready", "ev_switch",
-                         "batteries", "battery_dismissed", "chargers", "charger_dismissed", "battery_targets"):
+                         "batteries", "battery_dismissed", "chargers", "charger_dismissed", "battery_targets",
+                         # the self-test and what was mended by itself (selftest.py, autofix.py)
+                         "selftest", "profile_fixes", "test_skipped", "autofix_log", "autofix_ignore", "role_scale", "price_scale"):
                 self.settings[key] = value
         self.file.write_text(json.dumps(self.settings, indent=2))
 
