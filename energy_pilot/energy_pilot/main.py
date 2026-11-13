@@ -92,7 +92,8 @@ async def main() -> None:
         learned = 0.0
         while True:
             try:
-                if asyncio.get_running_loop().time() - learned > 86400 or not engine.profile:
+                own_changed = bool(overview.settings.get("own_history")) != engine.own_at_learn  # turned on: learn from it at once
+                if asyncio.get_running_loop().time() - learned > 86400 or not engine.profile or own_changed:
                     await engine.learn()
                     learned = asyncio.get_running_loop().time()
                 await engine.refresh_sources()
@@ -175,6 +176,7 @@ async def main() -> None:
                 engine._was_plugged = bool(f.get("plug"))
                 engine.batt_learn.see(f.get("battery"), f.get("soc"), 30 / 3600)
                 engine.grid_peak.see(now, f.get("grid"))
+                engine.house_hist.see(now, f.get("house"))  # the house's own history (used when HA keeps no statistics)
                 bp = controller.last.get("battery") if hasattr(controller, "last") else None
                 engine.follow.see(now, controller.mode("battery"), bp, f,
                                   ha.states, controller.entities.get("battery") or [])

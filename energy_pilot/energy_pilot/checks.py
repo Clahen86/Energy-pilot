@@ -126,7 +126,24 @@ def run(engine: Any, hours: list, b: Any, plan: Any, end_value: float) -> list[d
     # 7. Things it can't see.
     if f.get("soc") is None and not st.get("offgrid"):
         out.append({"key": "no_soc", "level": "warn", "vals": {}, "goto": "roles"})
+
+    out += house_history(engine, st)
     return out
+
+
+def house_history(engine: Any, st: dict[str, Any]) -> list[dict[str, Any]]:
+    """The house sensor keeps no statistics in Home Assistant (no state_class): no history to learn the house from.
+    Energy Pilot can keep the history itself - offered with one tap; once on, how many days it has so far."""
+    stats_h = getattr(engine, "house_stats_hours", None)
+    house_e = engine.ov.role("house_power") or engine.ov.role("grid_power")
+    if stats_h is not None and stats_h < 24 * 7 and house_e:
+        attrs = ((engine.ha.states.get(house_e) or {}).get("attributes") or {})
+        if not st.get("own_history") and not attrs.get("state_class"):
+            return [{"key": "house_no_stats", "level": "warn", "vals": {"sensor": attrs.get("friendly_name") or house_e},
+                        "fix": {"own_history": True}, "goto": "roles"}]
+        elif st.get("own_history") and engine.house_hist.days() < 7:
+            return [{"key": "house_own_history", "level": "info", "vals": {"d": str(engine.house_hist.days())}}]
+    return []
 
 
 class FollowWatch:

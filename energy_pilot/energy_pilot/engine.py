@@ -386,6 +386,9 @@ class Engine:
         from .ghost import Ghosts
 
         self.ghosts = Ghosts(self.learning.state)
+        from .househist import HouseHistory
+
+        self.house_hist = HouseHistory(self.learning.state)
         self.batt_learn = BatteryLearner(self.learning.state)
         from .checks import GridPeak
 
@@ -402,6 +405,9 @@ class Engine:
         self.car_size = CarSize(self.learning.state)  # the car's battery, learned from the charger (see evsoc.py)
         self.weather: Any = None
         self.house_model = HouseModel()
+        self.house_stats_hours: int | None = None  # hours of house history Home Assistant's statistics gave (None: not looked yet)
+        self.own_at_learn = False  # the own-history setting when the house model last learned
+        self.house_source = "stats"  # where the house model learned from: "stats" or "own" (Energy Pilot's own history)
         self.solar_factors: dict[int, float] = {}
         self.own_prices: list[dict[str, Any]] = []
         self.service_prices: list[dict[str, Any]] = []  # from an integration's action (Nord Pool, Tibber …)
@@ -647,7 +653,13 @@ class Engine:
             rows = await self._hourly_kw(e, 60)
         elif self.ov.role("grid_power") and self.ov.role_all("pv_power"):
             rows = await self._computed_house(60)  # no house sensor: grid + sun - battery - car, hour by hour
-        if rows:
+        self.house_stats_hours = len(rows)
+        self.own_at_learn = bool(self.ov.settings.get("own_history"))
+        own = self.house_hist.rows() if self.ov.settings.get("own_history") else []
+        self.house_source = "own" if len(own) > len(rows) else "stats"
+        if self.house_source == "own":
+            rows = own  # already without the car
+        elif rows:
             if self.ov.role("house_power") and (ev_e := self.ov.role("ev_power")):
                 from . import evsplit
 
@@ -655,13 +667,13 @@ class Engine:
                 self.ev_detected = evsplit.detect(rows, ev_rows)
                 if self.ev_in_house():
                     rows = evsplit.subtract(rows, list((await self._all_cars(60)).items()))  # the cars are planned on their own
-            if rows:
-                self.profile = house_profile(rows, now)
-                self.profile_at = now
-                try:
-                    self.house_model.train(rows, self.weather if self.weather and self.weather.hours else None, now)
-                except Exception:  # noqa: BLE001 - the profile is used instead
-                    _LOGGER.warning("House model failed", exc_info=True)
+        if rows:
+            self.profile = house_profile(rows, now)
+            self.profile_at = now
+            try:
+                self.house_model.train(rows, self.weather if self.weather and self.weather.hours else None, now)
+            except Exception:  # noqa: BLE001 - the profile is used instead
+                _LOGGER.warning("House model failed", exc_info=True)
         if self.ov.role_all("pv_power") and self.weather and self.weather.hours:
             pv = await self._hourly_sum(self.ov.role_all("pv_power"), 60)
             self.solar_factors = learn_solar(pv, self.weather)
