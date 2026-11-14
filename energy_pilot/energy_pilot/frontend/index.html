@@ -1008,7 +1008,7 @@ function home() {
     d.house_today != null ? metric("house", T.houseToday, num(d.house_today, 1), "kWh",
       d.house_other != null ? `${d.house_other_appdaemon ? (T.xYourAD) : (T.xOtherForecast)}: ${num(d.house_other, 1)}` : (T.xExpected)) : "",
   ].join("");
-  return `${testNudge()}<div class="card flow fade" id="flowcard">${sceneSvg()}<div id="flow">${flowSvg(f)}</div></div>
+  return `${updateCard()}${testNudge()}<div class="card flow fade" id="flowcard">${sceneSvg()}<div id="flow">${flowSvg(f)}</div></div>
     ${dec ? `<div class="card status fade" style="--c:${DECCOL[dec.kind]}"><div class="dotc">${icon(DECICON[dec.kind])}</div>
       <div><h2>${esc(dec.text)}</h2><p>${esc(reason)}</p>${dec.engine && dec.saving > 0 ? `<p class="save">${T.saves.replace("{x}", kr(dec.saving))}</p>` : ""}
       ${dec.other ? `<p class="muted">${esc(T.otherSays.replace("{x}", dec.other.text.toLowerCase()))}</p>` : ""}
@@ -1417,6 +1417,29 @@ const T_ANS = {
 };
 const TA = T_ANS[L] || T_ANS.en;
 let answers = null, ansState = null;  // ansState: null | "sending" | "sent" | "fail"
+// The update card: small fixes once 7 days behind, new features after 2 days, at once when an error you had is fixed.
+const UPD = { da: { t: "Ny version {v}", fx: "Fejlen, du havde, er rettet:", go: "Opdater", later: "Senere", imp: "Vigtig rettelse", now: "Du har {v}" },
+  en: { t: "New version {v}", fx: "The error you had is fixed:", go: "Update", later: "Later", imp: "Important fix", now: "You have {v}" },
+  de: { t: "Neue Version {v}", fx: "Dein Fehler ist behoben:", go: "Aktualisieren", later: "Später", imp: "Wichtige Korrektur", now: "Du hast {v}" },
+  nl: { t: "Nieuwe versie {v}", fx: "Je fout is opgelost:", go: "Bijwerken", later: "Later", imp: "Belangrijke oplossing", now: "Je hebt {v}" },
+  fr: { t: "Nouvelle version {v}", fx: "Votre erreur est corrigée :", go: "Mettre à jour", later: "Plus tard", imp: "Correction importante", now: "Vous avez {v}" },
+  sv: { t: "Ny version {v}", fx: "Felet du hade är rättat:", go: "Uppdatera", later: "Senare", imp: "Viktig rättning", now: "Du har {v}" },
+  nb: { t: "Ny versjon {v}", fx: "Feilen du hadde er rettet:", go: "Oppdater", later: "Senere", imp: "Viktig retting", now: "Du har {v}" } };
+function updateCard() {
+  const u = answers?.update; if (!u || !u.due) return "";
+  const k = UPD[L] || UPD.en, esc2 = (x) => String(x ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  return `<div class="card fade" style="display:flex;gap:12px;align-items:flex-start"><div style="font-size:22px;line-height:1">${u.fixed?.length ? "✅" : "⬆️"}</div>
+    <div style="flex:1;min-width:0"><b>${esc2(k.t.replace("{v}", u.version))}</b>${u.important ? ` <span style="font-size:11px;font-weight:700;color:#fff;background:#e5484d;border-radius:99px;padding:2px 8px">${k.imp}</span>` : ""}
+    ${u.fixed?.length ? `<div style="font-size:13px;color:var(--ok);margin-top:4px">${k.fx} ${u.fixed.map((f) => esc2(f.error)).join(" · ")}</div>` : ""}
+    ${u.note ? `<div class="muted" style="font-size:13px;margin-top:2px">${esc2(u.note)}</div>` : ""}<div class="muted" style="font-size:13px">${esc2(k.now.replace("{v}", u.current))}</div></div>
+    <div style="display:flex;flex-direction:column;gap:6px"><a href="https://my.home-assistant.io/redirect/supervisor_addon/?addon=55081cca_energy_pilot" target="_blank" rel="noopener" style="text-decoration:none;text-align:center;font-size:13px;font-weight:700;color:#fff;background:var(--accent);border-radius:99px;padding:7px 14px">${k.go}</a>
+    ${u.fixed?.length ? "" : `<button class="link" data-updlater style="font-size:12px">${k.later}</button>`}</div></div>`;
+}
+document.addEventListener("click", async (e) => {
+  if (!e.target.closest("[data-updlater]")) return;
+  const r = await fetch("api/replies", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ snooze: true }) }).then((x) => x.json()).catch(() => null);
+  if (r && answers) { answers.update = r.update; lastHtml = ""; render(); }
+});
 async function loadAns() { answers = await fetch("api/replies").then((r) => r.json()).catch(() => null); }
 function answerBlock() {
   const reps = (answers?.reports || []).filter((r) => r.msgs?.length || r.id === repInfo?.last?.id);

@@ -140,6 +140,7 @@ async function schema(env) {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS error_issues (hash TEXT PRIMARY KEY, issue INTEGER)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS seen (app TEXT, install TEXT, day TEXT, country TEXT, PRIMARY KEY (app, install, day))"),
   ]);
+  try { await env.DB.prepare("ALTER TABLE seen ADD COLUMN version TEXT").run(); } catch { /* there already */ }
   schemaReady = true;
 }
 
@@ -405,11 +406,41 @@ async function comments(env, issue) {
 
 // ---------- 4. How many use the apps ----------
 // One row per app, installation and day, with the country Cloudflare sees for the connection - nothing the app sends.
-async function markSeen(env, request, app, install) {
+async function markSeen(env, request, app, install, version = null) {
   try {
-    await env.DB.prepare("INSERT OR IGNORE INTO seen (app, install, day, country) VALUES (?1, ?2, ?3, ?4)")
-      .bind(app, install, new Date().toISOString().slice(0, 10), String(request.cf?.country || "?").slice(0, 2)).run();
+    await env.DB.prepare("INSERT INTO seen (app, install, day, country, version) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT(app, install, day) DO UPDATE SET version = COALESCE(excluded.version, seen.version)")
+      .bind(app, install, new Date().toISOString().slice(0, 10), String(request.cf?.country || "?").slice(0, 2), version ? String(version).slice(0, 20) : null).run();
   } catch { /* counting never stops an answer */ }
+}
+// The newest release of each app on GitHub (looked up at most every 6 hours): its version, the first line of the
+// release text (shown on the update card), and whether it says "Important:".
+const REPOS = { "energy-pilot": "Energy-pilot", madplan: "ha-madplan", "replace-device": "ha-replace-device", "update-guard": "ha-update-guard",
+  "database-doctor": "ha-database-doctor", "heat-pilot": "heat-pilot", "hus-chat": "ha-hus-chat", "appliance-watch": "appliance-watch" };
+async function latestOf(env, app) {
+  const repo = REPOS[app]; if (!repo) return null;
+  const k = "latest:" + app, row = await env.DB.prepare("SELECT v FROM meta WHERE k = ?1").bind(k).first(), old = row ? safe(row.v) : null;
+  if (old && Date.now() - (old.t || 0) < 6 * 36e5) return old.l;
+  const h = { accept: "application/vnd.github+json", "user-agent": "energy-pilot-reports", ...(env.GITHUB_TOKEN ? { authorization: `Bearer ${env.GITHUB_TOKEN}` } : {}) };
+  let l = null;
+  try {
+    const r = await fetch(`https://api.github.com/repos/Clahen86/${repo}/releases/latest`, { headers: h });
+    if (r.ok) {
+      const j = await r.json(), body = String(j.body || "");
+      // the first point of the release text (a point can run over several lines)
+      const raw = body.split("\n").map((x) => x.trim()), head = /^(#+\s*)?(new|fixes|improvements|nyt|rettelser|forbedringer)$/i;
+      let i = raw.findIndex((x) => x && !head.test(x)), line = i < 0 ? "" : raw[i].replace(/^[-*>#\s]+/, "");
+      while (i >= 0 && raw[i + 1] && !/^[-*]/.test(raw[i + 1]) && !head.test(raw[i + 1])) line += " " + raw[++i];
+      line = line.replace(/`/g, "");
+      l = { version: String(j.tag_name || "").replace(/^v/, ""), note: line.slice(0, 160), important: /important:/i.test(body), date: String(j.published_at || "").slice(0, 10), repo: `Clahen86/${repo}` };
+    } else {
+      const t = await fetch(`https://api.github.com/repos/Clahen86/${repo}/tags?per_page=1`, { headers: h });
+      const tag = t.ok ? (await t.json())[0] : null;
+      if (tag) l = { version: String(tag.name).replace(/^v/, ""), note: "", important: false, date: "", repo: `Clahen86/${repo}` };
+    }
+  } catch { /* GitHub away: keep the old one */ }
+  l = l || old?.l || null;
+  await env.DB.prepare("INSERT OR REPLACE INTO meta (k, v) VALUES (?1, ?2)").bind(k, JSON.stringify({ t: Date.now(), l })).run();
+  return l;
 }
 const flag = (cc) => /^[A-Z]{2}$/.test(cc) ? String.fromCodePoint(...[...cc].map((c) => 127397 + c.charCodeAt(0))) : "🌐";
 async function stats(url, env) {
@@ -420,12 +451,17 @@ async function stats(url, env) {
   const per = await q("SELECT app, COUNT(DISTINCT CASE WHEN day >= ?1 THEN install END) AS w, COUNT(DISTINCT install) AS m FROM seen WHERE day >= ?2 GROUP BY app", ago(7), ago(30));
   const fresh = await q("SELECT app, COUNT(*) AS n FROM (SELECT app, install, MIN(day) AS f FROM seen GROUP BY app, install) WHERE f >= ?1 GROUP BY app", ago(7));
   const lands = await q("SELECT app, country, COUNT(DISTINCT install) AS n FROM seen WHERE day >= ?1 GROUP BY app, country ORDER BY n DESC", ago(30));
+  const vers = await q("SELECT app, version, COUNT(DISTINCT install) AS n FROM seen WHERE day >= ?1 AND version IS NOT NULL GROUP BY app, version ORDER BY n DESC", ago(7));
+  const latestRows = await q("SELECT k, v FROM meta WHERE k LIKE 'latest:%'");
+  const newest = Object.fromEntries(latestRows.map((r) => [r.k.slice(7), safe(r.v)?.l?.version]));
   const since = (await q("SELECT MIN(day) AS d FROM seen"))[0]?.d || "–";
   const esc = (t) => String(t).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
   const rows = Object.keys(APPS).map((k) => {
     const p = per.find((r) => r.app === k) || { w: 0, m: 0 }, f = (fresh.find((r) => r.app === k) || { n: 0 }).n;
     const l = lands.filter((r) => r.app === k).map((r) => `<span>${flag(r.country)} ${esc(r.country)} <b>${r.n}</b></span>`).join("");
-    return `<tr><td><b>${esc(APPS[k].name)}</b>${l ? `<div class="cm c">${l}</div>` : ""}</td><td class="n">${p.w}</td><td class="n">${p.m}</td><td class="n">${f ? "+" + f : "–"}</td><td class="c">${l || "–"}</td></tr>`;
+    const vs = vers.filter((r) => r.app === k), onNew = vs.filter((r) => r.version === newest[k]).reduce((a, r) => a + r.n, 0), tot = vs.reduce((a, r) => a + r.n, 0);
+    const vline = vs.length ? `<div class="vs">${vs.map((r) => `<span class="${r.version === newest[k] ? "ok" : ""}">${esc(r.version)} <b>${r.n}</b></span>`).join("")}${newest[k] ? ` · <em>${Math.round(100 * onNew / tot)} % on ${esc(newest[k])}</em>` : ""}</div>` : (newest[k] ? `<div class="vs"><em>newest ${esc(newest[k])}</em></div>` : "");
+    return `<tr><td><b>${esc(APPS[k].name)}</b>${vline}${l ? `<div class="cm c">${l}</div>` : ""}</td><td class="n">${p.w}</td><td class="n">${p.m}</td><td class="n">${f ? "+" + f : "–"}</td><td class="c">${l || "–"}</td></tr>`;
   }).join("");
   const all = (await q("SELECT COUNT(DISTINCT install) AS n FROM seen WHERE day >= ?1", ago(30)))[0]?.n || 0;
   // the rest, from what the apps already send: Energy Pilot's and Madplan's daily lines, self-tests, app errors, help
@@ -469,6 +505,7 @@ h2{font-size:18px;margin:30px 0 10px}h3{font-size:14px;color:#9aa3b8;margin:16px
 .row i{font-style:normal;color:#9aa3b8;font-size:12px;min-width:120px}.ch{background:#232945;border-radius:99px;padding:4px 10px;font-size:13px}.ch b{color:#ffd34d}
 .sm{font-size:12.5px;color:#c9cfe0}a{color:#8fb8ff}
 .cm{display:none;margin-top:4px;font-size:12.5px}
+.vs{margin-top:4px;font-size:12px;color:#9aa3b8}.vs span{display:inline-block;margin-right:8px}.vs span.ok{color:#5be3a0}.vs em{font-style:normal}
 @media(max-width:600px){.apps th:nth-child(5),.apps td:nth-child(5){display:none}.cm{display:block}}</style></head><body><main>
 <h1>Who uses the apps</h1><p>Installations that asked in – one per app and day, with the country of the connection. Counting since ${esc(since)}. Installations that turned sharing off aren't counted.</p>
 <div class="big">${all}<span style="font-size:15px;color:#9aa3b8;font-weight:500"> installations in the last 30 days</span></div>
@@ -483,7 +520,7 @@ async function replies(request, env, app) {
   const install = String(b?.install || "").slice(0, 40);
   if (!/^[a-f0-9-]{16,40}$/.test(install)) return json({ error: "install" }, 400);
   await schema(env);
-  await markSeen(env, request, app, install);
+  await markSeen(env, request, app, install, b?.version);
   await backfill(env);
   const since = new Date(Date.now() - REPLY_DAYS * 864e5).toISOString().slice(0, 10);
   const rows = (await env.DB.prepare("SELECT id, issue, day FROM reports WHERE install = ?1 AND app = ?2 AND day >= ?3 ORDER BY day DESC LIMIT 5")
@@ -508,9 +545,11 @@ async function replies(request, env, app) {
   for (const e of errs) {
     const d = await comments(env, e.issue);
     const msgs = (d?.list || []).filter((x) => !x.body.startsWith(USER_MARK)).map((x) => ({ from: "dev", text: x.body.slice(0, 4000), t: x.t }));
-    if (msgs.length) notes.push({ error: String(e.text).slice(0, 120), state: d.state, closed_at: d.closed_at, msgs });
+    if (msgs.length) notes.push({ error: String(e.text).slice(0, 120), hash: e.hash, state: d.state, closed_at: d.closed_at, msgs });
   }
-  return json({ reports: out, notes });
+  let latest = null;
+  try { latest = await latestOf(env, app); } catch { /* answers come first */ }
+  return json({ reports: out, notes, latest });
 }
 
 async function userReply(request, env, app) {

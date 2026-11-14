@@ -230,11 +230,83 @@ class Telemetry:
         if r is not None:
             self.ov.save({"replies_hidden": {**(self.ov.settings.get("replies_hidden") or {}), key: self._newest(r)}})
 
+    # ---------- updates (the same rules as in the other apps) ----------
+    @staticmethod
+    def _ver(v: Any) -> tuple[int, ...]:
+        import re
+
+        return tuple(int(x) for x in re.findall(r"\d+", str(v or ""))[:3]) or (0,)
+
+    def _fixed(self) -> list[dict[str, str]]:
+        """Errors this installation had that are fixed in a newer version than it runs ("Fixed in x.y.z")."""
+        import re
+
+        cur, out = self._ver(os.environ.get("BUILD_VERSION", "dev")), []
+        for n in (self.ov.settings.get("replies") or {}).get("notes") or []:
+            for m in n.get("msgs") or []:
+                hit = re.search(r"fixed in v?(\d+\.\d+(?:\.\d+)?)", str(m.get("text") or ""), re.I)
+                if hit and self._ver(hit.group(1)) > cur:
+                    out.append({"error": str(n.get("error") or "")[:120], "version": hit.group(1), "key": str(n.get("hash") or n.get("error"))[:60]})
+                    break
+        return out
+
+    def update(self) -> dict[str, Any] | None:
+        """The update card: small fixes once 7 days behind, new features after 2 days, at once when an error it had is fixed."""
+        from datetime import datetime
+
+        lt, cur = self.ov.settings.get("latest") or {}, os.environ.get("BUILD_VERSION", "dev")
+        lv, fixed = str(lt.get("version") or ""), self._fixed()
+        if not lv or cur == "dev" or self._ver(lv) <= self._ver(cur):
+            return None
+        now, since = time.time(), dict(self.ov.settings.get("behind") or {})
+        if lv not in since:
+            try:
+                since[lv] = datetime.fromisoformat(str(lt.get("date"))).timestamp() if lt.get("date") else now
+            except ValueError:
+                since[lv] = now
+            self.ov.save({"behind": {lv: since[lv]}})
+        big = self._ver(lv)[:2] > self._ver(cur)[:2]
+        sn = self.ov.settings.get("update_snooze") or {}
+        snoozed = now < float(sn.get("until") or 0) and not (big and self._ver(lv)[:2] > self._ver(sn.get("version"))[:2])
+        due = bool(fixed) or (now - float(since[lv]) >= (2 if big else 7) * DAY_S and not snoozed)
+        return {"version": lv, "current": cur, "note": str(lt.get("note") or ""), "important": bool(lt.get("important")),
+                "repo": str(lt.get("repo") or ""), "big": big, "fixed": fixed, "due": due}
+
+    async def _update_notices(self) -> None:
+        """A notification in Home Assistant (never on the phone): an error it had is fixed, or 30 days behind something important."""
+        u = self.update()
+        if not u:
+            return
+        da = str(self.ov.settings.get("language") or self.ov.ha.config.get("language") or "en")[:2] == "da"
+        told, msgs = dict(self.ov.settings.get("update_told") or {}), []
+        for f in u["fixed"]:
+            if told.get("fixed:" + f["key"]) != f["version"]:
+                told["fixed:" + f["key"]] = f["version"]
+                msgs.append(("energy_pilot_fixed", f"✅ Fejlen, du havde i Energipilot, er rettet i version {f['version']}. Opdater i add-on-butikken." if da
+                             else f"✅ The error you had in Energy Pilot is fixed in version {f['version']}. Update in the add-on store."))
+        if u["important"] and time.time() - float((self.ov.settings.get("behind") or {}).get(u["version"]) or time.time()) >= 30 * DAY_S and told.get("important") != u["version"]:
+            told["important"] = u["version"]
+            msgs.append(("energy_pilot_update", f"⬆️ Energipilot {u['version']} har en vigtig rettelse. Opdater i add-on-butikken." if da
+                         else f"⬆️ Energy Pilot {u['version']} has an important fix. Update in the add-on store."))
+        if msgs:
+            self.ov.save({"update_told": told})
+        for nid, text in msgs:
+            try:
+                await self.ov.ha.call_service("persistent_notification", "create", {"notification_id": nid, "title": "Energy Pilot", "message": text})
+            except Exception:  # noqa: BLE001
+                pass
+
+    def snooze(self) -> None:
+        u = self.update()
+        self.ov.save({"update_snooze": {"until": time.time() + 7 * DAY_S, "version": (u or {}).get("version") or os.environ.get("BUILD_VERSION", "dev")}})
+
     async def fetch_answers(self, notify: bool = True) -> dict[str, Any]:
-        d = await self._ask("/replies", {})
+        d = await self._ask("/replies", {"version": os.environ.get("BUILD_VERSION", "dev")})
         if not d or "reports" not in d:
             return self.ov.settings.get("replies") or {}
         got = {"reports": d["reports"][:5], "notes": (d.get("notes") or [])[:5], "t": time.time()}
+        if isinstance(d.get("latest"), dict) and d["latest"].get("version"):
+            self.ov.save({"latest": d["latest"]})
         newest = max((str(m.get("t") or "") for r in got["reports"] + got["notes"] for m in r.get("msgs") or [] if m.get("from") == "dev"), default="")
         seen = self.ov.settings.get("replies_seen")
         seen = seen if isinstance(seen, str) else ""
@@ -246,6 +318,8 @@ class Telemetry:
                     "notification_id": "energy_pilot_answer", "title": "Energy Pilot", "message": NEW_ANSWER.get(lang, NEW_ANSWER["en"])})
             except Exception:  # noqa: BLE001
                 pass
+        if notify:
+            await self._update_notices()
         return got
 
     async def write_back(self, report_id: str, text: str) -> dict[str, Any]:

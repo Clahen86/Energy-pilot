@@ -400,11 +400,14 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
         got = overview.settings.get("replies") or {}
         if tel.answer_every() and __import__("time").time() - float(got.get("t") or 0) > 300:
             await tel.fetch_answers()
-        return web.json_response(tel.visible(mark_seen=True))
+        return web.json_response({**tel.visible(mark_seen=True), "update": tel.update()})
 
     async def replies_post(req: web.Request) -> web.Response:
         tel = getattr(overview, "telemetry", None)
         b = await req.json() if req.can_read_body else {}
+        if tel and b.get("snooze"):  # "Later" on the update card: hidden for 7 days
+            tel.snooze()
+            return web.json_response({"ok": True, "update": tel.update()})
         if tel and b.get("hide"):  # "Close" on an answer - it comes back with a new comment
             tel.hide(str(b["hide"]))
             return web.json_response({"ok": True, "replies": tel.visible()})
