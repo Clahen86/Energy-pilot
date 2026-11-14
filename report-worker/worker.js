@@ -433,10 +433,10 @@ async function saveSetup(env, app, install, su) {
   } catch { /* never in the way of the answers */ }
 }
 async function setupSection(env, ago) {
-  const rows = (await env.DB.prepare("SELECT app, data FROM setups WHERE day >= ?1").bind(ago(30)).all()).results || [];
+  const rows = (await env.DB.prepare("SELECT app, install, data FROM setups WHERE day >= ?1").bind(ago(30)).all()).results || [];
   const esc = (t) => String(t ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
   const byApp = {};
-  for (const r of rows) { const d = safe(r.data); if (d) (byApp[r.app] = byApp[r.app] || []).push(d); }
+  for (const r of rows) { const d = safe(r.data); if (d) { d._install = r.install; (byApp[r.app] = byApp[r.app] || []).push(d); } }
   const vals = (e) => e.options?.join(" · ") || e.hvac_modes?.join(" · ") || e.preset_modes?.join(" · ") || e.operation_list?.join(" · ")
     || [e.min != null || e.max != null ? `${e.min ?? "?"}–${e.max ?? "?"}` : "", e.min_temp != null ? `${e.min_temp}–${e.max_temp}°` : "", e.unit_of_measurement || ""].filter(Boolean).join(" ") || (e.state ? "on/off" : "");
   const kindTag = (k, known) => `<span class="tag ${({ inverter: "inv", battery: "bat", charger: "chg" })[k] || "oth"}${known ? "" : " unk"}">${esc(String(k || "device").toUpperCase())}${known ? "" : " ?"}</span>`;
@@ -445,8 +445,8 @@ async function setupSection(env, ago) {
     const list = byApp[app]; if (!list?.length) continue;
     const groups = {};
     for (const s of list) for (const d of s.devices || []) {
-      const key = `${d.kind}|${d.platform || "?"}`, g = groups[key] = groups[key] || { kind: d.kind, platform: d.platform || "?", n: 0, profiles: {}, models: {}, ok: 0, bad: 0, errors: {}, ents: {}, full: 0 };
-      g.n++; if (s.full) g.full++;
+      const key = `${d.kind}|${d.platform || "?"}`, g = groups[key] = groups[key] || { kind: d.kind, platform: d.platform || "?", n: 0, inst: new Set(), fullInst: new Set(), profiles: {}, models: {}, ok: 0, bad: 0, errors: {}, ents: {}, full: 0 };
+      g.n++; g.inst.add(s._install); if (s.full) g.fullInst.add(s._install); g.full = g.fullInst.size;
       if (d.profile) g.profiles[d.profile] = (g.profiles[d.profile] || 0) + 1;
       const m = [d.manufacturer, d.model].filter(Boolean).join(" "); if (m) g.models[m] = (g.models[m] || 0) + 1;
       if (d.ok === true) g.ok++; else if (d.ok === false) g.bad++;
@@ -463,11 +463,11 @@ async function setupSection(env, ago) {
       for (const [k, v] of Object.entries(s.counts || {})) if (typeof v === "number") { counts[k] = counts[k] || []; counts[k].push(v); }
     }
     const chips = (o) => Object.entries(o).sort((a, b) => b[1] - a[1]).map(([k, n]) => `<span class="ch">${esc(k)} <b>${n}</b></span>`).join("") || "–";
-    const cards = Object.values(groups).sort((a, b) => b.n - a.n).map((g) => {
+    const cards = Object.values(groups).sort((a, b) => b.inst.size - a.inst.size || b.n - a.n).map((g) => {
       const known = Object.keys(g.profiles).length > 0 || !["inverter", "battery", "charger"].includes(g.kind);
       const ents = Object.values(g.ents).sort((a, b) => b.n - a.n).slice(0, 30);
       const open = !known || g.bad > 0 || Object.keys(g.errors).length > 0;
-      return `<div class="card dv"><details ${open ? "open" : ""}><summary>${kindTag(g.kind, known)}<span class="nm">${esc(g.platform)}</span><span class="cnt">${g.n} install${g.n === 1 ? "" : "s"}${Object.keys(g.profiles).length ? ` · profile ${esc(Object.keys(g.profiles).join(", "))}` : ["inverter", "battery", "charger"].includes(g.kind) ? " · no profile" : ""}${g.full ? ` ⭐${g.full}` : ""}</span></summary>
+      return `<div class="card dv"><details ${open ? "open" : ""}><summary>${kindTag(g.kind, known)}<span class="nm">${esc(g.platform)}</span><span class="cnt">${g.inst.size} install${g.inst.size === 1 ? "" : "s"}${g.n > g.inst.size ? ` · ${g.n} devices` : ""}${Object.keys(g.profiles).length ? ` · profile ${esc(Object.keys(g.profiles).join(", "))}` : ["inverter", "battery", "charger"].includes(g.kind) ? " · no profile" : ""}${g.full ? ` ⭐${g.full}` : ""}</span></summary>
 <div class="sum">${g.ok + g.bad ? `<span>Control <b class="${g.bad ? "bad" : "ok"}">${g.ok}/${g.ok + g.bad} ok</b></span>` : ""}${Object.keys(g.models).length ? `<span>${chips(g.models)}</span>` : ""}</div>
 ${ents.length ? `<table class="et"><tr><th>Name</th><th>Used for</th><th>Values</th><th class="n">Seen</th></tr>${ents.map((e) => `<tr><td><code>${esc(e.name)}</code>${e.key ? `<div class="sm">${esc(e.key)}</div>` : ""}</td><td>${e.use ? `<span class="role">${esc(e.use)}</span>` : ""}</td><td class="vals">${esc(vals(e))}</td><td class="n">${e.n}</td></tr>`).join("")}</table>` : ""}
 ${Object.entries(g.errors).map(([e, n]) => `<div class="err">❌ <b>${esc(e)}</b> · ${n}</div>`).join("")}</details></div>`;

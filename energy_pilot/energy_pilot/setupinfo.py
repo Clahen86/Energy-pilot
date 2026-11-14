@@ -12,11 +12,20 @@ BATTERY_ROLES = ("battery_power", "battery_soc", "pv_power", "grid_power", "hous
 CAR_ROLES = ("ev_power", "ev_plug", "ev_soc")
 
 
+_TRANSLIT = str.maketrans({"æ": "ae", "ø": "o", "å": "a", "ä": "a", "ö": "o", "ü": "u", "ß": "ss", "œ": "oe", "ð": "d", "þ": "th", "ł": "l", "đ": "d"})
+
+
 def _slug(text: str) -> str:
-    return re.sub(r"_+", "_", re.sub(r"[^a-z0-9]+", "_", str(text).lower())).strip("_")
+    """Like Home Assistant's own slugify: "Badeværelse" -> "badevaerelse", "Küche" -> "kuche" - so the names match the
+    entity ids Home Assistant made."""
+    import unicodedata
+
+    t = str(text).lower().translate(_TRANSLIT)
+    t = unicodedata.normalize("NFKD", t).encode("ascii", "ignore").decode()
+    return re.sub(r"_+", "_", re.sub(r"[^a-z0-9]+", "_", t)).strip("_")
 
 
-def personal_words(ov: Any, devices: dict[str, Any], areas: list[str]) -> list[tuple[str, str]]:
+def personal_words(ov: Any, devices: dict[str, Any], areas: list[str], floors: list[str] | None = None) -> list[tuple[str, str]]:
     """The user's own names in this Home Assistant - people, rooms, zones, the home and devices - as slugs with what
     they become. Longest first, so "lilly_room" goes before "lilly"."""
     words: dict[str, str] = {}
@@ -39,8 +48,7 @@ def personal_words(ov: Any, devices: dict[str, Any], areas: list[str]) -> list[t
             add(nm, "<zone>")
             add(e.split(".", 1)[1], "<zone>")
     add(ov.ha.config.get("location_name"), "<home>")
-    for a in areas:
-        add(a, "<area>")
+    # Rooms and floors stay in the names (the developer wants them - they help the profiles); people do not.
     for d in devices.values():
         if d.get("name_by_user"):
             add(d["name_by_user"], "<device>")

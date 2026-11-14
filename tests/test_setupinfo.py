@@ -12,10 +12,10 @@ DEV = {"d1": {"name": "Claus inverter", "manufacturer": "Deye", "model": "SUN-10
 
 
 def test_mask():
-    words = [("living_room", "<area>"), ("lounge", "<area>"), ("claus", "<person>")]
+    words = [("claus", "<person>")]
     assert setupinfo.mask("select.claus_inverter_export_limiter", REG, DEV, words) == "select.<device>_export_limiter"
     assert setupinfo.mask("number.x_y", REG, DEV, words) == "number.x_y"  # nothing personal: the whole name
-    assert setupinfo.mask("number.lounge_thing", REG, DEV, words) == "number.<area>_thing"
+    assert setupinfo.mask("number.lounge_thing", REG, DEV, words) == "number.lounge_thing"  # rooms stay
     assert setupinfo.mask("sensor.claus_keba_power", REG, DEV, words) == "sensor.<person>_keba_power"
 
 
@@ -23,7 +23,8 @@ def test_personal_words():
     ov = SimpleNamespace(ha=SimpleNamespace(states={"person.lilly": {"attributes": {"friendly_name": "Lilly Hansen"}},
                                                     "zone.work": {"attributes": {"friendly_name": "Work"}}}, config={"location_name": "Motelvej"}))
     w = dict(setupinfo.personal_words(ov, {"d": {"name_by_user": "Keba garage"}}, ["Living room"]))
-    assert w["lilly"] == "<person>" and w["hansen"] == "<person>" and w["living_room"] == "<area>"
+    assert dict(setupinfo.personal_words(SimpleNamespace(ha=SimpleNamespace(states={"person.s": {"attributes": {"friendly_name": "Søren"}}}, config={})), {}, []))["soren"] == "<person>"
+    assert w["lilly"] == "<person>" and w["hansen"] == "<person>" and "living_room" not in w
     assert w["motelvej"] == "<home>" and w["keba_garage"] == "<device>" and w["work"] == "<zone>"
 
 
