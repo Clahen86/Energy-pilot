@@ -9,9 +9,9 @@ Sent:
 - when something was mended by itself: only which kind (fuse, kW, price …).
 - when the app itself fails: the kind of error and where in the code - once a day per error.
 
-Answers to "Get help" (not part of learning together - only for a report the user sent): every hour, for 60 days
-after a report, the developer's comments are fetched with this installation's own id and shown in the app; a new one
-also gives a notification in Home Assistant.
+Answers from the developer: every hour, for 60 days after a "Get help" report or an app error was sent, the
+developer's comments on it are fetched with this installation's own id and shown in the app (Settings); a new one
+also gives a notification in Home Assistant - once per comment.
 
 Fetched once a day: fixes that 3 installations with the same profile found - used here too (see control._fixed),
 and how many have tested each profile.
@@ -33,13 +33,13 @@ _LOGGER = logging.getLogger(__name__)
 DAY_S = 24 * 3600
 REPLY_DAYS = 60
 NEW_ANSWER = {
-    "da": "💬 Udvikleren har svaret på din besked. Åbn Energipilot → Indstillinger for at læse og svare.",
-    "en": "💬 The developer answered your message. Open Energy Pilot → Settings to read it and write back.",
-    "de": "💬 Der Entwickler hat auf deine Nachricht geantwortet. Öffne Energy Pilot → Einstellungen zum Lesen und Antworten.",
-    "fr": "💬 Le développeur a répondu à votre message. Ouvrez Energy Pilot → Réglages pour le lire et répondre.",
-    "nl": "💬 De ontwikkelaar heeft je bericht beantwoord. Open Energy Pilot → Instellingen om het te lezen en te reageren.",
-    "sv": "💬 Utvecklaren har svarat på ditt meddelande. Öppna Energy Pilot → Inställningar för att läsa och svara.",
-    "nb": "💬 Utvikleren har svart på meldingen din. Åpne Energy Pilot → Innstillinger for å lese og svare.",
+    "da": "💬 Ny besked fra udvikleren. Åbn Energipilot → Indstillinger for at læse den.",
+    "en": "💬 New message from the developer. Open Energy Pilot → Settings to read it.",
+    "de": "💬 Neue Nachricht vom Entwickler. Öffne Energy Pilot → Einstellungen, um sie zu lesen.",
+    "fr": "💬 Nouveau message du développeur. Ouvrez Energy Pilot → Réglages pour le lire.",
+    "nl": "💬 Nieuw bericht van de ontwikkelaar. Open Energy Pilot → Instellingen om het te lezen.",
+    "sv": "💬 Nytt meddelande från utvecklaren. Öppna Energy Pilot → Inställningar för att läsa det.",
+    "nb": "💬 Ny melding fra utvikleren. Åpne Energy Pilot → Innstillinger for å lese den.",
 }
 
 
@@ -153,6 +153,8 @@ class Telemetry:
         if self._errors_sent.get(h) == today:
             return
         self._errors_sent[h] = today
+        if self.on:
+            self.ov.save({"last_error": time.time()})  # a note from the developer may come back (fetch_answers)
         self.event("error", {"hash": h, "text": text, "version": os.environ.get("BUILD_VERSION", "dev")})
 
     # ---------- answers to "Get help" ----------
@@ -169,18 +171,19 @@ class Telemetry:
             return None
 
     def wants_answers(self) -> bool:
-        last = self.ov.settings.get("last_report") or {}
-        return bool(self.url) and time.time() - float(last.get("t") or 0) < REPLY_DAYS * DAY_S
+        last = max(float((self.ov.settings.get("last_report") or {}).get("t") or 0), float(self.ov.settings.get("last_error") or 0))
+        return bool(self.url) and time.time() - last < REPLY_DAYS * DAY_S
 
     async def fetch_answers(self, notify: bool = True) -> dict[str, Any]:
         d = await self._ask("/replies", {})
         if not d or "reports" not in d:
             return self.ov.settings.get("replies") or {}
-        got = {"reports": d["reports"][:5], "t": time.time()}
-        dev = sum(1 for r in got["reports"] for m in r.get("msgs") or [] if m.get("from") == "dev")
-        seen = int(self.ov.settings.get("replies_seen") or 0)
-        self.ov.save({"replies": got, "replies_seen": dev})
-        if notify and dev > seen:
+        got = {"reports": d["reports"][:5], "notes": (d.get("notes") or [])[:5], "t": time.time()}
+        newest = max((str(m.get("t") or "") for r in got["reports"] + got["notes"] for m in r.get("msgs") or [] if m.get("from") == "dev"), default="")
+        seen = self.ov.settings.get("replies_seen")
+        seen = seen if isinstance(seen, str) else ""
+        self.ov.save({"replies": got, "replies_seen": max(newest, seen)})
+        if notify and newest > seen:  # once per new comment - closing the issue changes nothing
             lang = str(self.ov.settings.get("language") or self.ov.ha.config.get("language") or "en")[:2]
             try:
                 await self.ov.ha.call_service("persistent_notification", "create", {
@@ -207,7 +210,9 @@ class Telemetry:
                         self.ov.save({"telemetry_sent": now})
                 if self.url and now - float((self.ov.settings.get("community") or {}).get("t") or 0) >= DAY_S:
                     await self.fetch_fixes()
-                if self.wants_answers() and now - float((self.ov.settings.get("replies") or {}).get("t") or 0) >= 3600:
+                # hourly while a report or an error is fresh; otherwise once a day (an error sent by an older version)
+                every = 3600 if self.wants_answers() else DAY_S if self.on else None
+                if every and now - float((self.ov.settings.get("replies") or {}).get("t") or 0) >= every:
                     await self.fetch_answers()
             except Exception:  # noqa: BLE001
                 _LOGGER.debug("Telemetry round failed", exc_info=True)

@@ -11,6 +11,8 @@
 // 4. Answers (POST /replies, POST /reply): write a comment on a help report's issue and the app that sent it shows
 //    it to the user (it asks every hour with its own install id - nobody else can read it). The user can write back
 //    from the app: that becomes a new comment on the same issue, and a closed issue opens again.
+//    A comment on an app-error issue reaches every installation that had that error (no writing back - nobody in
+//    particular sent it).
 //
 // Settings (Workers -> your worker -> Settings):
 //   GITHUB_TOKEN  (secret) fine-grained token: Contents + Issues read/write on the private repository only
@@ -119,6 +121,7 @@ async function schema(env) {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS m_nomatch (term TEXT, install TEXT, day TEXT, PRIMARY KEY (term, install))"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS reports (id TEXT PRIMARY KEY, app TEXT, issue INTEGER, install TEXT, day TEXT)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT)"),
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS error_issues (hash TEXT PRIMARY KEY, issue INTEGER)"),
   ]);
   schemaReady = true;
 }
@@ -174,8 +177,9 @@ async function telemetry(request, env, app = "energy-pilot") {
       .bind(hash, day, s(b.version, 20), text).run();
     await db.prepare("INSERT OR IGNORE INTO error_installs (hash, install) VALUES (?1, ?2)").bind(hash, install).run();
     if (!known) {
-      await github(env)("issues", "POST", { title: `⚡ Energy Pilot: 🐞 ${s(b.text, 80)}`, labels: ["energy-pilot", "app-error"],
-        body: `First seen ${day} in version ${s(b.version, 20)}.\n\n\`\`\`\n${text}\n\`\`\`` });
+      const r = await github(env)("issues", "POST", { title: `⚡ Energy Pilot: 🐞 ${s(b.text, 80)}`, labels: ["energy-pilot", "app-error"],
+        body: `First seen ${day} in version ${s(b.version, 20)}.\n\n\`\`\`\n${text}\n\`\`\`\n\n_Comments here reach every installation that had this error._` });
+      await rememberIssue(db, hash, r);
     }
   } else if (b.kind === "autofix") {
     await db.prepare("INSERT OR IGNORE INTO autofix (key, install, day) VALUES (?1, ?2, ?3)").bind(s(b.key, 40), install, day).run();
@@ -261,8 +265,8 @@ async function madplan(env, b, install, day, s) {
     await db.prepare("INSERT INTO errors (hash, first_seen, last_seen, count, version, text) VALUES (?1, ?2, ?2, 1, ?3, ?4) ON CONFLICT(hash) DO UPDATE SET last_seen = ?2, count = count + 1, version = ?3")
       .bind(hash, day, s(b.version, 20), text).run();
     await db.prepare("INSERT OR IGNORE INTO error_installs (hash, install) VALUES (?1, ?2)").bind(hash, install).run();
-    if (!known) await gh("issues", "POST", { title: `🍽️ Madplan: 🐞 ${s(b.text, 80)}`, labels: ["madplan", "app-error"],
-      body: `First seen ${day} in version ${s(b.version, 20)}.\n\n\`\`\`\n${text}\n\`\`\`` });
+    if (!known) await rememberIssue(db, hash, await gh("issues", "POST", { title: `🍽️ Madplan: 🐞 ${s(b.text, 80)}`, labels: ["madplan", "app-error"],
+      body: `First seen ${day} in version ${s(b.version, 20)}.\n\n\`\`\`\n${text}\n\`\`\`\n\n_Comments here reach every installation that had this error._` }));
   } else {
     return json({ error: "kind" }, 400);
   }
@@ -328,6 +332,41 @@ async function backfill(env) {
   await db.prepare("INSERT OR REPLACE INTO meta (k, v) VALUES ('backfill', ?1)").bind(new Date().toISOString()).run();
 }
 
+async function rememberIssue(db, hash, r) {
+  if (!r?.ok) return;
+  const i = await r.json();
+  if (i.number) await db.prepare("INSERT OR REPLACE INTO error_issues (hash, issue) VALUES (?1, ?2)").bind(hash, i.number).run();
+}
+
+// App-error issues made before their numbers were kept: matched once by their title (the error's first 80 letters).
+async function backfillErrors(env) {
+  const db = env.DB, gh = github(env);
+  if (await db.prepare("SELECT v FROM meta WHERE k = 'backfill_errors'").first()) return;
+  const r = await gh("issues?state=all&per_page=100&labels=app-error", "GET");
+  if (!r.ok) return;
+  for (const i of await r.json()) {
+    const m = String(i.title).match(/^(⚡ Energy Pilot|🍽️ Madplan): 🐞 (.*)$/u);
+    if (!m) continue;
+    const madplan = m[1].includes("Madplan");
+    const e = await db.prepare(`SELECT hash FROM errors WHERE substr(text, 1, 80) = ?1 AND hash ${madplan ? "LIKE" : "NOT LIKE"} 'm%'`).bind(m[2]).first();
+    if (e) await db.prepare("INSERT OR IGNORE INTO error_issues (hash, issue) VALUES (?1, ?2)").bind(e.hash, i.number).run();
+  }
+  await db.prepare("INSERT OR REPLACE INTO meta (k, v) VALUES ('backfill_errors', ?1)").bind(new Date().toISOString()).run();
+}
+
+// An issue's comments, kept 5 minutes so many installations asking don't each go to GitHub.
+async function comments(env, issue) {
+  const key = new Request(`https://ep-cache.local/comments/${issue}`);
+  const hit = await caches.default.match(key);
+  if (hit) return hit.json();
+  const gh = github(env);
+  const [i, c] = await Promise.all([gh(`issues/${issue}`, "GET"), gh(`issues/${issue}/comments?per_page=50`, "GET")]);
+  if (!i.ok || !c.ok) return null;
+  const d = { state: (await i.json()).state, list: (await c.json()).map((x) => ({ body: String(x.body || ""), t: x.created_at })) };
+  await caches.default.put(key, new Response(JSON.stringify(d), { headers: { "cache-control": "max-age=300" } }));
+  return d;
+}
+
 async function replies(request, env, app) {
   if (!env.DB) return json({ reports: [] });
   if (!(await allowed(request, "q", 30))) return json({ error: "rate" }, 429);
@@ -339,18 +378,29 @@ async function replies(request, env, app) {
   const since = new Date(Date.now() - REPLY_DAYS * 864e5).toISOString().slice(0, 10);
   const rows = (await env.DB.prepare("SELECT id, issue, day FROM reports WHERE install = ?1 AND app = ?2 AND day >= ?3 ORDER BY day DESC LIMIT 5")
     .bind(install, app, since).all()).results || [];
-  const gh = github(env), out = [];
+  const out = [];
   for (const row of rows) {
-    const [i, c] = await Promise.all([gh(`issues/${row.issue}`, "GET"), gh(`issues/${row.issue}/comments?per_page=50`, "GET")]);
-    if (!i.ok || !c.ok) continue;
-    const msgs = (await c.json()).map((x) => {
-      const mine = String(x.body || "").startsWith(USER_MARK);
-      const text = mine ? x.body.slice(USER_MARK.length).trim().replace(/^> ?/gm, "") : String(x.body || "");
-      return { from: mine ? "you" : "dev", text: text.slice(0, 4000), t: x.created_at };
+    const d = await comments(env, row.issue);
+    if (!d) continue;
+    const msgs = d.list.map((x) => {
+      const mine = x.body.startsWith(USER_MARK);
+      const text = mine ? x.body.slice(USER_MARK.length).trim().replace(/^> ?/gm, "") : x.body;
+      return { from: mine ? "you" : "dev", text: text.slice(0, 4000), t: x.t };
     });
-    out.push({ id: row.id, day: row.day, state: (await i.json()).state, msgs });
+    out.push({ id: row.id, day: row.day, state: d.state, msgs });
   }
-  return json({ reports: out });
+  // Notes on app errors this installation had (the last 60 days).
+  await backfillErrors(env);
+  const errs = (await env.DB.prepare(`SELECT x.hash, x.issue, e.text FROM error_installs ei JOIN error_issues x ON x.hash = ei.hash JOIN errors e ON e.hash = ei.hash
+      WHERE ei.install = ?1 AND e.last_seen >= ?2 AND ei.hash ${app === "madplan" ? "LIKE" : "NOT LIKE"} 'm%' ORDER BY e.last_seen DESC LIMIT 5`)
+    .bind(install, since).all()).results || [];
+  const notes = [];
+  for (const e of errs) {
+    const d = await comments(env, e.issue);
+    const msgs = (d?.list || []).filter((x) => !x.body.startsWith(USER_MARK)).map((x) => ({ from: "dev", text: x.body.slice(0, 4000), t: x.t }));
+    if (msgs.length) notes.push({ error: String(e.text).slice(0, 120), msgs });
+  }
+  return json({ reports: out, notes });
 }
 
 async function userReply(request, env, app) {
