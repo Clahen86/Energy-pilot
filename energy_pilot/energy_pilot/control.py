@@ -731,19 +731,24 @@ class Controller:
         """Send the calls - only those whose value isn't already set (some links, like Solarman, drop writes now
         and then, so fewer writes is safer), or all of them when forced. A value that didn't stick is sent once more."""
         todo = list(calls) if force else [c for c in calls if not self._matches(c)]
+        self.last_send_error = None
         for attempt in range(2):
+            raised = []
             for c in todo:
                 try:
                     await self.ha.call_service(c["domain"], c["service"], dict(c["data"]))
                     await asyncio.sleep(1.5)  # inverters take one change at a time
                 except Exception as err:  # noqa: BLE001
                     _LOGGER.warning("Control call %s.%s failed: %s", c["domain"], c["service"], err)
+                    self.last_send_error = f"{c['domain']}.{c['service']}: {err}"[:300]
+                    raised.append(c)
                     if attempt:
                         return f"failed: {c['domain']}.{c['service']}"
             if not todo:
                 return "ok"
             await asyncio.sleep(15)
-            todo = [c for c in calls if self._matches(c) is False]
+            # A call that raised is tried once more - a service can't be read back, so it would otherwise count as done.
+            todo = [c for c in calls if self._matches(c) is False or c in raised]
             if not todo:
                 return "ok"
             if not attempt:

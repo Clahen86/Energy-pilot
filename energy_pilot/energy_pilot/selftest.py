@@ -27,7 +27,7 @@ TEST_W = 1000  # at most this much power during a test
 SAMPLE_S = 10  # how often the battery is looked at
 STEADY_S = 30  # right this long in a row …
 MIN_S = 60  # … and never sooner than this after a command
-WAIT_S = {"local": 120, "cloud": 300, "car": 180}
+WAIT_S = {"local": 120, "cloud": 600, "car": 180}  # a cloud (AlphaESS, Tesla, EcoFlow) can take several minutes
 CLOUD = {"alphaess", "tesla", "ecoflow"}
 MAX_TRIES = 5  # other options tried for one step
 # Options never tried: they could take the house off the grid, wipe settings or stop the inverter.
@@ -258,9 +258,12 @@ class SelfTest:
                 self._result(part, intent, "fixed", entity=e, option_from=c["data"]["option"], option_to=opt)
                 return
         why = "rejected" if sent != "ok" else ("no_reaction" if ok is False else "no_data")
+        err = getattr(self.ctl, "last_send_error", None) if sent != "ok" else None
+        if err and re.search(r"no existing period|create it in the alpha", err, re.I):
+            why = "alpha_period"  # AlphaESS changes only a period that exists: one has to be made in its app first
         rejected = [{"entity": c["data"].get("entity_id"), "value": c["data"].get("option", c["data"].get("value"))}
                     for c in calls if self.ctl._matches(c) is False]
-        self._result(part, intent, "failed", why=why, rejected=rejected,
+        self._result(part, intent, "failed", why=why, rejected=rejected, error=err,
                      seen={k: f.get(k) for k in ("battery", "grid", "ev") if f})
 
     def _alternatives(self, calls: list[dict[str, Any]]) -> list[tuple[dict[str, Any], str]]:

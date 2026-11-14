@@ -35,3 +35,22 @@ def test_skips_set_values_and_resends_dropped(monkeypatch):
              {"domain": "select", "service": "select_option", "data": {"entity_id": "select.mode", "option": "Passive"}}]
     assert run(ha, calls) == "ok"
     assert ha.calls == ["select.mode", "select.mode"]
+
+
+def test_a_service_that_raises_is_not_ok(monkeypatch):
+    """AlphaESS' service raising an error must not count as done (a service can't be read back)."""
+    async def fast(_):
+        return None
+    monkeypatch.setattr(C.asyncio, "sleep", fast)
+
+    class Raising:
+        states, n = {}, 0
+
+        async def call_service(self, domain, service, data):
+            Raising.n += 1
+            raise RuntimeError("Cannot add charge period 1 to a weekly schedule with no existing period")
+    ctl = C.Controller.__new__(C.Controller)
+    ctl.ha = Raising()
+    res = asyncio.run(ctl._send([{"domain": "alphaess", "service": "setbatterycharge", "data": {"serial": "x"}}], force=True))
+    assert res.startswith("failed") and Raising.n == 2
+    assert "no existing period" in ctl.last_send_error
