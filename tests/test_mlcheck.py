@@ -2,6 +2,8 @@
 
 import builtins
 
+import pytest
+
 from energy_pilot import mlcheck
 
 
@@ -22,5 +24,6 @@ def test_old_cpu_turns_ml_off(monkeypatch):
 
 
 def test_works_normally(monkeypatch):
+    pytest.importorskip("sklearn")  # CI doesn't install it
     monkeypatch.setattr(mlcheck, "_state", {})
     assert mlcheck.ok() is True and mlcheck.why() is None
