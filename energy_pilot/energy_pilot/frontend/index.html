@@ -1407,23 +1407,23 @@ const T_REP = {
   nb: { send: "Få hjelp", sub: "Skriv hva som er galt, og legg gjerne ved bilder. Utvikleren får også testresultatet og diagnosen.", attach: "📷 Legg ved bilder", max3: "Maks 3 bilder", whatq: "Hva blir sendt?", rm: "Fjern", what: "Dette blir sendt:", items: ["Testresultatet", "Versjon, merke og land", "Innstillingene dine (uten passord)", "Målinger fra batteri, sol, nett og bil", "Planen og hva Energy Pilot sendte"], no: "Ingen navn, adresser, passord eller posisjon. Bare utvikleren ser det.", note: "Hva er galt? (valgfritt)", ok: "Send", cancel: "Avbryt", sending: "Sender…", sent: "Sendt ✓ – nummeret ditt er {id}.", fail: "Kunne ikke sende nå. Bruk knappene under." },
 };
 const T_ANS = {
-  da: { title: "Svar fra udvikleren", note: "Besked fra udvikleren om en fejl", dev: "Udvikleren", you: "Dig", wait: "Venter på svar – du får besked i Home Assistant.", ph: "Skriv tilbage…", send: "Send svar", sent: "Sendt ✓", fail: "Kunne ikke sende lige nu." },
-  en: { title: "Answer from the developer", note: "Message from the developer about an error", dev: "Developer", you: "You", wait: "Waiting for an answer – you'll get a notification in Home Assistant.", ph: "Write back…", send: "Send reply", sent: "Sent ✓", fail: "Couldn't send right now." },
-  de: { title: "Antwort vom Entwickler", note: "Nachricht vom Entwickler zu einem Fehler", dev: "Entwickler", you: "Du", wait: "Warte auf Antwort – du bekommst eine Meldung in Home Assistant.", ph: "Antworten…", send: "Antwort senden", sent: "Gesendet ✓", fail: "Senden geht gerade nicht." },
-  fr: { title: "Réponse du développeur", note: "Message du développeur sur une erreur", dev: "Développeur", you: "Vous", wait: "En attente de réponse – vous serez prévenu dans Home Assistant.", ph: "Répondre…", send: "Envoyer", sent: "Envoyé ✓", fail: "Envoi impossible pour l'instant." },
-  nl: { title: "Antwoord van de ontwikkelaar", note: "Bericht van de ontwikkelaar over een fout", dev: "Ontwikkelaar", you: "Jij", wait: "Wacht op antwoord – je krijgt een melding in Home Assistant.", ph: "Reageren…", send: "Reactie versturen", sent: "Verstuurd ✓", fail: "Versturen lukt nu niet." },
-  sv: { title: "Svar från utvecklaren", note: "Meddelande från utvecklaren om ett fel", dev: "Utvecklaren", you: "Du", wait: "Väntar på svar – du får ett meddelande i Home Assistant.", ph: "Svara…", send: "Skicka svar", sent: "Skickat ✓", fail: "Kunde inte skicka just nu." },
-  nb: { title: "Svar fra utvikleren", note: "Melding fra utvikleren om en feil", dev: "Utvikleren", you: "Du", wait: "Venter på svar – du får beskjed i Home Assistant.", ph: "Svar…", send: "Send svar", sent: "Sendt ✓", fail: "Kunne ikke sende nå." },
+  da: { close: "Luk", title: "Svar fra udvikleren", note: "Besked fra udvikleren om en fejl", dev: "Udvikleren", you: "Dig", wait: "Venter på svar – du får besked i Home Assistant.", ph: "Skriv tilbage…", send: "Send svar", sent: "Sendt ✓", fail: "Kunne ikke sende lige nu." },
+  en: { close: "Close", title: "Answer from the developer", note: "Message from the developer about an error", dev: "Developer", you: "You", wait: "Waiting for an answer – you'll get a notification in Home Assistant.", ph: "Write back…", send: "Send reply", sent: "Sent ✓", fail: "Couldn't send right now." },
+  de: { close: "Schließen", title: "Antwort vom Entwickler", note: "Nachricht vom Entwickler zu einem Fehler", dev: "Entwickler", you: "Du", wait: "Warte auf Antwort – du bekommst eine Meldung in Home Assistant.", ph: "Antworten…", send: "Antwort senden", sent: "Gesendet ✓", fail: "Senden geht gerade nicht." },
+  fr: { close: "Fermer", title: "Réponse du développeur", note: "Message du développeur sur une erreur", dev: "Développeur", you: "Vous", wait: "En attente de réponse – vous serez prévenu dans Home Assistant.", ph: "Répondre…", send: "Envoyer", sent: "Envoyé ✓", fail: "Envoi impossible pour l'instant." },
+  nl: { close: "Sluiten", title: "Antwoord van de ontwikkelaar", note: "Bericht van de ontwikkelaar over een fout", dev: "Ontwikkelaar", you: "Jij", wait: "Wacht op antwoord – je krijgt een melding in Home Assistant.", ph: "Reageren…", send: "Reactie versturen", sent: "Verstuurd ✓", fail: "Versturen lukt nu niet." },
+  sv: { close: "Stäng", title: "Svar från utvecklaren", note: "Meddelande från utvecklaren om ett fel", dev: "Utvecklaren", you: "Du", wait: "Väntar på svar – du får ett meddelande i Home Assistant.", ph: "Svara…", send: "Skicka svar", sent: "Skickat ✓", fail: "Kunde inte skicka just nu." },
+  nb: { close: "Lukk", title: "Svar fra utvikleren", note: "Melding fra utvikleren om en feil", dev: "Utvikleren", you: "Du", wait: "Venter på svar – du får beskjed i Home Assistant.", ph: "Svar…", send: "Send svar", sent: "Sendt ✓", fail: "Kunne ikke sende nå." },
 };
 const TA = T_ANS[L] || T_ANS.en;
 let answers = null, ansState = null;  // ansState: null | "sending" | "sent" | "fail"
 async function loadAns() { answers = await fetch("api/replies").then((r) => r.json()).catch(() => null); }
 function answerBlock() {
   const reps = (answers?.reports || []).filter((r) => r.msgs?.length || r.id === repInfo?.last?.id);
-  const notes = (answers?.notes || []).filter((x) => x.msgs?.length).map((x) => `<div class="reppanel" style="margin-bottom:10px"><b>💬 ${TA.note}</b>
+  const notes = (answers?.notes || []).filter((x) => x.msgs?.length).map((x) => `<div class="reppanel" style="margin-bottom:10px"><button class="link" style="float:right" data-ans-hide="${esc(x.key)}">${TA.close}</button><b>💬 ${TA.note}</b>
     ${x.msgs.map((m) => `<div class="stnote" style="margin-top:8px"><span style="white-space:pre-wrap">${esc(m.text)}</span></div>`).join("")}</div>`).join("");
   if (!reps.length) return notes;
-  return notes + reps.map((r, n) => `<div class="reppanel" style="margin-bottom:10px"><b>💬 ${TA.title}</b> <span class="muted">${esc(r.id)}</span>
+  return notes + reps.map((r, n) => `<div class="reppanel" style="margin-bottom:10px">${r.key && r.msgs?.length ? `<button class="link" style="float:right" data-ans-hide="${esc(r.key)}">${TA.close}</button>` : ""}<b>💬 ${TA.title}</b> <span class="muted">${esc(r.id)}</span>
     ${r.msgs?.length ? r.msgs.map((m) => `<div class="stnote" style="margin-top:8px;${m.from === "you" ? "opacity:.8" : ""}"><b>${m.from === "you" ? TA.you : TA.dev}:</b> <span style="white-space:pre-wrap">${esc(m.text)}</span></div>`).join("") : `<div class="muted" style="margin-top:6px">${TA.wait}</div>`}
     ${r.msgs?.some((m) => m.from === "dev") && n === 0 ? `<textarea id="ansnote" placeholder="${esc(TA.ph)}" style="margin-top:8px"></textarea>
     <button class="stgo" data-ans-send="${esc(r.id)}" ${ansState === "sending" ? "disabled" : ""}>${ansState === "sending" ? TR.sending : TA.send}</button>
@@ -1465,6 +1465,10 @@ function reportBlock(fallbackUrl) {
 }
 function wireRep() {
   $("[data-rep-open]")?.addEventListener("click", () => { repState = "open"; render(); });
+  document.querySelectorAll("[data-ans-hide]").forEach((b) => b.onclick = async () => {
+    const r = await api("/api/replies", { hide: b.dataset.ansHide }).catch(() => null);
+    if (r?.replies) { answers = r.replies; render(); }
+  });
   $("[data-ans-send]")?.addEventListener("click", async (e) => {
     const text = $("#ansnote")?.value.trim();
     if (!text) return;

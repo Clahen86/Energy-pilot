@@ -362,7 +362,8 @@ async function comments(env, issue) {
   const gh = github(env);
   const [i, c] = await Promise.all([gh(`issues/${issue}`, "GET"), gh(`issues/${issue}/comments?per_page=50`, "GET")]);
   if (!i.ok || !c.ok) return null;
-  const d = { state: (await i.json()).state, list: (await c.json()).map((x) => ({ body: String(x.body || ""), t: x.created_at })) };
+  const info = await i.json();
+  const d = { state: info.state, closed_at: info.closed_at || null, list: (await c.json()).map((x) => ({ body: String(x.body || ""), t: x.created_at })) };
   await caches.default.put(key, new Response(JSON.stringify(d), { headers: { "cache-control": "max-age=300" } }));
   return d;
 }
@@ -387,7 +388,7 @@ async function replies(request, env, app) {
       const text = mine ? x.body.slice(USER_MARK.length).trim().replace(/^> ?/gm, "") : x.body;
       return { from: mine ? "you" : "dev", text: text.slice(0, 4000), t: x.t };
     });
-    out.push({ id: row.id, day: row.day, state: d.state, msgs });
+    out.push({ id: row.id, day: row.day, state: d.state, closed_at: d.closed_at, msgs });
   }
   // Notes on app errors this installation had (the last 60 days).
   await backfillErrors(env);
@@ -398,7 +399,7 @@ async function replies(request, env, app) {
   for (const e of errs) {
     const d = await comments(env, e.issue);
     const msgs = (d?.list || []).filter((x) => !x.body.startsWith(USER_MARK)).map((x) => ({ from: "dev", text: x.body.slice(0, 4000), t: x.t }));
-    if (msgs.length) notes.push({ error: String(e.text).slice(0, 120), msgs });
+    if (msgs.length) notes.push({ error: String(e.text).slice(0, 120), state: d.state, closed_at: d.closed_at, msgs });
   }
   return json({ reports: out, notes });
 }

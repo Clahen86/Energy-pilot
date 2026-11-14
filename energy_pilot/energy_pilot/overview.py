@@ -162,7 +162,7 @@ class Overview:
                          # the self-test and what was mended by itself (selftest.py, autofix.py)
                          "selftest", "profile_fixes", "test_skipped", "autofix_log", "autofix_ignore", "role_scale", "price_scale", "last_report",
                          # learning together (telemetry.py)
-                         "install_id", "first_seen", "first_control", "share_anonymous", "telemetry_sent", "community", "community_ignore", "replies", "replies_seen", "last_error"):
+                         "install_id", "first_seen", "first_control", "share_anonymous", "telemetry_sent", "community", "community_ignore", "replies", "replies_seen", "last_error", "replies_hidden", "replies_shown"):
                 self.settings[key] = value
         self.file.write_text(json.dumps(self.settings, indent=2))
 

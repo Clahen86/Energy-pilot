@@ -32,6 +32,9 @@ import uuid
 _LOGGER = logging.getLogger(__name__)
 DAY_S = 24 * 3600
 REPLY_DAYS = 60
+FRESH_S = 7 * DAY_S  # asked every 10 minutes the first week after a report or an error, then hourly
+CLOSED_KEEP_S = 7 * DAY_S  # an answer on a closed issue goes away a week after it was closed
+SEEN_KEEP_S = 14 * DAY_S  # ... or two weeks after it was seen - a new comment brings it back
 NEW_ANSWER = {
     "da": "💬 Ny besked fra udvikleren. Åbn Energipilot → Indstillinger for at læse den.",
     "en": "💬 New message from the developer. Open Energy Pilot → Settings to read it.",
@@ -170,9 +173,60 @@ class Telemetry:
         except Exception:  # noqa: BLE001
             return None
 
+    def _last_sent(self) -> float:
+        return max(float((self.ov.settings.get("last_report") or {}).get("t") or 0), float(self.ov.settings.get("last_error") or 0))
+
     def wants_answers(self) -> bool:
-        last = max(float((self.ov.settings.get("last_report") or {}).get("t") or 0), float(self.ov.settings.get("last_error") or 0))
-        return bool(self.url) and time.time() - last < REPLY_DAYS * DAY_S
+        return bool(self.url) and time.time() - self._last_sent() < REPLY_DAYS * DAY_S
+
+    def answer_every(self) -> float | None:
+        if self.wants_answers():
+            return 600 if time.time() - self._last_sent() < FRESH_S else 3600
+        return DAY_S if self.on else None  # an error sent by an older version
+
+    @staticmethod
+    def _key(r: dict[str, Any]) -> str:
+        return str(r.get("id") or "e:" + hashlib.sha1(str(r.get("error")).encode()).hexdigest()[:12])
+
+    @staticmethod
+    def _newest(r: dict[str, Any]) -> str:
+        return max((str(m.get("t") or "") for m in r.get("msgs") or [] if m.get("from") == "dev"), default="")
+
+    def visible(self, mark_seen: bool = False) -> dict[str, Any]:
+        """What the page shows: not the ones closed with "Close", a closed issue after a week, or one seen two weeks ago."""
+        from datetime import datetime
+
+        got = self.ov.settings.get("replies") or {}
+        hidden = dict(self.ov.settings.get("replies_hidden") or {})
+        shown = dict(self.ov.settings.get("replies_shown") or {})
+        now, out, changed = time.time(), {"reports": [], "notes": [], "t": got.get("t")}, False
+        for kind in ("reports", "notes"):
+            for r in got.get(kind) or []:
+                k, new = self._key(r), self._newest(r)
+                if k in hidden and hidden[k] >= new:
+                    continue
+                closed = r.get("closed_at")
+                try:
+                    if closed and datetime.fromisoformat(str(closed).replace("Z", "+00:00")).timestamp() < now - CLOSED_KEEP_S and new <= closed:
+                        continue
+                except ValueError:
+                    pass
+                sh = shown.get(k)
+                if new and sh and sh.get("t") == new and now - float(sh.get("at") or 0) > SEEN_KEEP_S:
+                    continue
+                if mark_seen and new and (not sh or sh.get("t") != new):
+                    shown[k], changed = {"t": new, "at": now}, True
+                out[kind].append({**r, "key": k})
+        if changed:
+            keep = {self._key(r) for kind in ("reports", "notes") for r in got.get(kind) or []}
+            self.ov.save({"replies_shown": {k: v for k, v in shown.items() if k in keep}})
+        return out
+
+    def hide(self, key: str) -> None:
+        got = self.ov.settings.get("replies") or {}
+        r = next((x for kind in ("reports", "notes") for x in got.get(kind) or [] if self._key(x) == key), None)
+        if r is not None:
+            self.ov.save({"replies_hidden": {**(self.ov.settings.get("replies_hidden") or {}), key: self._newest(r)}})
 
     async def fetch_answers(self, notify: bool = True) -> dict[str, Any]:
         d = await self._ask("/replies", {})
@@ -210,8 +264,8 @@ class Telemetry:
                         self.ov.save({"telemetry_sent": now})
                 if self.url and now - float((self.ov.settings.get("community") or {}).get("t") or 0) >= DAY_S:
                     await self.fetch_fixes()
-                # hourly while a report or an error is fresh; otherwise once a day (an error sent by an older version)
-                every = 3600 if self.wants_answers() else DAY_S if self.on else None
+                # every 10 minutes the first week after a report or an error, hourly until 60 days, then once a day
+                every = self.answer_every()
                 if every and now - float((self.ov.settings.get("replies") or {}).get("t") or 0) >= every:
                     await self.fetch_answers()
             except Exception:  # noqa: BLE001

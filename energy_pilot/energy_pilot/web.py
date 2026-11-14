@@ -370,18 +370,23 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
     async def replies_get(req: web.Request) -> web.Response:
         """Answers to "Get help": the stored ones, fetched fresh when the page asks and they're older than 5 minutes."""
         tel = getattr(overview, "telemetry", None)
+        if not tel:
+            return web.json_response({})
         got = overview.settings.get("replies") or {}
-        if tel and tel.wants_answers() and __import__("time").time() - float(got.get("t") or 0) > 300:
-            got = await tel.fetch_answers()
-        return web.json_response(got)
+        if tel.answer_every() and __import__("time").time() - float(got.get("t") or 0) > 300:
+            await tel.fetch_answers()
+        return web.json_response(tel.visible(mark_seen=True))
 
     async def replies_post(req: web.Request) -> web.Response:
         tel = getattr(overview, "telemetry", None)
         b = await req.json() if req.can_read_body else {}
+        if tel and b.get("hide"):  # "Close" on an answer - it comes back with a new comment
+            tel.hide(str(b["hide"]))
+            return web.json_response({"ok": True, "replies": tel.visible()})
         if not tel or not str(b.get("text") or "").strip():
             return web.json_response({"ok": False, "error": "content"}, status=400)
         res = await tel.write_back(b.get("id"), b.get("text"))
-        return web.json_response({**res, "replies": overview.settings.get("replies") or {}}, status=200 if res.get("ok") else 502)
+        return web.json_response({**res, "replies": tel.visible()}, status=200 if res.get("ok") else 502)
 
     app.router.add_post("/api/report", report)
     app.router.add_get("/api/replies", replies_get)
