@@ -262,6 +262,31 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
         return web.json_response(out, dumps=lambda o: __import__("json").dumps(o, default=str, indent=1),
                                  headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
+    async def suggest(req: web.Request) -> web.Response:
+        """"Fits your home too" (suggest.js): what HA has, for the shared suggestions - and what was shown or closed."""
+        if req.method == "POST":
+            b = await req.json() if req.can_read_body else {}
+            overview.settings["suggest"] = b.get("value") if isinstance(b.get("value"), dict) else None
+            overview.save({})
+            return web.json_response({"ok": True})
+        ha = runner.ha
+        try:
+            reg = (await ha.command({"type": "config/entity_registry/list_for_display"})).get("entities", [])
+        except Exception:  # noqa: BLE001 - suggestions just get fewer
+            reg = []
+        keep = {"mobile_app", "zha", "mqtt", "zwave_js", "deconz"}
+        cfg = ha.config or {}
+        return web.json_response({
+            "language": cfg.get("language") or "en",
+            "config": {"components": cfg.get("components") or [], "country": cfg.get("country")},
+            "states": {e: {"attributes": {k: v for k, v in (st.get("attributes") or {}).items() if k in ("device_class", "friendly_name")}}
+                       for e, st in ha.states.items()},
+            "entities": {r["ei"]: {"entity_id": r["ei"], "platform": r.get("pl"), "device_id": r.get("di")} for r in reg if r.get("pl") in keep},
+            "store": overview.settings.get("suggest"),
+        })
+
+    app.router.add_get("/api/suggest", suggest)
+    app.router.add_post("/api/suggest", suggest)
     app.router.add_get("/api/diagnostics", diagnostics)
     app.router.add_get("/", index)
     app.router.add_get("/api/status", status)

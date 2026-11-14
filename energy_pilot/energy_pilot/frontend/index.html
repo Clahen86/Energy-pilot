@@ -1816,7 +1816,25 @@ function settingsView() {
     ${Object.entries(GROUPS).map(([g, roles]) => `<div class="group"><h4>${icon(GROUPICON[g])}${T.groups[g]}</h4>${roleRows(roles)}</div>`).join("")}
     <button class="ghostbtn" data-setup>${T.runGuide}</button></div>
     <div class="card fade"><div class="ctl" style="margin-bottom:10px"><div class="t"><b>${TF.share}</b><span>${TF.shareH}</span></div><button class="toggle ${(settings.settings.share_anonymous ?? true) ? "on" : ""}" data-bool="share_anonymous" data-def="true"></button></div><button class="stgo" style="margin:0 0 10px" data-gotest>✓ ${(T_TEST[L] || T_TEST.en).testBtn}</button>${repInfo?.available ? reportBlock(null) : `<a class="ghostbtn" style="display:block;text-align:center;text-decoration:none;margin-top:0" href="api/diagnostics" download>${T.chk.diag}</a>`}
-    <div class="muted" style="margin-top:8px">${T.chk.diagH}</div></div>`;
+    <div class="muted" style="margin-top:8px">${T.chk.diagH}</div></div><div id="ep-suggest"></div>`;
+}
+// "Fits your home too" and "From the same developer" (suggest.js) under the settings - the same file as in the integrations.
+// Kept between draws; what was shown or closed is kept by Energy Pilot.
+let sgEls = null, sgLoading = false;
+function suggestHere() {
+  const slot = document.getElementById("ep-suggest");
+  if (!slot) return;
+  if (sgEls) { sgEls.forEach((e) => slot.appendChild(e)); return; }
+  if (sgLoading) return;
+  sgLoading = true;
+  import("./static/suggest.js").then(async ({ defineSuggest }) => {
+    const d = await fetch("api/suggest").then((r) => r.json());
+    const hass = { language: L, states: d.states, entities: d.entities, config: d.config,
+      callWS: async (m) => m.type === "frontend/get_user_data" ? { value: d.store }
+        : fetch("api/suggest", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ value: m.value }) }).then(() => ({})) };
+    sgEls = ["card", "list"].map((mode) => { const e = document.createElement(defineSuggest("energy_pilot")); e.setAttribute("mode", mode); e.hass = hass; return e; });
+    suggestHere();
+  }).catch(() => { sgLoading = false; });
 }
 let step = 1;
 function setupView() {
@@ -1856,6 +1874,7 @@ function render(quiet = false) {
   $("#tabs").innerHTML = Object.entries(T.tabs).map(([k, v]) => `<button class="${tab === k ? "on" : ""}" data-tab="${k}">${icon(TABICON[k])}<span>${v}</span></button>`).join("");
   flowKey = flowSig(data.flow);
   wire();
+  suggestHere();
   // the plan opens at the time now - once it has a width (a page just opened may not have one yet)
   const toNow = (tries = 0) => {
     const pw = $("#planwrap"), now = pw?.querySelector("line[stroke='var(--text)']");
