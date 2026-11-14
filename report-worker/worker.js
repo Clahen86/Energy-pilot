@@ -19,6 +19,8 @@ const MAX_BYTES = 9_000_000; // a diagnostics file is usually 50-300 kB, plus up
 const PER_HOUR = 5; // help reports from one address per hour
 const T_PER_HOUR = 60; // small lines from one address per hour
 const CONFIRM = 3; // installations that must find the same fix before everyone gets it
+// The apps that may send - each gets its own label and mark, so the issues can be told apart (filter by label).
+const APPS = { "energy-pilot": { label: "energy-pilot", mark: "⚡", name: "Energy Pilot" }, madplan: { label: "madplan", mark: "🍽️", name: "Madplan" } };
 
 export default {
   async fetch(request, env) {
@@ -26,9 +28,10 @@ export default {
     if (request.method === "GET" && url.pathname === "/fixes") return fixes(env);
     if (request.method === "GET") return json({ ok: true, service: "energy-pilot-reports" });
     if (request.method !== "POST") return json({ error: "method" }, 405);
-    if (request.headers.get("x-ep-client") !== "energy-pilot") return json({ error: "client" }, 403);
-    if (url.pathname === "/t") return telemetry(request, env);
-    return report(request, env);
+    const app = request.headers.get("x-ep-client");
+    if (!APPS[app]) return json({ error: "client" }, 403);
+    if (url.pathname === "/t") return telemetry(request, env, app);
+    return report(request, env, app);
   },
   async scheduled(_event, env) {
     await weekly(env);
@@ -36,7 +39,8 @@ export default {
 };
 
 // ---------- 1. Get help ----------
-async function report(request, env) {
+async function report(request, env, app = "energy-pilot") {
+  const A = APPS[app];
   const size = Number(request.headers.get("content-length") || 0);
   if (size > MAX_BYTES) return json({ error: "too_big" }, 413);
   if (!(await allowed(request, "r", PER_HOUR))) return json({ error: "rate" }, 429);
@@ -49,7 +53,7 @@ async function report(request, env) {
     return json({ error: "json" }, 400);
   }
   const diag = body.diagnostics;
-  if (!diag || typeof diag !== "object" || !diag.version || !diag.settings) return json({ error: "content" }, 400);
+  if (!diag || typeof diag !== "object" || !diag.version || (app === "energy-pilot" && !diag.settings)) return json({ error: "content" }, 400);
 
   const id = `${new Date().toISOString().slice(0, 10).replaceAll("-", "")}-${crypto.randomUUID().slice(0, 6)}`;
   const gh = github(env);
@@ -57,19 +61,19 @@ async function report(request, env) {
   const pics = [];
   for (const [n, img] of (Array.isArray(body.images) ? body.images.slice(0, 3) : []).entries()) {
     if (!img || typeof img.data !== "string" || img.data.length > 3_000_000) continue;
-    const name = `reports/${id}-${n + 1}.jpg`;
+    const name = `reports/${app}/${id}-${n + 1}.jpg`;
     const r = await gh(`contents/${name}`, "PUT", { message: `Report ${id} picture ${n + 1}`, content: img.data });
     if (r.ok) pics.push(`![${String(img.name || "picture").replaceAll("]", "")}](${base}/${name}?raw=true)`);
   }
   delete body.images;
-  const file = `reports/${id}.json`;
+  const file = `reports/${app}/${id}.json`;
   const put = await gh(`contents/${file}`, "PUT", { message: `Report ${id}`, content: b64(JSON.stringify(body, null, 1)) });
   if (!put.ok) return json({ error: "store", status: put.status }, 502);
 
   const t = body.test || {};
   const results = (t.results || []).map((r) => `| ${r.part} | ${r.step} | ${mark(r.result)} | ${detail(r)} |`);
   const lines = [
-    `**${id}** · Energy Pilot ${diag.version} · profile \`${body.profile || "?"}\` · ${diag.ha?.country || "?"}`,
+    `**${id}** · ${A.name} ${diag.version}${body.profile ? ` · profile \`${body.profile}\`` : ""} · ${diag.ha?.country || "?"}`,
     "",
     body.note ? `> ${String(body.note).slice(0, 4000).replaceAll("\n", "\n> ")}\n` : "",
     pics.length ? `${pics.join("\n")}\n` : "",
@@ -79,8 +83,8 @@ async function report(request, env) {
   ];
   const failed = (t.results || []).some((r) => r.result === "failed");
   const issue = await gh("issues", "POST", {
-    title: `${failed ? "❌" : t.results?.length ? "✅" : "📄"} ${body.profile || "report"} · ${diag.version} · ${id}`,
-    body: lines.join("\n"), labels: [failed ? "test-failed" : "report"],
+    title: `${A.mark} ${A.name}: ${failed ? "❌" : t.results?.length ? "✅" : "📄"} ${body.profile || "report"} · ${diag.version} · ${id}`,
+    body: lines.join("\n"), labels: [A.label, failed ? "test-failed" : "report"],
   });
   const made = issue.ok ? await issue.json() : {};
   return json({ ok: true, id, issue: made.number || null });
@@ -98,11 +102,15 @@ async function schema(env) {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS errors (hash TEXT PRIMARY KEY, first_seen TEXT, last_seen TEXT, count INTEGER, version TEXT, text TEXT)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS error_installs (hash TEXT, install TEXT, PRIMARY KEY (hash, install))"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS autofix (key TEXT, install TEXT, day TEXT, PRIMARY KEY (key, install))"),
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS m_installs (id TEXT PRIMARY KEY, first_seen TEXT, last_seen TEXT, data TEXT)"),
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS m_offers (day TEXT, chain TEXT, install TEXT, n INTEGER, PRIMARY KEY (day, chain, install))"),
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS m_alerts (day TEXT, chain TEXT, PRIMARY KEY (day, chain))"),
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS m_nomatch (term TEXT, install TEXT, day TEXT, PRIMARY KEY (term, install))"),
   ]);
   schemaReady = true;
 }
 
-async function telemetry(request, env) {
+async function telemetry(request, env, app = "energy-pilot") {
   if (!env.DB) return json({ error: "no_db" }, 503);
   if (!(await allowed(request, "t", T_PER_HOUR))) return json({ error: "rate" }, 429);
   let b;
@@ -118,6 +126,7 @@ async function telemetry(request, env) {
   await schema(env);
   const day = new Date().toISOString().slice(0, 10), db = env.DB;
   const s = (v, n = 80) => (v == null ? null : String(v).slice(0, n));
+  if (app === "madplan") return madplan(env, b, install, day, s);
 
   if (b.kind === "daily") {
     const data = JSON.stringify(b.data || {}).slice(0, 20_000);
@@ -139,7 +148,7 @@ async function telemetry(request, env) {
       if (n >= CONFIRM) {
         const fresh = await db.prepare("INSERT OR IGNORE INTO confirmed (profile, intent, opt_from, opt_to, day) VALUES (?1, ?2, ?3, ?4, ?5)").bind(...key, day).run();
         if (fresh.meta?.changes) {
-          await github(env)("issues", "POST", { title: `🔧 Confirmed fix: ${key[0]} · ${key[1]}: ${key[2]} → ${key[3]}`, labels: ["confirmed-fix"],
+          await github(env)("issues", "POST", { title: `⚡ Energy Pilot: 🔧 confirmed fix ${key[0]} · ${key[1]}: ${key[2]} → ${key[3]}`, labels: ["energy-pilot", "confirmed-fix"],
             body: `${n} installations with profile \`${key[0]}\` found that **${key[1]}** works with \`${key[3]}\` instead of \`${key[2]}\`.\n\nEvery installation with this profile now gets it. Put it in the profile in \`adapters.py\` so new users have it from the start.` });
         }
       }
@@ -152,7 +161,7 @@ async function telemetry(request, env) {
       .bind(hash, day, s(b.version, 20), text).run();
     await db.prepare("INSERT OR IGNORE INTO error_installs (hash, install) VALUES (?1, ?2)").bind(hash, install).run();
     if (!known) {
-      await github(env)("issues", "POST", { title: `🐞 App error: ${s(b.text, 80)}`, labels: ["app-error"],
+      await github(env)("issues", "POST", { title: `⚡ Energy Pilot: 🐞 ${s(b.text, 80)}`, labels: ["energy-pilot", "app-error"],
         body: `First seen ${day} in version ${s(b.version, 20)}.\n\n\`\`\`\n${text}\n\`\`\`` });
     }
   } else if (b.kind === "autofix") {
@@ -205,7 +214,69 @@ async function weekly(env) {
     "", "### App errors this week", ...(errs.length ? errs.map((e) => `- ${e.installs} installs · ${e.count}× · ${e.version}: \`${String(e.text).slice(0, 120)}\``) : ["- none"]),
     "", "### Mended by itself", af.length ? af.map((a) => `${a.key} ${a.n}`).join(" · ") : "–",
   ].join("\n");
-  await github(env)("issues", "POST", { title: `📊 Week ${new Date().toISOString().slice(0, 10)}: ${rows.length} installations`, body, labels: ["weekly"] });
+  await github(env)("issues", "POST", { title: `⚡ Energy Pilot: 📊 week ${new Date().toISOString().slice(0, 10)} · ${rows.length} installations`, body, labels: ["energy-pilot", "weekly"] });
+  await madplanWeekly(env, since);
+}
+
+// ---------- Madplan ----------
+// Lines from the Madplan integration: a daily summary (version, chains, features - never rules, allergies, household,
+// recipes or shopping lists), offers found per chain (0 from several homes = that source broke: an issue at once),
+// ingredient names the product search couldn't match (to improve the search), and app errors.
+async function madplan(env, b, install, day, s) {
+  const db = env.DB, gh = github(env);
+  if (b.kind === "daily") {
+    await db.prepare("INSERT INTO m_installs (id, first_seen, last_seen, data) VALUES (?1, ?2, ?2, ?3) ON CONFLICT(id) DO UPDATE SET last_seen = ?2, data = ?3")
+      .bind(install, day, JSON.stringify(b.data || {}).slice(0, 10_000)).run();
+  } else if (b.kind === "offers") {
+    for (const [chain, n] of Object.entries(b.offers || {}).slice(0, 20)) {
+      await db.prepare("INSERT OR REPLACE INTO m_offers (day, chain, install, n) VALUES (?1, ?2, ?3, ?4)").bind(day, s(chain, 40), install, Number(n) || 0).run();
+      if (Number(n) > 0) continue;
+      const empty = (await db.prepare("SELECT COUNT(*) AS n FROM m_offers WHERE day = ?1 AND chain = ?2 AND n = 0").bind(day, s(chain, 40)).first()).n;
+      if (empty >= 2) {
+        const fresh = await db.prepare("INSERT OR IGNORE INTO m_alerts (day, chain) VALUES (?1, ?2)").bind(day, s(chain, 40)).run();
+        if (fresh.meta?.changes) await gh("issues", "POST", { title: `🍽️ Madplan: ${s(chain, 40)} giver 0 tilbud (${day})`, labels: ["madplan", "offers"],
+          body: `${empty} homes got no offers from **${s(chain, 40)}** today. The source may have changed.` });
+      }
+    }
+  } else if (b.kind === "nomatch") {
+    for (const term of (b.terms || []).slice(0, 30)) {
+      await db.prepare("INSERT OR IGNORE INTO m_nomatch (term, install, day) VALUES (?1, ?2, ?3)").bind(s(String(term).toLowerCase(), 40), install, day).run();
+    }
+  } else if (b.kind === "error") {
+    const hash = "m" + s(b.hash, 39), text = s(b.text, 300);
+    const known = await db.prepare("SELECT count FROM errors WHERE hash = ?1").bind(hash).first();
+    await db.prepare("INSERT INTO errors (hash, first_seen, last_seen, count, version, text) VALUES (?1, ?2, ?2, 1, ?3, ?4) ON CONFLICT(hash) DO UPDATE SET last_seen = ?2, count = count + 1, version = ?3")
+      .bind(hash, day, s(b.version, 20), text).run();
+    await db.prepare("INSERT OR IGNORE INTO error_installs (hash, install) VALUES (?1, ?2)").bind(hash, install).run();
+    if (!known) await gh("issues", "POST", { title: `🍽️ Madplan: 🐞 ${s(b.text, 80)}`, labels: ["madplan", "app-error"],
+      body: `First seen ${day} in version ${s(b.version, 20)}.\n\n\`\`\`\n${text}\n\`\`\`` });
+  } else {
+    return json({ error: "kind" }, 400);
+  }
+  return json({ ok: true });
+}
+
+async function madplanWeekly(env, since) {
+  const db = env.DB;
+  const rows = ((await db.prepare("SELECT first_seen, data FROM m_installs WHERE last_seen >= ?1").bind(since).all()).results || []).map((r) => ({ ...r, d: safe(r.data) }));
+  if (!rows.length) return;
+  const count = (f) => Object.entries(rows.reduce((a, r) => { for (const k of [].concat(f(r.d) ?? "?")) a[k] = (a[k] || 0) + 1; return a; }, {}))
+    .sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(" · ") || "–";
+  const offers = ((await db.prepare("SELECT chain, AVG(n) AS avg, SUM(n = 0) AS empty, COUNT(*) AS n FROM m_offers WHERE day >= ?1 GROUP BY chain ORDER BY chain").bind(since).all()).results || []);
+  const miss = ((await db.prepare("SELECT term, COUNT(*) AS n FROM m_nomatch GROUP BY term ORDER BY n DESC LIMIT 25").all()).results || []);
+  const errs = ((await db.prepare("SELECT text, count, version FROM errors WHERE hash LIKE 'm%' AND last_seen >= ?1 ORDER BY count DESC LIMIT 10").bind(since).all()).results || []);
+  const body = [
+    `**Installations active:** ${rows.length} · new: ${rows.filter((r) => r.first_seen >= since).length}`,
+    `**Versions:** ${count((d) => d.version)} · **HA:** ${count((d) => d.ha)}`,
+    `**Main chain:** ${count((d) => d.chain)} · **also shops at:** ${count((d) => d.extra || [])}`,
+    `**AI:** ${count((d) => d.ai)} · **Salling key:** ${rows.filter((r) => r.d.salling).length} · **profiles (avg):** ${(rows.reduce((a, r) => a + (r.d.profiles || 0), 0) / rows.length).toFixed(1)}`,
+    `**Features:** ${["auto_plan", "rester", "mine_retter", "kcal", "mail"].map((k) => `${k} ${rows.filter((r) => r.d.features?.[k]).length}`).join(" · ")}`,
+    "", "### Offers per chain this week", "| Chain | Avg offers | Days with 0 | Lines |", "|---|---|---|---|",
+    ...offers.map((o) => `| ${o.chain} | ${Number(o.avg).toFixed(0)} | ${o.empty} | ${o.n} |`),
+    "", "### Ingredients the search couldn't match", miss.length ? miss.map((m) => `${m.term} (${m.n})`).join(" · ") : "–",
+    "", "### App errors", ...(errs.length ? errs.map((e) => `- ${e.count}× · ${e.version}: \`${String(e.text).slice(0, 120)}\``) : ["- none"]),
+  ].join("\n");
+  await github(env)("issues", "POST", { title: `🍽️ Madplan: 📊 week ${new Date().toISOString().slice(0, 10)} · ${rows.length} installations`, body, labels: ["madplan", "weekly"] });
 }
 
 // ---------- helpers ----------
