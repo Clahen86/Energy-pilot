@@ -1,6 +1,6 @@
 // Energy Pilot receiver - a Cloudflare Worker. Three jobs:
 //
-// Apps: Energy Pilot ⚡, Madplan 🍽️, Replace Device 🔁, Update Guard 🛡️, Database Doctor 🩺, Heat Pilot 🔥, House Chat 💬 (header x-ep-client).
+// Apps: Energy Pilot ⚡, Madplan 🍽️, Replace Device 🔁, Update Guard 🛡️, Database Doctor 🩺, Heat Pilot 🔥, House Chat 💬, Appliance Watch 🧺 (header x-ep-client).
 //
 // 1. "Get help" (POST /): a test result, the diagnostics and up to 3 pictures, sent when the user presses the
 //    button. Stored in a PRIVATE GitHub repository with an issue, so only the developer sees it.
@@ -36,6 +36,7 @@ const APPS = {
   "database-doctor": { label: "database-doctor", mark: "🩺", name: "Database Doctor", prefix: "dd:" },
   "heat-pilot": { label: "heat-pilot", mark: "🔥", name: "Heat Pilot", prefix: "hp:" },
   "hus-chat": { label: "hus-chat", mark: "💬", name: "House Chat", prefix: "hc:" },
+  "appliance-watch": { label: "appliance-watch", mark: "🧺", name: "Appliance Watch", prefix: "aw:" },
 };
 // SQL that keeps one app's rows of the errors table (column c).
 const ofApp = (app, c = "hash") => app === "energy-pilot" ? `${c} NOT LIKE 'm%' AND ${c} NOT LIKE '%:%'` : `${c} LIKE '${APPS[app].prefix}%'`;
