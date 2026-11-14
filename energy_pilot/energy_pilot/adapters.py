@@ -419,8 +419,9 @@ PROFILES: dict[str, dict[str, Any]] = {
                                                               "dp2start": "00:00", "dp2end": "00:00", "dischargecutoffsoc": "{soc}", "dp1power": "{max_power_w}"})],
         "charge": [("alphaess.setbatterydischarge", "service", {"serial": "{serial}", "enabled": False, "dp1start": "{park_d_from}", "dp1end": "{park_d_to}",
                                                                 "dp2start": "00:00", "dp2end": "00:00", "dischargecutoffsoc": "{min_soc}", "dp1power": "{max_power_w}"}),
+                   # A period may not run over midnight (start after end never starts): split in two, before and after it.
                    ("alphaess.setbatterycharge", "service", {"serial": "{serial}", "enabled": True, "cp1start": "{now_from}", "cp1end": "{now_to}",
-                                                             "cp2start": "00:00", "cp2end": "00:00", "chargestopsoc": "{target}", "cp1power": "{power_w}"})],
+                                                             "cp2start": "{now2_from}", "cp2end": "{now2_to}", "chargestopsoc": "{target}", "cp1power": "{power_w}"})],
     },
 }
 
@@ -468,7 +469,14 @@ def alpha_windows(now: Any) -> dict[str, str]:
 
     q = now.replace(minute=now.minute - now.minute % 15, second=0, microsecond=0)
     hm = lambda d: d.strftime("%H:%M")  # noqa: E731
-    return {"now_from": hm(q), "now_to": hm(q + timedelta(hours=4)),
+    end = q + timedelta(hours=4)
+    if end.date() == q.date():
+        win = {"now_from": hm(q), "now_to": hm(end), "now2_from": "00:00", "now2_to": "00:00"}
+    elif q.hour == 23 and q.minute == 45:  # the last quarter: from midnight (period 2 stays empty)
+        win = {"now_from": "00:00", "now_to": hm(end), "now2_from": "00:00", "now2_to": "00:00"}
+    else:  # over midnight: until 23:45, and from 00:00 on (AlphaESS takes periods within one day only)
+        win = {"now_from": hm(q), "now_to": "23:45", "now2_from": "00:00", "now2_to": hm(end)}
+    return {**win,
             "park_c_from": hm(q + timedelta(hours=12)), "park_c_to": hm(q + timedelta(hours=12, minutes=15)),
             "park_d_from": hm(q + timedelta(hours=12, minutes=30)), "park_d_to": hm(q + timedelta(hours=12, minutes=45))}
 
