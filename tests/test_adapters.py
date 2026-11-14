@@ -184,7 +184,10 @@ def test_givenergy_solis_alphaess_from_their_code():
     charge = adapters.resolve(p["charge"], so, ctx)
     assert [c["data"].get("option", c["data"].get("value")) for c in charge] == ["Solis RC Force Battery Charge", 2400, 30]
 
-    a = adapters.resolve(adapters.PROFILES["alphaess"]["charge"], [], ctx)[0]
+    from datetime import datetime
+
+    calls = adapters.resolve(adapters.PROFILES["alphaess"]["charge"], [], {**ctx, **adapters.alpha_windows(datetime(2026, 11, 14, 9, 0))})
+    a = next(c for c in calls if c["service"] == "setbatterycharge")
     assert a["service"] == "setbatterycharge" and a["data"]["serial"] == "AL123" and a["data"]["chargestopsoc"] == 90 and a["data"]["enabled"] is True
 
 
@@ -350,3 +353,24 @@ def test_identifiers_stay_text():
     assert adapters.fill({"serial": "{serial}"}, {"serial": "123456"}) == {"serial": "123456"}
     assert adapters.fill({"current": "{current}", "target_soc": "{target}"}, {"current": "16", "target": 80}) == \
         {"current": 16, "target_soc": 80}
+
+
+def test_alphaess_windows_never_overlap_and_carry_power():
+    from datetime import datetime
+
+    from energy_pilot import adapters
+
+    w = adapters.alpha_windows(datetime(2026, 11, 14, 11, 22))
+    assert w == {"now_from": "11:15", "now_to": "15:15", "park_c_from": "23:15", "park_c_to": "23:30",
+                 "park_d_from": "23:45", "park_d_to": "00:00"}
+    ctx = {"serial": "ALD1", "min_soc": 10, "soc": 43, "target": 80, "power_w": 2500, "max_charge_w": 3000, "max_power_w": 3000, **w}
+    prof = adapters.PROFILES["alphaess"]
+    for intent in ("normal", "hold", "charge"):
+        for svc, _kind, data in prof[intent]:
+            d = adapters.fill(data, ctx)
+            if svc == "alphaess.setbatterycharge":
+                assert d["cp1start"] != d["cp1end"] and d["cp1power"] > 0  # never a deleted (00:00-00:00) period
+            else:
+                assert d["dp1start"] != d["dp1end"] and d["dp1power"] > 0
+    hold = {s: adapters.fill(d, ctx) for s, _k, d in prof["hold"]}
+    assert hold["alphaess.setbatterydischarge"]["enabled"] is True and hold["alphaess.setbatterydischarge"]["dp1start"] == "23:45"

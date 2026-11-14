@@ -400,19 +400,27 @@ PROFILES: dict[str, dict[str, Any]] = {
                    (r"number\..*rc_timeout$", "number", "30")],
     },
     # Alpha ESS (Poshy163/homeassistant-alphaESS, cloud): charge and discharge windows by service, with the serial.
-    # Alpha ESS cloud: times only in whole quarters (23:59 is ignored without an error)
+    # Alpha ESS cloud (CharlesGillanders/homeassistant-alphaESS). Its periodic schedule: times in whole quarters,
+    # a period written 00:00-00:00 is deleted (and an empty list is refused), a new period needs its power in W, and
+    # charge and discharge windows may not overlap. A discharge window is when the battery MAY discharge - so "hold"
+    # is a discharge window far from now. The windows come from the clock (alpha_windows): charging from now for 4 h,
+    # the parked windows 12 h away, each on its own quarter.
     "alphaess": {
         "name": "Alpha ESS (cloud)",
         "match": r"alpha_?ess",
         "source": "integration",
-        "normal": [("alphaess.setbatterycharge", "service", {"serial": "{serial}", "enabled": False, "cp1start": "00:00", "cp1end": "00:00",
-                                                             "cp2start": "00:00", "cp2end": "00:00", "chargestopsoc": 100}),
-                   ("alphaess.setbatterydischarge", "service", {"serial": "{serial}", "enabled": False, "dp1start": "00:00", "dp1end": "00:00",
-                                                                "dp2start": "00:00", "dp2end": "00:00", "dischargecutoffsoc": "{min_soc}"})],
-        "hold": [("alphaess.setbatterydischarge", "service", {"serial": "{serial}", "enabled": True, "dp1start": "00:00", "dp1end": "23:45",
-                                                              "dp2start": "00:00", "dp2end": "00:00", "dischargecutoffsoc": "{soc}"})],
-        "charge": [("alphaess.setbatterycharge", "service", {"serial": "{serial}", "enabled": True, "cp1start": "00:00", "cp1end": "23:45",
-                                                             "cp2start": "00:00", "cp2end": "00:00", "chargestopsoc": "{target}"})],
+        "normal": [("alphaess.setbatterycharge", "service", {"serial": "{serial}", "enabled": False, "cp1start": "{park_c_from}", "cp1end": "{park_c_to}",
+                                                             "cp2start": "00:00", "cp2end": "00:00", "chargestopsoc": 100, "cp1power": "{max_charge_w}"}),
+                   ("alphaess.setbatterydischarge", "service", {"serial": "{serial}", "enabled": False, "dp1start": "{park_d_from}", "dp1end": "{park_d_to}",
+                                                                "dp2start": "00:00", "dp2end": "00:00", "dischargecutoffsoc": "{min_soc}", "dp1power": "{max_power_w}"})],
+        "hold": [("alphaess.setbatterycharge", "service", {"serial": "{serial}", "enabled": False, "cp1start": "{park_c_from}", "cp1end": "{park_c_to}",
+                                                           "cp2start": "00:00", "cp2end": "00:00", "chargestopsoc": 100, "cp1power": "{max_charge_w}"}),
+                 ("alphaess.setbatterydischarge", "service", {"serial": "{serial}", "enabled": True, "dp1start": "{park_d_from}", "dp1end": "{park_d_to}",
+                                                              "dp2start": "00:00", "dp2end": "00:00", "dischargecutoffsoc": "{soc}", "dp1power": "{max_power_w}"})],
+        "charge": [("alphaess.setbatterydischarge", "service", {"serial": "{serial}", "enabled": False, "dp1start": "{park_d_from}", "dp1end": "{park_d_to}",
+                                                                "dp2start": "00:00", "dp2end": "00:00", "dischargecutoffsoc": "{min_soc}", "dp1power": "{max_power_w}"}),
+                   ("alphaess.setbatterycharge", "service", {"serial": "{serial}", "enabled": True, "cp1start": "{now_from}", "cp1end": "{now_to}",
+                                                             "cp2start": "00:00", "cp2end": "00:00", "chargestopsoc": "{target}", "cp1power": "{power_w}"})],
     },
 }
 
@@ -452,6 +460,17 @@ CHARGER_SERVICES = {
     # myenergi zappi (CJNE/ha-myenergi): "Charge Mode" Fast / Stopped (no current control)
     "myenergi": {"charge": [(r"select\..*charge_mode$", "select", "Fast")], "stop": [(r"select\..*charge_mode$", "select", "Stopped")]},
 }
+
+
+def alpha_windows(now: Any) -> dict[str, str]:
+    """Alpha ESS: charging from this quarter for 4 h; the parked charge and discharge windows 12 h away, apart."""
+    from datetime import timedelta
+
+    q = now.replace(minute=now.minute - now.minute % 15, second=0, microsecond=0)
+    hm = lambda d: d.strftime("%H:%M")  # noqa: E731
+    return {"now_from": hm(q), "now_to": hm(q + timedelta(hours=4)),
+            "park_c_from": hm(q + timedelta(hours=12)), "park_c_to": hm(q + timedelta(hours=12, minutes=15)),
+            "park_d_from": hm(q + timedelta(hours=12, minutes=30)), "park_d_to": hm(q + timedelta(hours=12, minutes=45))}
 
 
 def fill(value: Any, ctx: dict[str, Any]) -> Any:

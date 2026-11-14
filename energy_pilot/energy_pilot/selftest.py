@@ -358,9 +358,14 @@ class SelfTest:
 
 
 def _ctx_defaults() -> dict[str, Any]:
+    from datetime import datetime
+
+    from . import adapters
+
     return {"grid_charge": True, "min_soc": 10, "soc": 50, "target": 50, "rate": 10, "power_w": TEST_W, "max_power_w": TEST_W,
             "max_charge_w": TEST_W, "power_kw": TEST_W / 1000, "max_charge_kw": TEST_W / 1000, "max_power_kw": TEST_W / 1000,
-            "export_w": 800, "house_w": 0, "device_id": "", "serial": "", "charge_a": 20}
+            "export_w": 800, "house_w": 0, "device_id": "", "serial": "", "charge_a": 20,
+            **adapters.alpha_windows(datetime.now())}
 
 
 def _limit(ctx: dict[str, Any], soc: float | None) -> dict[str, Any]:

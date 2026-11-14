@@ -344,7 +344,8 @@ class Controller:
                 "rate": round(100 * charge_kw / bat.max_charge_kw), "power_w": round(charge_kw * 1000),
                 "max_power_w": round(bat.max_discharge_kw * 1000), "max_charge_w": round(bat.max_charge_kw * 1000),
                 "power_kw": round(charge_kw, 2), "max_charge_kw": round(bat.max_charge_kw, 2), "max_power_kw": round(bat.max_discharge_kw, 2), "export_w": export_w,
-                "device_id": getattr(self, "battery_device", None) or "", "serial": getattr(self, "battery_serial", "") or ""}}
+                "device_id": getattr(self, "battery_device", None) or "", "serial": getattr(self, "battery_serial", "") or "",
+                **adapters.alpha_windows(datetime.now(ZoneInfo(self.ha.config.get("time_zone") or "UTC")))}}
             if any("{charge_a}" in str(self.profile_steps(p) or {}) for p in ["battery", *self.bat_parts()]):
                 # Deye limits charging from the grid by a current: the planned power over the battery's voltage.
                 out["battery"]["ctx"]["charge_a"] = max(1, round(charge_kw * 1000 / self._battery_volt()))
