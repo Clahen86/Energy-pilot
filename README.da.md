@@ -197,8 +197,8 @@ To ting, begge privat til udvikleren:
   version, land, hvilken inverter/lader/priskilde, hvad huset har, Skygge eller Styrer, sparet denne måned (afrundet) –
   plus testresultater, hvad den har rettet selv, og fejl i appen. Når tre hjem med samme inverter finder samme
   rettelse, får alle med den inverter den. Den sender også **hvordan den er sat op**, så mærkeprofilerne kan rettes: for
-  inverter, batteri og lader integrationen, mærke og model, hvilke entiteter der bruges og til hvad (uden dit eget
-  enhedsnavn – `select.<enhed>_export_limiter`), deres værdier, og hvad der fejlede. **Aldrig** navne på personer,
+  inverter, batteri og lader integrationen, mærke og model, hvilke entiteter der bruges og til hvad (næsten hele
+  navnet – kun dine egne navne i det skiftes ud: personer, rum, zoner, hjemmet og enhedsnavne, fx `sensor.<person>_keba_power`), deres værdier, og hvad der fejlede. **Aldrig** navne på personer,
   adresse, placering eller forbrug time for time.
 - **Del min opsætning** (slået fra, medmindre du slår det til under *Indstillinger*): så sendes de fulde entity-navne på
   inverter, batteri og lader også.

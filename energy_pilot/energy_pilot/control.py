@@ -142,6 +142,10 @@ class Controller:
             self.model = " ".join(dict.fromkeys(parts)) or None  # "Growatt SPH", not "Growatt SPH Growatt SPH"
         except Exception:  # noqa: BLE001
             self.model = None
+        try:  # the areas' names: taken out of the names sent to the developer (setupinfo.py)
+            self._areas = [a.get("name") or "" for a in await self.ha.command({"type": "config/area_registry/list"})]
+        except Exception:  # noqa: BLE001
+            self._areas = []
         try:
             svc = await self.ha.command({"type": "get_services"})
             self.services = {f"{d}.{n}" for d, names in svc.items() for n in names}

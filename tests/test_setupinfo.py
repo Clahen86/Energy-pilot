@@ -12,9 +12,19 @@ DEV = {"d1": {"name": "Claus inverter", "manufacturer": "Deye", "model": "SUN-10
 
 
 def test_mask():
-    assert setupinfo.mask("select.claus_inverter_export_limiter", REG, DEV) == "select.<device>_export_limiter"
-    assert setupinfo.mask("number.x_y", REG, DEV) == "number.<device>_grid_export_limit"
-    assert setupinfo.mask("number.lounge_thing", REG, DEV) == "number.<name>"
+    words = [("living_room", "<area>"), ("lounge", "<area>"), ("claus", "<person>")]
+    assert setupinfo.mask("select.claus_inverter_export_limiter", REG, DEV, words) == "select.<device>_export_limiter"
+    assert setupinfo.mask("number.x_y", REG, DEV, words) == "number.x_y"  # nothing personal: the whole name
+    assert setupinfo.mask("number.lounge_thing", REG, DEV, words) == "number.<area>_thing"
+    assert setupinfo.mask("sensor.claus_keba_power", REG, DEV, words) == "sensor.<person>_keba_power"
+
+
+def test_personal_words():
+    ov = SimpleNamespace(ha=SimpleNamespace(states={"person.lilly": {"attributes": {"friendly_name": "Lilly Hansen"}},
+                                                    "zone.work": {"attributes": {"friendly_name": "Work"}}}, config={"location_name": "Motelvej"}))
+    w = dict(setupinfo.personal_words(ov, {"d": {"name_by_user": "Keba garage"}}, ["Living room"]))
+    assert w["lilly"] == "<person>" and w["hansen"] == "<person>" and w["living_room"] == "<area>"
+    assert w["motelvej"] == "<home>" and w["keba_garage"] == "<device>" and w["work"] == "<zone>"
 
 
 def _ov(full_names=False):
@@ -28,7 +38,8 @@ def _ov(full_names=False):
         calls=lambda p, w: [{"domain": "select", "service": "select_option", "data": {"entity_id": "select.claus_inverter_export_limiter"}}] if w["intent"] == "export" else [],
         last={"battery": {"result": "failed: select.select_option"}}, part_errors={"battery": ["export: refused"]}, drift={})
     roles = {"battery_soc": "sensor.claus_inverter_battery_soc"}
-    return SimpleNamespace(controller=ctl, ha=SimpleNamespace(states=states), settings={"battery_kwh": 12, "curtail": {}},
+    ctl._areas = []
+    return SimpleNamespace(controller=ctl, ha=SimpleNamespace(states={**states, "person.claus": {"attributes": {"friendly_name": "Claus"}}}, config={}), settings={"battery_kwh": 12, "curtail": {}},
                            role=lambda r: roles.get(r), source=lambda r: "integration:nordpool")
 
 

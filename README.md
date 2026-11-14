@@ -201,7 +201,7 @@ Two things, both private to the developer:
   – plus self-test results, what it mended by itself, and errors in the app. When three homes with the same inverter
   find the same fix, everyone with that inverter gets it. It also sends **how it is set up**, so the brand profiles can
   be fixed: for the inverter, battery and charger the integration, maker and model, which entities are used and what
-  for (with your own device name taken out – `select.<device>_export_limiter`), their values, and what failed.
+  for (nearly the whole name – only your own names in it are swapped: people, rooms, zones, the home and device names, e.g. `sensor.<person>_keba_power`), their values, and what failed.
   **Never** names of people, address, location or your use hour by hour.
 - **Share my setup** (off unless you turn it on, under *Settings*): the full entity names of the inverter, battery and
   charger are sent too.

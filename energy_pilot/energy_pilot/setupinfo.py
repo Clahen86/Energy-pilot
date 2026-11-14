@@ -16,24 +16,61 @@ def _slug(text: str) -> str:
     return re.sub(r"_+", "_", re.sub(r"[^a-z0-9]+", "_", str(text).lower())).strip("_")
 
 
-def mask(entity_id: str, reg: dict[str, Any], devices: dict[str, Any]) -> str:
+def personal_words(ov: Any, devices: dict[str, Any], areas: list[str]) -> list[tuple[str, str]]:
+    """The user's own names in this Home Assistant - people, rooms, zones, the home and devices - as slugs with what
+    they become. Longest first, so "lilly_room" goes before "lilly"."""
+    words: dict[str, str] = {}
+
+    def add(name: Any, token: str, split: bool = False) -> None:
+        s = _slug(name or "")
+        if len(s) >= 3:
+            words.setdefault(s, token)
+        if split:  # a person's first name alone too
+            for p in s.split("_"):
+                if len(p) >= 3:
+                    words.setdefault(p, token)
+    states = ov.ha.states
+    for e, st in states.items():
+        nm = (st.get("attributes") or {}).get("friendly_name")
+        if e.startswith("person."):
+            add(nm, "<person>", True)
+            add(e.split(".", 1)[1], "<person>", True)
+        elif e.startswith("zone."):
+            add(nm, "<zone>")
+            add(e.split(".", 1)[1], "<zone>")
+    add(ov.ha.config.get("location_name"), "<home>")
+    for a in areas:
+        add(a, "<area>")
+    for d in devices.values():
+        if d.get("name_by_user"):
+            add(d["name_by_user"], "<device>")
+    return sorted(words.items(), key=lambda kv: -len(kv[0]))
+
+
+def mask(entity_id: str, reg: dict[str, Any], devices: dict[str, Any], words: list[tuple[str, str]] | None = None) -> str:
+    """Nearly the whole name: only the user's own names in it are swapped - this device's name for <device>, and
+    people, rooms, zones and the home for <person>, <area>, <zone>, <home>. The rest is the integration's own words,
+    which is what the profiles match on."""
     dom, obj = entity_id.split(".", 1)
     e = reg.get(entity_id) or {}
     d = devices.get(e.get("device_id") or "") or {}
     for n in [x for x in (d.get("name_by_user"), d.get("name")) if x]:
         s = _slug(n)
         if s and (obj == s or obj.startswith(s + "_")):
-            return f"{dom}.<device>{obj[len(s):]}"
-    if e.get("translation_key") or (e.get("has_entity_name") and e.get("original_name")):
-        return f"{dom}.<device>_{_slug(e.get('translation_key') or e.get('original_name'))}"
-    return f"{dom}.<name>"
+            obj = "<device>" + obj[len(s):]
+            break
+    parts = f"_{obj}_"
+    for w, token in words or []:
+        parts = parts.replace(f"_{w}_", f"_{token}_")
+    return f"{dom}.{parts.strip('_')}"
 
 
-def entity(entity_id: str, use: str, states: dict[str, Any], reg: dict[str, Any], devices: dict[str, Any], full: bool) -> dict[str, Any]:
+def entity(entity_id: str, use: str, states: dict[str, Any], reg: dict[str, Any], devices: dict[str, Any], full: bool,
+           words: list[tuple[str, str]] | None = None) -> dict[str, Any]:
     st = states.get(entity_id) or {}
     a = st.get("attributes") or {}
     e = reg.get(entity_id) or {}
-    out: dict[str, Any] = {"name": entity_id if full else mask(entity_id, reg, devices), "use": use, "platform": e.get("platform")}
+    out: dict[str, Any] = {"name": entity_id if full else mask(entity_id, reg, devices, words), "use": use, "platform": e.get("platform")}
     if e.get("translation_key"):
         out["key"] = e["translation_key"]
     for k in ("unit_of_measurement", "device_class", "min", "max", "step"):
@@ -45,6 +82,15 @@ def entity(entity_id: str, use: str, states: dict[str, Any], reg: dict[str, Any]
     if dom in ("select", "switch", "binary_sensor") and st.get("state") is not None:
         out["state"] = str(st["state"])[:40]
     return out
+
+
+def _charger_profile(plat: str | None, ents: list[str]) -> str | None:
+    """A charger's profile: its integration's own actions when Energy Pilot knows them, else the switch and current."""
+    from . import adapters
+
+    if plat and plat in getattr(adapters, "CHARGER_SERVICES", {}):
+        return plat
+    return "generic" if ents else None
 
 
 def _bucket(v: Any, edges: list[float], unit: str) -> str | None:
@@ -66,6 +112,7 @@ def collect(ov: Any, full: bool) -> dict[str, Any]:
     reg = getattr(c, "_ent_reg", None) or {}
     devices = getattr(c, "_devices", None) or {}
     s = ov.settings
+    words = [] if full else personal_words(ov, devices, getattr(c, "_areas", None) or [])
     out_devices: list[dict[str, Any]] = []
     if c:
         for part in c.parts():
@@ -93,15 +140,15 @@ def collect(ov: Any, full: bool) -> dict[str, Any]:
                 pass
             first = role_ents[0][1] if role_ents else (ents[0] if ents else None)
             dev = devices.get((reg.get(first or "") or {}).get("device_id") or "") or {}
-            rows = [entity(e, role, states, reg, devices, full) for role, e in role_ents]
-            rows += [entity(e, "+".join(sorted(uses.get(e, []))) or "control", states, reg, devices, full) for e in ents if e not in dict(role_ents).values()][:30]
+            rows = [entity(e, role, states, reg, devices, full, words) for role, e in role_ents]
+            rows += [entity(e, "+".join(sorted(uses.get(e, []))) or "control", states, reg, devices, full, words) for e in ents if e not in dict(role_ents).values()][:30]
             rows += [{"name": k, "use": "+".join(sorted(v)), "platform": k.split(".")[0]} for k, v in uses.items() if k not in states and "." in k and not k.startswith(("number.", "select.", "switch.", "button."))]
             last = (c.last.get(part) or {}) if hasattr(c, "last") else {}
             res = str(last.get("result") or "")
             errs = list(getattr(c, "part_errors", {}).get(part, []))[-3:]
             out_devices.append({
                 "kind": "battery" if c.is_battery(part) else "charger", "platform": plat or ((reg.get(first or "") or {}).get("platform")),
-                "profile": c.profile_key(part) if c.is_battery(part) else None,
+                "profile": c.profile_key(part) if c.is_battery(part) else _charger_profile(plat, ents),
                 "manufacturer": str(dev.get("manufacturer") or "")[:60], "model": str(dev.get("model") or "")[:60],
                 "ok": (res == "ok") if res and c.mode(part) == "control" else None, "errors": errs, "entities": rows,
                 "extra": {"mode": c.mode(part), "changed_back_1h": len((getattr(c, "drift", {}) or {}).get(part, [])),
@@ -110,19 +157,19 @@ def collect(ov: Any, full: bool) -> dict[str, Any]:
     src = str(ov.source("price") or "") if hasattr(ov, "source") else ""
     if src:
         pe = ov.role("price")
-        out_devices.append({"kind": "price", "platform": src.split(":", 1)[1] if src.startswith("integration:") else src,
-                            "entities": [entity(pe, "price", states, reg, devices, full)] if pe else []})
+        out_devices.append({"kind": "price", "platform": (reg.get(pe or "") or {}).get("platform") or (src.split(":", 1)[1] if src.startswith("integration:") else src),
+                            "entities": [entity(pe, "price", states, reg, devices, full, words)] if pe else []})
     cu = s.get("curtail") or {}
     test = (s.get("curtail_test") or {}).get("result")
     if cu.get("entity"):
         out_devices.append({"kind": "export_limit", "platform": (reg.get(cu["entity"]) or {}).get("platform"), "ok": None if test in (None, "no_sun", "no_setting") else test == "ok",
                             "errors": [f"test: {test}"] if test in ("failed", "rejected") else [],
-                            "entities": [entity(cu["entity"], f"stop selling = {cu.get('value')}", states, reg, devices, full)]
-                            + [entity(e, f"stop selling = {v}", states, reg, devices, full) for e, v in cu.get("extra") or [] if e in states]})
+                            "entities": [entity(cu["entity"], f"stop selling = {cu.get('value')}", states, reg, devices, full, words)]
+                            + [entity(e, f"stop selling = {v}", states, reg, devices, full, words) for e, v in cu.get("extra") or [] if e in states]})
     st_test = s.get("selftest") or {}
     return {
         "devices": out_devices,
-        "features": {"sell_from_battery": bool(s.get("battery_export")), "stop_selling": bool(cu.get("on")), "stop_selling_test": test or "-",
+        "features": {"sell_from_battery": bool(s.get("battery_export")), "stop_selling": bool(cu.get("on")), **({"stop_selling_test": test} if test else {}),
                      "grid_charge": bool(s.get("grid_charge")), "ev_follow_sun": bool(s.get("ev_follow_sun")), "runs_cheaply": bool(s.get("things")),
                      "power_tariff": bool(s.get("power_tariff_price")), "offgrid": bool(s.get("offgrid")), "battery_targets": bool(s.get("battery_targets")),
                      "tariff": str(s.get("price_source") or s.get("tariff") or "spot")[:20]},
