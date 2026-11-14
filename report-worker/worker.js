@@ -453,9 +453,12 @@ async function setupSection(env, ago) {
       for (const e of d.errors || []) g.errors[e] = (g.errors[e] || 0) + 1;
       for (const e of d.entities || []) { const k = `${e.name}|${e.use || ""}`; g.ents[k] = g.ents[k] || { ...e, n: 0 }; g.ents[k].n++; }
     }
-    const feats = {}, sizes = {}, counts = {};
+    const feats = {}, sizes = {}, counts = {}, choices = {};
     for (const s of list) {
-      for (const [k, v] of Object.entries(s.features || {})) if (v && v !== "off") feats[k] = (feats[k] || 0) + 1;
+      for (const [k, v] of Object.entries(s.features || {})) {
+        if (typeof v === "string") { const kk = k.replace(/^to_/, ""); choices[kk] = choices[kk] || {}; choices[kk][v] = (choices[kk][v] || 0) + 1; }  // a choice, not on/off
+        else if (v) feats[k] = (feats[k] || 0) + 1;
+      }
       for (const [k, v] of Object.entries(s.sizes || {})) { sizes[k] = sizes[k] || {}; sizes[k][v] = (sizes[k][v] || 0) + 1; }
       for (const [k, v] of Object.entries(s.counts || {})) if (typeof v === "number") { counts[k] = counts[k] || []; counts[k].push(v); }
     }
@@ -471,7 +474,7 @@ ${Object.entries(g.errors).map(([e, n]) => `<div class="err">❌ <b>${esc(e)}</b
     }).join("");
     const avgs = Object.entries(counts).map(([k, a]) => `<span class="ch">${esc(k)} <b>${Math.round((a.reduce((x, y) => x + y, 0) / a.length) * 10) / 10}</b></span>`).join("");
     html += `<h2>${APPS[app].mark} ${esc(APPS[app].name)} · setups (${list.length})</h2>
-${Object.keys(feats).length || Object.keys(sizes).length || avgs ? `<div class="card" style="margin-bottom:12px">${Object.keys(feats).length ? `<div class="row"><i>Turned on</i>${chips(feats)}</div>` : ""}${Object.entries(sizes).map(([k, o]) => `<div class="row"><i>${esc(k)}</i>${chips(o)}</div>`).join("")}${avgs ? `<div class="row"><i>Average</i>${avgs}</div>` : ""}</div>` : ""}
+${Object.keys(feats).length || Object.keys(sizes).length || Object.keys(choices).length || avgs ? `<div class="card" style="margin-bottom:12px">${Object.keys(feats).length ? `<div class="row"><i>Turned on</i>${chips(feats)}</div>` : ""}${Object.entries(choices).map(([k, o]) => `<div class="row"><i>${esc(k.replace(/_/g, " "))}</i>${chips(Object.fromEntries(Object.entries(o).map(([v, n]) => [`→ ${v}`, n])))}</div>`).join("")}${Object.entries(sizes).map(([k, o]) => `<div class="row"><i>${esc(k)}</i>${chips(o)}</div>`).join("")}${avgs ? `<div class="row"><i>Average</i>${avgs}</div>` : ""}</div>` : ""}
 ${cards}`;
   }
   return html ? `<h2 style="margin-top:36px">🔧 How they're set up</h2><p>The devices each app works with – names without the user's own device name (⭐ = full names shared), what each is used for, and what fails. Last 30 days.</p>${html}` : "";
@@ -541,7 +544,7 @@ async function stats(url, env) {
     const p = per.find((r) => r.app === k) || { w: 0, m: 0 }, f = (fresh.find((r) => r.app === k) || { n: 0 }).n;
     const l = lands.filter((r) => r.app === k).map((r) => `<span>${flag(r.country)} ${esc(r.country)} <b>${r.n}</b></span>`).join("");
     const vs = vers.filter((r) => r.app === k), onNew = vs.filter((r) => r.version === newest[k]).reduce((a, r) => a + r.n, 0), tot = vs.reduce((a, r) => a + r.n, 0);
-    const vline = vs.length ? `<div class="vs">${vs.map((r) => `<span class="${r.version === newest[k] ? "ok" : ""}">${esc(r.version)} <b>${r.n}</b></span>`).join("")}${newest[k] ? ` · <em>${Math.round(100 * onNew / tot)} % on ${esc(newest[k])}</em>` : ""}</div>` : (newest[k] ? `<div class="vs"><em>newest ${esc(newest[k])}</em></div>` : "");
+    const vline = vs.length ? `<div class="vs">${vs.map((r) => `<span class="${r.version === newest[k] ? "ok" : ""}">${esc(r.version)}: <b>${r.n}</b></span>`).join(" · ")}${newest[k] ? ` · <em>${Math.round(100 * onNew / tot)} % on ${esc(newest[k])}</em>` : ""}</div>` : (newest[k] ? `<div class="vs"><em>newest ${esc(newest[k])}</em></div>` : "");
     return `<tr><td><b>${esc(APPS[k].name)}</b>${vline}${l ? `<div class="cm c">${l}</div>` : ""}</td><td class="n">${p.w}</td><td class="n">${p.m}</td><td class="n">${f ? "+" + f : "–"}</td><td class="c">${l || "–"}</td></tr>`;
   }).join("");
   const all = (await q("SELECT COUNT(DISTINCT install) AS n FROM seen WHERE day >= ?1", ago(30)))[0]?.n || 0;
