@@ -129,3 +129,15 @@ def test_shadow_never_switches_and_a_hand_turned_charger_is_left_on():
     ha.states["switch.m"]["state"] = "off"
     asyncio.run(th.tick(ha, st, T0 + timedelta(hours=2, minutes=2), 0.1, 0.05, 100, act=False))
     assert ha.states["switch.m"]["state"] == "off"  # its hour in shadow: not switched on either
+
+
+def test_a_machine_appliance_watch_knows_uses_its_programme():
+    from energy_pilot.things import Things
+
+    states = {"sensor.opvasker_status": {"state": "off", "attributes": {"power_sensor": "sensor.opvasker_power",
+                                                                         "typical": {"program": "Eco 50°", "minutes": 180, "kwh": 0.9, "n": 7}}}}
+    th = Things({})
+    th.aw = Things.from_appliance_watch(states)
+    kwh, minutes, kw = th.need({"id": "t1", "kind": "machine", "power": "sensor.opvasker_power"})
+    assert (kwh, minutes, kw) == (0.9, 180.0, 0.3)
+    assert th.need({"id": "t2", "kind": "machine", "power": "sensor.other"})[1] == 120.0  # unknown: the fair guess

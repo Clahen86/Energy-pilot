@@ -1127,6 +1127,7 @@ class Engine:
             spare = -float(s["grid"]) if s and s.get("grid") is not None else h.sun - h.house  # what the plan would sell
             left[h.start] = max(0.0, spare - load.get(h.start, 0.0) * h.length)
         limit = float(st["import_limit_kw"]) if st.get("import_limit_kw") else None
+        self.things.aw = self.things.from_appliance_watch(self.ha.states)  # a machine Appliance Watch knows: its real programme
         return self.things.plan(st, hours, now, left, load, limit)
 
     def _car(self, hours: list[Hour], now: datetime, f: dict[str, Any], skip: set) -> dict[str, Any] | None:

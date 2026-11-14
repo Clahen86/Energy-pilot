@@ -52,6 +52,7 @@ class Things:
         self.s = state.setdefault("things", {})
         self.plans: dict[str, dict[str, Any]] = {}
         self._sent: dict[str, datetime] = {}
+        self.aw: dict[str, dict[str, Any]] = {}  # Appliance Watch: what a usual run takes, by the machine's power sensor
 
     def st(self, tid: str) -> dict[str, Any]:
         return self.s.setdefault(tid, {"runs": []})
@@ -62,6 +63,18 @@ class Things:
 
     # ---------- what a thing takes ----------
 
+    @staticmethod
+    def from_appliance_watch(states: dict[str, Any]) -> dict[str, dict[str, Any]]:
+        """Appliance Watch knows each programme from clean cycles: the usual one's minutes and kWh, by power sensor."""
+        out = {}
+        for s in states.values():
+            a = (s or {}).get("attributes") or {}
+            typ, power = a.get("typical"), a.get("power_sensor")
+            if power and isinstance(typ, dict) and typ.get("minutes") and typ.get("kwh"):
+                out[power] = {"kwh": float(typ["kwh"]), "min": float(typ["minutes"]), "n": int(typ.get("n") or 0),
+                              "program": typ.get("program"), "source": "appliance_watch"}
+        return out
+
     def learned(self, tid: str) -> dict[str, Any] | None:
         runs = (self.st(tid).get("runs") or [])[-10:]
         if len(runs) < 3:
@@ -69,8 +82,9 @@ class Things:
         return {"kwh": round(median(r["kwh"] for r in runs), 2), "min": round(median(r["min"] for r in runs)), "n": len(self.st(tid)["runs"])}
 
     def need(self, t: dict[str, Any]) -> tuple[float, float, float]:
-        """(kWh, minutes, kW) one run takes: learned, else the settings, else a fair guess."""
-        lr = self.learned(t["id"])
+        """(kWh, minutes, kW) one run takes: Appliance Watch's usual programme, else learned here, else the settings,
+        else a fair guess."""
+        lr = self.aw.get(t.get("power") or "") or self.learned(t["id"])
         battery = t.get("kind") != "machine"
         kwh = lr["kwh"] if lr else float(t.get("kwh") or (0.5 if battery else 1.0))
         if lr and lr["min"] > 0:
