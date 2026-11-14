@@ -87,6 +87,8 @@ class Telemetry:
 
     # ---------- what is sent ----------
     def daily(self) -> dict[str, Any]:
+        from . import mlcheck
+
         o, s = self.ov, self.ov.settings
         c = getattr(o, "controller", None)
         eng = getattr(o, "engine", None)
@@ -123,7 +125,7 @@ class Telemetry:
             "modes": modes, "days_to_control": days,
             "saved_month": _r(ledger.get("month"), 0.5), "battery_kwh": _r(cap, 0.5),
             "sun_err": _r(y.get("sun_err_ml") or y.get("sun_err_simple"), 0.01), "house_err": _r(y.get("house_err_ml") or y.get("house_error"), 0.01),
-            "sun_source": getattr(o, "sun_source", None),
+            "sun_source": getattr(o, "sun_source", None), "ml": mlcheck.why() or "ok",
             "features": {"export": bool(s.get("battery_export")), "targets": bool(s.get("battery_targets")), "things": bool(s.get("things")),
                          "power_tariff": bool(s.get("power_tariff_price")), "offgrid": bool(s.get("offgrid"))},
         }

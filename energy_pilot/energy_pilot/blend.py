@@ -100,6 +100,10 @@ class SolarModel:
             days.add(when.date())
         if len(days) < 7:
             return False
+        from . import mlcheck
+
+        if not mlcheck.ok():
+            return False
         from sklearn.ensemble import HistGradientBoostingRegressor
 
         model = HistGradientBoostingRegressor(max_iter=200, learning_rate=0.06, max_depth=4, min_samples_leaf=8)
@@ -201,6 +205,10 @@ class PriceModel:
                 y.append(v)
                 days.add(when.date())
         if len(days) < 7:
+            return len(days)
+        from . import mlcheck
+
+        if not mlcheck.ok():
             return len(days)
         from sklearn.ensemble import HistGradientBoostingRegressor
 

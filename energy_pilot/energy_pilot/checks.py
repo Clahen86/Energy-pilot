@@ -110,7 +110,13 @@ def run(engine: Any, hours: list, b: Any, plan: Any, end_value: float) -> list[d
                         "fix": {"batteries": list(st.get("batteries") or []) + [new]},
                         "dismiss": {"battery_dismissed": list(st.get("battery_dismissed") or []) + [cand["soc"]]}, "goto": "battery"})
 
-    # 6. Another charger in Home Assistant that isn't set up.
+    # 6. The learning models can't run on this CPU (see mlcheck.py) - the simple forecasts are used.
+    from . import mlcheck
+
+    if mlcheck.why() == "cpu":
+        out.append({"key": "ml_cpu", "level": "info", "vals": {}})
+
+    # 7. Another charger in Home Assistant that isn't set up.
     from . import chargers
 
     if engine.ov.role("ev_power") or engine.ov.role("ev_plug"):

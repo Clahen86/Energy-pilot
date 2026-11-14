@@ -243,10 +243,11 @@ class HouseModel:
     def train(self, rows: list[tuple[datetime, float]], weather: Weather | None, now: datetime) -> bool:
         if len(rows) < 24 * 7:
             return False
-        try:
-            from sklearn.ensemble import GradientBoostingRegressor
-        except ImportError:
+        from . import mlcheck
+
+        if not mlcheck.ok():
             return False
+        from sklearn.ensemble import GradientBoostingRegressor
         X, y, w = [], [], []
         for when, kw in rows:
             if kw is None or kw < 0 or kw > 50:

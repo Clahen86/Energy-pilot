@@ -987,9 +987,11 @@ class Engine:
                 "trained": {"house": self.house_model.samples // 24, "sun": self.solar_model.days, "price": self.price_days}}
 
     def sources_used(self) -> dict[str, Any]:
+        from . import mlcheck
+
         return {"weather": bool(self.weather and self.weather.hours), "own_prices": bool(self.own_prices and not self.ov.role("price")),
                 "own_solar": getattr(self.ov, "sun_source", None) == "own", "sun_source": getattr(self.ov, "sun_source", None), "house_model": self.house_model.model is not None,
-                "house_error": self.house_model.error, "house_samples": self.house_model.samples}
+                "house_error": self.house_model.error, "house_samples": self.house_model.samples, "ml": mlcheck.info()}
 
     def run(self) -> dict[str, Any] | None:
         """Plan from now over the hours with prices."""
