@@ -245,6 +245,7 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
             "price_info": overview.price_info,
             "engine": None,
             "control": overview.controller.status() if overview.controller else None,
+            "curtail": overview.curtail.status() if getattr(overview, "curtail", None) else None,
         }
         if eng:
             b = eng.settings()
@@ -353,6 +354,17 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
             a.undo(key)
         return web.json_response({"fixed": _fixed_lines(overview)})
 
+    async def curtail_test(_req: web.Request) -> web.Response:
+        """Settings -> Stop selling at negative prices -> Test (it runs up to 2 minutes; the page asks again)."""
+        import asyncio
+
+        cu = getattr(overview, "curtail", None)
+        if not cu:
+            return web.json_response({"error": "missing"}, status=404)
+        if not cu.testing:
+            asyncio.create_task(cu.test())
+        return web.json_response({"ok": True})
+
     async def report(req: web.Request) -> web.Response:
         """'Send to the developer': the test result and the diagnostics go to the report receiver (report-worker/),
         which files them in a private repository - no GitHub account needed. Only when the user presses it."""
@@ -418,6 +430,7 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
         return web.json_response({**res, "replies": tel.visible()}, status=200 if res.get("ok") else 502)
 
     app.router.add_post("/api/report", report)
+    app.router.add_post("/api/curtail_test", curtail_test)
     app.router.add_get("/api/replies", replies_get)
     app.router.add_post("/api/replies", replies_post)
     app.router.add_get("/api/report", report_info)
