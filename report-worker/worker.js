@@ -425,18 +425,54 @@ async function stats(url, env) {
   const rows = Object.keys(APPS).map((k) => {
     const p = per.find((r) => r.app === k) || { w: 0, m: 0 }, f = (fresh.find((r) => r.app === k) || { n: 0 }).n;
     const l = lands.filter((r) => r.app === k).map((r) => `<span>${flag(r.country)} ${esc(r.country)} <b>${r.n}</b></span>`).join("");
-    return `<tr><td><b>${esc(APPS[k].name)}</b></td><td class="n">${p.w}</td><td class="n">${p.m}</td><td class="n">${f ? "+" + f : "–"}</td><td class="c">${l || "–"}</td></tr>`;
+    return `<tr><td><b>${esc(APPS[k].name)}</b>${l ? `<div class="cm c">${l}</div>` : ""}</td><td class="n">${p.w}</td><td class="n">${p.m}</td><td class="n">${f ? "+" + f : "–"}</td><td class="c">${l || "–"}</td></tr>`;
   }).join("");
   const all = (await q("SELECT COUNT(DISTINCT install) AS n FROM seen WHERE day >= ?1", ago(30)))[0]?.n || 0;
+  // the rest, from what the apps already send: Energy Pilot's and Madplan's daily lines, self-tests, app errors, help
+  const tally = (rows, f) => Object.entries(rows.reduce((a, r) => { for (const k of [].concat(f(r.d) ?? "?")) a[k] = (a[k] || 0) + 1; return a; }, {}))
+    .sort((a, b) => b[1] - a[1]).map(([k, n]) => `<span class="ch">${esc(k)} <b>${n}</b></span>`).join("") || "–";
+  const avg = (rows, f) => { const v = rows.map((r) => f(r.d)).filter((x) => typeof x === "number"); return v.length ? (v.reduce((a, b) => a + b, 0) / v.length).toFixed(1) : "–"; };
+  const ep = (await q("SELECT first_seen, data FROM installs WHERE last_seen >= ?1", ago(30))).map((r) => ({ ...r, d: safe(r.data) || {} }));
+  const mp = (await q("SELECT first_seen, data FROM m_installs WHERE last_seen >= ?1", ago(30))).map((r) => ({ ...r, d: safe(r.data) || {} }));
+  const tests = await q("SELECT profile, part, SUM(ok) AS ok, COUNT(*) AS n, GROUP_CONCAT(failed, ' / ') AS failed FROM tests GROUP BY profile, part ORDER BY n DESC LIMIT 30");
+  const fixesN = (await q("SELECT COUNT(*) AS n FROM confirmed"))[0]?.n || 0;
+  const mended = await q("SELECT key, COUNT(*) AS n FROM autofix GROUP BY key ORDER BY n DESC LIMIT 12");
+  const errs = await q("SELECT e.hash, e.text, e.count, e.version, e.last_seen, (SELECT COUNT(*) FROM error_installs i WHERE i.hash = e.hash) AS installs, (SELECT issue FROM error_issues x WHERE x.hash = e.hash) AS issue FROM errors e WHERE e.last_seen >= ?1 ORDER BY installs DESC, e.count DESC LIMIT 25", ago(30));
+  const appOf = (h) => Object.keys(APPS).find((k) => k !== "energy-pilot" && APPS[k].prefix && h.startsWith(APPS[k].prefix)) || "energy-pilot";
+  const help = await q("SELECT app, COUNT(*) AS n, MAX(day) AS last FROM reports WHERE day >= ?1 GROUP BY app ORDER BY n DESC", ago(30));
+  const helpLast = await q("SELECT id, app, issue, day FROM reports ORDER BY day DESC LIMIT 8");
+  const gh = (n) => n && env.REPORT_REPO ? `<a href="https://github.com/${esc(env.REPORT_REPO)}/issues/${n}">#${n}</a>` : "";
+  const has = (k) => ep.filter((r) => r.d.has?.[k]).length;
+  const sections = `
+<h2>⚡ Energy Pilot · ${ep.length} active</h2><div class="card">
+<div class="row"><i>Inverters</i>${tally(ep, (d) => d.profile)}</div><div class="row"><i>Chargers</i>${tally(ep, (d) => d.charger)}</div>
+<div class="row"><i>Prices</i>${tally(ep, (d) => d.price)}</div><div class="row"><i>Versions</i>${tally(ep, (d) => d.version)}</div>
+<div class="row"><i>Home Assistant</i>${tally(ep, (d) => d.ha)}</div><div class="row"><i>Countries</i>${tally(ep, (d) => d.country)}</div><div class="row"><i>Languages</i>${tally(ep, (d) => d.lang)}</div>
+<div class="row"><i>Has</i><span class="ch">battery <b>${has("battery")}</b></span><span class="ch">car <b>${has("car")}</b></span><span class="ch">solar <b>${has("pv")}</b></span><span class="ch">controlling <b>${ep.filter((r) => Object.values(r.d.modes || {}).includes("control")).length}</b></span></div>
+<div class="row"><i>Saved / month (avg)</i><span class="ch"><b>${avg(ep, (d) => d.saved_month)}</b></span><i style="margin-left:12px">Battery kWh (avg)</i><span class="ch"><b>${avg(ep, (d) => d.battery_kwh)}</b></span></div>
+<div class="row"><i>Fixes confirmed</i><span class="ch"><b>${fixesN}</b></span><i style="margin-left:12px">Mended by itself</i>${mended.map((m) => `<span class="ch">${esc(m.key)} <b>${m.n}</b></span>`).join("") || "–"}</div></div>
+<h3>Self-test</h3><table><tr><th>Inverter</th><th>Part</th><th class="n">Passed</th><th>What failed</th></tr>${tests.map((t) => `<tr><td>${esc(t.profile)}</td><td>${esc(t.part)}</td><td class="n">${t.ok} / ${t.n}</td><td class="sm">${esc((t.failed || "").slice(0, 140))}</td></tr>`).join("") || `<tr><td colspan="4">–</td></tr>`}</table>
+<h2>🍽️ Madplan · ${mp.length} active</h2><div class="card">
+<div class="row"><i>Main chain</i>${tally(mp, (d) => d.chain)}</div><div class="row"><i>Also shops at</i>${tally(mp, (d) => d.extra || [])}</div>
+<div class="row"><i>Versions</i>${tally(mp, (d) => d.version)}</div><div class="row"><i>AI</i>${tally(mp, (d) => d.ai)}</div></div>
+<h2>🐞 App errors · last 30 days</h2><table><tr><th>App</th><th class="n">Installs</th><th class="n">Times</th><th>Version</th><th>Error</th></tr>
+${errs.map((e) => `<tr><td>${APPS[appOf(e.hash)].mark}</td><td class="n">${e.installs}</td><td class="n">${e.count}</td><td>${esc(e.version || "")}</td><td class="sm">${esc(String(e.text).slice(0, 140))} ${gh(e.issue)}</td></tr>`).join("") || `<tr><td colspan="5">No errors 🎉</td></tr>`}</table>
+<h2>🛟 Help messages · last 30 days</h2><div class="card"><div class="row">${help.map((h) => `<span class="ch">${APPS[h.app]?.mark || ""} ${esc(APPS[h.app]?.name || h.app)} <b>${h.n}</b></span>`).join("") || "–"}</div>
+<div class="row"><i>Latest</i>${helpLast.map((h) => `<span class="ch">${APPS[h.app]?.mark || ""} ${esc(h.day)} ${gh(h.issue)}</span>`).join("") || "–"}</div></div>`;
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>App users</title>
 <style>body{margin:0;font-family:-apple-system,Inter,Segoe UI,Roboto,sans-serif;background:#0f1220;color:#eef0f7}main{max-width:900px;margin:0 auto;padding:22px 16px}
 h1{font-size:24px;margin:0 0 4px}p{color:#9aa3b8;margin:0 0 18px;font-size:14px}.big{font-size:44px;font-weight:800;margin:6px 0 18px}
 table{width:100%;border-collapse:collapse;background:#171b2e;border-radius:16px;overflow:hidden}th,td{padding:11px 12px;text-align:left;border-bottom:1px solid #232945;font-size:14px}
 th{color:#9aa3b8;font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em}.n{text-align:right;font-variant-numeric:tabular-nums}.c span{display:inline-block;margin:2px 10px 2px 0;white-space:nowrap}
-@media(max-width:600px){th:nth-child(5),td:nth-child(5){display:block;border-bottom:0;padding-top:0}}</style></head><body><main>
+h2{font-size:18px;margin:30px 0 10px}h3{font-size:14px;color:#9aa3b8;margin:16px 0 8px;text-transform:uppercase;letter-spacing:.04em}
+.card{background:#171b2e;border-radius:16px;padding:12px 14px}.row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid #232945}.row:last-child{border-bottom:0}
+.row i{font-style:normal;color:#9aa3b8;font-size:12px;min-width:120px}.ch{background:#232945;border-radius:99px;padding:4px 10px;font-size:13px}.ch b{color:#ffd34d}
+.sm{font-size:12.5px;color:#c9cfe0}a{color:#8fb8ff}
+.cm{display:none;margin-top:4px;font-size:12.5px}
+@media(max-width:600px){.apps th:nth-child(5),.apps td:nth-child(5){display:none}.cm{display:block}}</style></head><body><main>
 <h1>Who uses the apps</h1><p>Installations that asked in – one per app and day, with the country of the connection. Counting since ${esc(since)}. Installations that turned sharing off aren't counted.</p>
 <div class="big">${all}<span style="font-size:15px;color:#9aa3b8;font-weight:500"> installations in the last 30 days</span></div>
-<table><tr><th>App</th><th class="n">7 days</th><th class="n">30 days</th><th class="n">New this week</th><th>Countries (30 days)</th></tr>${rows}</table></main></body></html>`;
+<table class="apps"><tr><th>App</th><th class="n">7 days</th><th class="n">30 days</th><th class="n">New this week</th><th>Countries (30 days)</th></tr>${rows}</table>${sections}</main></body></html>`;
   return new Response(html, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
 }
 
