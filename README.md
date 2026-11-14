@@ -30,7 +30,7 @@ One app for Home Assistant that finds what you have, learns your home and gets b
 | 🧠 **Learns your home** | A simple forecast from day one, and ML models trained every night on your own data take over when they hit better. |
 | ⏱️ **Plans in quarter hours** | Uses the market's own slots (15 min in Europe, 30 min on UK Agile), so the cheapest quarters are used. |
 | 💰 **Shows what it saved** | Measured from what you really bought and sold, against the same house and sun without the battery. |
-| 🔒 **Stays at home** | Runs on a Raspberry Pi next to Home Assistant. No cloud, no subscription, no telemetry. |
+| 🔒 **Stays at home** | Runs on a Raspberry Pi next to Home Assistant. No cloud, no subscription – only a small anonymous daily line you can turn off. |
 
 ## Install
 
@@ -199,8 +199,12 @@ Two things, both private to the developer:
 - **Learning together** (on unless you turn it off under *Settings*): once a day a small anonymous line – version,
   country, which inverter/charger/price source, what your house has, Shadow or Control, savings this month (rounded)
   – plus self-test results, what it mended by itself, and errors in the app. When three homes with the same inverter
-  find the same fix, everyone with that inverter gets it. **Never** names, address, location, entity names or your use
-  hour by hour.
+  find the same fix, everyone with that inverter gets it. It also sends **how it is set up**, so the brand profiles can
+  be fixed: for the inverter, battery and charger the integration, maker and model, which entities are used and what
+  for (with your own device name taken out – `select.<device>_export_limiter`), their values, and what failed.
+  **Never** names of people, address, location or your use hour by hour.
+- **Share my setup** (off unless you turn it on, under *Settings*): the full entity names of the inverter, battery and
+  charger are sent too.
 - **Get help** – only when you press it, and you see exactly what is sent first: the test result, your settings (no
   passwords), the readings and the plan, plus your note and pictures.
 

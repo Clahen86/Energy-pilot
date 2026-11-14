@@ -132,6 +132,7 @@ class Controller:
         except Exception:  # noqa: BLE001
             return
         by_id = {e["entity_id"]: e for e in entities}
+        self._ent_reg = by_id  # (the setup for the developer: setupinfo.py)
         self.phones = {e["entity_id"] for e in entities if e.get("platform") == "mobile_app"}  # phones and tablets
         try:
             devices = {d["id"]: d for d in await self.ha.command({"type": "config/device_registry/list"})}
@@ -568,6 +569,13 @@ class Controller:
                         entry["result"] = await self._send(calls, force=force)
                 else:
                     entry["result"] = await self._send(calls)
+                if entry["result"] != "ok":  # what failed, for the developer's view of the brand (setupinfo.py)
+                    errs = getattr(self, "part_errors", None)
+                    if errs is None:
+                        errs = self.part_errors = {}
+                    msg = f"{want['intent']}: {getattr(self, 'last_send_error', None) or entry['result']}"[:200]
+                    if msg not in errs.setdefault(part, []):
+                        errs[part] = (errs[part] + [msg])[-3:]
                 if not changed:
                     self._note_resent(part, "due")
                 if entry["result"] == "ok" and want["intent"] != "export" and self.is_battery(part):

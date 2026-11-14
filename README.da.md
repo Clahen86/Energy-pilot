@@ -30,7 +30,7 @@
 | 🧠 **Lærer dit hjem** | En simpel prognose fra dag ét, og ML-modeller trænet hver nat på dine egne data overtager, når de rammer bedre. |
 | ⏱️ **Planlægger i kvarterer** | Bruger markedets egne perioder, så de billigste kvarterer bliver brugt. |
 | 💰 **Viser, hvad den sparede** | Målt på det, du faktisk købte og solgte, mod samme hus og sol uden batteriet. |
-| 🔒 **Bliver hjemme** | Kører på en Raspberry Pi ved siden af Home Assistant. Ingen cloud, intet abonnement, ingen telemetri. |
+| 🔒 **Bliver hjemme** | Kører på en Raspberry Pi ved siden af Home Assistant. Ingen cloud, intet abonnement – kun en lille anonym daglig linje, du kan slå fra. |
 
 ## Installation
 
@@ -196,7 +196,12 @@ To ting, begge privat til udvikleren:
 - **Lær sammen** (slået til, medmindre du slår det fra under *Indstillinger*): én gang i døgnet en lille anonym linje –
   version, land, hvilken inverter/lader/priskilde, hvad huset har, Skygge eller Styrer, sparet denne måned (afrundet) –
   plus testresultater, hvad den har rettet selv, og fejl i appen. Når tre hjem med samme inverter finder samme
-  rettelse, får alle med den inverter den. **Aldrig** navne, adresse, placering, sensornavne eller forbrug time for time.
+  rettelse, får alle med den inverter den. Den sender også **hvordan den er sat op**, så mærkeprofilerne kan rettes: for
+  inverter, batteri og lader integrationen, mærke og model, hvilke entiteter der bruges og til hvad (uden dit eget
+  enhedsnavn – `select.<enhed>_export_limiter`), deres værdier, og hvad der fejlede. **Aldrig** navne på personer,
+  adresse, placering eller forbrug time for time.
+- **Del min opsætning** (slået fra, medmindre du slår det til under *Indstillinger*): så sendes de fulde entity-navne på
+  inverter, batteri og lader også.
 - **Få hjælp** – kun når du trykker, og du ser præcis, hvad der sendes, først: testresultatet, dine indstillinger (uden
   adgangskoder), målingerne og planen, plus din besked og dine billeder.
 

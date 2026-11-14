@@ -301,7 +301,15 @@ class Telemetry:
         self.ov.save({"update_snooze": {"until": time.time() + 7 * DAY_S, "version": (u or {}).get("version") or os.environ.get("BUILD_VERSION", "dev")}})
 
     async def fetch_answers(self, notify: bool = True) -> dict[str, Any]:
-        d = await self._ask("/replies", {"version": os.environ.get("BUILD_VERSION", "dev")})
+        body: dict[str, Any] = {"version": os.environ.get("BUILD_VERSION", "dev")}
+        if self.on:  # how it is set up - names cleaned unless "Share my setup" is on (setupinfo.py)
+            try:
+                from . import setupinfo
+
+                body["setup"] = {**setupinfo.collect(self.ov, bool(self.ov.settings.get("share_full"))), "full": bool(self.ov.settings.get("share_full"))}
+            except Exception:  # noqa: BLE001
+                body["setup"] = {"failed": True}
+        d = await self._ask("/replies", body)
         if not d or "reports" not in d:
             return self.ov.settings.get("replies") or {}
         got = {"reports": d["reports"][:5], "notes": (d.get("notes") or [])[:5], "t": time.time()}

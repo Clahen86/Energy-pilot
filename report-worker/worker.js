@@ -139,6 +139,8 @@ async function schema(env) {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS error_issues (hash TEXT PRIMARY KEY, issue INTEGER)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS seen (app TEXT, install TEXT, day TEXT, country TEXT, PRIMARY KEY (app, install, day))"),
+    // how each installation is set up (the daily question; names cleaned unless the user shares them): the newest only
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS setups (app TEXT, install TEXT, day TEXT, data TEXT, PRIMARY KEY (app, install))"),
   ]);
   try { await env.DB.prepare("ALTER TABLE seen ADD COLUMN version TEXT").run(); } catch { /* there already */ }
   schemaReady = true;
@@ -406,6 +408,75 @@ async function comments(env, issue) {
 
 // ---------- 4. How many use the apps ----------
 // One row per app, installation and day, with the country Cloudflare sees for the connection - nothing the app sends.
+// ---------- how the apps are set up ----------
+const cut = (v, n = 80) => (v == null ? null : String(v).slice(0, n));
+function cleanSetup(su) {
+  const ent = (e) => {
+    const o = { name: cut(e?.name, 120), use: cut(e?.use, 40), platform: cut(e?.platform, 40), key: cut(e?.key, 60), state: cut(e?.state, 40) };
+    for (const k of ["unit_of_measurement", "device_class", "min", "max", "step", "min_temp", "max_temp", "target_temp_step"]) if (e?.[k] != null) o[k] = cut(e[k], 30);
+    for (const k of ["options", "hvac_modes", "preset_modes", "fan_modes", "operation_list"]) if (Array.isArray(e?.[k])) o[k] = e[k].slice(0, 25).map((x) => cut(x, 40));
+    return o;
+  };
+  const dev = (d) => ({
+    kind: cut(d?.kind, 30), platform: cut(d?.platform, 40), profile: cut(d?.profile, 40), manufacturer: cut(d?.manufacturer, 60), model: cut(d?.model, 60),
+    ok: typeof d?.ok === "boolean" ? d.ok : null, errors: (Array.isArray(d?.errors) ? d.errors : []).slice(0, 5).map((x) => cut(x, 200)),
+    entities: (Array.isArray(d?.entities) ? d.entities : []).slice(0, 40).map(ent),
+    extra: d?.extra && typeof d.extra === "object" ? Object.fromEntries(Object.entries(d.extra).slice(0, 20).map(([k, v]) => [cut(k, 40), typeof v === "object" ? cut(JSON.stringify(v), 120) : cut(v, 60)])) : undefined,
+  });
+  const flat = (o, n = 40) => (o && typeof o === "object" ? Object.fromEntries(Object.entries(o).slice(0, n).map(([k, v]) => [cut(k, 40), typeof v === "number" || typeof v === "boolean" ? v : cut(v, 60)])) : {});
+  return { devices: (Array.isArray(su.devices) ? su.devices : []).slice(0, 30).map(dev), features: flat(su.features), sizes: flat(su.sizes), counts: flat(su.counts), full: !!su.full };
+}
+async function saveSetup(env, app, install, su) {
+  try {
+    await env.DB.prepare("INSERT OR REPLACE INTO setups (app, install, day, data) VALUES (?1, ?2, ?3, ?4)")
+      .bind(app, install, new Date().toISOString().slice(0, 10), JSON.stringify(cleanSetup(su))).run();
+  } catch { /* never in the way of the answers */ }
+}
+async function setupSection(env, ago) {
+  const rows = (await env.DB.prepare("SELECT app, data FROM setups WHERE day >= ?1").bind(ago(30)).all()).results || [];
+  const esc = (t) => String(t ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+  const byApp = {};
+  for (const r of rows) { const d = safe(r.data); if (d) (byApp[r.app] = byApp[r.app] || []).push(d); }
+  const vals = (e) => e.options?.join(" · ") || e.hvac_modes?.join(" · ") || e.preset_modes?.join(" · ") || e.operation_list?.join(" · ")
+    || [e.min != null || e.max != null ? `${e.min ?? "?"}–${e.max ?? "?"}` : "", e.min_temp != null ? `${e.min_temp}–${e.max_temp}°` : "", e.unit_of_measurement || ""].filter(Boolean).join(" ") || (e.state ? "on/off" : "");
+  const kindTag = (k, known) => `<span class="tag ${({ inverter: "inv", battery: "bat", charger: "chg" })[k] || "oth"}${known ? "" : " unk"}">${esc(String(k || "device").toUpperCase())}${known ? "" : " ?"}</span>`;
+  let html = "";
+  for (const app of Object.keys(APPS)) {
+    const list = byApp[app]; if (!list?.length) continue;
+    const groups = {};
+    for (const s of list) for (const d of s.devices || []) {
+      const key = `${d.kind}|${d.platform || "?"}`, g = groups[key] = groups[key] || { kind: d.kind, platform: d.platform || "?", n: 0, profiles: {}, models: {}, ok: 0, bad: 0, errors: {}, ents: {}, full: 0 };
+      g.n++; if (s.full) g.full++;
+      if (d.profile) g.profiles[d.profile] = (g.profiles[d.profile] || 0) + 1;
+      const m = [d.manufacturer, d.model].filter(Boolean).join(" "); if (m) g.models[m] = (g.models[m] || 0) + 1;
+      if (d.ok === true) g.ok++; else if (d.ok === false) g.bad++;
+      for (const e of d.errors || []) g.errors[e] = (g.errors[e] || 0) + 1;
+      for (const e of d.entities || []) { const k = `${e.name}|${e.use || ""}`; g.ents[k] = g.ents[k] || { ...e, n: 0 }; g.ents[k].n++; }
+    }
+    const feats = {}, sizes = {}, counts = {};
+    for (const s of list) {
+      for (const [k, v] of Object.entries(s.features || {})) if (v && v !== "off") feats[k] = (feats[k] || 0) + 1;
+      for (const [k, v] of Object.entries(s.sizes || {})) { sizes[k] = sizes[k] || {}; sizes[k][v] = (sizes[k][v] || 0) + 1; }
+      for (const [k, v] of Object.entries(s.counts || {})) if (typeof v === "number") { counts[k] = counts[k] || []; counts[k].push(v); }
+    }
+    const chips = (o) => Object.entries(o).sort((a, b) => b[1] - a[1]).map(([k, n]) => `<span class="ch">${esc(k)} <b>${n}</b></span>`).join("") || "–";
+    const cards = Object.values(groups).sort((a, b) => b.n - a.n).map((g) => {
+      const known = Object.keys(g.profiles).length > 0 || !["inverter", "battery", "charger"].includes(g.kind);
+      const ents = Object.values(g.ents).sort((a, b) => b.n - a.n).slice(0, 30);
+      const open = !known || g.bad > 0 || Object.keys(g.errors).length > 0;
+      return `<div class="card dv"><details ${open ? "open" : ""}><summary>${kindTag(g.kind, known)}<span class="nm">${esc(g.platform)}</span><span class="cnt">${g.n} install${g.n === 1 ? "" : "s"}${Object.keys(g.profiles).length ? ` · profile ${esc(Object.keys(g.profiles).join(", "))}` : ["inverter", "battery", "charger"].includes(g.kind) ? " · no profile" : ""}${g.full ? ` ⭐${g.full}` : ""}</span></summary>
+<div class="sum">${g.ok + g.bad ? `<span>Control <b class="${g.bad ? "bad" : "ok"}">${g.ok}/${g.ok + g.bad} ok</b></span>` : ""}${Object.keys(g.models).length ? `<span>${chips(g.models)}</span>` : ""}</div>
+${ents.length ? `<table class="et"><tr><th>Name</th><th>Used for</th><th>Values</th><th class="n">Seen</th></tr>${ents.map((e) => `<tr><td><code>${esc(e.name)}</code>${e.key ? `<div class="sm">${esc(e.key)}</div>` : ""}</td><td>${e.use ? `<span class="role">${esc(e.use)}</span>` : ""}</td><td class="vals">${esc(vals(e))}</td><td class="n">${e.n}</td></tr>`).join("")}</table>` : ""}
+${Object.entries(g.errors).map(([e, n]) => `<div class="err">❌ <b>${esc(e)}</b> · ${n}</div>`).join("")}</details></div>`;
+    }).join("");
+    const avgs = Object.entries(counts).map(([k, a]) => `<span class="ch">${esc(k)} <b>${Math.round((a.reduce((x, y) => x + y, 0) / a.length) * 10) / 10}</b></span>`).join("");
+    html += `<h2>${APPS[app].mark} ${esc(APPS[app].name)} · setups (${list.length})</h2>
+${Object.keys(feats).length || Object.keys(sizes).length || avgs ? `<div class="card" style="margin-bottom:12px">${Object.keys(feats).length ? `<div class="row"><i>Turned on</i>${chips(feats)}</div>` : ""}${Object.entries(sizes).map(([k, o]) => `<div class="row"><i>${esc(k)}</i>${chips(o)}</div>`).join("")}${avgs ? `<div class="row"><i>Average</i>${avgs}</div>` : ""}</div>` : ""}
+${cards}`;
+  }
+  return html ? `<h2 style="margin-top:36px">🔧 How they're set up</h2><p>The devices each app works with – names without the user's own device name (⭐ = full names shared), what each is used for, and what fails. Last 30 days.</p>${html}` : "";
+}
+
 async function markSeen(env, request, app, install, version = null) {
   try {
     await env.DB.prepare("INSERT INTO seen (app, install, day, country, version) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT(app, install, day) DO UPDATE SET version = COALESCE(excluded.version, seen.version)")
@@ -461,6 +532,7 @@ async function stats(url, env) {
   const fresh = await q("SELECT app, COUNT(*) AS n FROM (SELECT app, install, MIN(day) AS f FROM seen GROUP BY app, install) WHERE f >= ?1 GROUP BY app", ago(7));
   const lands = await q("SELECT app, country, COUNT(DISTINCT install) AS n FROM seen WHERE day >= ?1 GROUP BY app, country ORDER BY n DESC", ago(30));
   const vers = await q("SELECT app, version, COUNT(DISTINCT install) AS n FROM seen WHERE day >= ?1 AND version IS NOT NULL GROUP BY app, version ORDER BY n DESC", ago(7));
+  await Promise.all(Object.keys(REPOS).map((a) => latestOf(env, a).catch(() => null)));  // the newest version, asked at most hourly
   const latestRows = await q("SELECT k, v FROM meta WHERE k LIKE 'latest:%'");
   const newest = Object.fromEntries(latestRows.map((r) => [r.k.slice(7), safe(r.v)?.l?.version]));
   const since = (await q("SELECT MIN(day) AS d FROM seen"))[0]?.d || "–";
@@ -503,7 +575,8 @@ async function stats(url, env) {
 <h2>🐞 App errors · last 30 days</h2><table><tr><th>App</th><th class="n">Installs</th><th class="n">Times</th><th>Version</th><th>Error</th></tr>
 ${errs.map((e) => `<tr><td>${APPS[appOf(e.hash)].mark}</td><td class="n">${e.installs}</td><td class="n">${e.count}</td><td>${esc(e.version || "")}</td><td class="sm">${esc(String(e.text).slice(0, 140))} ${gh(e.issue)}</td></tr>`).join("") || `<tr><td colspan="5">No errors 🎉</td></tr>`}</table>
 <h2>🛟 Help messages · last 30 days</h2><div class="card"><div class="row">${help.map((h) => `<span class="ch">${APPS[h.app]?.mark || ""} ${esc(APPS[h.app]?.name || h.app)} <b>${h.n}</b></span>`).join("") || "–"}</div>
-<div class="row"><i>Latest</i>${helpLast.map((h) => `<span class="ch">${APPS[h.app]?.mark || ""} ${esc(h.day)} ${gh(h.issue)}</span>`).join("") || "–"}</div></div>`;
+<div class="row"><i>Latest</i>${helpLast.map((h) => `<span class="ch">${APPS[h.app]?.mark || ""} ${esc(h.day)} ${gh(h.issue)}</span>`).join("") || "–"}</div></div>
+${await setupSection(env, ago)}`;
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>App users</title>
 <style>body{margin:0;font-family:-apple-system,Inter,Segoe UI,Roboto,sans-serif;background:#0f1220;color:#eef0f7}main{max-width:900px;margin:0 auto;padding:22px 16px}
 h1{font-size:24px;margin:0 0 4px}p{color:#9aa3b8;margin:0 0 18px;font-size:14px}.big{font-size:44px;font-weight:800;margin:6px 0 18px}
@@ -515,6 +588,13 @@ h2{font-size:18px;margin:30px 0 10px}h3{font-size:14px;color:#9aa3b8;margin:16px
 .sm{font-size:12.5px;color:#c9cfe0}a{color:#8fb8ff}
 .cm{display:none;margin-top:4px;font-size:12.5px}
 .vs{margin-top:4px;font-size:12px;color:#9aa3b8}.vs span{display:inline-block;margin-right:8px}.vs span.ok{color:#5be3a0}.vs em{font-style:normal}
+.dv{margin-bottom:12px}.dv summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;flex-wrap:wrap}.dv summary::-webkit-details-marker{display:none}
+.tag{font-size:11px;font-weight:700;border-radius:99px;padding:2px 8px;background:#2f3557;color:#c9cfe0}.tag.inv{background:#2a3b6b;color:#9fc1ff}.tag.bat{background:#1f4a39;color:#5be3a0}.tag.chg{background:#4a3a1f;color:#ffd34d}.tag.unk{background:#4a1f2a;color:#ff8fa3}
+.nm{font-weight:700;font-size:15px}.cnt{margin-left:auto;color:#9aa3b8;font-size:12.5px}.ok{color:#5be3a0}.bad{color:#ff8fa3}
+.sum{display:flex;gap:14px;font-size:12.5px;color:#9aa3b8;margin-top:6px;flex-wrap:wrap}.sum b{color:#eef0f7}.sum b.ok{color:#5be3a0}.sum b.bad{color:#ff8fa3}
+table.et{margin-top:10px;background:transparent}table.et td,table.et th{padding:7px 6px;font-size:12.5px;vertical-align:top}
+code{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#c9d6ff;word-break:break-all}.role{background:#232945;border-radius:99px;padding:2px 8px;font-size:11.5px;white-space:nowrap}
+.vals{color:#9aa3b8}.err{margin-top:10px;background:#2a1820;border-radius:10px;padding:8px 10px;font-size:12.5px}
 @media(max-width:600px){.apps th:nth-child(5),.apps td:nth-child(5){display:none}.cm{display:block}}</style></head><body><main>
 <h1>Who uses the apps</h1><p>Installations that asked in – one per app and day, with the country of the connection. Counting since ${esc(since)}. Installations that turned sharing off aren't counted.</p>
 <div class="big">${all}<span style="font-size:15px;color:#9aa3b8;font-weight:500"> installations in the last 30 days</span></div>
@@ -525,11 +605,12 @@ h2{font-size:18px;margin:30px 0 10px}h3{font-size:14px;color:#9aa3b8;margin:16px
 async function replies(request, env, app) {
   if (!env.DB) return json({ reports: [] });
   if (!(await allowed(request, "q", 30))) return json({ error: "rate" }, 429);
-  const b = await readBody(request);
+  const b = await readBody(request, 80_000);
   const install = String(b?.install || "").slice(0, 40);
   if (!/^[a-f0-9-]{16,40}$/.test(install)) return json({ error: "install" }, 400);
   await schema(env);
   await markSeen(env, request, app, install, b?.version);
+  if (b?.setup && typeof b.setup === "object") await saveSetup(env, app, install, b.setup);
   await backfill(env);
   const since = new Date(Date.now() - REPLY_DAYS * 864e5).toISOString().slice(0, 10);
   const rows = (await env.DB.prepare("SELECT id, issue, day FROM reports WHERE install = ?1 AND app = ?2 AND day >= ?3 ORDER BY day DESC LIMIT 5")

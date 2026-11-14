@@ -166,7 +166,7 @@ class Overview:
                          # the update card (telemetry.py)
                          "latest", "behind", "update_snooze", "update_told",
                          # stop selling at negative prices (curtail.py)
-                         "curtail", "curtail_saved", "curtail_test"):
+                         "curtail", "curtail_saved", "curtail_test", "share_full"):
                 self.settings[key] = value
         self.file.write_text(json.dumps(self.settings, indent=2))
 
