@@ -15,24 +15,95 @@ from typing import Any
 GUST_MS = 25.0
 FULL, HOLD = 100.0, 80.0
 AHEAD_H = 36
-WARN_WORDS = ("wind", "storm", "thunder", "torden", "blæst", "orkan", "gale", "sturm", "gewitter", "vent", "orage")
+# The weather services' own warnings in Home Assistant - by integration (the entity registry), else by the entity's name.
+WARN_PLATFORMS = {"meteoalarm", "dwd_weather_warnings", "meteo_france", "environment_canada", "gdacs", "nws_alerts",
+                  "bureau_of_meteorology", "metservice", "met_alerts", "metoffice_warnings", "uk_weather_warnings", "nhc",
+                  "nhc_atlantic", "noaa_alerts"}
+WARN_IDS = ("meteoalarm", "warning", "warnings", "alert", "alerts", "varsel", "farevarsel", "nws", "bom_", "gdacs", "nhc", "weather_alert")
+STORM_WORDS = ("wind", "storm", "gale", "thunder", "hurricane", "cyclone", "typhoon", "tornado", "blizzard", "squall", "gust",
+               "sturm", "orkan", "gewitter", "böe", "boe", "vent violent", "orage", "tempête", "tempete", "vind", "torden", "blæst",
+               "uvær", "uvaer", "åska", "aska", "kuling")
+SERIOUS = ("orange", "red", "rouge", "severe", "extreme", "major", "warning", "hurricane", "cyclone", "typhoon", "unwetter", "markant")
+MILD_ONLY = ("advisory", "yellow", "jaune", "gelb", "gul", "minor", "moderate")
 
 
-def _warning(states: dict[str, Any]) -> bool:
-    """A weather warning in Home Assistant that is on now (Meteoalarm, DMI, MET Norway …) about wind or thunder."""
+def _text(v) -> str:
+    import json
+
+    try:
+        return json.dumps(v, ensure_ascii=False, default=str).lower()
+    except (TypeError, ValueError):
+        return str(v).lower()
+
+
+def _serious(txt: str) -> bool:
+    if not any(w in txt for w in STORM_WORDS):
+        return False
+    return any(w in txt for w in SERIOUS)
+
+
+def _start(a: dict) -> str | None:
+    for k in ("onset", "Onset", "start", "warning_1_start", "effective", "begin", "from"):
+        if a.get(k):
+            return str(a[k])
+    for x in a.get("Alerts") or a.get("alerts") or a.get("warnings") or []:
+        if isinstance(x, dict):
+            for k in ("Onset", "onset", "start_time", "issue_time", "start"):
+                if x.get(k):
+                    return str(x[k])
+    return None
+
+
+def _warning(states: dict[str, Any], reg: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    """A serious warning about wind, storm, thunder or a cyclone from the weather service, through Home Assistant:
+    Meteoalarm (most of Europe), DWD (DE), Météo-France, Environment Canada, GDACS (cyclones, the whole world), NWS
+    Alerts (US), BOM (AU), MetService (NZ), MET Varsler (NO), Met Office warnings (UK), NHC (hurricanes)."""
+    reg = reg or {}
     for e, st in (states or {}).items():
-        if not e.startswith("binary_sensor.") or st.get("state") != "on":
+        dom = e.split(".")[0]
+        if dom not in ("binary_sensor", "sensor", "geo_location"):
+            continue
+        plat = (reg.get(e) or {}).get("platform")
+        if plat not in WARN_PLATFORMS and not any(w in e for w in WARN_IDS):
             continue
         a = st.get("attributes") or {}
-        txt = " ".join(str(a.get(k) or "") for k in ("event", "headline", "awareness_type", "description", "friendly_name")).lower()
-        if ("alarm" in e or "warning" in e or "varsel" in e or a.get("awareness_level")) and any(w in txt for w in WARN_WORDS):
-            level = str(a.get("awareness_level") or a.get("severity") or "").lower()
-            if not level or any(x in level for x in ("orange", "red", "severe", "extreme", "3", "4")):
-                return True
-    return False
+        state = str(st.get("state") or "").lower()
+        if state in ("off", "unknown", "unavailable", "", "0", "none", "vert", "green", "grün", "gruen"):
+            continue
+        found = None
+        if plat == "gdacs" or dom == "geo_location":  # a cyclone near the home
+            try:
+                near = float(st.get("state")) < 600
+            except (TypeError, ValueError):
+                near = False
+            if near and any(w in _text(a.get("event_type")) for w in ("cyclone", "storm")) and any(w in _text(a.get("alert_level")) for w in ("orange", "red")):
+                found = a.get("event_type") or "cyclone"
+        elif plat == "dwd_weather_warnings" or "warning_level" in e:  # DWD: 2 = markant, 3 = Unwetter, 4 = extrem
+            try:
+                lvl = int(float(st.get("state")))
+            except (TypeError, ValueError):
+                lvl = 0
+            kinds = [a.get(f"warning_{i}_type") for i in range(1, 6)]
+            names = _text([a.get(f"warning_{i}_name") for i in range(1, 6)])
+            if lvl >= 2 and (0 in kinds or 1 in kinds or any(w in names for w in STORM_WORDS)):
+                found = a.get("warning_1_name") or "DWD"
+        elif plat == "meteo_france" or "weather_alert" in e:  # {"Vent violent": "Orange", "Orages": "Rouge"}
+            for k, v in a.items():
+                if any(w in str(k).lower() for w in ("vent", "orage", "vague")) and str(v).lower() in ("orange", "rouge"):
+                    found = f"{k}: {v}"
+        else:  # Meteoalarm, MET, NWS, BOM, MetService, Environment Canada, Met Office, NHC: by their words
+            txt = _text(a)
+            lvl = _text(a.get("awareness_level") or a.get("severity") or a.get("level") or "")
+            if lvl and any(w in lvl for w in MILD_ONLY) and not any(w in lvl for w in ("orange", "red", "severe", "extreme")):
+                continue
+            if _serious(txt):
+                found = a.get("event") or a.get("headline") or a.get("title") or a.get("friendly_name") or e
+        if found:
+            return {"source": plat or e.split(".")[0], "text": str(found)[:80], "start": _start(a)}
+    return None
 
 
-def find(weather: Any, now: datetime, s: dict[str, Any], states: dict[str, Any] | None = None) -> dict[str, Any] | None:
+def find(weather: Any, now: datetime, s: dict[str, Any], states: dict[str, Any] | None = None, reg: dict[str, Any] | None = None) -> dict[str, Any] | None:
     """The coming storm: {"from", "to", "gust" (m/s), "kind"} - the first window within 36 hours, or None."""
     thr = float(s.get("storm_gust") or GUST_MS)
     hours = sorted((getattr(weather, "hours", None) or {}).items())
@@ -44,18 +115,26 @@ def find(weather: Any, now: datetime, s: dict[str, Any], states: dict[str, Any] 
         thunder = w.get("code") is not None and int(w["code"]) >= 95
         if gust >= thr or thunder:
             hit.append((t, gust, thunder))
-    warn = _warning(states or {})
+    warn = _warning(states or {}, reg)
     if not hit and not warn:
         return None
-    if not hit:  # only the warning: from now, the next 12 hours
-        return {"from": now.isoformat(), "to": (now + timedelta(hours=12)).isoformat(), "gust": None, "kind": "warning"}
+    if not hit:  # only the warning: from its start (else now), the next 12 hours
+        t0 = now
+        try:
+            st0 = datetime.fromisoformat(str(warn.get("start")).replace("Z", "+00:00"))
+            if now < st0 < now + timedelta(hours=AHEAD_H):
+                t0 = st0.astimezone(now.tzinfo)
+        except (TypeError, ValueError):
+            pass
+        return {"from": t0.isoformat(), "to": (t0 + timedelta(hours=12)).isoformat(), "gust": None, "kind": "warning",
+                "source": warn["source"], "text": warn["text"]}
     first, end, top, thunder = hit[0][0], hit[0][0], 0.0, False
     for t, g, th in hit:
         if t - end > timedelta(hours=2):
             break  # the first storm only
         end, top, thunder = t, max(top, g), thunder or th
     return {"from": first.isoformat(), "to": (end + timedelta(hours=1)).isoformat(), "gust": round(top, 1) if top else None,
-            "kind": "wind" if top >= thr else "thunder", "warning": warn}
+            "kind": "wind" if top >= thr else "thunder", "warning": bool(warn), "source": (warn or {}).get("source"), "text": (warn or {}).get("text")}
 
 
 def targets(storm: dict[str, Any] | None, s: dict[str, Any]) -> tuple:

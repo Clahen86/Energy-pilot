@@ -1008,7 +1008,7 @@ class Engine:
         now = datetime.now(tz)
         from . import storm as _storm
 
-        self.storm = _storm.find(self.weather, now, self.ov.settings, self.ha.states) if self.ov.settings.get("storm") else None
+        self.storm = _storm.find(self.weather, now, self.ov.settings, self.ha.states, getattr(getattr(self.ov, "controller", None), "_ent_reg", None)) if self.ov.settings.get("storm") else None
         start = now.replace(minute=0, second=0, microsecond=0)
         offgrid = bool(self.ov.settings.get("offgrid"))
         if offgrid:

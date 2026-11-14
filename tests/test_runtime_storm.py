@@ -41,6 +41,41 @@ def test_storm_found_in_the_forecast():
     assert storm.find(w, T0, {"storm_gust": 30}) is None
 
 
+def _w(states, reg=None):
+    return storm._warning(states, reg)
+
+
+def test_warnings_from_the_weather_services():
+    # Meteoalarm (Europe): orange wind - yes; yellow - no
+    assert _w({"binary_sensor.meteoalarm": {"state": "on", "attributes": {"awareness_level": "3; orange; Severe", "awareness_type": "1; Wind", "event": "Orange wind warning"}}})
+    assert not _w({"binary_sensor.meteoalarm": {"state": "on", "attributes": {"awareness_level": "2; yellow; Moderate", "awareness_type": "1; Wind"}}})
+    # DWD (DE): level 3, storm
+    dwd = {"sensor.berlin_current_warning_level": {"state": "3", "attributes": {"warning_1_name": "ORKANARTIGE BÖEN", "warning_1_type": 1}}}
+    assert _w(dwd, {"sensor.berlin_current_warning_level": {"platform": "dwd_weather_warnings"}})["source"] == "dwd_weather_warnings"
+    assert not _w({"sensor.berlin_current_warning_level": {"state": "1", "attributes": {"warning_1_name": "WINDBÖEN", "warning_1_type": 1}}})
+    # Météo-France: Vent violent orange
+    assert _w({"sensor.29_weather_alert": {"state": "Orange", "attributes": {"Vent violent": "Orange", "Pluie-inondation": "Vert"}}})
+    assert not _w({"sensor.29_weather_alert": {"state": "Jaune", "attributes": {"Vent violent": "Jaune"}}})
+    # NWS Alerts (US)
+    assert _w({"sensor.nws_alerts": {"state": "1", "attributes": {"Alerts": [{"Event": "High Wind Warning", "Severity": "Severe", "Onset": "2026-11-16T03:00:00-05:00"}]}}})
+    assert not _w({"sensor.nws_alerts": {"state": "1", "attributes": {"Alerts": [{"Event": "Wind Advisory", "Severity": "Minor"}]}}})
+    # BOM (AU), Environment Canada, MET (NO)
+    assert _w({"sensor.sydney_warnings": {"state": "1", "attributes": {"warnings": [{"short_title": "Severe Thunderstorm Warning", "warning_group_type": "major"}]}}})
+    assert _w({"sensor.ottawa_warnings": {"state": "1", "attributes": {"alert_1": "Wind warning in effect"}}}, {"sensor.ottawa_warnings": {"platform": "environment_canada"}})
+    assert _w({"sensor.met_alerts": {"state": "3", "attributes": {"awareness_level": "3; orange; Moderate", "event": "Kuling", "title": "Kraftige vindkast"}}})
+    # GDACS (the whole world): a red cyclone 250 km away
+    assert _w({"geo_location.cyclone_x": {"state": "250", "attributes": {"event_type": "Tropical Cyclone", "alert_level": "Red"}}}, {"geo_location.cyclone_x": {"platform": "gdacs"}})
+    assert not _w({"geo_location.cyclone_x": {"state": "2500", "attributes": {"event_type": "Tropical Cyclone", "alert_level": "Red"}}}, {"geo_location.cyclone_x": {"platform": "gdacs"}})
+    # never a sensor that isn't a warning
+    assert not _w({"sensor.wind_speed": {"state": "30", "attributes": {"unit_of_measurement": "m/s"}}})
+
+
+def test_warning_starts_when_it_says():
+    states = {"sensor.nws_alerts": {"state": "1", "attributes": {"Alerts": [{"Event": "Hurricane Warning", "Onset": (T0 + timedelta(hours=6)).isoformat()}]}}}
+    st = storm.find(SimpleNamespace(hours={}), T0, {}, states)
+    assert st["kind"] == "warning" and datetime.fromisoformat(st["from"]) == T0 + timedelta(hours=6)
+
+
 def test_thunder_and_warning():
     w = SimpleNamespace(hours={T0 + timedelta(hours=3): {"gust": 20, "code": 95}})
     assert storm.find(w, T0, {})["kind"] == "thunder"

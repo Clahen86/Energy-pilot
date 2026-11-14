@@ -1016,7 +1016,7 @@ function runtimeCard() {
   const lowI = r.low ? r.curve.findIndex((c) => c.t === r.low.t) : -1;
   const ticks = [0, 6, 12, 18, 23].filter((i) => i < r.curve.length).map((i) => `<text x="${xs(i).toFixed(1)}" y="${top + H + 16}" text-anchor="${i === 0 ? "start" : i >= r.curve.length - 1 ? "end" : "middle"}" font-size="10" fill="var(--muted)">${i === 0 ? k.now : hm(r.curve[i].t)}</text>`).join("");
   const ring = 2 * Math.PI * 38, st = r.storm;
-  const stormLine = st ? `<div class="stnote warn" style="margin:10px 0 0"><b>${st.kind === "warning" ? k.warn : (st.kind === "thunder" ? k.thunder : k.storm).replace("{a}", hm(st.from))}</b>${st.gust ? ` · ${k.gust.replace("{g}", num(st.gust, 0))}` : ""}<br><span class="muted">${k.stormH}</span></div>` : "";
+  const stormLine = st ? `<div class="stnote warn" style="margin:10px 0 0"><b>${st.kind === "warning" ? k.warn : (st.kind === "thunder" ? k.thunder : k.storm).replace("{a}", hm(st.from))}</b>${st.gust ? ` · ${k.gust.replace("{g}", num(st.gust, 0))}` : ""}${st.text ? ` · ${esc(st.text)}` : ""}<br><span class="muted">${k.stormH}</span></div>` : "";
   return `<div class="card fade rtcard"><div class="eyebrow"><span>🔋 ${k.t}</span></div>
     <div style="display:flex;align-items:center;gap:16px;margin:12px 0 4px">
       <svg viewBox="0 0 92 92" width="88" height="88" style="flex:none"><circle cx="46" cy="46" r="38" fill="none" stroke="var(--line)" stroke-width="9"/>
