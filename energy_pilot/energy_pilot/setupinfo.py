@@ -84,6 +84,26 @@ def entity(entity_id: str, use: str, states: dict[str, Any], reg: dict[str, Any]
     return out
 
 
+def brand_device(entity_ids: list[str], reg: dict[str, Any], devices: dict[str, Any], platform: str | None = None,
+                 known: list[str | None] | None = None) -> dict[str, Any]:
+    """The device that tells the maker and model: the first of the entities used that belongs to a device with a maker;
+    else a device Energy Pilot already found (the charger's, the battery's); else any device of the same integration."""
+    def good(did: Any) -> dict[str, Any] | None:
+        d = devices.get(did or "") or {}
+        return d if d.get("manufacturer") or d.get("model") else None
+    for e in entity_ids:
+        if d := good((reg.get(e) or {}).get("device_id")):
+            return d
+    for did in known or []:
+        if d := good(did):
+            return d
+    if platform:
+        for e in reg.values():
+            if e.get("platform") == platform and (d := good(e.get("device_id"))):
+                return d
+    return {}
+
+
 def _charger_profile(plat: str | None, ents: list[str]) -> str | None:
     """A charger's profile: its integration's own actions when Energy Pilot knows them, else the switch and current."""
     from . import adapters
@@ -139,7 +159,8 @@ def collect(ov: Any, full: bool) -> dict[str, Any]:
             except Exception:  # noqa: BLE001
                 pass
             first = role_ents[0][1] if role_ents else (ents[0] if ents else None)
-            dev = devices.get((reg.get(first or "") or {}).get("device_id") or "") or {}
+            known = [getattr(c, "battery_device", None)] if part == "battery" else [getattr(c, "car_device", None)] if part == "car" else []
+            dev = brand_device([e for _r, e in role_ents] + ents, reg, devices, plat, known)
             rows = [entity(e, role, states, reg, devices, full, words) for role, e in role_ents]
             rows += [entity(e, "+".join(sorted(uses.get(e, []))) or "control", states, reg, devices, full, words) for e in ents if e not in dict(role_ents).values()][:30]
             rows += [{"name": k, "use": "+".join(sorted(v)), "platform": k.split(".")[0]} for k, v in uses.items() if k not in states and "." in k and not k.startswith(("number.", "select.", "switch.", "button."))]

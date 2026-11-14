@@ -57,3 +57,11 @@ def test_collect_cleaned():
 def test_collect_full_names():
     out = setupinfo.collect(_ov(), True)
     assert "select.claus_inverter_export_limiter" in str(out)
+
+
+def test_brand_from_another_entity_or_the_integration():
+    reg = {"sensor.tpl_power": {"platform": "template"}, "sensor.keba_x": {"platform": "keba", "device_id": "k"}}
+    devs = {"k": {"manufacturer": "KEBA", "model": "P30"}}
+    assert setupinfo.brand_device(["sensor.tpl_power", "sensor.keba_x"], reg, devs)["model"] == "P30"
+    assert setupinfo.brand_device(["sensor.tpl_power"], reg, devs, "keba")["manufacturer"] == "KEBA"
+    assert setupinfo.brand_device(["sensor.tpl_power"], reg, devs, None, ["k"])["model"] == "P30"
