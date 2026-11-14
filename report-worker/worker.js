@@ -419,24 +419,33 @@ const REPOS = { "energy-pilot": "Energy-pilot", madplan: "ha-madplan", "replace-
 async function latestOf(env, app) {
   const repo = REPOS[app]; if (!repo) return null;
   const k = "latest:" + app, row = await env.DB.prepare("SELECT v FROM meta WHERE k = ?1").bind(k).first(), old = row ? safe(row.v) : null;
-  if (old && Date.now() - (old.t || 0) < 6 * 36e5) return old.l;
+  if (old && Date.now() - (old.t || 0) < 36e5) return old.l;  // asked GitHub within the hour
   const h = { accept: "application/vnd.github+json", "user-agent": "energy-pilot-reports", ...(env.GITHUB_TOKEN ? { authorization: `Bearer ${env.GITHUB_TOKEN}` } : {}) };
+  const num = (v) => String(v || "").replace(/^v/, "").split(".").map((x) => parseInt(x, 10) || 0);
+  const newer = (a, b) => { const x = num(a), y = num(b); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
   let l = null;
   try {
+    // The newest of the latest Release and the tags: a version that is only tagged counts too.
+    let rel = null, tag = null;
     const r = await fetch(`https://api.github.com/repos/Clahen86/${repo}/releases/latest`, { headers: h });
     if (r.ok) {
       const j = await r.json(), body = String(j.body || "");
       // the first point of the release text (a point can run over several lines)
-      const raw = body.split("\n").map((x) => x.trim()), head = /^(#+\s*)?(new|fixes|improvements|nyt|rettelser|forbedringer)$/i;
+      const raw = body.split("\n").map((x) => x.trim()), head = /^(#+\s*)?(new|fixed|fixes|improvements|nyt|rettet|rettelser|forbedringer)$/i;
       let i = raw.findIndex((x) => x && !head.test(x)), line = i < 0 ? "" : raw[i].replace(/^[-*>#\s]+/, "");
       while (i >= 0 && raw[i + 1] && !/^[-*]/.test(raw[i + 1]) && !head.test(raw[i + 1])) line += " " + raw[++i];
       line = line.replace(/`/g, "");
-      l = { version: String(j.tag_name || "").replace(/^v/, ""), note: line.slice(0, 160), important: /important:/i.test(body), date: String(j.published_at || "").slice(0, 10), repo: `Clahen86/${repo}` };
-    } else {
-      const t = await fetch(`https://api.github.com/repos/Clahen86/${repo}/tags?per_page=1`, { headers: h });
-      const tag = t.ok ? (await t.json())[0] : null;
-      if (tag) l = { version: String(tag.name).replace(/^v/, ""), note: "", important: false, date: "", repo: `Clahen86/${repo}` };
+      rel = { version: String(j.tag_name || "").replace(/^v/, ""), note: line.slice(0, 160), important: /important:/i.test(body), date: String(j.published_at || "").slice(0, 10), repo: `Clahen86/${repo}` };
     }
+    const t = await fetch(`https://api.github.com/repos/Clahen86/${repo}/tags?per_page=30`, { headers: h });
+    if (t.ok) {
+      const names = ((await t.json()) || []).map((x) => String(x.name || "")).filter((x) => /^v?\d+\.\d+/.test(x));
+      const top = names.reduce((m, x) => (!m || newer(x, m) ? x : m), "");
+      if (top) tag = { version: top.replace(/^v/, ""), note: "", important: false, date: "", repo: `Clahen86/${repo}` };
+    }
+    l = rel && tag ? (newer(tag.version, rel.version) ? tag : rel) : rel || tag;
+    // a version only tagged: the date it was first seen here (the apps count "behind" from it)
+    if (l && !l.date) l.date = old?.l?.version === l.version && old.l.date ? old.l.date : new Date().toISOString().slice(0, 10);
   } catch { /* GitHub away: keep the old one */ }
   l = l || old?.l || null;
   await env.DB.prepare("INSERT OR REPLACE INTO meta (k, v) VALUES (?1, ?2)").bind(k, JSON.stringify({ t: Date.now(), l })).run();
