@@ -45,6 +45,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname === "/fixes") return fixes(env);
+    if (request.method === "GET" && url.pathname === "/stats") return stats(url, env);
     if (request.method === "GET") return json({ ok: true, service: "energy-pilot-reports" });
     if (request.method !== "POST") return json({ error: "method" }, 405);
     const app = request.headers.get("x-ep-client");
@@ -55,6 +56,7 @@ export default {
     return report(request, env, app);
   },
   async scheduled(_event, env) {
+    try { await env.DB.prepare("DELETE FROM seen WHERE day < ?1").bind(new Date(Date.now() - 120 * 864e5).toISOString().slice(0, 10)).run(); } catch { /* not there yet */ }
     await weekly(env);
   },
 };
@@ -136,6 +138,7 @@ async function schema(env) {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS reports (id TEXT PRIMARY KEY, app TEXT, issue INTEGER, install TEXT, day TEXT)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS error_issues (hash TEXT PRIMARY KEY, issue INTEGER)"),
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS seen (app TEXT, install TEXT, day TEXT, country TEXT, PRIMARY KEY (app, install, day))"),
   ]);
   schemaReady = true;
 }
@@ -154,6 +157,7 @@ async function telemetry(request, env, app = "energy-pilot") {
   const install = String(b.install || "").slice(0, 40);
   if (!/^[a-f0-9-]{16,40}$/.test(install)) return json({ error: "install" }, 400);
   await schema(env);
+  await markSeen(env, request, app, install);
   const day = new Date().toISOString().slice(0, 10), db = env.DB;
   const s = (v, n = 80) => (v == null ? null : String(v).slice(0, n));
   if (app === "madplan") return madplan(env, b, install, day, s);
@@ -399,6 +403,43 @@ async function comments(env, issue) {
   return d;
 }
 
+// ---------- 4. How many use the apps ----------
+// One row per app, installation and day, with the country Cloudflare sees for the connection - nothing the app sends.
+async function markSeen(env, request, app, install) {
+  try {
+    await env.DB.prepare("INSERT OR IGNORE INTO seen (app, install, day, country) VALUES (?1, ?2, ?3, ?4)")
+      .bind(app, install, new Date().toISOString().slice(0, 10), String(request.cf?.country || "?").slice(0, 2)).run();
+  } catch { /* counting never stops an answer */ }
+}
+const flag = (cc) => /^[A-Z]{2}$/.test(cc) ? String.fromCodePoint(...[...cc].map((c) => 127397 + c.charCodeAt(0))) : "🌐";
+async function stats(url, env) {
+  if (!env.STATS_KEY || url.searchParams.get("key") !== env.STATS_KEY) return new Response("Not found", { status: 404 });
+  await schema(env);
+  const ago = (d) => new Date(Date.now() - d * 864e5).toISOString().slice(0, 10), db = env.DB;
+  const q = async (sql, ...a) => (await db.prepare(sql).bind(...a).all()).results || [];
+  const per = await q("SELECT app, COUNT(DISTINCT CASE WHEN day >= ?1 THEN install END) AS w, COUNT(DISTINCT install) AS m FROM seen WHERE day >= ?2 GROUP BY app", ago(7), ago(30));
+  const fresh = await q("SELECT app, COUNT(*) AS n FROM (SELECT app, install, MIN(day) AS f FROM seen GROUP BY app, install) WHERE f >= ?1 GROUP BY app", ago(7));
+  const lands = await q("SELECT app, country, COUNT(DISTINCT install) AS n FROM seen WHERE day >= ?1 GROUP BY app, country ORDER BY n DESC", ago(30));
+  const since = (await q("SELECT MIN(day) AS d FROM seen"))[0]?.d || "–";
+  const esc = (t) => String(t).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+  const rows = Object.keys(APPS).map((k) => {
+    const p = per.find((r) => r.app === k) || { w: 0, m: 0 }, f = (fresh.find((r) => r.app === k) || { n: 0 }).n;
+    const l = lands.filter((r) => r.app === k).map((r) => `<span>${flag(r.country)} ${esc(r.country)} <b>${r.n}</b></span>`).join("");
+    return `<tr><td><b>${esc(APPS[k].name)}</b></td><td class="n">${p.w}</td><td class="n">${p.m}</td><td class="n">${f ? "+" + f : "–"}</td><td class="c">${l || "–"}</td></tr>`;
+  }).join("");
+  const all = (await q("SELECT COUNT(DISTINCT install) AS n FROM seen WHERE day >= ?1", ago(30)))[0]?.n || 0;
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>App users</title>
+<style>body{margin:0;font-family:-apple-system,Inter,Segoe UI,Roboto,sans-serif;background:#0f1220;color:#eef0f7}main{max-width:900px;margin:0 auto;padding:22px 16px}
+h1{font-size:24px;margin:0 0 4px}p{color:#9aa3b8;margin:0 0 18px;font-size:14px}.big{font-size:44px;font-weight:800;margin:6px 0 18px}
+table{width:100%;border-collapse:collapse;background:#171b2e;border-radius:16px;overflow:hidden}th,td{padding:11px 12px;text-align:left;border-bottom:1px solid #232945;font-size:14px}
+th{color:#9aa3b8;font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em}.n{text-align:right;font-variant-numeric:tabular-nums}.c span{display:inline-block;margin:2px 10px 2px 0;white-space:nowrap}
+@media(max-width:600px){th:nth-child(5),td:nth-child(5){display:block;border-bottom:0;padding-top:0}}</style></head><body><main>
+<h1>Who uses the apps</h1><p>Installations that asked in – one per app and day, with the country of the connection. Counting since ${esc(since)}. Installations that turned sharing off aren't counted.</p>
+<div class="big">${all}<span style="font-size:15px;color:#9aa3b8;font-weight:500"> installations in the last 30 days</span></div>
+<table><tr><th>App</th><th class="n">7 days</th><th class="n">30 days</th><th class="n">New this week</th><th>Countries (30 days)</th></tr>${rows}</table></main></body></html>`;
+  return new Response(html, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
+}
+
 async function replies(request, env, app) {
   if (!env.DB) return json({ reports: [] });
   if (!(await allowed(request, "q", 30))) return json({ error: "rate" }, 429);
@@ -406,6 +447,7 @@ async function replies(request, env, app) {
   const install = String(b?.install || "").slice(0, 40);
   if (!/^[a-f0-9-]{16,40}$/.test(install)) return json({ error: "install" }, 400);
   await schema(env);
+  await markSeen(env, request, app, install);
   await backfill(env);
   const since = new Date(Date.now() - REPLY_DAYS * 864e5).toISOString().slice(0, 10);
   const rows = (await env.DB.prepare("SELECT id, issue, day FROM reports WHERE install = ?1 AND app = ?2 AND day >= ?3 ORDER BY day DESC LIMIT 5")
