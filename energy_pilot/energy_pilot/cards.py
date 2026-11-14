@@ -23,6 +23,21 @@ CARD = Path(__file__).parent / "frontend" / "energipilot-card.js"
 HA_CONFIG = Path("/homeassistant")
 
 
+def _runtime(r: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not r:
+        return None
+    from datetime import datetime, timedelta
+
+    def ten(iso: str | None) -> str | None:
+        if not iso:
+            return None
+        t = datetime.fromisoformat(iso)
+        t = t.replace(second=0, microsecond=0) - timedelta(minutes=t.minute % 10)
+        return t.isoformat()
+    return {"empty": bool(r.get("empty")), "until": ten(r.get("until")), "beyond": r.get("beyond") and ten(r["beyond"]), "low": r.get("low") and {"t": r["low"]["t"], "soc": round(r["low"]["soc"])},
+            "full": r.get("full"), "cheap": r.get("cheap"), "storm": r.get("storm") and {k: r["storm"].get(k) for k in ("from", "to", "kind", "gust")}}
+
+
 class Cards:
     def __init__(self, ha: Any, overview: Overview, version: str) -> None:
         self.ha, self.overview, self.version = ha, overview, version
@@ -79,13 +94,15 @@ class Cards:
             "roles": {**o.roles(), **{k: v for k in ("pv_power",) if len(v := o.role_all(k)) > 1}}, "decision": decision, "plan": snap["plan"]["hours"],
             "price_min": snap["plan"]["price_min"], "price_max": snap["plan"]["price_max"], "cheapest": snap["plan"]["cheapest"],
             "battery_sign": o.battery_sign(),
+            # how long the battery lasts (runtime.py) - to the nearest 10 minutes, so it isn't written every round
+            "runtime": _runtime(snap.get("runtime")),
             "solar": snap["solar"], "house_today": snap["house_today"], "ev": snap["ev"], "version": self.version,
             # the card dresses its energy picture like the app: only what changes now and then (not the sun's height)
             "scene": {k: (round(v) if k == "outdoor" and isinstance(v, (int, float)) else v) for k, v in (snap.get("scene") or {}).items()
                       if k not in ("elevation", "cloud", "wind")} or None,
         }
         sc = attrs["scene"] or {}
-        key = json.dumps([decision.get("key"), decision.get("target"), attrs["plan"], attrs["ev"], attrs["roles"], attrs["solar"],
+        key = json.dumps([decision.get("key"), decision.get("target"), attrs["plan"], attrs["ev"], attrs["roles"], attrs["solar"], attrs["runtime"],
                           sc.get("time"), sc.get("condition"), sc.get("season"), (sc.get("holiday") or {}).get("key"),
                           sc.get("outdoor") is not None and sc["outdoor"] <= 0],
                          sort_keys=True, default=str)

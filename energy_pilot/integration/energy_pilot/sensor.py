@@ -17,7 +17,7 @@ async def async_setup_entry(hass, entry, add):
          Saved(p, "saved_today", "today"), Saved(p, "saved_month", "month"), Saved(p, "saved_year", "year"),
          Saved(p, "saved_total", "total"), BatteryCost(p),
          NextSlot(p, "next_battery_charge", "charge"), NextSlot(p, "next_car_charge", "car"), NextSlot(p, "next_battery_sell", "export"),
-         Cheapest(p), Energy(p, "house_today", lambda d: d.get("house_today")),
+         Cheapest(p), Runtime(p), Energy(p, "house_today", lambda d: d.get("house_today")),
          Energy(p, "solar_forecast_today", lambda d: (d.get("solar") or {}).get("solar_today")),
          Energy(p, "solar_forecast_tomorrow", lambda d: (d.get("solar") or {}).get("solar_tomorrow"))])
 
@@ -71,6 +71,34 @@ class NextSlot(PilotEntity, SensorEntity):
         if b[2].get("soc") is not None:
             out["battery_level"] = b[2]["soc"]
         return out
+
+
+class Runtime(PilotEntity, SensorEntity):
+    """How long the battery lasts without power from the grid (Energy Pilot's runtime.py): the time it reaches its
+    lowest level. Empty when it lasts beyond the plan. The plan's lowest level, when it is full, the cheap charging and
+    a storm on its way as attributes - for your own automations ("tell me if it won't last till morning")."""
+
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_icon = "mdi:battery-clock"
+
+    def __init__(self, p):
+        super().__init__(p, "battery_runtime")
+
+    @property
+    def _r(self):
+        return self.d.get("runtime") or {}
+
+    @property
+    def native_value(self):
+        return dt_util.parse_datetime(str(self._r.get("until"))) if self._r.get("until") else None
+
+    @property
+    def extra_state_attributes(self):
+        r = self._r
+        return {"hours": r.get("hours"), "lasts_beyond": r.get("beyond"), "house_kw": r.get("house_kw"),
+                "lowest_soc": (r.get("low") or {}).get("soc"), "lowest_at": (r.get("low") or {}).get("t"),
+                "full_at": r.get("full"), "cheap_from": (r.get("cheap") or {}).get("from"), "cheap_to": (r.get("cheap") or {}).get("to"),
+                "storm": r.get("storm")}
 
 
 class Cheapest(PilotEntity, SensorEntity):

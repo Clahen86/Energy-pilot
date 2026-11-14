@@ -119,6 +119,7 @@ class Battery:
     peak_kw: float | None = None  # power tariff: the month's peak so far - buying more costs peak_price per kW
     peak_price: float = 0.0
     targets: tuple = ()  # (hour, minute, soc %): the user wants at least this much in the battery at that time, every day
+    at: tuple = ()  # (datetime, soc %): at least this much at that very time (a storm coming: storm.py)
 
 
 @dataclass
@@ -171,13 +172,17 @@ def end_price(hours: list[Hour], b: Battery) -> float:
 TARGET_PENALTY = 1000.0  # per % short of a target, times the dearest price: a target wins over any saving
 
 
-def target_levels(hours: list[Hour], targets: tuple) -> dict[int, float]:
+def target_levels(hours: list[Hour], targets: tuple, at: tuple = ()) -> dict[int, float]:
     """Slot boundary (index i = before slot i, n = after the last) -> the least % the user wants there."""
-    if not hours or not targets:
+    if not hours or not (targets or at):
         return {}
     start, end = hours[0].start, hours[-1].start + timedelta(hours=hours[-1].length)
     bounds = [h.start for h in hours] + [end]
     req: dict[int, float] = {}
+    for t, soc in at:
+        if start < t <= end:
+            i = next(x for x in range(1, len(bounds)) if bounds[x] >= t)
+            req[i] = max(req.get(i, 0.0), float(soc))
     for hh, mm, soc in targets:
         base = start.replace(hour=int(hh), minute=int(mm), second=0, microsecond=0)
         for k in range(-1, 4):
@@ -218,7 +223,7 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
     pct_step = step_pct / 100 * b.capacity_kwh  # kWh between two levels
     best = [[INF] * m for _ in range(n + 1)]
     choice: list[list[tuple[int, str, float, float]]] = [[(0, "hold", 0.0, 0.0)] * m for _ in range(n)]
-    req = target_levels(hours, b.targets)
+    req = target_levels(hours, b.targets, b.at)
     pen = TARGET_PENALTY * max(1.0, max(h.price for h in hours))
     for j, lv in enumerate(levels):
         best[n][j] = -(kwh(lv) - kwh(b.min_soc)) * end_value + max(0.0, req.get(n, 0.0) - lv) * pen
@@ -461,6 +466,9 @@ class Engine:
             charge += sum(float(b.get("charge_kw") or 3) for b in more)
             discharge += sum(float(b.get("discharge_kw") or b.get("charge_kw") or 3) for b in more)
         targets = battery_targets(s)
+        from . import storm as _storm
+
+        storm_at = _storm.targets(getattr(self, "storm", None), s) if s.get("storm") else ()
         return Battery(
             capacity_kwh=cap,
             max_charge_kw=charge,
@@ -472,8 +480,8 @@ class Engine:
             wear=self.wear(cap),
             export_limit_kw=float(s["export_limit_kw"]) if s.get("export_limit_kw") else None,
             taper=self.batt_learn.taper(),
-            grid_max_soc=max([self.grid_max_soc(kind)] + [t[2] for t in targets]),  # a target may go past the limit
-            targets=targets,
+            grid_max_soc=max([self.grid_max_soc(kind)] + [t[2] for t in targets] + [x[1] for x in storm_at]),  # a target may go past the limit
+            targets=targets, at=storm_at,
             peak_kw=(pt := self.power_tariff()) and pt["limit_kw"],
             peak_price=pt["price_per_kw"] if pt else 0.0,
         )
@@ -998,6 +1006,9 @@ class Engine:
         plan = self.ov.plan()
         tz = ZoneInfo(self.ha.config.get("time_zone") or "UTC")
         now = datetime.now(tz)
+        from . import storm as _storm
+
+        self.storm = _storm.find(self.weather, now, self.ov.settings, self.ha.states) if self.ov.settings.get("storm") else None
         start = now.replace(minute=0, second=0, microsecond=0)
         offgrid = bool(self.ov.settings.get("offgrid"))
         if offgrid:

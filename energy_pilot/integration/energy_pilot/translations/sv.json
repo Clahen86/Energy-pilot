@@ -79,6 +79,9 @@
       },
       "solar_forecast_tomorrow": {
         "name": "Solprognos i morgon"
+      },
+      "battery_runtime": {
+        "name": "Batteriet räcker till"
       }
     },
     "switch": {

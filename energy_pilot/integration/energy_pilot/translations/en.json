@@ -79,6 +79,9 @@
       },
       "solar_forecast_tomorrow": {
         "name": "Solar forecast tomorrow"
+      },
+      "battery_runtime": {
+        "name": "Battery lasts until"
       }
     },
     "switch": {

@@ -79,6 +79,9 @@
       },
       "solar_forecast_tomorrow": {
         "name": "Zonneprognose morgen"
+      },
+      "battery_runtime": {
+        "name": "Batterij houdt het tot"
       }
     },
     "switch": {

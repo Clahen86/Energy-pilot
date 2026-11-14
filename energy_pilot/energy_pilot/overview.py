@@ -166,7 +166,9 @@ class Overview:
                          # the update card (telemetry.py)
                          "latest", "behind", "update_snooze", "update_told",
                          # stop selling at negative prices (curtail.py)
-                         "curtail", "curtail_saved", "curtail_test", "share_full"):
+                         "curtail", "curtail_saved", "curtail_test", "share_full",
+                         # storm watch (storm.py)
+                         "storm", "storm_gust", "storm_soc", "storm_hold"):
                 self.settings[key] = value
         self.file.write_text(json.dumps(self.settings, indent=2))
 
@@ -415,6 +417,19 @@ class Overview:
 
     # ---------- today's plan ----------
 
+    def runtime(self, plan: dict[str, Any], flow: dict[str, Any]) -> dict[str, Any] | None:
+        """How long the battery lasts (runtime.py) - only with a battery."""
+        if not self.engine or not ((flow or {}).get("has") or {}).get("battery"):
+            return None
+        from . import runtime
+
+        try:
+            b = self.engine.settings()
+            tz = ZoneInfo(self.ha.config.get("time_zone") or "UTC")
+            return runtime.compute(plan, flow, b.capacity_kwh, b.min_soc, datetime.now(tz), getattr(self.engine, "storm", None))
+        except Exception:  # noqa: BLE001
+            return None
+
     def plan(self) -> dict[str, Any]:
         """Hour by hour for today and tomorrow (as far as prices reach): price, sun, house, battery charging."""
         tz = ZoneInfo(self.ha.config.get("time_zone") or "UTC")
@@ -620,7 +635,8 @@ class Overview:
                  for k in ("solar_today", "solar_tomorrow")}
         house_e = self.role("house_forecast")
         return {
-            "flow": self.flow(), "decision": self.decision(lang), "plan": self.plan(), "ev": self.ev(),
+            "flow": (fl := self.flow()), "decision": self.decision(lang), "plan": (pl := self.plan()), "ev": self.ev(),
+            "runtime": self.runtime(pl, fl),
             "price": {"now": _num(price) if _num(price) is not None else self._price_now_from_rates(),
                       "unit": ((price or {}).get("attributes") or {}).get("unit_of_measurement")},
             # Home today: the engine's own (what the plan uses); another system's forecast is shown beside it.

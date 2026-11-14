@@ -317,7 +317,25 @@ class EnergipilotCard extends HTMLElement {
     if (f.soc == null) return "";
     const state = f.batt > NOISE_W ? `${t.charging} ${this._split(f.batt).join(" ")}` : f.batt < -NOISE_W ? `${t.discharging} ${this._split(f.batt).join(" ")}` : t.idle;
     return `<div class="${inline ? "sec" : "pad"}"><div class="eyebrow">${ic("battery")} ${t.battery}<span>${d.target != null ? `${t.target} ${this._n(d.target, 0)} %` : ""}</span></div>
-      <div class="big"><span id="bsoc">${this._n(f.soc, 0)}</span><small>%</small> <em>${esc(state)}</em></div><div class="bar"><span id="bbar" style="width:${f.soc}%"></span></div></div>`;
+      <div class="big"><span id="bsoc">${this._n(f.soc, 0)}</span><small>%</small> <em>${esc(state)}</em></div><div class="bar"><span id="bbar" style="width:${f.soc}%"></span></div>${this._runtimeHtml()}</div>`;
+  }
+  _runtimeHtml() {
+    // How long the battery lasts (Energy Pilot's runtime.py): one tidy line under the bar, and a storm on its way.
+    const r = this._hass.states[SENSOR].attributes.runtime; if (!r) return "";
+    const RT = { da: ["På laveste niveau", "Rækker til kl. {t}", "Rækker hele døgnet", "lader billigt {a}–{b}", "laveste {p} % kl. {t}", "⛈ Storm fra kl. {a} – batteriet fyldes op", "⛈ Torden fra kl. {a} – batteriet fyldes op", "⚠️ Vejrvarsel – batteriet holdes fuldt"],
+      en: ["At its lowest level", "Lasts until {t}", "Lasts all day", "charges cheaply {a}–{b}", "lowest {p} % at {t}", "⛈ Storm from {a} – filling the battery", "⛈ Thunder from {a} – filling the battery", "⚠️ Weather warning – keeping the battery full"],
+      de: ["Auf dem Mindeststand", "Reicht bis {t} Uhr", "Reicht den ganzen Tag", "lädt günstig {a}–{b}", "mindestens {p} % um {t}", "⛈ Sturm ab {a} – Batterie wird geladen", "⛈ Gewitter ab {a} – Batterie wird geladen", "⚠️ Unwetterwarnung – Batterie bleibt voll"],
+      fr: ["Au niveau minimum", "Tient jusqu'à {t}", "Tient toute la journée", "charge pas cher {a}–{b}", "minimum {p} % à {t}", "⛈ Tempête dès {a} – la batterie se remplit", "⛈ Orage dès {a} – la batterie se remplit", "⚠️ Alerte météo – batterie gardée pleine"],
+      nl: ["Op het laagste niveau", "Houdt het tot {t}", "Houdt het de hele dag", "laadt goedkoop {a}–{b}", "laagste {p} % om {t}", "⛈ Storm vanaf {a} – batterij wordt geladen", "⛈ Onweer vanaf {a} – batterij wordt geladen", "⚠️ Weerwaarschuwing – batterij blijft vol"],
+      sv: ["På lägsta nivån", "Räcker till kl. {t}", "Räcker hela dygnet", "laddar billigt {a}–{b}", "lägst {p} % kl. {t}", "⛈ Storm från kl. {a} – batteriet laddas", "⛈ Åska från kl. {a} – batteriet laddas", "⚠️ Vädervarning – batteriet hålls fullt"],
+      nb: ["På laveste nivå", "Rekker til kl. {t}", "Rekker hele døgnet", "lader billig {a}–{b}", "lavest {p} % kl. {t}", "⛈ Storm fra kl. {a} – batteriet fylles", "⛈ Torden fra kl. {a} – batteriet fylles", "⚠️ Farevarsel – batteriet holdes fullt"] };
+    const k = RT[lang(this._hass)] || RT.en;
+    const hm = (iso) => { const d = new Date(iso); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
+    const bits = [r.empty ? k[0] : r.until ? k[1].replace("{t}", hm(r.until)) : k[2]];
+    if (r.cheap) bits.push(k[3].replace("{a}", hm(r.cheap.from)).replace("{b}", hm(r.cheap.to)));
+    else if (r.low) bits.push(k[4].replace("{p}", r.low.soc).replace("{t}", hm(r.low.t)));
+    const st = r.storm ? `<div class="rt st">${esc(r.storm.kind === "warning" ? k[7] : (r.storm.kind === "thunder" ? k[6] : k[5]).replace("{a}", hm(r.storm.from)))}</div>` : "";
+    return `<div class="rt">🔋 <b>${esc(bits[0])}</b>${bits[1] ? ` · ${esc(bits[1])}` : ""}</div>${st}`;
   }
   _carHtml(inline = false) {
     const ev = this._hass.states[SENSOR].attributes.ev, f = this._flow(), t = this.t;
@@ -433,6 +451,8 @@ const CSS = `
   .eyebrow span { margin-left:auto; letter-spacing:.02em; text-transform:none; font-weight:600; }
   .big { font-size:28px; font-weight:650; letter-spacing:-.03em; } .big small { font-size:13px; color:var(--secondary-text-color); font-weight:500; }
   .big em { font-style:normal; font-size:13px; font-weight:500; color:var(--secondary-text-color); margin-left:8px; letter-spacing:0; }
+  .rt { margin-top:10px; font-size:13px; color:var(--secondary-text-color); line-height:1.35; } .rt b { color:var(--primary-text-color); font-weight:600; }
+  .rt.st { margin-top:6px; padding:7px 10px; border-radius:10px; background:color-mix(in srgb, var(--warning-color, #f5a623) 14%, transparent); color:var(--primary-text-color); }
   .bar { height:4px; border-radius:2px; background:var(--secondary-background-color); margin-top:10px; overflow:hidden; } .bar span { display:block; height:100%; background:#a78bfa; border-radius:2px; transition:width 1s; }
   .ctl { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0 0; margin-top:10px; border-top:1px solid var(--divider-color); }
   .ctl b { font-weight:600; font-size:14px; }

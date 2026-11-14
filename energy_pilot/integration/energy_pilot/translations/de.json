@@ -79,6 +79,9 @@
       },
       "solar_forecast_tomorrow": {
         "name": "Solarprognose morgen"
+      },
+      "battery_runtime": {
+        "name": "Batterie reicht bis"
       }
     },
     "switch": {
