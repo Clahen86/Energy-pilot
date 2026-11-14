@@ -1,5 +1,7 @@
 // Energy Pilot receiver - a Cloudflare Worker. Three jobs:
 //
+// Apps: Energy Pilot ⚡, Madplan 🍽️, Replace Device 🔁, Update Guard 🛡️, Database Doctor 🩺, Heat Pilot 🔥 (header x-ep-client).
+//
 // 1. "Get help" (POST /): a test result, the diagnostics and up to 3 pictures, sent when the user presses the
 //    button. Stored in a PRIVATE GitHub repository with an issue, so only the developer sees it.
 // 2. Learning together (POST /t): small anonymous lines from every installation that hasn't turned it off - which
@@ -25,7 +27,17 @@ const PER_HOUR = 5; // help reports from one address per hour
 const T_PER_HOUR = 60; // small lines from one address per hour
 const CONFIRM = 3; // installations that must find the same fix before everyone gets it
 // The apps that may send - each gets its own label and mark, so the issues can be told apart (filter by label).
-const APPS = { "energy-pilot": { label: "energy-pilot", mark: "⚡", name: "Energy Pilot" }, madplan: { label: "madplan", mark: "🍽️", name: "Madplan" } };
+// prefix: what an app's error hashes start with in the shared errors table (Energy Pilot's are plain hex).
+const APPS = {
+  "energy-pilot": { label: "energy-pilot", mark: "⚡", name: "Energy Pilot", prefix: "" },
+  madplan: { label: "madplan", mark: "🍽️", name: "Madplan", prefix: "m" },
+  "replace-device": { label: "replace-device", mark: "🔁", name: "Replace Device", prefix: "rd:" },
+  "update-guard": { label: "update-guard", mark: "🛡️", name: "Update Guard", prefix: "ug:" },
+  "database-doctor": { label: "database-doctor", mark: "🩺", name: "Database Doctor", prefix: "dd:" },
+  "heat-pilot": { label: "heat-pilot", mark: "🔥", name: "Heat Pilot", prefix: "hp:" },
+};
+// SQL that keeps one app's rows of the errors table (column c).
+const ofApp = (app, c = "hash") => app === "energy-pilot" ? `${c} NOT LIKE 'm%' AND ${c} NOT LIKE '%:%'` : `${c} LIKE '${APPS[app].prefix}%'`;
 
 export default {
   async fetch(request, env) {
@@ -143,6 +155,7 @@ async function telemetry(request, env, app = "energy-pilot") {
   const day = new Date().toISOString().slice(0, 10), db = env.DB;
   const s = (v, n = 80) => (v == null ? null : String(v).slice(0, n));
   if (app === "madplan") return madplan(env, b, install, day, s);
+  if (app !== "energy-pilot") return otherApp(env, b, install, day, s, app);
 
   if (b.kind === "daily") {
     const data = JSON.stringify(b.data || {}).slice(0, 20_000);
@@ -212,7 +225,7 @@ async function weekly(env) {
   const has = (k) => rows.filter((r) => r.d.has?.[k]).length;
   const controlled = rows.filter((r) => Object.values(r.d.modes || {}).includes("control"));
   const tests = ((await db.prepare("SELECT profile, part, SUM(ok) AS ok, COUNT(*) AS n, GROUP_CONCAT(failed, ' / ') AS failed FROM tests GROUP BY profile, part ORDER BY n DESC").all()).results || []);
-  const errs = ((await db.prepare("SELECT e.text, e.count, e.version, (SELECT COUNT(*) FROM error_installs i WHERE i.hash = e.hash) AS installs FROM errors e WHERE e.last_seen >= ?1 ORDER BY installs DESC, e.count DESC LIMIT 10").bind(since).all()).results || []);
+  const errs = ((await db.prepare(`SELECT e.text, e.count, e.version, (SELECT COUNT(*) FROM error_installs i WHERE i.hash = e.hash) AS installs FROM errors e WHERE e.last_seen >= ?1 AND ${ofApp("energy-pilot", "e.hash")} ORDER BY installs DESC, e.count DESC LIMIT 10`).bind(since).all()).results || []);
   const af = ((await db.prepare("SELECT key, COUNT(*) AS n FROM autofix GROUP BY key ORDER BY n DESC").all()).results || []);
   const body = [
     `## Week to ${new Date().toISOString().slice(0, 10)}`,
@@ -270,6 +283,22 @@ async function madplan(env, b, install, day, s) {
   } else {
     return json({ error: "kind" }, 400);
   }
+  return json({ ok: true });
+}
+
+// ---------- The other apps (Replace Device, Update Guard, Database Doctor, Heat Pilot) ----------
+// Only errors in the app for now: each new one gets an issue, and a comment on it reaches the installations that had it.
+async function otherApp(env, b, install, day, s, app) {
+  const A = APPS[app], db = env.DB;
+  if (b.kind !== "error") return json({ ok: true, ignored: b.kind });
+  const hash = A.prefix + s(b.hash, 40 - A.prefix.length), text = s(b.text, 300);
+  if (!b.hash) return json({ error: "hash" }, 400);
+  const known = await db.prepare("SELECT count FROM errors WHERE hash = ?1").bind(hash).first();
+  await db.prepare("INSERT INTO errors (hash, first_seen, last_seen, count, version, text) VALUES (?1, ?2, ?2, 1, ?3, ?4) ON CONFLICT(hash) DO UPDATE SET last_seen = ?2, count = count + 1, version = ?3")
+    .bind(hash, day, s(b.version, 20), text).run();
+  await db.prepare("INSERT OR IGNORE INTO error_installs (hash, install) VALUES (?1, ?2)").bind(hash, install).run();
+  if (!known) await rememberIssue(db, hash, await github(env)("issues", "POST", { title: `${A.mark} ${A.name}: 🐞 ${s(b.text, 80)}`, labels: [A.label, "app-error"],
+    body: `First seen ${day} in version ${s(b.version, 20)}.\n\n\`\`\`\n${text}\n\`\`\`\n\n_Comments here reach every installation that had this error._` }));
   return json({ ok: true });
 }
 
@@ -345,10 +374,10 @@ async function backfillErrors(env) {
   const r = await gh("issues?state=all&per_page=100&labels=app-error", "GET");
   if (!r.ok) return;
   for (const i of await r.json()) {
-    const m = String(i.title).match(/^(⚡ Energy Pilot|🍽️ Madplan): 🐞 (.*)$/u);
-    if (!m) continue;
-    const madplan = m[1].includes("Madplan");
-    const e = await db.prepare(`SELECT hash FROM errors WHERE substr(text, 1, 80) = ?1 AND hash ${madplan ? "LIKE" : "NOT LIKE"} 'm%'`).bind(m[2]).first();
+    const app = Object.keys(APPS).find((k) => String(i.title).startsWith(`${APPS[k].mark} ${APPS[k].name}: 🐞 `));
+    if (!app) continue;
+    const text = String(i.title).slice(`${APPS[app].mark} ${APPS[app].name}: 🐞 `.length);
+    const e = await db.prepare(`SELECT hash FROM errors WHERE substr(text, 1, 80) = ?1 AND ${ofApp(app)}`).bind(text).first();
     if (e) await db.prepare("INSERT OR IGNORE INTO error_issues (hash, issue) VALUES (?1, ?2)").bind(e.hash, i.number).run();
   }
   await db.prepare("INSERT OR REPLACE INTO meta (k, v) VALUES ('backfill_errors', ?1)").bind(new Date().toISOString()).run();
@@ -393,7 +422,7 @@ async function replies(request, env, app) {
   // Notes on app errors this installation had (the last 60 days).
   await backfillErrors(env);
   const errs = (await env.DB.prepare(`SELECT x.hash, x.issue, e.text FROM error_installs ei JOIN error_issues x ON x.hash = ei.hash JOIN errors e ON e.hash = ei.hash
-      WHERE ei.install = ?1 AND e.last_seen >= ?2 AND ei.hash ${app === "madplan" ? "LIKE" : "NOT LIKE"} 'm%' ORDER BY e.last_seen DESC LIMIT 5`)
+      WHERE ei.install = ?1 AND e.last_seen >= ?2 AND ${ofApp(app, "ei.hash")} ORDER BY e.last_seen DESC LIMIT 5`)
     .bind(install, since).all()).results || [];
   const notes = [];
   for (const e of errs) {
