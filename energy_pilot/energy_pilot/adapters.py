@@ -400,6 +400,7 @@ PROFILES: dict[str, dict[str, Any]] = {
                    (r"number\..*rc_timeout$", "number", "30")],
     },
     # Alpha ESS (Poshy163/homeassistant-alphaESS, cloud): charge and discharge windows by service, with the serial.
+    # Alpha ESS cloud: times only in whole quarters (23:59 is ignored without an error)
     "alphaess": {
         "name": "Alpha ESS (cloud)",
         "match": r"alpha_?ess",
@@ -408,9 +409,9 @@ PROFILES: dict[str, dict[str, Any]] = {
                                                              "cp2start": "00:00", "cp2end": "00:00", "chargestopsoc": 100}),
                    ("alphaess.setbatterydischarge", "service", {"serial": "{serial}", "enabled": False, "dp1start": "00:00", "dp1end": "00:00",
                                                                 "dp2start": "00:00", "dp2end": "00:00", "dischargecutoffsoc": "{min_soc}"})],
-        "hold": [("alphaess.setbatterydischarge", "service", {"serial": "{serial}", "enabled": True, "dp1start": "00:00", "dp1end": "23:59",
+        "hold": [("alphaess.setbatterydischarge", "service", {"serial": "{serial}", "enabled": True, "dp1start": "00:00", "dp1end": "23:45",
                                                               "dp2start": "00:00", "dp2end": "00:00", "dischargecutoffsoc": "{soc}"})],
-        "charge": [("alphaess.setbatterycharge", "service", {"serial": "{serial}", "enabled": True, "cp1start": "00:00", "cp1end": "23:59",
+        "charge": [("alphaess.setbatterycharge", "service", {"serial": "{serial}", "enabled": True, "cp1start": "00:00", "cp1end": "23:45",
                                                              "cp2start": "00:00", "cp2end": "00:00", "chargestopsoc": "{target}"})],
     },
 }

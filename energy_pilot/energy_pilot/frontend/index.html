@@ -1406,9 +1406,30 @@ const T_REP = {
   sv: { send: "Få hjälp", sub: "Skriv vad som är fel och bifoga gärna bilder. Utvecklaren får också testresultatet och diagnostiken.", attach: "📷 Bifoga bilder", max3: "Högst 3 bilder", whatq: "Vad skickas?", rm: "Ta bort", what: "Det här skickas:", items: ["Testresultatet", "Version, märke och land", "Dina inställningar (utan lösenord)", "Mätningar från batteri, sol, nät och bil", "Planen och vad Energy Pilot skickade"], no: "Inga namn, adresser, lösenord eller plats. Bara utvecklaren ser det.", note: "Vad är fel? (valfritt)", ok: "Skicka", cancel: "Avbryt", sending: "Skickar…", sent: "Skickat ✓ – ditt nummer är {id}.", fail: "Kunde inte skicka just nu. Använd knapparna nedan." },
   nb: { send: "Få hjelp", sub: "Skriv hva som er galt, og legg gjerne ved bilder. Utvikleren får også testresultatet og diagnosen.", attach: "📷 Legg ved bilder", max3: "Maks 3 bilder", whatq: "Hva blir sendt?", rm: "Fjern", what: "Dette blir sendt:", items: ["Testresultatet", "Versjon, merke og land", "Innstillingene dine (uten passord)", "Målinger fra batteri, sol, nett og bil", "Planen og hva Energy Pilot sendte"], no: "Ingen navn, adresser, passord eller posisjon. Bare utvikleren ser det.", note: "Hva er galt? (valgfritt)", ok: "Send", cancel: "Avbryt", sending: "Sender…", sent: "Sendt ✓ – nummeret ditt er {id}.", fail: "Kunne ikke sende nå. Bruk knappene under." },
 };
+const T_ANS = {
+  da: { title: "Svar fra udvikleren", dev: "Udvikleren", you: "Dig", wait: "Venter på svar – du får besked i Home Assistant.", ph: "Skriv tilbage…", send: "Send svar", sent: "Sendt ✓", fail: "Kunne ikke sende lige nu." },
+  en: { title: "Answer from the developer", dev: "Developer", you: "You", wait: "Waiting for an answer – you'll get a notification in Home Assistant.", ph: "Write back…", send: "Send reply", sent: "Sent ✓", fail: "Couldn't send right now." },
+  de: { title: "Antwort vom Entwickler", dev: "Entwickler", you: "Du", wait: "Warte auf Antwort – du bekommst eine Meldung in Home Assistant.", ph: "Antworten…", send: "Antwort senden", sent: "Gesendet ✓", fail: "Senden geht gerade nicht." },
+  fr: { title: "Réponse du développeur", dev: "Développeur", you: "Vous", wait: "En attente de réponse – vous serez prévenu dans Home Assistant.", ph: "Répondre…", send: "Envoyer", sent: "Envoyé ✓", fail: "Envoi impossible pour l'instant." },
+  nl: { title: "Antwoord van de ontwikkelaar", dev: "Ontwikkelaar", you: "Jij", wait: "Wacht op antwoord – je krijgt een melding in Home Assistant.", ph: "Reageren…", send: "Reactie versturen", sent: "Verstuurd ✓", fail: "Versturen lukt nu niet." },
+  sv: { title: "Svar från utvecklaren", dev: "Utvecklaren", you: "Du", wait: "Väntar på svar – du får ett meddelande i Home Assistant.", ph: "Svara…", send: "Skicka svar", sent: "Skickat ✓", fail: "Kunde inte skicka just nu." },
+  nb: { title: "Svar fra utvikleren", dev: "Utvikleren", you: "Du", wait: "Venter på svar – du får beskjed i Home Assistant.", ph: "Svar…", send: "Send svar", sent: "Sendt ✓", fail: "Kunne ikke sende nå." },
+};
+const TA = T_ANS[L] || T_ANS.en;
+let answers = null, ansState = null;  // ansState: null | "sending" | "sent" | "fail"
+async function loadAns() { answers = await fetch("api/replies").then((r) => r.json()).catch(() => null); }
+function answerBlock() {
+  const reps = (answers?.reports || []).filter((r) => r.msgs?.length || r.id === repInfo?.last?.id);
+  if (!reps.length) return "";
+  return reps.map((r, n) => `<div class="reppanel" style="margin-bottom:10px"><b>💬 ${TA.title}</b> <span class="muted">${esc(r.id)}</span>
+    ${r.msgs?.length ? r.msgs.map((m) => `<div class="stnote" style="margin-top:8px;${m.from === "you" ? "opacity:.8" : ""}"><b>${m.from === "you" ? TA.you : TA.dev}:</b> <span style="white-space:pre-wrap">${esc(m.text)}</span></div>`).join("") : `<div class="muted" style="margin-top:6px">${TA.wait}</div>`}
+    ${r.msgs?.some((m) => m.from === "dev") && n === 0 ? `<textarea id="ansnote" placeholder="${esc(TA.ph)}" style="margin-top:8px"></textarea>
+    <button class="stgo" data-ans-send="${esc(r.id)}" ${ansState === "sending" ? "disabled" : ""}>${ansState === "sending" ? TR.sending : TA.send}</button>
+    ${ansState === "sent" ? `<div class="muted">${TA.sent}</div>` : ansState === "fail" ? `<div class="muted">${TA.fail}</div>` : ""}` : ""}</div>`).join("");
+}
 const TR = T_REP[L] || T_REP.en;
 let repInfo = null, repState = null, repNote = "", repImgs = [];  // repState: null | "open" | "sending" | {id} | "fail"
-async function loadRep() { repInfo = await api("/api/report").catch(() => null); }
+async function loadRep() { repInfo = await api("/api/report").catch(() => null); if (repInfo?.last) loadAns().then(() => render()); }
 function shrink(file) {  // a picture made smaller in the browser: at most 1600 px, JPEG - a phone photo becomes ~300 kB
   return new Promise((ok) => {
     const img = new Image(), url = URL.createObjectURL(file);
@@ -1427,6 +1448,8 @@ function reportBlock(fallbackUrl) {
   const fallback = `${fallbackUrl ? `<a class="stgo" href="${esc(fallbackUrl)}" target="_blank" rel="noopener">${tt.send}</a><div class="muted" style="margin-top:6px">${tt.sendH}</div>` : ""}
     <a class="ghostbtn" style="display:block;text-align:center;text-decoration:none" href="api/diagnostics" download>${tt.diag}</a>`;
   if (!repInfo?.available) return fallback;
+  const ans = answerBlock();
+  if (ans && !repState) return `${ans}<button class="ghostbtn" data-rep-open>${TR.send}</button>`;
   if (repState && repState.id) return `<div class="stnote">${TR.sent.replace("{id}", esc(repState.id))}</div>`;
   if (repState === "fail") return `<div class="stnote warn">${TR.fail}</div>${fallback}`;
   if (repState === "open" || repState === "sending") return `<div class="reppanel"><b>${TR.send}</b><div class="muted" style="margin:4px 0 8px">${TR.sub}</div>
@@ -1440,6 +1463,14 @@ function reportBlock(fallbackUrl) {
 }
 function wireRep() {
   $("[data-rep-open]")?.addEventListener("click", () => { repState = "open"; render(); });
+  $("[data-ans-send]")?.addEventListener("click", async (e) => {
+    const text = $("#ansnote")?.value.trim();
+    if (!text) return;
+    ansState = "sending"; render();
+    const r = await fetch("api/replies", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: e.target.dataset.ansSend, text }) }).then((x) => x.json()).catch(() => null);
+    if (r?.ok) { ansState = "sent"; answers = r.replies; } else ansState = "fail";
+    render();
+  });
   $("[data-rep-cancel]")?.addEventListener("click", () => { repState = null; repNote = ""; repImgs = []; render(); });
   $("#repnote")?.addEventListener("input", (e) => { repNote = e.target.value; });
   $("[data-rep-file]")?.addEventListener("change", async (e) => {
@@ -1453,7 +1484,7 @@ function wireRep() {
     repState = "sending"; render();
     const images = repImgs.map((x) => ({ name: x.name, data: x.url.split(",")[1] }));
     const r = await api("/api/report", { note: repNote, images, lang: L }).catch(() => null);
-    if (r && r.ok) { repState = { id: r.id }; repNote = ""; repImgs = []; } else repState = "fail";
+    if (r && r.ok) { repState = { id: r.id }; repNote = ""; repImgs = []; repInfo = { ...repInfo, last: { id: r.id } }; answers = { reports: [{ id: r.id, msgs: [] }] }; } else repState = "fail";
     render();
   });
 }

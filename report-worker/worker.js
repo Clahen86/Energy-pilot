@@ -8,6 +8,9 @@
 //    When 3 installations found the same fix, it is confirmed and every installation with that brand gets it
 //    (GET /fixes); the developer gets an issue. New app errors also give an issue.
 // 3. Every Monday (cron): one issue with the week's overview.
+// 4. Answers (POST /replies, POST /reply): write a comment on a help report's issue and the app that sent it shows
+//    it to the user (it asks every hour with its own install id - nobody else can read it). The user can write back
+//    from the app: that becomes a new comment on the same issue, and a closed issue opens again.
 //
 // Settings (Workers -> your worker -> Settings):
 //   GITHUB_TOKEN  (secret) fine-grained token: Contents + Issues read/write on the private repository only
@@ -31,6 +34,8 @@ export default {
     const app = request.headers.get("x-ep-client");
     if (!APPS[app]) return json({ error: "client" }, 403);
     if (url.pathname === "/t") return telemetry(request, env, app);
+    if (url.pathname === "/replies") return replies(request, env, app);
+    if (url.pathname === "/reply") return userReply(request, env, app);
     return report(request, env, app);
   },
   async scheduled(_event, env) {
@@ -84,9 +89,15 @@ async function report(request, env, app = "energy-pilot") {
   const failed = (t.results || []).some((r) => r.result === "failed");
   const issue = await gh("issues", "POST", {
     title: `${A.mark} ${A.name}: ${failed ? "❌" : t.results?.length ? "✅" : "📄"} ${body.profile || "report"} · ${diag.version} · ${id}`,
-    body: lines.join("\n"), labels: [A.label, failed ? "test-failed" : "report"],
+    body: lines.join("\n") + "\n\n_Comments here reach the user in the app._", labels: [A.label, failed ? "test-failed" : "report"],
   });
   const made = issue.ok ? await issue.json() : {};
+  const install = String(body.install || diag.settings?.install_id || "").slice(0, 40);
+  if (made.number && env.DB && /^[a-f0-9-]{16,40}$/.test(install)) {
+    await schema(env);
+    await env.DB.prepare("INSERT OR REPLACE INTO reports (id, app, issue, install, day) VALUES (?1, ?2, ?3, ?4, ?5)")
+      .bind(id, app, made.number, install, new Date().toISOString().slice(0, 10)).run();
+  }
   return json({ ok: true, id, issue: made.number || null });
 }
 
@@ -106,6 +117,8 @@ async function schema(env) {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS m_offers (day TEXT, chain TEXT, install TEXT, n INTEGER, PRIMARY KEY (day, chain, install))"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS m_alerts (day TEXT, chain TEXT, PRIMARY KEY (day, chain))"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS m_nomatch (term TEXT, install TEXT, day TEXT, PRIMARY KEY (term, install))"),
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS reports (id TEXT PRIMARY KEY, app TEXT, issue INTEGER, install TEXT, day TEXT)"),
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT)"),
   ]);
   schemaReady = true;
 }
@@ -277,6 +290,83 @@ async function madplanWeekly(env, since) {
     "", "### App errors", ...(errs.length ? errs.map((e) => `- ${e.count}× · ${e.version}: \`${String(e.text).slice(0, 120)}\``) : ["- none"]),
   ].join("\n");
   await github(env)("issues", "POST", { title: `🍽️ Madplan: 📊 week ${new Date().toISOString().slice(0, 10)} · ${rows.length} installations`, body, labels: ["madplan", "weekly"] });
+}
+
+// ---------- 4. Answers ----------
+const USER_MARK = "💬 **The user wrote back in the app:**";
+const REPLY_DAYS = 60;
+
+async function readBody(request, max = 20_000) {
+  try {
+    const text = await request.text();
+    return text.length > max ? null : JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+// Reports sent before answers existed: found once from the issues and their stored files.
+async function backfill(env) {
+  const db = env.DB, gh = github(env);
+  if (await db.prepare("SELECT v FROM meta WHERE k = 'backfill'").first()) return;
+  for (const app of Object.keys(APPS)) {
+    const r = await gh(`issues?state=all&per_page=100&labels=${APPS[app].label}`, "GET");
+    if (!r.ok) return;
+    for (const i of await r.json()) {
+      const id = (String(i.title).match(/· (\d{8}-[a-f0-9]{6})$/) || [])[1];
+      if (!id || await db.prepare("SELECT id FROM reports WHERE id = ?1").bind(id).first()) continue;
+      const f = await gh(`contents/reports/${app}/${id}.json`, "GET");
+      if (!f.ok) continue;
+      const rep = safe(new TextDecoder().decode(Uint8Array.from(atob(((await f.json()).content || "").replaceAll("\n", "")), (c) => c.charCodeAt(0))));
+      const install = String(rep.install || rep.diagnostics?.settings?.install_id || "").slice(0, 40);
+      if (/^[a-f0-9-]{16,40}$/.test(install)) {
+        await db.prepare("INSERT OR IGNORE INTO reports (id, app, issue, install, day) VALUES (?1, ?2, ?3, ?4, ?5)")
+          .bind(id, app, i.number, install, String(i.created_at).slice(0, 10)).run();
+      }
+    }
+  }
+  await db.prepare("INSERT OR REPLACE INTO meta (k, v) VALUES ('backfill', ?1)").bind(new Date().toISOString()).run();
+}
+
+async function replies(request, env, app) {
+  if (!env.DB) return json({ reports: [] });
+  if (!(await allowed(request, "q", 30))) return json({ error: "rate" }, 429);
+  const b = await readBody(request);
+  const install = String(b?.install || "").slice(0, 40);
+  if (!/^[a-f0-9-]{16,40}$/.test(install)) return json({ error: "install" }, 400);
+  await schema(env);
+  await backfill(env);
+  const since = new Date(Date.now() - REPLY_DAYS * 864e5).toISOString().slice(0, 10);
+  const rows = (await env.DB.prepare("SELECT id, issue, day FROM reports WHERE install = ?1 AND app = ?2 AND day >= ?3 ORDER BY day DESC LIMIT 5")
+    .bind(install, app, since).all()).results || [];
+  const gh = github(env), out = [];
+  for (const row of rows) {
+    const [i, c] = await Promise.all([gh(`issues/${row.issue}`, "GET"), gh(`issues/${row.issue}/comments?per_page=50`, "GET")]);
+    if (!i.ok || !c.ok) continue;
+    const msgs = (await c.json()).map((x) => {
+      const mine = String(x.body || "").startsWith(USER_MARK);
+      const text = mine ? x.body.slice(USER_MARK.length).trim().replace(/^> ?/gm, "") : String(x.body || "");
+      return { from: mine ? "you" : "dev", text: text.slice(0, 4000), t: x.created_at };
+    });
+    out.push({ id: row.id, day: row.day, state: (await i.json()).state, msgs });
+  }
+  return json({ reports: out });
+}
+
+async function userReply(request, env, app) {
+  if (!env.DB) return json({ error: "no_db" }, 503);
+  if (!(await allowed(request, "u", 10))) return json({ error: "rate" }, 429);
+  const b = await readBody(request);
+  const install = String(b?.install || "").slice(0, 40), text = String(b?.text || "").trim().slice(0, 4000);
+  if (!/^[a-f0-9-]{16,40}$/.test(install) || !text) return json({ error: "content" }, 400);
+  await schema(env);
+  const row = await env.DB.prepare("SELECT issue FROM reports WHERE id = ?1 AND install = ?2 AND app = ?3").bind(String(b.id || ""), install, app).first();
+  if (!row) return json({ error: "unknown" }, 404);
+  const gh = github(env);
+  const r = await gh(`issues/${row.issue}/comments`, "POST", { body: `${USER_MARK}\n\n> ${text.replaceAll("\n", "\n> ")}` });
+  if (!r.ok) return json({ error: "store", status: r.status }, 502);
+  await gh(`issues/${row.issue}`, "PATCH", { state: "open" });
+  return json({ ok: true });
 }
 
 // ---------- helpers ----------

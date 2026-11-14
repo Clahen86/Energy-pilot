@@ -9,6 +9,10 @@ Sent:
 - when something was mended by itself: only which kind (fuse, kW, price …).
 - when the app itself fails: the kind of error and where in the code - once a day per error.
 
+Answers to "Get help" (not part of learning together - only for a report the user sent): every hour, for 60 days
+after a report, the developer's comments are fetched with this installation's own id and shown in the app; a new one
+also gives a notification in Home Assistant.
+
 Fetched once a day: fixes that 3 installations with the same profile found - used here too (see control._fixed),
 and how many have tested each profile.
 """
@@ -27,6 +31,16 @@ import uuid
 
 _LOGGER = logging.getLogger(__name__)
 DAY_S = 24 * 3600
+REPLY_DAYS = 60
+NEW_ANSWER = {
+    "da": "💬 Udvikleren har svaret på din besked. Åbn Energipilot → Indstillinger for at læse og svare.",
+    "en": "💬 The developer answered your message. Open Energy Pilot → Settings to read it and write back.",
+    "de": "💬 Der Entwickler hat auf deine Nachricht geantwortet. Öffne Energy Pilot → Einstellungen zum Lesen und Antworten.",
+    "fr": "💬 Le développeur a répondu à votre message. Ouvrez Energy Pilot → Réglages pour le lire et répondre.",
+    "nl": "💬 De ontwikkelaar heeft je bericht beantwoord. Open Energy Pilot → Instellingen om het te lezen en te reageren.",
+    "sv": "💬 Utvecklaren har svarat på ditt meddelande. Öppna Energy Pilot → Inställningar för att läsa och svara.",
+    "nb": "💬 Utvikleren har svart på meldingen din. Åpne Energy Pilot → Innstillinger for å lese og svare.",
+}
 
 
 def _r(v: Any, step: float = 1.0) -> float | None:
@@ -139,6 +153,47 @@ class Telemetry:
         self._errors_sent[h] = today
         self.event("error", {"hash": h, "text": text, "version": os.environ.get("BUILD_VERSION", "dev")})
 
+    # ---------- answers to "Get help" ----------
+    async def _ask(self, path: str, body: dict[str, Any]) -> dict[str, Any] | None:
+        import aiohttp
+
+        try:
+            async with aiohttp.ClientSession() as s:
+                async with s.post(f"{self.url}{path}", json={"install": self.ov.settings.get("install_id"), **body},
+                                  headers={"x-ep-client": "energy-pilot"}, timeout=aiohttp.ClientTimeout(total=30)) as r:
+                    d = await r.json(content_type=None)
+                    return d if r.status == 200 else {"error": d.get("error") or f"http_{r.status}"}
+        except Exception:  # noqa: BLE001
+            return None
+
+    def wants_answers(self) -> bool:
+        last = self.ov.settings.get("last_report") or {}
+        return bool(self.url) and time.time() - float(last.get("t") or 0) < REPLY_DAYS * DAY_S
+
+    async def fetch_answers(self, notify: bool = True) -> dict[str, Any]:
+        d = await self._ask("/replies", {})
+        if not d or "reports" not in d:
+            return self.ov.settings.get("replies") or {}
+        got = {"reports": d["reports"][:5], "t": time.time()}
+        dev = sum(1 for r in got["reports"] for m in r.get("msgs") or [] if m.get("from") == "dev")
+        seen = int(self.ov.settings.get("replies_seen") or 0)
+        self.ov.save({"replies": got, "replies_seen": dev})
+        if notify and dev > seen:
+            lang = str(self.ov.settings.get("language") or self.ov.ha.config.get("language") or "en")[:2]
+            try:
+                await self.ov.ha.call_service("persistent_notification", "create", {
+                    "notification_id": "energy_pilot_answer", "title": "Energy Pilot", "message": NEW_ANSWER.get(lang, NEW_ANSWER["en"])})
+            except Exception:  # noqa: BLE001
+                pass
+        return got
+
+    async def write_back(self, report_id: str, text: str) -> dict[str, Any]:
+        d = await self._ask("/reply", {"id": str(report_id)[:40], "text": str(text)[:4000]})
+        if d and d.get("ok"):
+            await self.fetch_answers(notify=False)
+            return {"ok": True}
+        return {"ok": False, "error": (d or {}).get("error", "unreachable")}
+
     # ---------- the daily round ----------
     async def run(self) -> None:
         """Every 10 minutes: the daily line when a day has gone, and the shared fixes once a day."""
@@ -150,6 +205,8 @@ class Telemetry:
                         self.ov.save({"telemetry_sent": now})
                 if self.url and now - float((self.ov.settings.get("community") or {}).get("t") or 0) >= DAY_S:
                     await self.fetch_fixes()
+                if self.wants_answers() and now - float((self.ov.settings.get("replies") or {}).get("t") or 0) >= 3600:
+                    await self.fetch_answers()
             except Exception:  # noqa: BLE001
                 _LOGGER.debug("Telemetry round failed", exc_info=True)
             await asyncio.sleep(600)

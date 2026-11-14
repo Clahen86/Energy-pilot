@@ -350,7 +350,8 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
                   for i in (body.get("images") or [])[:3]
                   if isinstance(i, dict) and isinstance(i.get("data"), str) and len(i["data"]) <= 2_000_000]
         payload = {"note": str(body.get("note") or "")[:4000], "test": test, "diagnostics": diag, "images": images,
-                   "profile": c.profile_key("battery") if c else None, "lang": str(body.get("lang") or "")[:5]}
+                   "profile": c.profile_key("battery") if c else None, "lang": str(body.get("lang") or "")[:5],
+                   "install": overview.settings.get("install_id")}  # so the answer finds its way back here
         try:
             async with aiohttp.ClientSession() as s:
                 async with s.post(url, json=payload, headers={"x-ep-client": "energy-pilot"},
@@ -360,13 +361,31 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
                         return web.json_response({"error": res.get("error") or f"http_{r.status}"}, status=502)
         except Exception as err:  # noqa: BLE001
             return web.json_response({"error": "unreachable", "detail": str(err)[:200]}, status=502)
-        overview.save({"last_report": {"id": res.get("id"), "t": __import__("time").time()}})
+        overview.save({"last_report": {"id": res.get("id"), "t": __import__("time").time()}, "replies": {}})
         return web.json_response({"ok": True, "id": res.get("id")})
 
     async def report_info(_req: web.Request) -> web.Response:
         return web.json_response({"available": bool(REPORT_URL), "last": overview.settings.get("last_report")})
 
+    async def replies_get(req: web.Request) -> web.Response:
+        """Answers to "Get help": the stored ones, fetched fresh when the page asks and they're older than 5 minutes."""
+        tel = getattr(overview, "telemetry", None)
+        got = overview.settings.get("replies") or {}
+        if tel and tel.wants_answers() and __import__("time").time() - float(got.get("t") or 0) > 300:
+            got = await tel.fetch_answers(notify=False)
+        return web.json_response(got)
+
+    async def replies_post(req: web.Request) -> web.Response:
+        tel = getattr(overview, "telemetry", None)
+        b = await req.json() if req.can_read_body else {}
+        if not tel or not str(b.get("text") or "").strip():
+            return web.json_response({"ok": False, "error": "content"}, status=400)
+        res = await tel.write_back(b.get("id"), b.get("text"))
+        return web.json_response({**res, "replies": overview.settings.get("replies") or {}}, status=200 if res.get("ok") else 502)
+
     app.router.add_post("/api/report", report)
+    app.router.add_get("/api/replies", replies_get)
+    app.router.add_post("/api/replies", replies_post)
     app.router.add_get("/api/report", report_info)
     app.router.add_post("/api/autofix", autofix_post)
     app.router.add_get("/api/selftest", selftest_get)
