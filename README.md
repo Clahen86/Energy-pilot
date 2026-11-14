@@ -108,6 +108,8 @@ Two ways of forecasting side by side, and the better one decides:
   Home Assistant restarts in the middle.
 - **Get help** – write what's wrong, attach up to 3 pictures and press *Send*. The test result and diagnostics go
   privately to the developer, and you get a reference number. You see exactly what is sent first.
+- **Answers from the developer** – when the developer replies to your *Get help* (or to an error the app reported),
+  the answer shows under *Settings* with a notification in Home Assistant. You can write back from there.
 - **Fixes simple mistakes by itself**, shown as one line with an undo: a main fuse written in amps, a battery level
   given as 0–1, power in kW without a unit, a price in cents, a sensor that was renamed or stopped updating.
 - **A status light** at the top – green, yellow or red – with one tap to what needs attention.

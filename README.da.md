@@ -107,6 +107,8 @@ To slags prognoser side om side, og den bedste bestemmer:
   genstarter undervejs.
 - **Få hjælp** – skriv hvad der er galt, vedhæft op til 3 billeder, og tryk *Send*. Testresultatet og diagnosen går
   privat til udvikleren, og du får et nummer. Du ser præcis, hvad der sendes, først.
+- **Svar fra udvikleren** – når udvikleren svarer på din *Få hjælp* (eller på en fejl, appen har sendt), står svaret
+  under *Indstillinger*, og du får en besked i Home Assistant. Du kan skrive tilbage derfra.
 - **Retter selv enkle fejl**, vist som én linje med Fortryd: hovedsikring skrevet i ampere, batteriprocent som 0–1,
   effekt i kW uden enhed, pris i øre, en sensor der har skiftet navn eller er gået i stå.
 - **En statuslampe** øverst – grøn, gul eller rød – med ét tryk til det, der skal ses på.

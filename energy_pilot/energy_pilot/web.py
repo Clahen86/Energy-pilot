@@ -372,7 +372,7 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
         tel = getattr(overview, "telemetry", None)
         got = overview.settings.get("replies") or {}
         if tel and tel.wants_answers() and __import__("time").time() - float(got.get("t") or 0) > 300:
-            got = await tel.fetch_answers(notify=False)
+            got = await tel.fetch_answers()
         return web.json_response(got)
 
     async def replies_post(req: web.Request) -> web.Response:
