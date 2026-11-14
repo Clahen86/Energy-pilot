@@ -148,6 +148,8 @@ class Telemetry:
         if not record.exc_info or not record.exc_info[1]:
             return
         exc = record.exc_info[1]
+        if _network(exc):
+            return
         frames = [fr for fr in traceback.extract_tb(record.exc_info[2]) if "energy_pilot" in fr.filename]
         where = f"{os.path.basename(frames[-1].filename)}:{frames[-1].lineno} {frames[-1].name}" if frames else "?"
         text = f"{type(exc).__name__} at {where} ({record.name})"
@@ -298,3 +300,18 @@ class ErrorHandler(logging.Handler):
             self.t.error(record)
         except Exception:  # noqa: BLE001
             pass
+
+
+def _network(exc: BaseException) -> bool:
+    """Home Assistant restarting or the network gone (502, timeout, no connection) - not a fault in the app."""
+    import asyncio
+
+    if isinstance(exc, (asyncio.TimeoutError, TimeoutError, ConnectionError)):
+        return True
+    try:
+        import aiohttp
+    except ImportError:
+        return False
+    if isinstance(exc, aiohttp.ClientResponseError):
+        return exc.status >= 500
+    return isinstance(exc, aiohttp.ClientConnectionError)
