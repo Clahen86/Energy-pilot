@@ -65,6 +65,16 @@ Home Assistant-adresse og et langtidsadgangstoken, og åbn `http://<vært>:8099`
 - **Aldrig en halv kommando** – mangler en kontrol, styrer den ikke og siger, hvad der mangler.
 - **Holder sine indstillinger på plads** – og siger til, hvis Predbat eller en automation også ændrer batteriet.
 
+### ☀️ Stop salg ved negativ pris
+- Når det koster penge at sælge, **sættes invertens eksportgrænse ned** – huset og batteriet bruger stadig al solen,
+  kun nettet får intet. Bagefter sættes din egen indstilling tilbage.
+- **Slået fra som standard.** Slå det til under *Indstillinger*, så vælger den selv den rigtige indstilling ud fra dit
+  invertermærke (Growatt: export limiter til og grænsen på 0 %) – eller vælg en anden.
+- **Test det**: den stopper salget i op til 2 minutter, tjekker at salget til nettet virkelig falder til 0 og sætter
+  alt tilbage. Virker det ikke, kan du sende diagnostik direkte derfra. Følger batteriets skygge/styring.
+
+<p align="center"><img src="docs/sell_da.png" width="300" alt="Stop salg ved negativ pris"></p>
+
 ### 🚗 Bil og lader
 - **Følger solen** minut for minut (fra 6 A) og **passer på hovedsikringen**.
 - **Klar kl.** – ladet i de billigste perioder inden.
@@ -107,6 +117,9 @@ To slags prognoser side om side, og den bedste bestemmer:
   genstarter undervejs.
 - **Få hjælp** – skriv hvad der er galt, vedhæft op til 3 billeder, og tryk *Send*. Testresultatet og diagnosen går
   privat til udvikleren, og du får et nummer. Du ser præcis, hvad der sendes, først.
+- **Fortæller om opdateringer – uden at mase**: et lille kort i appen, når der er en nyere version – små rettelser når
+  du er en uge bagud, nye funktioner efter to dage, og med det samme når en fejl, du havde, er rettet. *Senere* skjuler
+  det i en uge. En besked i Home Assistant (aldrig på telefonen) kun når din egen fejl er rettet, eller ved en vigtig rettelse.
 - **Svar fra udvikleren** – når udvikleren svarer på din *Få hjælp* (eller på en fejl, appen har sendt), står svaret
   under *Indstillinger*, og du får en besked i Home Assistant. Du kan skrive tilbage derfra.
 - **Retter selv enkle fejl**, vist som én linje med Fortryd: hovedsikring skrevet i ampere, batteriprocent som 0–1,

@@ -65,6 +65,16 @@ Home Assistant address and a long-lived access token, and open `http://<host>:80
 - **Never half a command** – if a control is missing, it doesn't control and tells you what's missing.
 - **Keeps its settings in place** – and tells you if Predbat or an automation keeps changing the battery too.
 
+### ☀️ Stop selling at negative prices
+- When selling would cost money, the inverter's **export limit is turned down** – the house and the battery still use
+  all the sun, only the grid gets none. Afterwards your own setting is put back.
+- **Off by default.** Turn it on under *Settings* and it picks the right setting from your inverter brand (Growatt:
+  export limiter on and the limit at 0 %) – or choose another.
+- **Test it**: it stops selling for up to 2 minutes, checks that the export really drops to 0 and puts everything back.
+  If it doesn't work, you can send the diagnostics right there. Follows the battery's shadow/control.
+
+<p align="center"><img src="docs/sell_en.png" width="300" alt="Stop selling at negative prices"></p>
+
 ### 🚗 Car and charger
 - **Follows the sun** minute by minute (6 A and up) and **never trips the main fuse**.
 - **Ready at** a set time, charged in the cheapest slots before it.
@@ -112,6 +122,9 @@ Two ways of forecasting side by side, and the better one decides:
   the answer shows under *Settings* with a notification in Home Assistant. You can write back from there.
 - **Fixes simple mistakes by itself**, shown as one line with an undo: a main fuse written in amps, a battery level
   given as 0–1, power in kW without a unit, a price in cents, a sensor that was renamed or stopped updating.
+- **Tells you about updates – without nagging**: a small card in the app when a newer version is out – small fixes
+  once you're a week behind, new features after two days, and at once when an error you had is fixed. *Later* hides it
+  for a week. A notification in Home Assistant (never on the phone) only for your own error fixed, or an important fix.
 - **A status light** at the top – green, yellow or red – with one tap to what needs attention.
 - **Always the safe way:** a battery doing the opposite of what it's told goes back to normal for an hour with a
   warning; a charger that won't start is restarted once.
