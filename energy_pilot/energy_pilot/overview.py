@@ -164,7 +164,9 @@ class Overview:
                          # learning together (telemetry.py)
                          "install_id", "first_seen", "first_control", "share_anonymous", "telemetry_sent", "community", "community_ignore", "replies", "replies_seen", "last_error", "replies_hidden", "replies_shown",
                          # the update card (telemetry.py)
-                         "latest", "behind", "update_snooze", "update_told"):
+                         "latest", "behind", "update_snooze", "update_told",
+                         # stop selling at negative prices (curtail.py)
+                         "curtail", "curtail_saved"):
                 self.settings[key] = value
         self.file.write_text(json.dumps(self.settings, indent=2))
 

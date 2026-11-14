@@ -121,7 +121,8 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
                                   "wear_default": overview.engine.wear(own=False) if overview.engine else None,
                                   "battery_type_found": overview.engine.battery_type() if overview.engine else None,
                                   "roles_all": {r: overview.role_all(r) for r in ("pv_power", "solar_today", "solar_tomorrow")},
-                                  "charger_switches": switches(), "thing_options": thing_options()})
+                                  "charger_switches": switches(), "thing_options": thing_options(),
+                                  "curtail": overview.curtail.status() if getattr(overview, "curtail", None) else None})
 
     def thing_options() -> dict:
         """For Settings → Runs cheaply: the switches, start buttons and power sensors that make sense (and all, on request)."""

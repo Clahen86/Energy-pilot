@@ -1833,11 +1833,32 @@ function touEditor(v) {
       <div class="ctl"><div class="t"><b>${y.sellCap}</b><span>${y.sellCapH}</span></div><span class="unitin"><input class="numin" type="number" step="1" min="0" data-tou-scap value="${plan.sell_cap_kwh ?? ""}"><i>kWh</i></span></div>
     </details></div>`;
 }
+// Stop selling solar at negative prices (curtail.py): the inverter's export limit to 0 while selling costs money.
+const CURT = { da: { t: "Stop salg ved negativ pris", h: "Når det koster penge at sælge, sætter den invertens eksportgrænse ned. Huset og batteriet bruger stadig solen. Følger batteriets skygge/styring.", ent: "Indstilling i inverteren", pick: "Vælg …", val: "Værdi, der stopper salg", below: "Når salgsprisen er under", none: "Fandt ingen eksportgrænse i Home Assistant.", st: { on: "Salg stoppet nu", would: "Ville stoppe salg nu (skygge)", off: "Salg tilladt" } },
+  en: { t: "Stop selling at negative prices", h: "When selling costs money, it turns the inverter's export limit down. The house and the battery still use the sun. Follows the battery's shadow/control.", ent: "Inverter setting", pick: "Choose …", val: "Value that stops selling", below: "When the feed-in price is below", none: "No export limit found in Home Assistant.", st: { on: "Selling stopped now", would: "Would stop selling now (shadow)", off: "Selling allowed" } },
+  de: { t: "Keine Einspeisung bei negativem Preis", h: "Wenn Einspeisen Geld kostet, setzt es das Einspeiselimit des Wechselrichters herunter. Haus und Batterie nutzen die Sonne weiter. Folgt Schatten/Steuerung der Batterie.", ent: "Einstellung im Wechselrichter", pick: "Wählen …", val: "Wert, der die Einspeisung stoppt", below: "Wenn der Einspeisepreis unter", none: "Kein Einspeiselimit in Home Assistant gefunden.", st: { on: "Einspeisung jetzt gestoppt", would: "Würde jetzt stoppen (Schatten)", off: "Einspeisung erlaubt" } },
+  nl: { t: "Stop terugleveren bij negatieve prijs", h: "Als terugleveren geld kost, zet het de exportlimiet van de omvormer omlaag. Huis en batterij gebruiken de zon nog steeds. Volgt schaduw/sturing van de batterij.", ent: "Instelling in de omvormer", pick: "Kies …", val: "Waarde die terugleveren stopt", below: "Als de terugleverprijs onder", none: "Geen exportlimiet gevonden in Home Assistant.", st: { on: "Terugleveren nu gestopt", would: "Zou nu stoppen (schaduw)", off: "Terugleveren toegestaan" } },
+  fr: { t: "Arrêter l'injection à prix négatif", h: "Quand injecter coûte de l'argent, il baisse la limite d'export de l'onduleur. La maison et la batterie utilisent toujours le soleil. Suit l'ombre/le pilotage de la batterie.", ent: "Réglage de l'onduleur", pick: "Choisir …", val: "Valeur qui arrête l'injection", below: "Quand le prix de rachat est sous", none: "Aucune limite d'export trouvée dans Home Assistant.", st: { on: "Injection arrêtée", would: "Arrêterait maintenant (ombre)", off: "Injection autorisée" } },
+  sv: { t: "Stoppa försäljning vid negativt pris", h: "När det kostar att sälja sänker den växelriktarens exportgräns. Huset och batteriet använder fortfarande solen. Följer batteriets skugga/styrning.", ent: "Inställning i växelriktaren", pick: "Välj …", val: "Värde som stoppar försäljning", below: "När försäljningspriset är under", none: "Hittade ingen exportgräns i Home Assistant.", st: { on: "Försäljning stoppad nu", would: "Skulle stoppa nu (skugga)", off: "Försäljning tillåten" } },
+  nb: { t: "Stopp salg ved negativ pris", h: "Når det koster å selge, setter den vekselretterens eksportgrense ned. Huset og batteriet bruker fortsatt solen. Følger batteriets skygge/styring.", ent: "Innstilling i vekselretteren", pick: "Velg …", val: "Verdi som stopper salg", below: "Når salgsprisen er under", none: "Fant ingen eksportgrense i Home Assistant.", st: { on: "Salg stoppet nå", would: "Ville stoppet nå (skygge)", off: "Salg tillatt" } } };
+function curtailCard() {
+  const k = CURT[L] || CURT.en, c = settings.settings.curtail || {}, info = settings.curtail || {}, cands = info.candidates || [];
+  const cur = cands.find((x) => x.entity_id === c.entity), esc2 = (x) => String(x ?? "").replace(/[&<>"]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[m]);
+  let val = "";
+  if (cur && cur.entity_id.startsWith("number.")) val = `<input class="numin" data-cur-val inputmode="decimal" value="${esc2(c.value ?? 0)}" style="width:90px"> ${esc2(cur.unit || "")}`;
+  else if (cur && cur.entity_id.startsWith("select.")) val = `<select data-cur-val style="max-width:100%"><option value="">${k.pick}</option>${(cur.options || []).map((o) => `<option ${o === c.value ? "selected" : ""}>${esc2(o)}</option>`).join("")}</select>`;
+  else if (cur) val = `<select data-cur-val style="max-width:100%"><option value="">${k.pick}</option>${["off", "on"].map((o) => `<option ${o === c.value ? "selected" : ""}>${o}</option>`).join("")}</select>`;
+  const st = info.mode ? (info.want ? (info.mode === "control" ? k.st.on : k.st.would) : k.st.off) : "";
+  return `<div class="card fade"><div class="ctl"><div class="t"><b>☀️ ${k.t}</b><span>${k.h}</span></div><button class="toggle ${c.on ? "on" : ""}" data-cur-on></button></div>
+    ${c.on ? (cands.length ? `<div style="display:grid;gap:8px;margin-top:10px"><label class="muted">${k.ent}<br><select data-cur-ent style="width:100%;max-width:100%"><option value="">${k.pick}</option>${cands.map((x) => `<option value="${esc2(x.entity_id)}" ${x.entity_id === c.entity ? "selected" : ""}>${esc2(x.name)} (${esc2(x.state)})</option>`).join("")}</select></label>
+    ${cur ? `<label class="muted">${k.val}<br>${val}</label><label class="muted">${k.below}<br><input class="numin" data-cur-below inputmode="decimal" value="${esc2(c.below ?? 0)}" style="width:90px"> ${SYM()}/kWh</label>` : ""}
+    ${st ? `<div style="font-size:13px"><b>${st}</b></div>` : ""}</div>` : `<div class="muted" style="margin-top:8px">${k.none}</div>`) : ""}</div>`;
+}
 function settingsView() {
   if (!settings) return `<div class="card">…</div>`;
   return `${checksCard()}${styleView()}<div class="card fade" id="sec-roles"><div class="eyebrow"><span>${T.setTitle}</span><button class="link" data-redetect>${T.findAgain}</button></div><div class="muted">${T.setHint}</div>
     ${Object.entries(GROUPS).map(([g, roles]) => `<div class="group"><h4>${icon(GROUPICON[g])}${T.groups[g]}</h4>${roleRows(roles)}</div>`).join("")}
-    <button class="ghostbtn" data-setup>${T.runGuide}</button></div>
+    <button class="ghostbtn" data-setup>${T.runGuide}</button></div>${curtailCard()}
     <div class="card fade"><div class="ctl" style="margin-bottom:10px"><div class="t"><b>${TF.share}</b><span>${TF.shareH}</span></div><button class="toggle ${(settings.settings.share_anonymous ?? true) ? "on" : ""}" data-bool="share_anonymous" data-def="true"></button></div><button class="stgo" style="margin:0 0 10px" data-gotest>✓ ${(T_TEST[L] || T_TEST.en).testBtn}</button>${repInfo?.available ? reportBlock(null) : `<a class="ghostbtn" style="display:block;text-align:center;text-decoration:none;margin-top:0" href="api/diagnostics" download>${T.chk.diag}</a>`}
     <div class="muted" style="margin-top:8px">${T.chk.diagH}</div></div><div id="ep-suggest"></div>`;
 }
@@ -1983,6 +2004,11 @@ function wire() {
     saveRole(r, MULTI.includes(r) && roleAdd[r] ? [...new Set([...base(r), v])] : v);
   });
   const saveSet = async (obj) => { await api("/api/settings", obj); settings = await api("/api/settings"); await load(); render(); };
+  const cs = (ch) => saveSet({ curtail: { ...(settings.settings.curtail || {}), ...ch } });
+  document.querySelector("[data-cur-on]")?.addEventListener("click", () => cs({ on: !(settings.settings.curtail || {}).on }));
+  document.querySelector("[data-cur-ent]")?.addEventListener("change", (e) => cs({ entity: e.target.value, value: "" }));
+  document.querySelector("[data-cur-val]")?.addEventListener("change", (e) => cs({ value: e.target.value }));
+  document.querySelector("[data-cur-below]")?.addEventListener("change", (e) => cs({ below: parseFloat(String(e.target.value).replace(",", ".")) || 0 }));
   document.querySelectorAll("[data-style]").forEach((b) => b.onclick = () => saveSet({ style: b.dataset.style }));
   document.querySelectorAll("[data-bool]").forEach((b) => b.onclick = () => { const cur = settings.settings[b.dataset.bool] ?? (b.dataset.def === "true"); saveSet({ [b.dataset.bool]: !cur }); });
   document.querySelectorAll("[data-num]").forEach((i) => i.onchange = () => saveSet({ [i.dataset.num]: i.value === "" ? null : Number(i.value.replace(",", ".")) }));

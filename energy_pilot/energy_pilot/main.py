@@ -85,6 +85,10 @@ async def main() -> None:
     overview.engine = engine
     controller = Controller(ha, overview, engine)
     overview.controller = controller
+    from .curtail import Curtail
+
+    curtail = Curtail(ha, overview, controller)  # stop selling solar when the price is negative
+    overview.curtail = curtail
     from .selftest import SelfTest
 
     overview.selftest = SelfTest(controller, overview)
@@ -135,6 +139,7 @@ async def main() -> None:
                         or any(p not in controller.entities for p in controller.car_parts() + controller.bat_parts())):  # a charger or battery was just added
                     await controller.discover()
                 await controller.tick()
+                await curtail.tick()
             except Exception:  # noqa: BLE001 - tries again next round
                 logging.getLogger("energy_pilot.engine").warning("Engine round failed", exc_info=True)
             # Every 5 minutes, and just after each quarter hour starts - prices change on the quarter, so the battery
