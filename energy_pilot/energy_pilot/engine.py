@@ -385,6 +385,9 @@ class Engine:
         from .ledger import Ledger
 
         self.ledger = Ledger(overview.file.parent)
+        from .battstats import BattStats
+
+        self.battstats = BattStats(overview.file.parent)
         from .blend import BatteryLearner, Habits, Mixer, PriceModel, SolarModel
 
         self.mixer = Mixer(self.learning.state)

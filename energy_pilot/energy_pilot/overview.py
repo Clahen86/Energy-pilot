@@ -433,9 +433,52 @@ class Overview:
         try:
             b = self.engine.settings()
             tz = ZoneInfo(self.ha.config.get("time_zone") or "UTC")
-            return runtime.compute(plan, flow, b.capacity_kwh, b.min_soc, datetime.now(tz), getattr(self.engine, "storm", None))
+            now = datetime.now(tz)
+            res = self.engine.result or {}
+            r = runtime.compute(plan, flow, b.capacity_kwh, b.min_soc, now, getattr(self.engine, "storm", None),
+                                steps=(res.get("battery") or {}).get("steps"), events=self._rt_events(res, now),
+                                sky=self._sky())
         except Exception:  # noqa: BLE001
             return None
+        if r is not None:
+            try:
+                r["stats"] = self.engine.battstats.summary(now, b.min_soc) if getattr(self.engine, "battstats", None) else None
+                r["sun_share"] = self.engine.ledger.summary(now).get("sun_share")
+            except Exception:  # noqa: BLE001
+                pass
+        return r
+
+    def _sky(self) -> dict[str, Any] | None:
+        """Sunset and sunrise, from HA's own sun."""
+        a = ((self.ha.states.get("sun.sun") or {}).get("attributes") or {})
+        return {"set": a.get("next_setting"), "rise": a.get("next_rising")} if a.get("next_setting") else None
+
+    def _rt_events(self, res: dict[str, Any], now: datetime) -> list[dict[str, Any]]:
+        """What else runs on the plan: the car's charges and the small things - an icon at each start."""
+        out: list[dict[str, Any]] = []
+
+        def starts(hours: list[str], icon: str) -> None:
+            prev = None
+            for t in sorted(hours or []):
+                d = datetime.fromisoformat(t)
+                if prev is None or (d - prev).total_seconds() > 3600:
+                    out.append({"t": d.replace(minute=0).isoformat(), "icon": icon})
+                prev = d
+
+        starts((res.get("car") or {}).get("hours") or [], "🚗")
+        for c in res.get("cars") or []:
+            starts(c.get("hours") or [], "🚗")
+        icons = {"dish": "🍽️", "dryer": "🌀", "wash": "🧺", "mower": "🌱", "bike": "🚲", "tool": "🔧"}
+        try:
+            for t in self.engine.things.view(self.settings, now) if self.settings.get("things") else []:
+                ic = icons.get(t.get("icon"), "🔌")
+                if t.get("start"):
+                    out.append({"t": datetime.fromisoformat(t["start"]).replace(minute=0, second=0, microsecond=0).isoformat(), "icon": ic})
+                else:
+                    starts(t.get("hours") or [], ic)
+        except Exception:  # noqa: BLE001
+            pass
+        return out
 
     def plan(self) -> dict[str, Any]:
         """Hour by hour for today and tomorrow (as far as prices reach): price, sun, house, battery charging."""

@@ -211,6 +211,7 @@ async def main() -> None:
                 f = overview.flow()
                 engine.ledger.tick(now, f, price, sell, b.capacity_kwh, b.min_soc, b.efficiency,
                                    st.get("solar_value") or "free")
+                engine.battstats.tick(now, f, b.min_soc)
                 engine.price_model.remember(prices, now)
                 ev = overview.ev() or {}
                 engine.habits.see(now, f.get("plug"), ev.get("session_kwh"))
