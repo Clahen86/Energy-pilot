@@ -144,7 +144,33 @@ def run(engine: Any, hours: list, b: Any, plan: Any, end_value: float) -> list[d
         out.append({"key": "no_soc", "level": "warn", "vals": {}, "goto": "roles"})
 
     out += house_history(engine, st)
+    out += read_only(engine, st)
     return out
+
+
+# Integrations that can only read the battery - and the one that can control it instead (with a link that opens it).
+READ_ONLY = {
+    "powerwall": ("Powerwall", "Teslemetry", "https://my.home-assistant.io/redirect/config_flow_start/?domain=teslemetry"),
+    "solaredge": ("SolarEdge", "SolarEdge Modbus Multi",
+                  "https://my.home-assistant.io/redirect/hacs_repository/?owner=WillCodeForCats&repository=solaredge-modbus-multi&category=integration"),
+    "fusion_solar": ("Huawei", "Huawei Solar", "https://my.home-assistant.io/redirect/hacs_repository/?owner=wlcrs&repository=huawei_solar&category=integration"),
+}
+
+
+def read_only(engine: Any, st: dict[str, Any]) -> list[dict[str, Any]]:
+    """The battery comes from an integration that can only read it, and nothing else to control it with: one quiet line
+    that says which integration can - with a button that opens it, and "Not now" that hides it for good."""
+    ctl = getattr(engine.ov, "controller", None)
+    reg = getattr(ctl, "_ent_reg", None) or {}
+    soc = engine.ov.role("battery_soc")
+    plat = (reg.get(soc or "") or {}).get("platform")
+    if plat not in READ_ONLY or plat in (st.get("readonly_dismissed") or []):
+        return []
+    if ctl and (ctl.profile_key("battery") or st.get("custom_profile")):
+        return []  # something to control it with was found (or set up by hand): nothing to say
+    name, use, link = READ_ONLY[plat]
+    return [{"key": "read_only", "level": "info", "vals": {"name": name, "use": use}, "link": link,
+             "dismiss": {"readonly_dismissed": list(st.get("readonly_dismissed") or []) + [plat]}}]
 
 
 def house_history(engine: Any, st: dict[str, Any]) -> list[dict[str, Any]]:

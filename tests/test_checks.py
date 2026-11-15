@@ -75,3 +75,18 @@ def test_default_limit_gets_the_usual_fuse_for_the_country():
     e2 = engine({"import_limit_kw": 10, "fuse_ok": True}, peak=6.0)
     e2.ha = SimpleNamespace(config={"country": "DK"})
     assert checks.run(e2, [], Battery(capacity_kwh=10, import_limit_kw=10), None, 0.0) == []
+
+
+def test_read_only_battery_says_what_can_control_it():
+    """A Powerwall through the local integration (read only), nothing to control it with: one line with Teslemetry."""
+    from types import SimpleNamespace
+
+    from energy_pilot import checks
+
+    ctl = SimpleNamespace(_ent_reg={"sensor.pw_charge": {"platform": "powerwall"}}, profile_key=lambda p: None)
+    eng = SimpleNamespace(ov=SimpleNamespace(controller=ctl, role=lambda r: "sensor.pw_charge" if r == "battery_soc" else None))
+    out = checks.read_only(eng, {})
+    assert out[0]["key"] == "read_only" and out[0]["vals"]["use"] == "Teslemetry" and "teslemetry" in out[0]["link"]
+    assert checks.read_only(eng, {"readonly_dismissed": ["powerwall"]}) == []  # "Not now": gone for good
+    ctl.profile_key = lambda p: "tesla"
+    assert checks.read_only(eng, {}) == []  # Teslemetry added: something to control it with - nothing to say

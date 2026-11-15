@@ -169,7 +169,7 @@ class Overview:
                          # stop selling at negative prices (curtail.py)
                          "curtail", "curtail_saved", "curtail_test", "share_full",
                          # storm watch (storm.py)
-                         "storm", "storm_gust", "storm_soc", "storm_hold"):
+                         "storm", "storm_gust", "storm_soc", "storm_hold", "readonly_dismissed"):
                 self.settings[key] = value
         self.file.write_text(json.dumps(self.settings, indent=2))
 
