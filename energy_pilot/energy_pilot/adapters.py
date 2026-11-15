@@ -399,6 +399,22 @@ PROFILES: dict[str, dict[str, Any]] = {
                    (r"number\..*rc_force_battery_discharge_power$", "number", "{power_w}"),
                    (r"number\..*rc_timeout$", "number", "30")],
     },
+    # GoodWe (Home Assistant's own goodwe integration, ET/EH/BT/BH hybrids): the inverter's operation mode, with the
+    # eco mode power (% of the inverter's power) and the eco mode level (%) - written first, the mode reads them when it
+    # is set. Checked by a user in New Zealand (GoodWe ET, own profile: normal, keep and charge all green).
+    "goodwe": {
+        "name": "GoodWe (ET/EH/BT/BH)",
+        "match": r"goodwe|inverter_operation_mode|eco_mode_power",
+        "source": "integration",
+        "normal": [(r"select\..*(inverter_)?operation_mode$", "select", "re:^general")],
+        "hold": [(r"number\..*eco_mode_power$", "number", "0"),
+                 (r"select\..*(inverter_)?operation_mode$", "select", "re:^eco.?discharge")],
+        "charge": [(r"number\..*eco_mode_power$", "number", "{rate}"), (r"number\..*eco_mode_soc$", "number", "{target}"),
+                   (r"select\..*(inverter_)?operation_mode$", "select", "re:^eco.?charge")],
+        # Selling from the battery (only when the user turns it on): eco discharge at a power, down to a level.
+        "export": [(r"number\..*eco_mode_power$", "number", "{rate}"), (r"number\..*eco_mode_soc$", "number", "{target}"),
+                   (r"select\..*(inverter_)?operation_mode$", "select", "re:^eco.?discharge")],
+    },
     # Alpha ESS (Poshy163/homeassistant-alphaESS, cloud): charge and discharge windows by service, with the serial.
     # Alpha ESS cloud (CharlesGillanders/homeassistant-alphaESS). Its periodic schedule: times in whole quarters,
     # a period written 00:00-00:00 is deleted (and an empty list is refused), a new period needs its power in W, and

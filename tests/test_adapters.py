@@ -388,3 +388,20 @@ def test_alpha_charge_never_over_midnight():
     assert (w["now_from"], w["now_to"]) == ("20:00", "23:45")
     w = alpha_windows(datetime(2026, 11, 14, 12, 10))
     assert (w["now_from"], w["now_to"], w["now2_from"], w["now2_to"]) == ("12:00", "16:00", "00:00", "00:00")
+
+
+def test_goodwe_profile():
+    """GoodWe (Home Assistant's goodwe integration): found by its entities; the eco numbers written before the mode."""
+    from energy_pilot import adapters
+
+    ents = ["select.goodwe_inverter_operation_mode", "number.goodwe_eco_mode_power", "number.goodwe_eco_mode_soc",
+            "number.goodwe_grid_export_limit", "number.goodwe_battery_discharge_depth"]
+    assert adapters.guess_profile(ents, {"goodwe"}) == "goodwe"
+    prof = adapters.PROFILES["goodwe"]
+    charge = [s[0] for s in prof["charge"]]
+    assert charge[-1].startswith("select")  # the mode last
+    for opts, intent, want in ((["general", "eco_charge", "eco_discharge"], "charge", "eco_charge"),
+                               (["General mode", "Eco charge mode", "Eco discharge mode"], "hold", "Eco discharge mode"),
+                               (["General mode", "Eco charge mode"], "normal", "General mode")):
+        pat = [v for p, k, v in prof[intent] if k == "select"][0][3:]
+        assert adapters.pick_option(pat, opts) == want
