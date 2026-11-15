@@ -17,6 +17,25 @@
       --text:#0b1220; --muted:#5d6676; --faint:#9aa3b2; --house:#1f2937;
       --sky-day:#e3eeff; --sky-dusk:#ffe1cc; --sky-night:#d6dcf0; --star:#7280b8; --sky-lbl:#c2662a; }
   }
+  /* Colour themes (Settings → Look): the same tokens, other colours - each in dark and light */
+  :root[data-palette=neon] { --bg:#04060f; --surface:#0a0f1f; --surface2:#10182e; --line:rgba(120,220,255,.10); --line2:rgba(120,220,255,.18);
+    --sun:#ffd23f; --grid:#22d3ee; --sell:#2ef2b0; --ok:#2ef2b0; --batt:#c084fc; --car:#ff4fd8; --warn:#ffd23f; --bad:#ff4d6d; --accent:#22d3ee; }
+  :root[data-palette=nordic] { --bg:#0b0f14; --surface:#11161d; --surface2:#171e27; --text:#e6ebf0; --muted:#8a96a3;
+    --sun:#e8c47a; --grid:#7aa7c7; --sell:#7fbf9e; --ok:#7fbf9e; --batt:#9aa8d6; --car:#d49ab0; --warn:#e8c47a; --bad:#e07a7a; --accent:#7aa7c7; }
+  :root[data-palette=forest] { --bg:#070b08; --surface:#0d1410; --surface2:#131c16; --line:rgba(190,255,200,.07); --line2:rgba(190,255,200,.13);
+    --sun:#f2c94c; --grid:#7fb7be; --sell:#6ccf8a; --ok:#6ccf8a; --batt:#c3a6e6; --car:#e88b7a; --warn:#f2c94c; --bad:#ef6b5b; --accent:#6ccf8a; }
+  :root[data-palette=contrast] { --bg:#000; --surface:#0a0a0a; --surface2:#151515; --line:rgba(255,255,255,.25); --line2:rgba(255,255,255,.42);
+    --text:#fff; --muted:#d4d4d4; --faint:#a3a3a3; --sun:#ffd000; --grid:#4da3ff; --sell:#00e676; --ok:#00e676; --batt:#b388ff; --car:#ff4081; --warn:#ffd000; --bad:#ff1744; --accent:#4da3ff; }
+  @media (prefers-color-scheme: light) {
+    :root[data-palette=neon]:not([data-theme=dark]) { --bg:#f3f6ff; --surface:#fff; --surface2:#eef2ff; --line:rgba(8,145,178,.12); --line2:rgba(8,145,178,.22);
+      --sun:#e0a100; --grid:#0891b2; --sell:#059669; --ok:#059669; --batt:#9333ea; --car:#db2777; --warn:#d97706; --bad:#e11d48; --accent:#0891b2; }
+    :root[data-palette=nordic]:not([data-theme=dark]) { --bg:#f5f7f9; --surface:#fff; --surface2:#eef2f5; --text:#1b2430; --muted:#5f6b78;
+      --sun:#b8892c; --grid:#3f6f94; --sell:#3f8a66; --ok:#3f8a66; --batt:#5b6aa8; --car:#a85b7b; --warn:#b8892c; --bad:#b84a4a; --accent:#3f6f94; }
+    :root[data-palette=forest]:not([data-theme=dark]) { --bg:#f4f8f3; --surface:#fff; --surface2:#edf4ec; --line:rgba(20,60,30,.09); --line2:rgba(20,60,30,.16);
+      --sun:#b7861b; --grid:#2f7f88; --sell:#2f8f52; --ok:#2f8f52; --batt:#7b5cb8; --car:#c0533f; --warn:#b7861b; --bad:#c23b2b; --accent:#2f8f52; }
+    :root[data-palette=contrast]:not([data-theme=dark]) { --bg:#fff; --surface:#fff; --surface2:#f0f0f0; --line:rgba(0,0,0,.35); --line2:rgba(0,0,0,.55);
+      --text:#000; --muted:#262626; --faint:#525252; --sun:#8a6100; --grid:#0047b3; --sell:#00701f; --ok:#00701f; --batt:#5b2dbf; --car:#b0004d; --warn:#8a5a00; --bad:#b00020; --accent:#0047b3; }
+  }
   .rtcard { background:radial-gradient(120% 55% at 90% -10%, color-mix(in srgb, var(--batt) 20%, transparent), transparent 60%), radial-gradient(90% 40% at 0% 100%, color-mix(in srgb, var(--ok) 8%, transparent), transparent 60%), var(--surface); }
   .rtnext { display:flex; align-items:center; gap:12px; margin-top:14px; padding:12px 14px; border-radius:16px; background:linear-gradient(135deg, color-mix(in srgb, var(--batt) 16%, transparent), color-mix(in srgb, var(--grid) 8%, transparent)); border:1px solid color-mix(in srgb, var(--batt) 28%, transparent); }
   .rtnext .ic { width:36px; height:36px; border-radius:11px; background:color-mix(in srgb, var(--batt) 22%, transparent); display:grid; place-items:center; font-size:18px; flex:none; }
@@ -40,6 +59,11 @@
   .rtsec { margin-top:16px; padding-top:16px; border-top:1px solid var(--line); }
   .rtfoot { display:flex; align-items:center; gap:10px; margin-top:14px; padding:10px 12px; border-radius:14px; background:var(--surface2); font-size:13px; }
   .rtchip .rti { width:20px; height:20px; }
+  .palrow { display:grid; grid-template-columns:repeat(auto-fill, minmax(88px, 1fr)); gap:8px; margin-top:10px; }
+  .pal { display:flex; flex-direction:column; align-items:center; gap:6px; padding:10px 6px; border-radius:14px; border:1px solid var(--line2); background:var(--surface2); color:var(--text); cursor:pointer; font:inherit; }
+  .pal.on { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent), 0 0 14px color-mix(in srgb, var(--accent) 35%, transparent); }
+  .pal .sw { display:flex; } .pal .sw i { width:16px; height:16px; border-radius:50%; border:2px solid var(--surface2); margin-left:-5px; } .pal .sw i:first-child { margin-left:0; }
+  .pal small { font-size:11.5px; font-weight:600; }
   .evcard { background:radial-gradient(120% 55% at 100% -10%, color-mix(in srgb, var(--car) 16%, transparent), transparent 60%), var(--surface); }
   .evrow, .evcard .ctl { display:flex; align-items:center; gap:12px; padding:12px 0; border:0; background:none; margin:0; }
   .evcard .rtsec > * + * { border-top:1px solid var(--line); }
@@ -321,6 +345,8 @@
 <nav><div id="tabs"></div></nav>
 <script>
 if (new URLSearchParams(location.search).get("theme")) document.documentElement.dataset.theme = new URLSearchParams(location.search).get("theme");
+// The colour theme is kept on this device (Settings → Look).
+try { const pal = new URLSearchParams(location.search).get("palette") || localStorage.getItem("ep_palette"); if (pal && pal !== "standard") document.documentElement.dataset.palette = pal; } catch (e) { /* private mode: the standard colours */ }
 const LANGS = ["da", "en", "de", "fr", "nl", "sv", "nb"];
 const L = (() => { const c = (new URLSearchParams(location.search).get("lang") || navigator.language || "en").slice(0, 2).toLowerCase();
   return c === "no" || c === "nn" ? "nb" : LANGS.includes(c) ? c : "en"; })();
@@ -732,6 +758,22 @@ const T_PH = {
   sv: { t: "Växla mellan 1 och 3 faser", h: "Vid lite sol laddar bilen på 1 fas (från ca 1,4 kW i stället för 4,1), vid mycket sol på 3. Högst ett byte per 10 minuter – bilen pausar kort vid varje byte" },
   nb: { t: "Bytt mellom 1 og 3 faser", h: "Ved lite sol lader bilen på 1 fase (fra ca. 1,4 kW i stedet for 4,1), ved mye sol på 3. Høyst ett bytte per 10 minutter – bilen tar en kort pause ved hvert bytte" },
 };
+const T_PAL = {
+  da: { t: "Farvetema", h: "Gælder på denne enhed", n: { standard: "Standard", neon: "Neon", nordic: "Nordisk", forest: "Skov", contrast: "Høj kontrast" } },
+  en: { t: "Colour theme", h: "On this device", n: { standard: "Standard", neon: "Neon", nordic: "Nordic", forest: "Forest", contrast: "High contrast" } },
+  de: { t: "Farbschema", h: "Auf diesem Gerät", n: { standard: "Standard", neon: "Neon", nordic: "Nordisch", forest: "Wald", contrast: "Hoher Kontrast" } },
+  fr: { t: "Thème de couleurs", h: "Sur cet appareil", n: { standard: "Standard", neon: "Néon", nordic: "Nordique", forest: "Forêt", contrast: "Contraste élevé" } },
+  nl: { t: "Kleurthema", h: "Op dit apparaat", n: { standard: "Standaard", neon: "Neon", nordic: "Noords", forest: "Bos", contrast: "Hoog contrast" } },
+  sv: { t: "Färgtema", h: "På den här enheten", n: { standard: "Standard", neon: "Neon", nordic: "Nordisk", forest: "Skog", contrast: "Hög kontrast" } },
+  nb: { t: "Fargetema", h: "På denne enheten", n: { standard: "Standard", neon: "Neon", nordic: "Nordisk", forest: "Skog", contrast: "Høy kontrast" } },
+};
+const PALETTES = { standard: ["#a78bfa", "#f5b544", "#6ea8fe"], neon: ["#c084fc", "#ffd23f", "#22d3ee"], nordic: ["#9aa8d6", "#e8c47a", "#7aa7c7"],
+  forest: ["#c3a6e6", "#f2c94c", "#6ccf8a"], contrast: ["#b388ff", "#ffd000", "#4da3ff"] };
+function palettePicker() {
+  const P2 = T_PAL[L] || T_PAL.en, cur = document.documentElement.dataset.palette || "standard";
+  return `<div class="palrow">${Object.entries(PALETTES).map(([k, c]) => `<button class="pal ${cur === k ? "on" : ""}" data-pal="${k}">
+    <span class="sw">${c.map((x) => `<i style="background:${x}"></i>`).join("")}</span><small>${esc(P2.n[k])}</small></button>`).join("")}</div>`;
+}
 const T_GN = {
   da: { t: "Skjul små net-strømme", h: "Under grænsen, og når det kun varer få sekunder, vises nettet som roligt – ikke som køb eller salg. Nogle invertere trækker lidt fra nettet for at holde takten" },
   en: { t: "Hide small grid flows", h: "Below the limit, and when it only lasts a few seconds, the grid shows as quiet – not as buying or selling. Some inverters draw a little from the grid to stay in sync" },
@@ -2052,7 +2094,8 @@ function styleView() {
   return `<div class="card fade"><div class="eyebrow"><span>${y.style}</span></div>
       <div class="styles">${STYLES.filter(([k]) => hasCar || !k.startsWith("car") && k !== "battery_first").map(([k, ic]) => `<button class="style ${style === k ? "on" : ""}" data-style="${k}">
         ${icon(ic)}<b>${y.styles[k][0]}</b><span>${y.styles[k][1]}</span></button>`).join("")}</div>
-      ${row(T_FX[L]?.t || T_FX.en.t, T_FX[L]?.h || T_FX.en.h, tog("scene_fx", true))}</div>
+      ${row(T_FX[L]?.t || T_FX.en.t, T_FX[L]?.h || T_FX.en.h, tog("scene_fx", true))}
+      <div style="margin-top:14px"><div style="font-weight:600">${(T_PAL[L] || T_PAL.en).t}</div><div class="muted" style="font-size:12.5px">${(T_PAL[L] || T_PAL.en).h}</div>${palettePicker()}</div></div>
     ${section("grid", (T_PRIO[L] || T_PRIO.en).t, (T_PRIO[L] || T_PRIO.en).h, `${row(y.sell, y.sellH, tog("sell"))}
       ${v.sell ? `<div class="muted" style="margin:4px 0 2px">${y.sellSensorH}</div>${roleRows(["sell_price"])}` : ""}
       ${hasBatt ? `${row(y.grid, y.gridH, tog("grid_charge", true))}
@@ -2368,6 +2411,10 @@ function wire() {
     i.addEventListener("touchmove", (e) => { const t = e.touches[0]; if (Math.abs(t.clientY - i._y) > Math.abs(t.clientX - i._x) + 4) i._scroll = true; }, { passive: true });
   });
   document.querySelectorAll("[data-psrc]").forEach((b) => b.onclick = () => saveSet({ price_source: b.dataset.psrc === "auto" ? null : b.dataset.psrc }));
+  document.querySelectorAll("[data-pal]").forEach((b) => b.onclick = () => {
+    const k = b.dataset.pal; if (k === "standard") delete document.documentElement.dataset.palette; else document.documentElement.dataset.palette = k;
+    try { localStorage.setItem("ep_palette", k); } catch (e) { /* private mode: only for now */ }
+    document.querySelectorAll("[data-pal]").forEach((x) => x.classList.toggle("on", x === b)); });
   document.querySelectorAll("[data-gnoise]").forEach((b) => b.onclick = () => saveSet({ grid_noise: Number(b.dataset.gnoise) }));
   document.querySelectorAll("[data-sval]").forEach((b) => b.onclick = () => saveSet({ solar_value: b.dataset.sval }));
   const bats = () => JSON.parse(JSON.stringify(settings.settings.batteries || []));
