@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import os
 
 from datetime import datetime
@@ -197,6 +199,15 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
                 await runner.ha.call_service("input_boolean", "turn_on" if body["manual"] else "turn_off", {"entity_id": ents["ev_manual"]})
             else:
                 overview.save({"ev_now": bool(body["manual"])})
+            # "Charge now" acts at once - not at the next round (up to 5 minutes later).
+            if overview.controller:
+                async def _now() -> None:
+                    await asyncio.sleep(2 if ents.get("ev_manual") else 0)  # the helper's new state reaches us first
+                    try:
+                        await overview.controller.tick(("car",))
+                    except Exception:  # noqa: BLE001 - the next round does it then
+                        logging.getLogger("energy_pilot.control").warning("Charge now: could not tell the charger at once", exc_info=True)
+                asyncio.create_task(_now())
         if "ready" in body:
             if ents.get("ev_ready"):
                 await runner.ha.call_service("input_datetime", "set_datetime", {"entity_id": ents["ev_ready"], "time": body["ready"]})
