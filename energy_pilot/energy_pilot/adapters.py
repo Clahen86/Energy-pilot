@@ -351,8 +351,10 @@ PROFILES: dict[str, dict[str, Any]] = {
     "foxess_modbus": {
         "name": "Fox ESS (Modbus)",
         "match": r"foxess|fox_",
-        "normal": [(r"select\..*work_mode$", "select", "Self Use")],
-        "hold": [(r"select\..*work_mode$", "select", "Back-up")],
+        # Hold: Self Use with the on-grid minimum at the battery's level now - "Back-up" may charge from the grid
+        # (what the users' own profiles did instead). Normal puts the minimum back.
+        "normal": [(r"number\..*min_soc_on_grid$", "number", "{min_soc}"), (r"select\..*work_mode$", "select", "Self Use")],
+        "hold": [(r"number\..*min_soc_on_grid$", "number", "{soc}"), (r"select\..*work_mode$", "select", "Self Use")],
         "charge": [(r"number\..*force_charge_power$", "number", "{power_w}"), (r"number\..*force_charge_max_soc$", "number", "{target}"),
                    (r"select\..*work_mode$", "select", "Force Charge")],
         # Selling from the battery (only when the user turns it on): checked in the integration's source.
@@ -360,6 +362,21 @@ PROFILES: dict[str, dict[str, Any]] = {
                    (r"select\..*work_mode$", "select", "Force Discharge")],
         "optional": [r"number\..*force_charge_power$", r"number\..*force_charge_max_soc$"],
         "source": "integration",
+    },
+    # Growatt via the cloud (built-in growatt_server, MIN/TLX): no work modes, but limits - how low it may discharge
+    # on the grid, how full it may charge, how hard, and "Charge from grid". Entity names from a user's install.
+    "growatt_server": {
+        "name": "Growatt (cloud, growatt_server)",
+        "match": r"battery_discharge_soc_limit_on_grid|charge_from_grid",
+        "normal": [(r"number\..*battery_discharge_soc_limit_on_grid$", "number", "{min_soc}"),
+                   (r"number\..*battery_charge_soc_limit$", "number", "100"), (r"switch\..*charge_from_grid$", "off", None),
+                   (r"number\..*battery_discharge_power_limit$", "number", "100"), (r"number\..*battery_charge_power_limit$", "number", "100")],
+        "hold": [(r"number\..*battery_discharge_soc_limit_on_grid$", "number", "{soc}"),
+                 (r"number\..*battery_charge_soc_limit$", "number", "100"), (r"switch\..*charge_from_grid$", "off", None),
+                 (r"number\..*battery_charge_power_limit$", "number", "100")],
+        "charge": [(r"number\..*battery_charge_soc_limit$", "number", "{target}"),
+                   (r"number\..*battery_charge_power_limit$", "number", "{rate}"), (r"switch\..*charge_from_grid$", "on", None)],
+        "optional": [r"number\..*battery_discharge_power_limit$", r"number\..*battery_charge_power_limit$"],
     },
     # GivEnergy (cdpuk/givenergy-local): charging is a "timed charge" (service, needs the inverter's device_id) with
     # a charge target; hold pauses discharging.
@@ -641,8 +658,13 @@ def phase_control(entities: list[str], states: dict[str, Any] | None) -> dict[st
     {"entity", "1": option, "3": option, "now": 1 | 3 | None}. Chargers without it are never switched."""
     one = re.compile(r"(^|[^0-9])1([^0-9]|$)|single|one|^en|1p", re.I)
     three = re.compile(r"(^|[^0-9])3([^0-9]|$)|three|^tre|3p", re.I)
+    # A switch "force 1 phase" (Peblar's force_single_phase, Dutch "dwing_enkelvoudige_fase_af"): on = 1, off = 3.
     for e in entities or []:
-        if not e.startswith("select.") or not re.search(r"phase", e, re.I):
+        if e.startswith("switch.") and re.search(r"(single|enkel|einphas|enfas|one|1).*(phase|fase)|(phase|fase).*(single|enkel|1)", e, re.I):
+            cur = ((states or {}).get(e) or {}).get("state")
+            return {"entity": e, "switch": True, "1": "on", "3": "off", "now": 1 if cur == "on" else 3 if cur == "off" else None}
+    for e in entities or []:
+        if not e.startswith("select.") or not re.search(r"phas|fase", e, re.I):
             continue
         st = (states or {}).get(e) or {}
         opts = [str(o) for o in (st.get("attributes") or {}).get("options") or []]

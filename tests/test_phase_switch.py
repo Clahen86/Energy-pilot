@@ -60,3 +60,16 @@ def test_phase_control_found():
     pc = phase_control(["select.goe_phase_switch_mode"], st)
     assert pc["1"] == "Force_1" and pc["3"] == "Force_3" and pc["now"] == 3
     assert phase_control(["select.evcc_garage_mode"], st) is None
+
+
+def test_phase_switch_peblar_dutch():
+    st = {"switch.laadpaal_dwing_enkelvoudige_fase_af": {"state": "off"}}
+    pc = phase_control(["switch.laadpaal_opladen", "switch.laadpaal_dwing_enkelvoudige_fase_af"], st)
+    assert pc == {"entity": "switch.laadpaal_dwing_enkelvoudige_fase_af", "switch": True, "1": "on", "3": "off", "now": 3}
+    assert phase_control(["switch.laadpaal_opladen"], st) is None
+
+
+def test_zappi_phase_setting():
+    st = {"select.myenergi_zappi_1_phase_setting": {"state": "auto", "attributes": {"options": ["1", "3", "auto"]}}}
+    pc = phase_control(["select.myenergi_zappi_1_phase_setting"], st)
+    assert pc["1"] == "1" and pc["3"] == "3" and pc["now"] is None

@@ -506,6 +506,8 @@ class Controller:
         pc = adapters.phase_control(self.entities.get(part, []), self.ha.states)
         if not pc:
             return []
+        if pc.get("switch"):
+            return [{"domain": "switch", "service": f"turn_{pc[str(ph)]}", "data": {"entity_id": pc["entity"]}}]
         return [{"domain": "select", "service": "select_option", "data": {"entity_id": pc["entity"], "option": pc[str(ph)]}}]
 
     def calls(self, part: str, want: dict[str, Any]) -> list[dict[str, Any]]:

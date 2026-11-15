@@ -145,7 +145,7 @@ def test_profiles_from_the_integrations_own_names():
         "solaredge_modbus_multi": (["select.solaredge_b1_storage_control_mode", "select.solaredge_b1_storage_command_mode", "select.solaredge_b1_ac_charge_policy",
                                     "number.solaredge_b1_storage_charge_limit", "number.solaredge_b1_storage_command_timeout"],
                                    "charge", "select.solaredge_b1_ac_charge_policy", "Always Allowed"),
-        "foxess_modbus": (["select.work_mode", "number.force_charge_power", "number.force_charge_max_soc"], "charge", "number.force_charge_max_soc", 90),
+        "foxess_modbus": (["select.work_mode", "number.min_soc_on_grid", "number.force_charge_power", "number.force_charge_max_soc"], "charge", "number.force_charge_max_soc", 90),
         "sigen": (["switch.sigen_plant_remote_ems_controlled_by_home_assistant", "select.sigen_plant_remote_ems_control_mode",
                    "number.sigen_plant_ess_max_charging_limit"], "charge", "number.sigen_plant_ess_max_charging_limit", 2.4),
         "sofar_solax": (["select.sofar_energy_storage_mode", "number.sofar_passive_mode_battery_power_min", "number.sofar_passive_mode_battery_power_max"],

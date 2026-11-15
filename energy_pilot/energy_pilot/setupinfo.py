@@ -25,6 +25,11 @@ def _slug(text: str) -> str:
     return re.sub(r"_+", "_", re.sub(r"[^a-z0-9]+", "_", t)).strip("_")
 
 
+# Words integrations use in their entity names that a zone or the home may also be called.
+GENERIC = {"work", "home", "house", "grid", "solar", "battery", "garage", "office", "car", "load", "main", "power",
+           "energy", "charger", "inverter", "meter", "total", "today", "mode"}
+
+
 def personal_words(ov: Any, devices: dict[str, Any], areas: list[str], floors: list[str] | None = None) -> list[tuple[str, str]]:
     """The user's own names in this Home Assistant - people, rooms, zones, the home and devices - as slugs with what
     they become. Longest first, so "lilly_room" goes before "lilly"."""
@@ -68,7 +73,12 @@ def mask(entity_id: str, reg: dict[str, Any], devices: dict[str, Any], words: li
             obj = "<device>" + obj[len(s):]
             break
     parts = f"_{obj}_"
+    # The integration's own words are never the user's: a zone called "Work" must not turn "work_mode" into
+    # "<zone>_mode", nor a home called "Home" "home_power" - words in the entity's translation key, or common ones.
+    own = set(_slug(e.get("translation_key") or "").split("_")) | GENERIC
     for w, token in words or []:
+        if token in ("<zone>", "<home>") and w in own:
+            continue
         parts = parts.replace(f"_{w}_", f"_{token}_")
     return f"{dom}.{parts.strip('_')}"
 
