@@ -605,12 +605,25 @@ function node(id, x, y, color, value, unit, caption, extra = "", capPos = "below
 // below this the inverter is only trimming (zero export, a battery topping up the gap): shown as idle, not as selling
 const NOISE_W = 100;
 const GRID_NOISE_W = 30;  // Deye and others balance only 20-25 W against the grid: 100 W sold should show
+const GRID_SPIKE_MS = 20000;  // GoodWe and others draw a little from the grid for a few seconds to stay in sync
 const quiet = (w, n = NOISE_W) => (w == null || Math.abs(w) < n ? 0 : w);
+// The grid only counts as buying or selling above the chosen limit (settings, 30 W by default) and once it has lasted
+// GRID_SPIKE_MS - a short sync draw stays "grid". gridLive() marks data.flow.gridQ on every load.
+let gridSince = null;
+function gridLive(f) {
+  if (!f) return;
+  const lim = Number((data?.settings || {}).grid_noise) || GRID_NOISE_W, now = Date.now();
+  if (Math.abs(f.grid || 0) <= lim) { gridSince = null; f.gridQ = true; return; }
+  if (gridSince == null) gridSince = data._first ? now - GRID_SPIKE_MS : now;
+  f.gridQ = now - gridSince < GRID_SPIKE_MS;
+}
+const gq = (f) => f.gridQ ?? Math.abs(f.grid || 0) <= GRID_NOISE_W;
+const gridW = (f) => (gq(f) ? 0 : f.grid || 0);
 function flowPaths(f) {
   // Who feeds whom (W): the sun first to the house, then the car, the battery, the grid; the battery to the house and
   // the car; the grid covers the rest.
-  const src = { pv: Math.max(0, f.pv || 0), batt: Math.max(0, -quiet(f.battery ?? f.batt)), grid: Math.max(0, quiet(f.grid, GRID_NOISE_W)) };
-  const need = { house: Math.max(0, f.house || 0), ev: Math.max(0, quiet(f.ev)), batt: Math.max(0, quiet(f.battery ?? f.batt)), grid: Math.max(0, -quiet(f.grid, GRID_NOISE_W)) };
+  const src = { pv: Math.max(0, f.pv || 0), batt: Math.max(0, -quiet(f.battery ?? f.batt)), grid: Math.max(0, gridW(f)) };
+  const need = { house: Math.max(0, f.house || 0), ev: Math.max(0, quiet(f.ev)), batt: Math.max(0, quiet(f.battery ?? f.batt)), grid: Math.max(0, -gridW(f)) };
   const out = {};
   for (const s of ["pv", "batt", "grid"]) {
     for (const d of ["house", "ev", "batt", "grid"]) {
@@ -679,6 +692,15 @@ const T_FX = {
   nl: { t: "Weer en feestdagen op de voorpagina", h: "Het echte weer, het seizoen en de feestdag in het energiebeeld" },
   sv: { t: "Väder och högtider på startsidan", h: "Det riktiga vädret, årstiden och dagens högtid i energibilden" },
   nb: { t: "Vær og høytider på forsiden", h: "Det ekte været, årstiden og dagens høytid i energibildet" },
+};
+const T_GN = {
+  da: { t: "Skjul små net-strømme", h: "Under grænsen, og når det kun varer få sekunder, vises nettet som roligt – ikke som køb eller salg. Nogle invertere trækker lidt fra nettet for at holde takten" },
+  en: { t: "Hide small grid flows", h: "Below the limit, and when it only lasts a few seconds, the grid shows as quiet – not as buying or selling. Some inverters draw a little from the grid to stay in sync" },
+  de: { t: "Kleine Netzflüsse ausblenden", h: "Unter der Grenze und wenn es nur wenige Sekunden dauert, zeigt das Netz Ruhe – nicht Kauf oder Verkauf. Manche Wechselrichter ziehen etwas aus dem Netz, um im Takt zu bleiben" },
+  fr: { t: "Masquer les petits flux réseau", h: "Sous la limite, et quand cela ne dure que quelques secondes, le réseau reste calme – ni achat ni vente. Certains onduleurs tirent un peu du réseau pour rester synchronisés" },
+  nl: { t: "Kleine netstromen verbergen", h: "Onder de grens, en als het maar een paar seconden duurt, toont het net rust – geen inkoop of verkoop. Sommige omvormers trekken wat van het net om in de pas te blijven" },
+  sv: { t: "Dölj små nätflöden", h: "Under gränsen, och när det bara varar några sekunder, visas nätet som lugnt – inte som köp eller sälj. Vissa växelriktare drar lite från nätet för att hålla takten" },
+  nb: { t: "Skjul små nettstrømmer", h: "Under grensen, og når det bare varer noen sekunder, vises nettet som rolig – ikke som kjøp eller salg. Noen invertere trekker litt fra nettet for å holde takten" },
 };
 const T_PRIO = {
   da: { t: "Salg og opladning", h: "Hvad Energy Pilot må gøre med nettet" },
@@ -784,7 +806,7 @@ function sceneSvg() {
 }
 
 function flowSvg(f) {
-  const h = f.has, gridCol = (f.grid || 0) < -GRID_NOISE_W ? "var(--sell)" : "var(--grid)";
+  const h = f.has, gridCol = gridW(f) < 0 ? "var(--sell)" : "var(--grid)";
   const soc = f.soc ?? 0, r = 38, circ = 2 * Math.PI * r;
   const socRing = `<circle r="${r}" fill="none" stroke="var(--batt)" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="${circ}" stroke-dashoffset="${circ * (1 - soc / 100)}" transform="rotate(-90)" id="socring"/>`;
   const [pv, pvu] = split(f.pv), [ho, hou] = split(f.house), [gr, gru] = split(f.grid), [ev, evu] = split(f.ev);
@@ -795,7 +817,7 @@ function flowSvg(f) {
     ${h.battery ? '<path class="base" d="M74 150 L146 150"/>' : ""}${h.ev ? '<path class="base" d="M180 184 L180 228"/>' : ""}
     ${flowBeams(f, "glow")}
     ${h.pv ? node("sun", 180, 40, "var(--sun)", pv, pvu, T.sun.toUpperCase(), "", "above", (f.pv || 0) > 30, sunIcon(sc)) : ""}
-    ${h.grid ? node("grid", 320, 150, gridCol, gr, gru, (f.grid < -GRID_NOISE_W ? T.sell : f.grid > GRID_NOISE_W ? T.buy : T.grid).toUpperCase(), "", "below", Math.abs(f.grid || 0) > GRID_NOISE_W) : ""}
+    ${h.grid ? node("grid", 320, 150, gridCol, gr, gru, (gridW(f) < 0 ? T.sell : gridW(f) > 0 ? T.buy : T.grid).toUpperCase(), "", "below", !gq(f)) : ""}
     ${node("house", 180, 150, "var(--house)", ho, hou, null, houseRing(sc), "below", true)}
     ${h.battery ? node("battery", 40, 150, "var(--batt)", `${num(f.soc, 0)}`, "%", `${battCap} ${f.battery && Math.abs(f.battery) > NOISE_W ? kw(f.battery) : ""}`.trim().toUpperCase(), socRing, "below", Math.abs(f.battery || 0) > NOISE_W) : ""}
     ${h.ev ? node("car", 180, 260, "var(--car)", f.ev > NOISE_W ? ev : "–", f.ev > NOISE_W ? evu : "", (f.ev > NOISE_W ? T.charging : f.plug ? T.plugged : T.notPlugged).toUpperCase(), "", "below", (f.ev || 0) > 30) : ""}
@@ -804,7 +826,7 @@ function flowSvg(f) {
 function flowSig(f) {
   const b = (w) => w == null || Math.abs(w) < 30 ? 0 : (w > 0 ? 1 : -1) * (Math.abs(w) > 3000 ? 3 : Math.abs(w) > 1200 ? 2 : 1);
   const p = flowPaths(f);
-  return Object.keys(p).sort().map((k) => k + Math.min(3, Math.floor(p[k] / 1200))).join(",") + "|" + Object.values(f.has).join();
+  return Object.keys(p).sort().map((k) => k + Math.min(3, Math.floor(p[k] / 1200))).join(",") + "|" + Object.values(f.has).join() + "|" + gq(f);
 }
 
 /* ---------- views ---------- */
@@ -1941,6 +1963,7 @@ function styleView() {
       ${adv("grid", `${v.sell ? row(y.sellPrice, settings.roles.sell_price ? y.sellFromSensor : "", numIn("sell_price", "0.5", "0.05", SYM())) : ""}
       ${row(y.gsign, settings.grid_sign_found === -1 ? y.gsignRev : settings.grid_sign_found === 1 ? y.gsignNorm : y.gsignUnknown,
         `<div class="seg mini">${[["auto", null], ["norm", 1], ["rev", -1]].map(([k, val]) => `<button class="${(v.grid_sign ?? null) === val ? "on" : ""}" data-gsign="${k}">${y.gsigns[k]}</button>`).join("")}</div>`)}
+      ${row((T_GN[L] || T_GN.en).t, (T_GN[L] || T_GN.en).h, `<div class="seg mini">${[30, 50, 100, 200].map((w) => `<button class="${(Number(v.grid_noise) || 30) === w ? "on" : ""}" data-gnoise="${w}">${w} W</button>`).join("")}</div>`)}
       ${row(T.ledger.solarValue, T.ledger.solarValueH, `<div class="seg mini">${["free", "sell"].map((m) => `<button class="${(v.solar_value || "free") === m ? "on" : ""}" data-sval="${m}">${T.ledger.sv[m]}</button>`).join("")}</div>`)}`)}`)}
 `;
 }
@@ -2200,6 +2223,7 @@ function wire() {
     i.addEventListener("touchmove", (e) => { const t = e.touches[0]; if (Math.abs(t.clientY - i._y) > Math.abs(t.clientX - i._x) + 4) i._scroll = true; }, { passive: true });
   });
   document.querySelectorAll("[data-psrc]").forEach((b) => b.onclick = () => saveSet({ price_source: b.dataset.psrc === "auto" ? null : b.dataset.psrc }));
+  document.querySelectorAll("[data-gnoise]").forEach((b) => b.onclick = () => saveSet({ grid_noise: Number(b.dataset.gnoise) }));
   document.querySelectorAll("[data-sval]").forEach((b) => b.onclick = () => saveSet({ solar_value: b.dataset.sval }));
   const bats = () => JSON.parse(JSON.stringify(settings.settings.batteries || []));
   const saveBats = (l) => saveSet({ batteries: l });
@@ -2268,7 +2292,7 @@ document.querySelectorAll("[data-evsun]").forEach((b) => b.onclick = async () =>
   cap?.addEventListener("input", () => ($("#capv").textContent = `${cap.value} kWh`));
   cap?.addEventListener("change", () => api("/api/ev", { cap: Number(cap.value) }));
 }
-async function load() { data = await api("/api/overview?lang=" + L).catch(() => data); }
+async function load() { const first = !data; data = await api("/api/overview?lang=" + L).catch(() => data); if (data) { data._first = first; gridLive(data.flow); } }
 (async () => {
   await load();
   loadRep();
