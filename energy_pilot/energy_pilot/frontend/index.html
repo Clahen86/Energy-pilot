@@ -40,6 +40,20 @@
   .rtsec { margin-top:16px; padding-top:16px; border-top:1px solid var(--line); }
   .rtfoot { display:flex; align-items:center; gap:10px; margin-top:14px; padding:10px 12px; border-radius:14px; background:var(--surface2); font-size:13px; }
   .rtchip .rti { width:20px; height:20px; }
+  .evcard { background:radial-gradient(120% 55% at 100% -10%, color-mix(in srgb, var(--car) 16%, transparent), transparent 60%), var(--surface); }
+  .evrow, .evcard .ctl { display:flex; align-items:center; gap:12px; padding:12px 0; border:0; background:none; margin:0; }
+  .evcard .rtsec > * + * { border-top:1px solid var(--line); }
+  .evrow .t { flex:1; min-width:0; } .evrow b { display:block; font-weight:600; font-size:14px; } .evrow span { color:var(--muted); font-size:12px; }
+  .evcard .seg button.on, .evcard .seg.mini button.on { background:color-mix(in srgb,var(--car) 18%,transparent); color:var(--text); box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--car) 55%,transparent); }
+  .evtime { padding:7px 10px; border-radius:10px; font:600 15px inherit; color:var(--text); background:color-mix(in srgb,var(--text) 5%,transparent); border:1px solid var(--line2); }
+  .evnow { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; margin-top:12px; padding:13px; border:0; border-radius:14px; font:600 14px inherit; color:#fff; cursor:pointer;
+    background:linear-gradient(135deg, var(--car), color-mix(in srgb, var(--car) 70%, #5a0f3a)); box-shadow:0 8px 24px -10px color-mix(in srgb,var(--car) 70%,transparent), inset 0 1px 0 rgba(255,255,255,.25); }
+  .evnow.on { background:none; color:var(--car); box-shadow:inset 0 0 0 1.5px var(--car); }
+  .evflow { display:flex; align-items:center; gap:8px; margin-top:14px; }
+  .evflow svg:not(.ic) { flex:1; height:10px; } .evnode { width:34px; height:34px; border-radius:50%; display:grid; place-items:center; flex:none; color:var(--c);
+    background:color-mix(in srgb,var(--c) 14%,transparent); box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--c) 50%,transparent); }
+  .evnode .ic { width:18px; height:18px; }
+  @keyframes evdash { to { stroke-dashoffset:-16; } } .evfl { stroke-dasharray:2 6; animation:evdash 1s linear infinite; }
   @keyframes rtdrift { to { transform:translateX(-60px); } }
   .rtwave { animation:rtdrift 6s linear infinite; } .rtwave2 { animation-duration:9s; animation-direction:reverse; }
   @media (prefers-reduced-motion: reduce) { .rtwave { animation:none; } }
@@ -1223,10 +1237,10 @@ function home() {
       ${dec.reason ? `<details><summary>${T.why}</summary>${esc(dec.reason)}</details>` : ""}</div></div>` : ""}
     <div class="metrics fade">${metrics}</div>
     ${savedCard()}
-    ${runtimeCard()}
-    ${genCard()}
     ${d.ev ? carCard(d.ev, f) : ""}
     ${moreCars()}
+    ${runtimeCard()}
+    ${genCard()}
     ${thingsCard()}
     ${d.plan && d.plan.cheapest && d.plan.cheapest.length ? `<div class="card fade"><div class="eyebrow"><span>${T.cheapest}</span><button class="link" data-tab="plan">${(T_SEEPLAN[L] || T_SEEPLAN.en)} →</button></div>
       <div class="chips">${d.plan.cheapest.map((t) => `<span class="chip good">${clock(t)}</span>`).join("")}</div></div>` : ""}`;
@@ -1253,24 +1267,90 @@ const CAR_ART = `<svg class="pic" viewBox="0 0 240 90" fill="none" stroke="curre
   <path d="M14 62c0-8 4-12 14-14l26-5 22-18c6-5 13-7 21-7h40c9 0 17 3 24 9l17 15 28 5c10 2 14 7 14 15v4c0 3-2 5-5 5h-11"/>
   <path d="M60 71H90M150 71h22M14 66c0 3 2 5 5 5h12"/><path d="M80 43h58l-16-17c-3-3-7-4-11-4H96c-4 0-8 2-11 5z" opacity=".55"/>
   <circle cx="45" cy="70" r="13"/><circle cx="45" cy="70" r="5" opacity=".6"/><circle cx="186" cy="70" r="13"/><circle cx="186" cy="70" r="5" opacity=".6"/></svg>`;
+const T_CAR = {
+  da: { from: "fra {t}", slots: "lader {a}–{b}", sun: "på sol", grid: "fra nettet", nowC: "Lader nu", noPlan: "Ingen opladning planlagt", cap: "af {x} kWh", target: "mål {p} %", stop: "Stop – lader nu", plugIn: "Sæt bilen i" },
+  en: { from: "from {t}", slots: "charging {a}–{b}", sun: "on sun", grid: "from the grid", nowC: "Charging now", noPlan: "No charging planned", cap: "of {x} kWh", target: "target {p} %", stop: "Stop – charging now", plugIn: "Plug in the car" },
+  de: { from: "ab {t}", slots: "lädt {a}–{b}", sun: "mit Sonne", grid: "aus dem Netz", nowC: "Lädt jetzt", noPlan: "Kein Laden geplant", cap: "von {x} kWh", target: "Ziel {p} %", stop: "Stopp – lädt jetzt", plugIn: "Auto anstecken" },
+  fr: { from: "dès {t}", slots: "charge {a}–{b}", sun: "au soleil", grid: "du réseau", nowC: "Charge en cours", noPlan: "Aucune charge prévue", cap: "sur {x} kWh", target: "objectif {p} %", stop: "Arrêter – charge en cours", plugIn: "Branchez la voiture" },
+  nl: { from: "vanaf {t}", slots: "laadt {a}–{b}", sun: "op zon", grid: "van het net", nowC: "Laadt nu", noPlan: "Geen laden gepland", cap: "van {x} kWh", target: "doel {p} %", stop: "Stop – laadt nu", plugIn: "Sluit de auto aan" },
+  sv: { from: "från {t}", slots: "laddar {a}–{b}", sun: "på sol", grid: "från nätet", nowC: "Laddar nu", noPlan: "Ingen laddning planerad", cap: "av {x} kWh", target: "mål {p} %", stop: "Stoppa – laddar nu", plugIn: "Koppla in bilen" },
+  nb: { from: "fra {t}", slots: "lader {a}–{b}", sun: "på sol", grid: "fra nettet", nowC: "Lader nå", noPlan: "Ingen lading planlagt", cap: "av {x} kWh", target: "mål {p} %", stop: "Stopp – lader nå", plugIn: "Koble til bilen" },
+};
+const CAR_IC = `<path d="M5 16.5h14M4 16.5v-3.2l1.8-4.6A2 2 0 0 1 7.7 7.5h8.6a2 2 0 0 1 1.9 1.2l1.8 4.6v3.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="7.5" cy="16.5" r="1.8" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="16.5" cy="16.5" r="1.8" fill="none" stroke="currentColor" stroke-width="1.6"/>`;
 function carCard(ev, f) {
-  const charging = (f.ev || 0) > 30;
-  return `<div class="card fade"><div class="eyebrow"><span>${T.carTitle}</span>${ev.session_kwh != null ? `<span>${num(ev.session_kwh, 1)} kWh ${T.session}</span>` : ""}</div>
-    <div class="car"><span style="color:${charging ? "var(--car)" : "var(--faint)"}">${CAR_ART}</span>
-      <div><div class="st">${charging ? `${T.charging} ${kw(f.ev)}` : f.plug ? T.plugged : T.notPlugged}</div>
-      <div class="muted">${charging ? (T.xCarCharging) : f.plug ? (T.xWaiting) : (T.xPlugIn)}</div></div></div>
-    ${ev.manual != null ? `<div class="ctl"><div class="t"><b>${T.chargeNow}</b><span>${T.xFullSpeed}</span></div><button class="toggle car ${ev.manual ? "on" : ""}" data-ev="manual" aria-label="${T.chargeNow}"></button></div>` : ""}
-    ${ev.ready != null ? `<div class="ctl"><div class="t"><b>${T.readyAt}</b><span>${T.xChargedBy}</span></div><input type="time" data-ev="ready" value="${esc(String(ev.ready).slice(0, 5))}"></div>` : ""}
-    ${ev.soc_known ? evSocHtml(ev) : ""}
-    ${ev.cap != null && !ev.soc_known ? `<div class="ctl"><div class="t"><b>${T.atMost}</b><span>${T.xPerCharge}</span></div><div class="range"><input type="range" min="0" max="${ev.cap_max || 100}" step="1" value="${ev.cap}" data-ev="cap"><b id="capv">${num(ev.cap, 0)} kWh</b></div></div>` : ""}
-  </div>`;
+  const C = T_CAR[L] || T_CAR.en, charging = (f.ev || 0) > 30, hm = (d) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  // the plan's charging hours from now (and the night's prices for the little graph)
+  const now = new Date(), hrs = (data.plan?.hours || []).filter((h) => new Date(h.t).getTime() > now.getTime() - 3600000).slice(0, 18);
+  const slots = hrs.filter((h) => (h.car_kwh || 0) > 0), first = slots[0] ? new Date(slots[0].t) : null;
+  const last = slots.length ? new Date(new Date(slots[slots.length - 1].t).getTime() + 3600000) : null;
+  // the ring: the car's own level against its target - or, without it, what this charge has taken against "at most"
+  const soc = ev.soc_known ? ev.soc : null, tg = ev.soc_known ? ev.target : null;
+  const frac = soc != null ? soc / 100 : ev.cap ? Math.min(1, (ev.session_kwh || 0) / ev.cap) : 0, tgF = tg != null ? tg / 100 : 1;
+  const R1 = 56, C1 = 2 * Math.PI * R1;
+  const tk = Array.from({ length: 60 }, (_, i) => { const a = i * 6 * Math.PI / 180, r2 = i % 5 ? 65 : 66.5;
+    return `<line x1="${(66 + 63 * Math.sin(a)).toFixed(1)}" y1="${(66 - 63 * Math.cos(a)).toFixed(1)}" x2="${(66 + r2 * Math.sin(a)).toFixed(1)}" y2="${(66 - r2 * Math.cos(a)).toFixed(1)}" stroke="var(--text)" stroke-opacity="${i % 5 ? .08 : .18}"/>`; }).join("");
+  const ring = `<svg viewBox="0 0 132 132" width="124" height="124" style="flex:none">
+      <defs><linearGradient id="evr" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="color-mix(in srgb,var(--car) 50%,#fff)"/><stop offset=".55" stop-color="var(--car)"/><stop offset="1" stop-color="color-mix(in srgb,var(--car) 70%,#5a0f3a)"/></linearGradient>
+        <filter id="evgw" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3.5"/></filter></defs>${tk}
+      <circle cx="66" cy="66" r="${R1}" fill="none" stroke="var(--line2)" stroke-width="6"/>
+      ${tg != null ? `<circle cx="66" cy="66" r="${R1}" fill="none" stroke="var(--car)" stroke-opacity=".18" stroke-width="6" stroke-dasharray="${C1.toFixed(1)}" stroke-dashoffset="${(C1 * (1 - tgF)).toFixed(1)}" transform="rotate(-90 66 66)"/>` : ""}
+      <circle cx="66" cy="66" r="${R1}" fill="none" stroke="url(#evr)" stroke-width="6" stroke-linecap="round" stroke-dasharray="${C1.toFixed(1)}" stroke-dashoffset="${(C1 * (1 - frac)).toFixed(1)}" transform="rotate(-90 66 66)" filter="url(#evgw)" opacity=".65"/>
+      <circle cx="66" cy="66" r="${R1}" fill="none" stroke="url(#evr)" stroke-width="6" stroke-linecap="round" stroke-dasharray="${C1.toFixed(1)}" stroke-dashoffset="${(C1 * (1 - frac)).toFixed(1)}" transform="rotate(-90 66 66)"/>
+      ${tg != null && tg < 100 ? `<g transform="rotate(${(tg * 3.6).toFixed(1)} 66 66)"><line x1="66" y1="6" x2="66" y2="16" stroke="var(--text)" stroke-width="2" stroke-linecap="round"/></g>` : ""}
+      ${charging ? `<circle r="3.2" fill="var(--car)"><animateMotion dur="2.4s" repeatCount="indefinite" path="M66 10 a56 56 0 1 1 -0.1 0"/></circle>` : ""}
+      <circle cx="66" cy="66" r="47" fill="var(--surface2)"/>
+      <g transform="translate(47 30) scale(1.6)" style="color:${f.plug || charging ? "var(--car)" : "var(--faint)"}">${CAR_IC}</g>
+      ${soc != null ? `<text x="66" y="86" text-anchor="middle" class="rtn" font-size="22" font-weight="600" fill="var(--text)" letter-spacing="-.5">${num(soc, 0)}<tspan font-size="12" fill="var(--muted)" dx="1">%</tspan></text>
+        <text x="66" y="100" text-anchor="middle" font-size="9.5" fill="var(--muted)" letter-spacing=".06em">${esc(C.target.replace("{p}", num(tg, 0)).toUpperCase())}</text>`
+      : `<text x="66" y="86" text-anchor="middle" class="rtn" font-size="20" font-weight="600" fill="var(--text)" letter-spacing="-.5">${num(ev.session_kwh || 0, 1)}</text>
+        <text x="66" y="100" text-anchor="middle" font-size="9.5" fill="var(--muted)">${ev.cap ? esc(C.cap.replace("{x}", num(ev.cap, 0))) : "kWh"}</text>`}</svg>`;
+  // the big line: charging now, ready at, or plug it in
+  const ready = ev.ready && ev.ready !== "00:00:00" ? String(ev.ready).slice(0, 5) : null;
+  const need = soc != null && tg != null && soc < tg && ev.car_kwh ? (tg - soc) / 100 * ev.car_kwh : null;
+  const big = charging ? [C.nowC, `${num((f.ev || 0) / 1000, 1)} kW`] : !f.plug ? ["", T.notPlugged] : ready ? [T.readyAt, ready] : first ? [C.from.replace("{t}", "").trim() || "", hm(first)] : ["", C.noPlan];
+  const pills = [need != null ? `<span class="rtpill rtn"><i style="background:var(--car)"></i>+${num(need, 1)} kWh</span>` : "",
+    first && !charging && f.plug ? `<span class="rtpill rtn">${esc(C.from.replace("{t}", hm(first)))}</span>` : "",
+    !f.plug ? `<span class="rtpill">${esc(C.plugIn)}</span>` : ""].filter(Boolean).join("");
+  const hero = `<div style="display:flex;align-items:center;gap:16px;margin-top:12px">${ring}<div style="min-width:0">
+      ${big[0] ? `<div class="rtkv">${esc(big[0])}</div>` : ""}<div class="rtval rtn" style="font-size:${/\d/.test(big[1]) ? 40 : 24}px;line-height:1.05">${esc(big[1])}</div>
+      ${pills ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${pills}</div>` : ""}</div></div>`;
+  // charging now: from the sun or the grid, as a running line
+  const fromSun = charging && f.pv != null && f.house != null && (f.pv - Math.max(0, f.house - (f.ev || 0))) > (f.ev || 0) * 0.6;
+  const flowLine = charging ? `<div class="evflow"><span class="evnode" style="--c:var(--${fromSun ? "sun" : "grid"})">${fromSun ? icon("sun") : icon("grid")}</span>
+      <svg viewBox="0 0 100 10" preserveAspectRatio="none"><line x1="0" y1="5" x2="100" y2="5" stroke="var(--${fromSun ? "sun" : "grid"})" stroke-opacity=".3" stroke-width="2"/><line class="evfl" x1="0" y1="5" x2="100" y2="5" stroke="var(--${fromSun ? "sun" : "grid"})" stroke-width="3" stroke-linecap="round"/></svg>
+      <span class="evnode" style="--c:var(--car)"><svg viewBox="0 0 24 24" width="18" height="18" style="color:var(--car)">${CAR_IC}</svg></span>
+      <span class="muted" style="font-size:12px;white-space:nowrap">${fromSun ? C.sun : C.grid}</span></div>` : "";
+  // the night ahead: prices as bars, the car's hours in pink, a flag at "ready"
+  let graph = "";
+  if (hrs.length > 3 && f.plug) {
+    const W = 340, n = hrs.length, bw = (W - 20) / n, pmin = Math.min(...hrs.map((h) => h.price ?? 0)), pmax = Math.max(...hrs.map((h) => h.price ?? 0)) || 1;
+    const bars = hrs.map((h, i) => { const x = 10 + i * bw, hh = 10 + ((h.price ?? pmin) - pmin) / Math.max(0.01, pmax - pmin) * 40, ch = (h.car_kwh || 0) > 0;
+      return `<rect x="${(x + 2).toFixed(1)}" y="${(64 - hh).toFixed(1)}" width="${(bw - 4).toFixed(1)}" height="${hh.toFixed(1)}" rx="3" fill="${ch ? "var(--car)" : "var(--line2)"}"/>${ch ? `<rect x="${(x + 2).toFixed(1)}" y="${(64 - hh).toFixed(1)}" width="${(bw - 4).toFixed(1)}" height="${hh.toFixed(1)}" rx="3" fill="var(--car)" opacity=".45" filter="url(#evg5)"/>` : ""}`; }).join("");
+    const t0 = new Date(hrs[0].t).getTime(), xr = (d) => 10 + (d.getTime() - t0) / 3600000 * bw;
+    let rd = null; if (ready) { rd = new Date(now); const [hh, mm] = ready.split(":").map(Number); rd.setHours(hh, mm, 0, 0); if (rd <= now) rd.setDate(rd.getDate() + 1); }
+    const flag = rd && xr(rd) < W - 10 ? `<line x1="${xr(rd).toFixed(1)}" y1="8" x2="${xr(rd).toFixed(1)}" y2="64" stroke="var(--car)" stroke-opacity=".6" stroke-dasharray="2 3"/><path d="M${xr(rd).toFixed(1)} 8 h16 l-4 4.5 4 4.5 h-16z" fill="var(--car)"/>` : "";
+    const lab = [0, Math.floor(n / 2), n - 1].map((i, j) => `<text x="${(10 + i * bw + (j === 2 ? bw : 0)).toFixed(1)}" y="80" text-anchor="${["start", "middle", "end"][j]}" font-size="10" fill="var(--muted)">${j === 0 ? T.now || "nu" : hm(new Date(hrs[i].t))}</text>`).join("");
+    graph = `<svg viewBox="0 0 ${W} ${slots.length ? 96 : 84}" width="100%" style="display:block;margin-top:16px"><defs><filter id="evg5"><feGaussianBlur stdDeviation="2.5"/></filter></defs>
+      ${bars}<line x1="10" y1="64" x2="${W - 10}" y2="64" stroke="var(--line)"/><line x1="10" y1="8" x2="10" y2="64" stroke="var(--text)" stroke-opacity=".2"/><circle cx="10" cy="64" r="3.5" fill="var(--text)"/>${flag}${lab}
+      ${slots.length ? `<text x="${W / 2}" y="94" text-anchor="middle" font-size="9.5" fill="var(--car)">${esc(C.slots.replace("{a}", hm(first)).replace("{b}", hm(last)))}</text>` : ""}</svg>`;
+  }
+  // the settings, in clean rows; "charge now" as the big button
+  const modes = T.y?.carModes || { cheapest: "Cheapest", solar: "Sun only" }, mode = settings?.settings?.ev_mode || data.settings?.ev_mode || "cheapest";
+  const rows = [
+    `<div class="evrow"><div class="t"><b>${esc(T.y?.carMode || "")}</b></div><div class="seg mini evseg">${["cheapest", "solar"].map((m) => `<button class="${mode === m ? "on" : ""}" data-evmode="${m}">${esc(modes[m])}</button>`).join("")}</div></div>`,
+    ev.ready != null ? `<div class="evrow"><div class="t"><b>${T.readyAt}</b><span>${T.xChargedBy}</span></div><input type="time" class="evtime rtn" data-ev="ready" value="${esc(String(ev.ready).slice(0, 5))}"></div>` : "",
+    ev.soc_known ? evSocHtml(ev, true) : "",
+    ev.cap != null && !ev.soc_known ? `<div class="evrow"><div class="t"><b>${T.atMost}</b><span>${T.xPerCharge}</span></div><div class="range"><input type="range" min="0" max="${ev.cap_max || 100}" step="1" value="${ev.cap}" data-ev="cap"><b id="capv" class="rtn">${num(ev.cap, 0)} kWh</b></div></div>` : ""].join("");
+  const btn = ev.manual != null ? `<button class="evnow ${ev.manual ? "on" : ""}" data-ev="manual" aria-label="${T.chargeNow}"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M13 2.5 5.5 13.5H12l-1 8 7.5-11H12z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>${ev.manual ? esc(C.stop) : T.chargeNow}</button>` : "";
+  return `<div class="card fade evcard"><div class="rthd"><svg viewBox="0 0 24 24" class="rti" style="color:var(--car)">${CAR_IC}</svg>${T.carTitle}${ev.session_kwh != null ? `<span class="r rtn" style="font-weight:500;color:var(--muted)">${num(ev.session_kwh, 1)} kWh ${T.session}</span>` : ""}</div>
+    ${hero}${flowLine}${graph}<div class="rtsec" style="padding-top:4px">${rows}</div>${btn}</div>`;
 }
-function evSocHtml(ev) {
+function evSocHtml(ev, compact = false) {
   const E = T.evs, soc = ev.soc, tg = ev.target, every = ev.everyday;
   const sunTg = ev.sun_target ?? tg, sun = ev.has_sun && !ev.trip;
   const bar = `<div class="evbar"><span style="width:${soc ?? 0}%"></span><i style="left:${tg}%"></i>${sun && sunTg > tg ? `<i style="left:${sunTg}%;background:var(--sun)"></i>` : ""}</div>`;
   const left = soc != null && soc < tg ? E.missing.replace("{x}", num((tg - soc) / 100 * ev.car_kwh / 0.9, 1)) : soc != null ? E.reached : "";
-  return `<div class="ctl evsoc"><div class="t"><b>${E.soc}</b><span>${esc(left)}</span></div><div class="evpct">${soc != null ? num(soc, 0) : "–"}<small>%</small></div></div>${bar}
+  return `${compact ? "" : `<div class="ctl evsoc"><div class="t"><b>${E.soc}</b><span>${esc(left)}</span></div><div class="evpct">${soc != null ? num(soc, 0) : "–"}<small>%</small></div></div>${bar}`}
     <div class="ctl"><div class="t"><b>${sun ? E.gridTo : E.target}</b><span>${sun ? E.gridToH : E.targetH}</span></div>
       <div class="seg evt">${[60, 70, 80, 90, 100].map((v) => `<button data-evtarget="${v}" class="${!ev.trip && every === v ? "on" : ""}">${v}</button>`).join("")}</div></div>
     ${sun ? `<div class="ctl"><div class="t"><b>${E.sunTo}</b><span>${E.sunToH}</span></div>
