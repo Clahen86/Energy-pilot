@@ -64,6 +64,14 @@ Home Assistant address and a long-lived access token, and open `http://<host>:80
 - **Learns the battery** – its real usable capacity, efficiency and how it slows down near full.
 - **Never half a command** – if a control is missing, it doesn't control and tells you what's missing.
 - **Keeps its settings in place** – and tells you if Predbat or an automation keeps changing the battery too.
+- **How long the battery lasts** – "until 06:40" without the grid, worked out hour by hour from your house's expected
+  use and the sun, with the plan's curve, the lowest level tonight and when it's full. On the home page, in the
+  dashboard card and as a sensor for your own automations.
+- **Storm watch** (off unless you turn it on) – a storm or thunder on its way, from the forecast or an official warning
+  (Meteoalarm, DWD, Météo-France, Environment Canada, GDACS, NWS, BOM, MetService, MET, Met Office, NHC): the battery
+  is filled up in the cheapest hours before and kept high until it's over, so the house has power if the grid goes down.
+
+<p align="center"><img src="docs/runtime_storm_en.png" width="620" alt="How long the battery lasts, and storm watch"></p>
 
 ### ☀️ Stop selling at negative prices
 - When selling would cost money, the inverter's **export limit is turned down** – the house and the battery still use
@@ -181,7 +189,7 @@ Everything goes through the device's own Home Assistant integration.<br>
 
 | | |
 |---|---|
-| **Inverter / battery** | ✅ Growatt SPH (SPA) · ✅ Victron (ESS) · ✅ Deye (Solarman) · 🧪 Deye (ESPHome) · 🧪 Growatt MIN/MOD TL-XH · 🧪 Sofar (Solarman or SolaX Modbus) · 🧪 Sigenergy · 🧪 Tesla Powerwall · 🧪 Enphase IQ Battery · 🧪 EcoFlow PowerStream · 🧪 Megarevo · 🧪 Huawei SUN2000/LUNA2000 · 🧪 SolaX · 🧪 Sungrow · 🧪 SolarEdge · 🧪 Fox ESS · 🧪 GivEnergy · 🧪 Solis · 🧪 Alpha ESS · any other by picking its controls yourself |
+| **Inverter / battery** | ✅ Growatt SPH (SPA) · ✅ Victron (ESS) · ✅ Deye (Solarman) · ✅ GoodWe (ET/EH/BT/BH) · 🧪 GoodWe EMS · 🧪 Deye (ESPHome) · 🧪 Growatt MIN/MOD TL-XH · 🧪 Sofar (Solarman or SolaX Modbus) · 🧪 Sigenergy · 🧪 Tesla Powerwall · 🧪 Enphase IQ Battery · 🧪 EcoFlow PowerStream · 🧪 Megarevo · 🧪 Huawei SUN2000/LUNA2000 · 🧪 SolaX · 🧪 Sungrow · 🧪 SolarEdge · 🧪 Fox ESS · 🧪 GivEnergy · 🧪 Solis · 🧪 Alpha ESS · any other by picking its controls yourself |
 | **EV charger** | ✅ KEBA · 🧪 Easee · 🧪 Zaptec · 🧪 go-e · 🧪 Wallbox · 🧪 Peblar · 🧪 OCPP · 🧪 Alfen · 🧪 Ohme · 🧪 myenergi zappi · any with a switch and a current setting |
 | **Prices** | ✅ Strømligning · ✅ built-in spot prices · ✅ Octopus Energy (Intelligent Go, Agile Outgoing) · 🧪 Octopus Agile import · 🧪 Nord Pool · 🧪 Tibber · 🧪 Energi Data Service · 🧪 ENTSO-E · 🧪 Amber · 🧪 EDF Tempo · 🧪 EnergyZero · 🧪 easyEnergy · 🧪 Frank Energie · 🧪 Zonneplan · tariff plans |
 

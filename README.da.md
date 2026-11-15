@@ -64,6 +64,15 @@ Home Assistant-adresse og et langtidsadgangstoken, og åbn `http://<vært>:8099`
 - **Lærer batteriet at kende** – den rigtige brugbare kapacitet, virkningsgraden og hvordan det lader langsommere tæt på fuldt.
 - **Aldrig en halv kommando** – mangler en kontrol, styrer den ikke og siger, hvad der mangler.
 - **Holder sine indstillinger på plads** – og siger til, hvis Predbat eller en automation også ændrer batteriet.
+- **Hvor længe batteriet rækker** – "til kl. 06:40" uden strøm fra nettet, regnet time for time ud fra husets forventede
+  forbrug og solen, med planens kurve, laveste niveau i nat og hvornår det er fuldt. På forsiden, i dashboard-kortet og
+  som sensor til dine egne automationer.
+- **Stormvarsel** (slået fra, medmindre du slår det til) – kommer der storm eller torden, fra vejrudsigten eller et
+  officielt varsel (Meteoalarm, DWD, Météo-France, Environment Canada, GDACS, NWS, BOM, MetService, MET, Met Office,
+  NHC), lades batteriet helt op i de billigste timer før og holdes højt, til det er ovre – så huset har strøm, hvis
+  nettet falder ud.
+
+<p align="center"><img src="docs/runtime_storm_da.png" width="620" alt="Batteriet rækker og stormvarsel"></p>
 
 ### ☀️ Stop salg ved negativ pris
 - Når det koster penge at sælge, **sættes invertens eksportgrænse ned** – huset og batteriet bruger stadig al solen,
@@ -178,7 +187,7 @@ Alt går gennem enhedens egen Home Assistant-integration.<br>
 
 | | |
 |---|---|
-| **Inverter / batteri** | ✅ Growatt SPH (SPA) · ✅ Victron (ESS) · ✅ Deye (Solarman) · 🧪 Deye (ESPHome) · 🧪 Growatt MIN/MOD TL-XH · 🧪 Sofar · 🧪 Sigenergy · 🧪 Tesla Powerwall · 🧪 Enphase IQ Battery · 🧪 EcoFlow PowerStream · 🧪 Megarevo · 🧪 Huawei · 🧪 SolaX · 🧪 Sungrow · 🧪 SolarEdge · 🧪 Fox ESS · 🧪 GivEnergy · 🧪 Solis · 🧪 Alpha ESS · alle andre ved at vælge kontrollerne selv |
+| **Inverter / batteri** | ✅ Growatt SPH (SPA) · ✅ Victron (ESS) · ✅ Deye (Solarman) · ✅ GoodWe (ET/EH/BT/BH) · 🧪 GoodWe EMS · 🧪 Deye (ESPHome) · 🧪 Growatt MIN/MOD TL-XH · 🧪 Sofar · 🧪 Sigenergy · 🧪 Tesla Powerwall · 🧪 Enphase IQ Battery · 🧪 EcoFlow PowerStream · 🧪 Megarevo · 🧪 Huawei · 🧪 SolaX · 🧪 Sungrow · 🧪 SolarEdge · 🧪 Fox ESS · 🧪 GivEnergy · 🧪 Solis · 🧪 Alpha ESS · alle andre ved at vælge kontrollerne selv |
 | **Elbil-lader** | ✅ KEBA · 🧪 Easee · 🧪 Zaptec · 🧪 go-e · 🧪 Wallbox · 🧪 Peblar · 🧪 OCPP · 🧪 Alfen · 🧪 Ohme · 🧪 myenergi zappi · alle med en kontakt og en strømindstilling |
 | **Priser** | ✅ Strømligning · ✅ indbyggede spotpriser · ✅ Octopus · 🧪 Nord Pool · 🧪 Tibber · 🧪 Energi Data Service · 🧪 ENTSO-E · 🧪 Amber · 🧪 EDF Tempo · 🧪 EnergyZero · 🧪 easyEnergy · 🧪 Frank Energie · 🧪 Zonneplan · tarifplaner |
 
