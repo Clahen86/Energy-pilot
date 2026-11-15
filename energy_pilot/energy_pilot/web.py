@@ -246,6 +246,8 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
             "engine": None,
             "control": overview.controller.status() if overview.controller else None,
             "curtail": overview.curtail.status() if getattr(overview, "curtail", None) else None,
+            # the inverter's own lowest battery levels (Deye's Low/Shutdown/Restart SOC ...): below them it won't discharge
+            "inverter_floors": _floors(),
         }
         if eng:
             b = eng.settings()
@@ -254,6 +256,16 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
                              "blend": eng.blend_info(), "sources": eng.sources_used(), "grid_peak_kw": eng.grid_peak.kw(),
                              "sell_prices": {k.isoformat(): v for k, v in sorted(eng.sell_prices().items())}}
         return out
+
+    def _floors() -> dict[str, float]:
+        from .checks import inverter_floors
+
+        ctl = overview.controller
+        ents = (getattr(ctl, "entities", None) or {}).get("battery") or [] if ctl else []
+        try:
+            return dict(inverter_floors(runner.ha.states, ents, restart=True))
+        except Exception:  # noqa: BLE001 - diagnostics never fail for this
+            return {}
 
     async def diagnostics(req: web.Request) -> web.Response:
         """One file to send when something looks wrong."""

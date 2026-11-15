@@ -196,8 +196,8 @@ class SelfTest:
                     out[e] = v
         return out
 
-    async def _restore(self) -> None:
-        saved = self.state.get("saved") or getattr(self, "_mem", None) or {}
+    @staticmethod
+    def _restore_calls(saved: dict[str, str]) -> list[dict[str, Any]]:
         calls = []
         for e, v in saved.items():
             d = e.split(".")[0]
@@ -211,10 +211,42 @@ class SelfTest:
                 calls.append({"domain": "number", "service": "set_value", "data": {"entity_id": e, "value": int(n) if n.is_integer() else n}})
             elif d == "switch" and v in ("on", "off"):
                 calls.append({"domain": "switch", "service": f"turn_{v}", "data": {"entity_id": e}})
+        return calls
+
+    def _offline(self, e: str | None) -> bool:
+        return (self.ctl.ha.states.get(e or "") or {}).get("state") in (None, "unavailable", "unknown")
+
+    async def _restore(self) -> None:
+        saved = self.state.get("saved") or getattr(self, "_mem", None) or {}
+        calls = self._restore_calls(saved)
         result = await self.ctl._send(calls) if calls else "ok"
         left = [c["data"]["entity_id"] for c in calls if self.ctl._matches(c) is False]
+        # What is offline now (the charger's integration gone) goes back by itself once it returns (retry_pending).
+        pending = {e: saved[e] for e in left if self._offline(e)}
         self._mem = {}
-        self._save(saved={}, restored={"result": result, "left": [{"entity": e, "value": saved[e]} for e in left]})
+        self._save(saved={}, restored={"result": result, "left": [{"entity": e, "value": saved[e]} for e in left],
+                                       "pending": pending or None, "pending_since": time.time() if pending else None})
+
+    async def retry_pending(self) -> None:
+        """Settings the test couldn't put back because their device was offline: put back as soon as it's online
+        again - once, and not after two days (by then they may have been changed on purpose)."""
+        r = self.state.get("restored") or {}
+        pending = r.get("pending") or {}
+        if not pending or (self._task and not self._task.done()):
+            return
+        if time.time() - (r.get("pending_since") or 0) > 2 * 86400:
+            self._save(restored={**r, "pending": None})
+            return
+        back = {e: v for e, v in pending.items() if not self._offline(e)}
+        if not back:
+            return
+        calls = self._restore_calls(back)
+        result = await self.ctl._send(calls) if calls else "ok"
+        wrong = {c["data"]["entity_id"] for c in calls if self.ctl._matches(c) is False}
+        still = {e: v for e, v in pending.items() if e not in back}
+        left = [{"entity": e, "value": v} for e, v in pending.items() if e in still or e in wrong]
+        _LOGGER.info("Put back %d setting(s) the test left while offline", len(back) - len(wrong))
+        self._save(restored={**r, "result": "ok" if not left else result, "left": left, "pending": still or None})
 
     async def _watch(self, check: Any, wait_s: int, base: dict[str, Any]) -> tuple[bool | None, dict[str, Any]]:
         """Look every 10 s; right for 30 s in a row and at least a minute after the command = passed."""
@@ -258,6 +290,8 @@ class SelfTest:
                 self._result(part, intent, "fixed", entity=e, option_from=c["data"]["option"], option_to=opt)
                 return
         why = "rejected" if sent != "ok" else ("no_reaction" if ok is False else "no_data")
+        if any(self._offline(c["data"].get("entity_id")) for c in calls if isinstance(c["data"].get("entity_id"), str)):
+            why = "offline"  # the device's integration went away in Home Assistant (e.g. evcc unreachable), not a refusal
         err = getattr(self.ctl, "last_send_error", None) if sent != "ok" else None
         from .checks import ALPHA_PERIOD
         if err and ALPHA_PERIOD.search(err):

@@ -27,6 +27,38 @@ import aiohttp
 _LOGGER = logging.getLogger(__name__)
 
 
+def ready_time(value: Any, now: datetime | None = None) -> tuple[int, int] | None:
+    """The car's "ready at" as (hour, minute), whatever the helper gives: "07:00", "07:00:00", "7:00 AM", a date and
+    time ("2026-11-16T07:00:00+01:00", shown in local time) - None when unset ("00:00:00" is a helper left empty) or
+    unreadable."""
+    import re
+
+    v = str(value or "").strip()
+    if not v or v == "00:00:00" or v.lower() in ("unknown", "unavailable", "none"):
+        return None
+    if re.match(r"\d{4}-\d{2}-\d{2}[T ]", v):
+        try:
+            t = datetime.fromisoformat(v.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if t.tzinfo and now is not None and now.tzinfo:
+            t = t.astimezone(now.tzinfo)
+        hm = (t.hour, t.minute)
+    else:
+        m = re.match(r"^(\d{1,2})[:.](\d{2})(?::\d{2}(?:\.\d+)?)?\s*([ap]\.?m\.?)?$", v, re.I)
+        if not m:
+            return None
+        h, mi, ap = int(m.group(1)), int(m.group(2)), (m.group(3) or "").lower()
+        if ap.startswith("p") and h < 12:
+            h += 12
+        elif ap.startswith("a") and h == 12:
+            h = 0
+        if h > 23 or mi > 59:
+            return None
+        hm = (h, mi)
+    return hm
+
+
 # ---------- house forecast ----------
 
 
@@ -1157,9 +1189,8 @@ class Engine:
 
             need = evsoc.need_kwh(ev["soc"], ev["target"], ev["car_kwh"])
         ready = None
-        if ev.get("ready") and ev["ready"] != "00:00:00":
-            hh, mm = (int(x) for x in str(ev["ready"]).split(":")[:2])
-            ready = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+        if (hm := ready_time(ev.get("ready"), now)) is not None:
+            ready = now.replace(hour=hm[0], minute=hm[1], second=0, microsecond=0)
             if ready <= now:
                 ready += timedelta(days=1)
         else:
@@ -1205,9 +1236,8 @@ class Engine:
 
                     need = evsoc.need_kwh(ev["soc"], ev["target"], ev["car_kwh"])
                 ready = None
-                if ev.get("ready") and ev["ready"] != "00:00:00":
-                    hh, mm = (int(x) for x in str(ev["ready"]).split(":")[:2])
-                    ready = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+                if (hm := ready_time(ev.get("ready"), now)) is not None:
+                    ready = now.replace(hour=hm[0], minute=hm[1], second=0, microsecond=0)
                     ready += timedelta(days=1) if ready <= now else timedelta(0)
                 mode = st.get("ev_mode")
             else:

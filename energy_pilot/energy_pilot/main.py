@@ -233,6 +233,8 @@ async def main() -> None:
                 if st.get("things"):
                     # in shadow nothing is switched: the things act only when Energy Pilot controls something
                     await engine.things.tick(ha, st, now, price, sell, f.get("grid"), act=any(controller.mode(p) == "control" for p in controller.parts()))
+                if getattr(overview, "selftest", None):
+                    await overview.selftest.retry_pending()  # settings a test left while their device was offline
                 bp = controller.last.get("battery") if hasattr(controller, "last") else None
                 engine.follow.see(now, controller.mode("battery"), bp, f,
                                   ha.states, controller.entities.get("battery") or [])
