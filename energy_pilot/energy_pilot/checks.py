@@ -147,6 +147,7 @@ def run(engine: Any, hours: list, b: Any, plan: Any, end_value: float) -> list[d
     out += house_history(engine, st)
     out += read_only(engine, st)
     out += alpha_period(engine)
+    out += inverter_floor(engine, b)
     return out
 
 
@@ -204,6 +205,49 @@ def house_history(engine: Any, st: dict[str, Any]) -> list[dict[str, Any]]:
     return []
 
 
+# The inverter's own lowest battery level: below it the inverter won't discharge, whatever is asked (Deye's
+# "Battery Low SOC" and "Shutdown SOC", Solis' over-discharge SOC, SolaX' "Selfuse Discharge Min SOC" ...).
+FLOOR = re.compile(r"(low|shut_?down|cut_?off|over_?discharge|discharge_?min|min_?discharge|end_?of_?discharge)[a-z_]*soc|soc[a-z_]*(low|min|cut_?off|shut_?down)$", re.I)
+RESTART = re.compile(r"restart[a-z_]*soc|soc[a-z_]*restart", re.I)
+NOT_FLOOR = re.compile(r"program_|time_point|energ(i|y)_?pilot|charg(e|ing)_(soc|start)|max", re.I)
+
+
+def inverter_floors(states: dict[str, Any], entities: list[str], restart: bool = False) -> list[tuple[str, float]]:
+    """(name, %) of the inverter's settings that keep the battery from going lower; restart: also the level it waits
+    for after it has been empty (Deye's "Restart SOC")."""
+    out = []
+    for e in entities:
+        if not e.startswith("number."):
+            continue
+        name = e.split(".", 1)[1]
+        if NOT_FLOOR.search(name) or not (FLOOR.search(name) or restart and RESTART.search(name)):
+            continue
+        st = states.get(e) or {}
+        unit = (st.get("attributes") or {}).get("unit_of_measurement")
+        try:
+            v = float(st.get("state"))
+        except (TypeError, ValueError):
+            continue
+        if unit in (None, "%") and 0 < v <= 100:
+            out.append((name, v))
+    return out
+
+
+def inverter_floor(engine: Any, b: Any) -> list[dict[str, Any]]:
+    """The inverter stops discharging above the minimum Energy Pilot plans with: offer to use the inverter's level."""
+    ctl = getattr(engine.ov, "controller", None)
+    if ctl is None or b is None or ctl.mode("battery") != "control":
+        return []
+    floors = inverter_floors(engine.ov.ha.states, (getattr(ctl, "entities", None) or {}).get("battery") or [])
+    if not floors:
+        return []
+    name, v = max(floors, key=lambda x: x[1])
+    if v <= (b.min_soc or 0) + 0.5:
+        return []
+    return [{"key": "inv_floor", "level": "warn", "vals": {"inv": int(v) if float(v).is_integer() else v, "ep": int(b.min_soc or 0), "name": name},
+             "fix": {"battery_min_soc": int(round(v))}, "goto": "battery"}]
+
+
 class FollowWatch:
     """Does the battery do what it's told? If the plan wants it to cover the house (or charge) and it stays at 0 W for
     10 minutes, something on the inverter holds it back - often a rate or limit left at 0 by another system. It says
@@ -230,7 +274,7 @@ class FollowWatch:
         if self.kind != kind:
             self.since, self.kind, self.found = now, kind, None
         if (now - self.since).total_seconds() >= self.WAIT and self.found is None:
-            self.found = {"kind": kind, "at": now.isoformat(), "suspects": self.suspects(kind, states, entities)}
+            self.found = {"kind": kind, "at": now.isoformat(), "suspects": self.suspects(kind, states, entities, f.get("soc"))}
             import logging
 
             logging.getLogger("energy_pilot.control").warning("The battery doesn't follow the plan (%s): %s", kind, self.found["suspects"])
@@ -248,12 +292,15 @@ class FollowWatch:
         return None
 
     @classmethod
-    def suspects(cls, kind: str, states: dict[str, Any], entities: list[str]) -> list[str]:
+    def suspects(cls, kind: str, states: dict[str, Any], entities: list[str], soc: float | None = None) -> list[str]:
         """The inverter's numbers that sound like they limit this way and stand at 0 or at their lowest (Sungrow's
         "no battery discharge" is 10 W, the least it takes): "free_mode_discharge_rate = 0"."""
         import re
 
         out = []
+        # The inverter's own lowest level (or the level it waits for after empty) at or above the battery now.
+        if kind == "discharge" and soc is not None:
+            out += [f"{n} = {int(v) if v.is_integer() else v} %" for n, v in inverter_floors(states, entities, restart=True) if v >= soc - 1]
         for e in entities:
             if not e.startswith("number."):
                 continue
