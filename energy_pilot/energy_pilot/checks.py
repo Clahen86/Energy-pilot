@@ -6,6 +6,7 @@ nothing told the user. These checks look at what Energy Pilot has measured and p
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Any
 
@@ -145,6 +146,7 @@ def run(engine: Any, hours: list, b: Any, plan: Any, end_value: float) -> list[d
 
     out += house_history(engine, st)
     out += read_only(engine, st)
+    out += alpha_period(engine)
     return out
 
 
@@ -171,6 +173,20 @@ def read_only(engine: Any, st: dict[str, Any]) -> list[dict[str, Any]]:
     name, use, link = READ_ONLY[plat]
     return [{"key": "read_only", "level": "info", "vals": {"name": name, "use": use}, "link": link,
              "dismiss": {"readonly_dismissed": list(st.get("readonly_dismissed") or []) + [plat]}}]
+
+
+# AlphaESS' integration only changes a period that exists, on the weekdays it already runs: one made in its app fixes it.
+ALPHA_PERIOD = re.compile(r"no existing period|create it in the alpha|does not run today|in the alphaess app", re.I)
+
+
+def alpha_period(engine: Any) -> list[dict[str, Any]]:
+    """The last battery command was refused by AlphaESS for want of a period in its app: say how to make one."""
+    ctl = getattr(engine.ov, "controller", None)
+    log = list((getattr(ctl, "log", None) or {}).get("battery") or [])
+    last = next((e for e in log if e.get("mode") == "control"), None)
+    if not last or last.get("result") == "ok" or not ALPHA_PERIOD.search(str(last.get("error") or "")):
+        return []
+    return [{"key": "alpha_period", "level": "warn", "vals": {}}]
 
 
 def house_history(engine: Any, st: dict[str, Any]) -> list[dict[str, Any]]:

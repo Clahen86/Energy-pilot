@@ -577,6 +577,7 @@ class Controller:
                     errs = getattr(self, "part_errors", None)
                     if errs is None:
                         errs = self.part_errors = {}
+                    entry["error"] = getattr(self, "last_send_error", None)
                     msg = f"{want['intent']}: {getattr(self, 'last_send_error', None) or entry['result']}"[:200]
                     if msg not in errs.setdefault(part, []):
                         errs[part] = (errs[part] + [msg])[-3:]

@@ -150,7 +150,9 @@ def collect(ov: Any, full: bool) -> dict[str, Any]:
             plat = (c.platforms.get(part) if hasattr(c, "platforms") else None)
             roles = BATTERY_ROLES if c.is_battery(part) else CAR_ROLES if part == "car" else ()
             role_ents = [(r, ov.role(r)) for r in roles if part in ("battery", "car") and ov.role(r)]
-            if not ents and not role_ents and not plat:
+            # the part's own sensors decide its platform - a solar forecast or grid meter alone is no battery
+            own = [e for r, e in role_ents if r in ("battery_power", "battery_soc") + CAR_ROLES]
+            if not ents and not own and not plat:
                 continue
             # what each control is used for: the intents whose calls use it
             uses: dict[str, set[str]] = {}
@@ -166,7 +168,7 @@ def collect(ov: Any, full: bool) -> dict[str, Any]:
                                 uses.setdefault(f"{call['domain']}.{call['service']}", set()).add(intent)
             except Exception:  # noqa: BLE001
                 pass
-            first = role_ents[0][1] if role_ents else (ents[0] if ents else None)
+            first = own[0] if own else (ents[0] if ents else None)
             known = [getattr(c, "battery_device", None)] if part == "battery" else [getattr(c, "car_device", None)] if part == "car" else []
             dev = brand_device([e for _r, e in role_ents] + ents, reg, devices, plat, known)
             rows = [entity(e, role, states, reg, devices, full, words) for role, e in role_ents]

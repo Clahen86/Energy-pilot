@@ -259,7 +259,8 @@ class SelfTest:
                 return
         why = "rejected" if sent != "ok" else ("no_reaction" if ok is False else "no_data")
         err = getattr(self.ctl, "last_send_error", None) if sent != "ok" else None
-        if err and re.search(r"no existing period|create it in the alpha", err, re.I):
+        from .checks import ALPHA_PERIOD
+        if err and ALPHA_PERIOD.search(err):
             why = "alpha_period"  # AlphaESS changes only a period that exists: one has to be made in its app first
         rejected = [{"entity": c["data"].get("entity_id"), "value": c["data"].get("option", c["data"].get("value"))}
                     for c in calls if self.ctl._matches(c) is False]
