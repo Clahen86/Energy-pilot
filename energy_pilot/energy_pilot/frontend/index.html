@@ -27,8 +27,22 @@
   .rtchip { display:flex; align-items:center; gap:9px; flex:1; min-width:140px; background:var(--surface2); border:1px solid var(--line); border-radius:14px; padding:9px 11px; }
   .rtchip > span { font-size:22px; } .rtchip b { font-size:15px; } .rtchip small { display:block; color:var(--muted); font-size:11.5px; }
   .rtheat { display:grid; grid-template-columns:22px repeat(24, 1fr); gap:2px; align-items:center; }
-  .rtheat span { height:11px; border-radius:2.5px; } .rtheat em { font-style:normal; font-size:9.5px; color:var(--faint); }
+  .rtheat span { height:11px; border-radius:3px; } .rtheat em { font-style:normal; font-size:9.5px; color:var(--faint); }
   .rtkey { display:inline-block; width:14px; height:6px; border-radius:3px; margin-right:5px; vertical-align:middle; }
+  .rthd { display:flex; align-items:center; gap:8px; font-size:11px; font-weight:600; letter-spacing:.12em; color:var(--muted); text-transform:uppercase; }
+  .rthd .r { margin-left:auto; letter-spacing:.01em; text-transform:none; font-weight:600; font-size:13px; }
+  .rti { width:15px; height:15px; color:var(--batt); flex:none; }
+  .rtn { font-variant-numeric:tabular-nums; }
+  .rtkv { font-size:11px; color:var(--muted); letter-spacing:.02em; }
+  .rtval { font-weight:600; letter-spacing:-.02em; } .rtval small { font-size:11px; color:var(--muted); font-weight:500; }
+  .rtpill { display:inline-flex; align-items:center; gap:6px; padding:5px 10px; border-radius:999px; font-size:12px; font-weight:500; background:color-mix(in srgb,var(--text) 4%,transparent); box-shadow:inset 0 0 0 1px var(--line2); }
+  .rtpill i { width:6px; height:6px; border-radius:50%; }
+  .rtsec { margin-top:16px; padding-top:16px; border-top:1px solid var(--line); }
+  .rtfoot { display:flex; align-items:center; gap:10px; margin-top:14px; padding:10px 12px; border-radius:14px; background:var(--surface2); font-size:13px; }
+  .rtchip .rti { width:20px; height:20px; }
+  @keyframes rtdrift { to { transform:translateX(-60px); } }
+  .rtwave { animation:rtdrift 6s linear infinite; } .rtwave2 { animation-duration:9s; animation-direction:reverse; }
+  @media (prefers-reduced-motion: reduce) { .rtwave { animation:none; } }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html, body { margin:0; }
   body { background:var(--bg); color:var(--text); font:15px/1.45 -apple-system, "SF Pro Text", "Inter", "Segoe UI", Roboto, system-ui, sans-serif;
@@ -1065,97 +1079,114 @@ const RT2 = {
 function runtimeCard() {
   const r = data.runtime; if (!r || !r.curve || r.curve.length < 3) return "";
   const k = { ...(RT[L] || RT.en), ...(RT2[L] || RT2.en) }, hm = (iso) => { const d = new Date(iso); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
-  const cv = r.curve, n = cv.length, W = 340, H = 150, top = 8, xs = (i) => 10 + (i / (n - 1)) * (W - 20), ys = (p) => top + 6 + (1 - p / 100) * (H - 16);
-  const t0 = new Date(cv[0].t).getTime(), xt = (iso) => xs(Math.max(0, Math.min(n - 1, (new Date(iso).getTime() - t0) / 3600000)));
+  const IC = {
+    bat: `<svg viewBox="0 0 24 24" class="rti"><rect x="2.5" y="7" width="17" height="10" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.7"/><rect x="20" y="10" width="1.8" height="4" rx=".9" fill="currentColor"/><rect x="5" y="9.5" width="9" height="5" rx="1" fill="currentColor"/></svg>`,
+    bolt: `<svg viewBox="0 0 24 24" class="rti"><path d="M13 2.5 5.5 13.5H12l-1 8 7.5-11H12z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>`,
+    home: `<svg viewBox="0 0 24 24" class="rti"><path d="M4 11 12 4l8 7v8.5a1 1 0 0 1-1 1h-4.5V15h-5v5.5H5a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>`,
+    cal: `<svg viewBox="0 0 24 24" class="rti"><rect x="3.5" y="5" width="17" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3.5 10h17M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`,
+    cup: `<svg viewBox="0 0 24 24" class="rti"><path d="M7 4h10v4a5 5 0 0 1-10 0zM7 6H4.5a2.5 2.5 0 0 0 3 3M17 6h2.5a2.5 2.5 0 0 1-3 3M12 13v4M8.5 20h7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    flame: `<svg viewBox="0 0 24 24" class="rti"><path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.5 1.5-4 2.5-5 .3 1.5 1 2.5 2 3 .5-3-.5-5.5.5-8z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>`,
+    sun: `<svg viewBox="0 0 24 24" class="rti"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`,
+  };
+  const cv = r.curve, n = cv.length, W = 340, H = 120, top = 14, xs = (i) => 10 + (i / (n - 1)) * (W - 20), ys = (p) => top + (1 - p / 100) * H;
+  const t0 = new Date(cv[0].t).getTime(), tEnd = t0 + (n - 1) * 3600000, xt = (iso) => xs(Math.max(0, Math.min(n - 1, (new Date(iso).getTime() - t0) / 3600000)));
+  const inR = (iso) => iso && new Date(iso).getTime() > t0 && new Date(iso).getTime() < tEnd;
   const pts = cv.map((c, i) => [xs(i), ys(c.soc)]);
   const smooth = (P) => P.map((p, i) => { if (!i) return `M${p[0].toFixed(1)} ${p[1].toFixed(1)}`; const a = P[i - 2] || P[i - 1], b = P[i - 1], c = P[i + 1] || p;
     return `C${(b[0] + (p[0] - a[0]) / 6).toFixed(1)} ${(b[1] + (p[1] - a[1]) / 6).toFixed(1)} ${(p[0] - (c[0] - b[0]) / 6).toFixed(1)} ${(p[1] - (c[1] - b[1]) / 6).toFixed(1)} ${p[0].toFixed(1)} ${p[1].toFixed(1)}`; }).join(" ");
-  const path = smooth(pts);
-  const bubble = (x, y, t) => { const w = t.length * 5.6 + 14, bx = Math.max(2, Math.min(W - w - 2, x - w / 2));
-    return `<rect x="${bx.toFixed(1)}" y="${(y - 12).toFixed(1)}" width="${w.toFixed(1)}" height="17" rx="8.5" fill="var(--surface)" stroke="var(--line2)"/><text x="${(bx + w / 2).toFixed(1)}" y="${(y + 0.5).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="var(--text)">${t}</text>`; };
-  const lowI = r.low && !r.empty ? cv.findIndex((c) => c.t === r.low.t) : -1, fullI = r.full ? cv.findIndex((c) => c.t >= r.full) : -1;
-  // the sky: day, dusk and night from HA's sun (or the sun forecast)
-  const tEnd = t0 + (n - 1) * 3600000, inR = (iso) => iso && new Date(iso).getTime() > t0 && new Date(iso).getTime() < tEnd;
-  const S = r.sky?.set, R = r.sky?.rise, dayNow = S && R ? new Date(S) < new Date(R) : (cv[0].sun || 0) > 0.02;
-  const fx = (iso, dh = 0) => Math.max(0, Math.min(1, (xt(iso) + dh * (W - 20) / (n - 1)) / W));
-  let stops = [[0, dayNow ? "day" : "night"]];
-  const turn = (iso, toNight) => { if (!inR(iso)) return; stops.push([fx(iso, -1.2), toNight ? "day" : "night"], [fx(iso), "dusk"], [fx(iso, 1.4), toNight ? "night" : "day"]); };
-  [[S, true], [R, false]].filter(([t]) => t).sort((a, b) => new Date(a[0]) - new Date(b[0])).forEach(([t, nt]) => turn(t, nt));
-  stops.push([1, stops[stops.length - 1][1]]);
-  const sky = stops.map(([o, c]) => `<stop offset="${o.toFixed(3)}" stop-color="var(--sky-${c})"/>`).join("");
-  const nights = []; { let a = dayNow ? null : 0; stops.forEach(([o, c]) => { if (c === "night" && a == null) a = o; if (c !== "night" && a != null) { if (o - a > 0.05) nights.push([a, o]); a = null; } }); if (a != null && 1 - a > 0.05) nights.push([a, 1]); }
-  let seed = 7; const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
-  const stars = nights.map(([a, b]) => Array.from({ length: Math.round((b - a) * 40) }, () => `<circle cx="${((a + rnd() * (b - a)) * W).toFixed(0)}" cy="${(top + 6 + rnd() * 70).toFixed(0)}" r="${(0.5 + rnd() * 0.8).toFixed(1)}" fill="var(--star)" opacity="${(0.25 + rnd() * 0.5).toFixed(2)}"/>`).join("")).join("");
-  const moon = nights.length && (nights[0][1] - nights[0][0]) > 0.2 ? `<text x="${(((nights[0][0] + nights[0][1]) / 2) * W).toFixed(0)}" y="${top + 20}" text-anchor="middle" font-size="12">🌙</text>` : "";
-  const skyLbl = [[S, "↓"], [R, "↑"]].filter(([t]) => inR(t)).map(([t, a]) => `<text x="${xt(t).toFixed(1)}" y="${top + H - 6}" text-anchor="middle" font-size="9" fill="var(--sky-lbl)">${a} ${hm(t)}</text>`).join("");
-  // the sun's forecast: a golden hill along the bottom
-  const maxSun = Math.max(...cv.map((c) => c.sun || 0)), sunSum = cv.reduce((a, c) => a + (c.sun || 0), 0);
-  let sunHill = "";
-  if (maxSun > 0.1) {
-    const sp = cv.map((c, i) => [xs(i), top + H - ((c.sun || 0) / maxSun) * H * 0.34]), sd = smooth(sp), pk = cv.findIndex((c) => c.sun === maxSun);
-    sunHill = `<path d="${sd} L${sp[n - 1][0].toFixed(1)} ${top + H} L${sp[0][0].toFixed(1)} ${top + H} Z" fill="url(#rtsun)"/><path d="${sd}" fill="none" stroke="var(--sun)" stroke-opacity=".55" stroke-width="1.2" stroke-dasharray="3 3"/>
-      ${sunSum > 0.3 ? `<text x="${Math.max(30, Math.min(W - 30, xs(pk))).toFixed(1)}" y="${(sp[pk][1] - 6).toFixed(1)}" text-anchor="middle" font-size="9.5" fill="var(--sun)">${k.sunK.replace("{x}", num(sunSum, 1))}</text>` : ""}`;
-  }
-  // the timeline under it: cheap charging, the dear hours, what else runs
-  const step = (W - 20) / (n - 1), runs = (f) => { const o = []; cv.forEach((c, i) => { if (!f(c)) return; const l = o[o.length - 1]; if (l && l[1] === i - 1) l[1] = i; else o.push([i, i]); }); return o; };
-  const seg = (f, col) => runs(f).map(([a, b]) => `<rect x="${Math.max(10, xs(a) - step / 2).toFixed(1)}" y="${top + H + 7}" width="${Math.max(4, Math.min(W - 10, xs(b) + step / 2) - Math.max(10, xs(a) - step / 2)).toFixed(1)}" height="6" rx="3" fill="${col}"/>`).join("");
-  const ev = (r.events || []).map((e) => `<g><circle cx="${xt(e.t).toFixed(1)}" cy="${top + H + 10}" r="9" fill="var(--surface)" stroke="var(--line2)"/><text x="${xt(e.t).toFixed(1)}" y="${top + H + 14}" text-anchor="middle" font-size="10">${e.icon}</text></g>`).join("");
-  const ticks = [0, 6, 12, 18, 23].filter((i) => i < n).map((i) => `<text x="${xs(i).toFixed(1)}" y="${top + H + 32}" text-anchor="${i === 0 ? "start" : i >= n - 1 ? "end" : "middle"}" font-size="10" fill="var(--muted)">${i === 0 ? k.now : hm(cv[i].t)}</text>`).join("");
-  const hasDear = cv.some((c) => c.dear);
-  window._rt = { cv, cap: r.cap, soc: r.soc, xs, ys, n, W, k, hm };
-  // the ring: the live power flows round it
-  const ring = 2 * Math.PI * 40, bw = data.flow?.battery || 0, live = Math.abs(bw) > 50, st = r.storm;
-  const dots = live ? `<g><animateTransform attributeName="transform" type="rotate" from="${bw > 0 ? 0 : 360} 50 50" to="${bw > 0 ? 360 : 0} 50 50" dur="${Math.max(1.6, 6 - Math.abs(bw) / 1000).toFixed(1)}s" repeatCount="indefinite"/>
-      ${[0, 1, 2].map((j) => `<circle cx="50" cy="10" r="${3 - j * 0.6}" fill="${bw > 0 ? "var(--ok)" : "var(--batt)"}" opacity="${1 - j * 0.28}" transform="rotate(${bw > 0 ? -j * 14 : j * 14} 50 50)"/>`).join("")}</g>` : "";
-  const stormLine = st ? `<div class="stnote warn" style="margin:10px 0 0"><b>${st.kind === "warning" ? k.warn : (st.kind === "thunder" ? k.thunder : k.storm).replace("{a}", hm(st.from))}</b>${st.gust ? ` · ${k.gust.replace("{g}", num(st.gust, 0))}` : ""}${st.text ? ` · ${esc(st.text)}` : ""}<br><span class="muted">${k.stormH}</span></div>` : "";
-  const nx = r.next, nxIcon = { charge: "⚡", sun: "☀️", use: "🏠", hold: "⏸️", sell: "💶" };
-  const nextHtml = nx && !r.empty ? `<div class="rtnext"><div class="ic">${nxIcon[nx.do] || "🔋"}</div><div style="min-width:0"><div class="big">${k.do[nx.do].replace("{p}", num(nx.soc, 0)).replace("{t}", hm(nx.to))}</div>${nx.then ? `<div class="muted" style="font-size:12.5px">${k.then[nx.then]}</div>` : ""}</div></div>` : "";
-  const e = r.evening, eMax = e ? Math.max(e.need, e.have) * 1.08 || 1 : 1;
-  const eveHtml = e ? `<div class="rttile" style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><span class="rtlbl">${k.eve.replace("{a}", hm(e.from)).replace("{b}", hm(e.to))}</span><b style="color:var(--${e.ok ? "ok" : "warn"});white-space:nowrap">${e.ok ? k.ready : k.short.replace("{x}", num(e.need - e.have, 1))}</b></div>
-    <div style="position:relative;margin-top:9px"><div class="rtbar"><span style="width:${(e.have / eMax * 100).toFixed(1)}%;background:linear-gradient(90deg,var(--batt),var(--${e.ok ? "ok" : "warn"}))"></span></div><i style="position:absolute;left:${(e.need / eMax * 100).toFixed(1)}%;top:-4px;width:2px;height:16px;background:var(--text);border-radius:2px"></i></div>
-    <div class="muted" style="font-size:12px;margin-top:6px;display:flex;justify-content:space-between"><span>${k.need.replace("{x}", num(e.need, 1))}</span><span>${k.have.replace("{x}", num(e.have, 1))}</span></div></div>` : "";
+  const path = smooth(pts), step = (W - 20) / (n - 1);
+  const runs = (f) => { const o = []; cv.forEach((c, i) => { if (!f(c)) return; const l = o[o.length - 1]; if (l && l[1] === i - 1) l[1] = i; else o.push([i, i]); }); return o; };
+  const band = (a, b) => [Math.max(10, xs(a) - step / 2), Math.min(W - 10, xs(b) + step / 2)];
+  // the dear hours: hatched bands with their name; cheap charging: green under the axis
+  const dear = runs((c) => c.dear && !c.charge).map(([a, b]) => { const [x1, x2] = band(a, b);
+    return `<rect x="${x1.toFixed(1)}" y="${top}" width="${(x2 - x1).toFixed(1)}" height="${H}" fill="url(#rthatch)"/><rect x="${x1.toFixed(1)}" y="${top}" width="${(x2 - x1).toFixed(1)}" height="${H}" fill="var(--bad)" fill-opacity=".04"/>
+      ${x2 - x1 > 46 ? `<text x="${((x1 + x2) / 2).toFixed(1)}" y="${top - 4}" text-anchor="middle" font-size="9" letter-spacing=".08em" fill="var(--bad)" fill-opacity=".85">${esc(k.dear.toUpperCase())}</text>` : ""}`; }).join("");
+  const chg = runs((c) => c.charge).map(([a, b]) => { const [x1, x2] = band(a, b); return `<rect x="${x1.toFixed(1)}" y="${top + H + 4}" width="${(x2 - x1).toFixed(1)}" height="3" rx="1.5" fill="var(--ok)"/>`; }).join("");
+  const sunLines = [[r.sky?.set, "var(--sun)"], [r.sky?.rise, "var(--sun)"]].filter(([t]) => inR(t)).map(([t, c]) =>
+    `<line x1="${xt(t).toFixed(1)}" y1="${top + 4}" x2="${xt(t).toFixed(1)}" y2="${top + H}" stroke="${c}" stroke-opacity=".45" stroke-dasharray="2 3"/><circle cx="${xt(t).toFixed(1)}" cy="${top + 4}" r="2.6" fill="${c}"/>`).join("");
+  const emptyX = !r.empty && r.until && inR(r.until) ? xt(r.until) : null;
+  const lowI = r.low && !r.empty ? cv.findIndex((c) => c.t === r.low.t) : -1;
+  const ticks = [0, 6, 12, 18, 23].filter((i) => i < n).map((i) => `<text x="${xs(i).toFixed(1)}" y="${top + H + 20}" text-anchor="${i === 0 ? "start" : i >= n - 1 ? "end" : "middle"}" font-size="10" fill="var(--muted)">${i === 0 ? k.now : hm(cv[i].t)}</text>`).join("");
+  const ev = (r.events || []).map((e) => `<circle cx="${xt(e.t).toFixed(1)}" cy="${top + H + 5.5}" r="3" fill="var(--surface)" stroke="var(--muted)" stroke-width="1.4"><title>${esc(e.icon || "")}</title></circle>`).join("");
+  window._rt = { cv, cap: r.cap, soc: r.soc, xs, ys, n, W, k, hm, top, H };
+  // the ring: ticks round it, the level as a glowing arc and still water inside, the minimum as a red notch
+  const R1 = 56, C1 = 2 * Math.PI * R1, socF = Math.max(0, Math.min(1, (r.soc || 0) / 100)), lvl = 113 - socF * 94;
+  const tk = Array.from({ length: 60 }, (_, i) => { const a = i * 6 * Math.PI / 180, r2 = i % 5 ? 65 : 66.5;
+    return `<line x1="${(66 + 63 * Math.sin(a)).toFixed(1)}" y1="${(66 - 63 * Math.cos(a)).toFixed(1)}" x2="${(66 + r2 * Math.sin(a)).toFixed(1)}" y2="${(66 - r2 * Math.cos(a)).toFixed(1)}" stroke="var(--text)" stroke-opacity="${i % 5 ? .08 : .18}"/>`; }).join("");
+  const wave = (y) => `M0 ${y} C10 ${y - 3} 20 ${y - 3} 30 ${y} S50 ${y + 3} 60 ${y} S80 ${y - 3} 90 ${y} S110 ${y + 3} 120 ${y} S140 ${y - 3} 150 ${y} S170 ${y + 3} 180 ${y} V140 H0Z`;
+  const bw = data.flow?.battery || 0, live = Math.abs(bw) > 50, st = r.storm;
+  const ring = `<svg viewBox="0 0 132 132" width="124" height="124" style="flex:none">
+      <defs><linearGradient id="rtr" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="color-mix(in srgb,var(--batt) 55%,#fff)"/><stop offset=".55" stop-color="var(--batt)"/><stop offset="1" stop-color="color-mix(in srgb,var(--batt) 70%,#2a1a7a)"/></linearGradient>
+        <linearGradient id="rtlq" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--batt)" stop-opacity=".55"/><stop offset="1" stop-color="var(--batt)" stop-opacity=".12"/></linearGradient>
+        <clipPath id="rtin"><circle cx="66" cy="66" r="47"/></clipPath><filter id="rtgw" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3.5"/></filter></defs>
+      ${tk}<circle cx="66" cy="66" r="${R1}" fill="none" stroke="var(--line2)" stroke-width="6"/>
+      <circle cx="66" cy="66" r="${R1}" fill="none" stroke="url(#rtr)" stroke-width="6" stroke-linecap="round" stroke-dasharray="${C1.toFixed(1)}" stroke-dashoffset="${(C1 * (1 - socF)).toFixed(1)}" transform="rotate(-90 66 66)" filter="url(#rtgw)" opacity=".65"/>
+      <circle cx="66" cy="66" r="${R1}" fill="none" stroke="url(#rtr)" stroke-width="6" stroke-linecap="round" stroke-dasharray="${C1.toFixed(1)}" stroke-dashoffset="${(C1 * (1 - socF)).toFixed(1)}" transform="rotate(-90 66 66)"/>
+      ${r.min_soc ? `<g transform="rotate(${(r.min_soc * 3.6).toFixed(1)} 66 66)"><line x1="66" y1="6" x2="66" y2="16" stroke="var(--bad)" stroke-width="2" stroke-linecap="round"/></g>` : ""}
+      <circle cx="66" cy="66" r="47" fill="var(--surface2)"/>
+      <g clip-path="url(#rtin)"><path class="rtwave" d="${wave(lvl)}" fill="url(#rtlq)"/><path class="rtwave rtwave2" d="${wave(lvl + 3)}" fill="var(--batt)" fill-opacity=".10"/></g>
+      ${live ? `<circle r="3.2" fill="${bw > 0 ? "var(--ok)" : "var(--batt)"}"><animateMotion dur="${Math.max(1.8, 6 - Math.abs(bw) / 1000).toFixed(1)}s" repeatCount="indefinite" keyPoints="${bw > 0 ? "0;1" : "1;0"}" keyTimes="0;1" calcMode="linear" path="M66 10 a56 56 0 1 1 -0.1 0"/></circle>` : ""}
+      <text x="66" y="67" text-anchor="middle" class="rtn" font-size="29" font-weight="600" fill="var(--text)" letter-spacing="-1">${num(r.soc, 0)}<tspan font-size="14" fill="var(--muted)" dx="1">%</tspan></text>
+      <text x="66" y="84" text-anchor="middle" class="rtn" font-size="10.5" fill="var(--muted)">${num(r.kwh, 1)} kWh</text></svg>`;
+  const hero = `<div style="display:flex;align-items:center;gap:16px;margin-top:12px">${ring}
+      <div style="min-width:0">${r.empty ? `<div class="rtval" style="font-size:24px">${(RT[L] || RT.en).empty}</div><div class="muted" style="font-size:13px;margin-top:4px">${k.emptyH}</div>`
+        : `<div class="rtkv">${r.until ? esc(k.until.replace("{t}", "").trim() || "") : ""}</div><div class="rtval rtn" style="font-size:${r.until ? 40 : 26}px;line-height:1.05">${r.until ? hm(r.until) : k.beyond}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"><span class="rtpill rtn"><i style="background:var(--batt)"></i>${rtDur(r.hours)}</span><span class="rtpill rtn">${num(r.house_kw, 1)} kW</span></div>`}</div></div>`;
+  const stormLine = st ? `<div class="stnote warn" style="margin:12px 0 0"><b>${st.kind === "warning" ? k.warn : (st.kind === "thunder" ? k.thunder : k.storm).replace("{a}", hm(st.from))}</b>${st.gust ? ` · ${k.gust.replace("{g}", num(st.gust, 0))}` : ""}${st.text ? ` · ${esc(st.text)}` : ""}<br><span class="muted">${k.stormH}</span></div>` : "";
+  const graph = `<svg class="rtgraph" viewBox="0 0 ${W} ${top + H + 28}" width="100%" style="margin-top:16px;display:block;overflow:visible;touch-action:pan-y">
+      <defs><linearGradient id="rtar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--batt)" stop-opacity=".42"/><stop offset="1" stop-color="var(--batt)" stop-opacity="0"/></linearGradient>
+        <linearGradient id="rtln" gradientUnits="userSpaceOnUse" x1="0" y1="${top}" x2="0" y2="${top + H}"><stop offset="0" stop-color="color-mix(in srgb,var(--batt) 55%,#fff)"/><stop offset=".6" stop-color="var(--batt)"/><stop offset="1" stop-color="var(--bad)"/></linearGradient>
+        <pattern id="rthatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="var(--bad)" stroke-opacity=".2" stroke-width="2"/></pattern>
+        <filter id="rtg3" x="-5%" y="-30%" width="110%" height="160%"><feGaussianBlur stdDeviation="2.5"/></filter></defs>
+      ${[0, 50, 100].map((p) => `<line x1="10" y1="${ys(p).toFixed(1)}" x2="${W - 10}" y2="${ys(p).toFixed(1)}" stroke="var(--line)"/>`).join("")}
+      ${dear}${sunLines}
+      <line x1="10" y1="${ys(r.min_soc).toFixed(1)}" x2="${W - 10}" y2="${ys(r.min_soc).toFixed(1)}" stroke="var(--bad)" stroke-opacity=".45" stroke-dasharray="2 3"/>
+      <text x="${W - 10}" y="${(ys(r.min_soc) - 4).toFixed(1)}" text-anchor="end" font-size="9" fill="var(--bad)" fill-opacity=".8">${k.min.replace("{p}", num(r.min_soc, 0))}</text>
+      <path d="${path} L${pts[n - 1][0].toFixed(1)} ${top + H} L${pts[0][0].toFixed(1)} ${top + H} Z" fill="url(#rtar)"/>
+      <path d="${path}" fill="none" stroke="url(#rtln)" stroke-width="5" opacity=".35" filter="url(#rtg3)"/>
+      <path d="${path}" fill="none" stroke="url(#rtln)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      <line x1="${pts[0][0]}" y1="${top}" x2="${pts[0][0]}" y2="${top + H}" stroke="var(--text)" stroke-opacity=".18"/>
+      ${emptyX != null ? `<circle cx="${emptyX.toFixed(1)}" cy="${ys(r.min_soc).toFixed(1)}" r="9" fill="var(--bad)" fill-opacity=".18"/><circle cx="${emptyX.toFixed(1)}" cy="${ys(r.min_soc).toFixed(1)}" r="4" fill="var(--bad)"/>`
+        : lowI > 0 ? `<circle cx="${pts[lowI][0].toFixed(1)}" cy="${pts[lowI][1].toFixed(1)}" r="4" fill="var(--surface)" stroke="var(--batt)" stroke-width="2"/><text x="${pts[lowI][0].toFixed(1)}" y="${(pts[lowI][1] - 9).toFixed(1)}" text-anchor="middle" font-size="9.5" fill="var(--text)" class="rtn">${num(r.low.soc, 0)}% · ${hm(r.low.t)}</text>` : ""}
+      <circle cx="${pts[0][0].toFixed(1)}" cy="${pts[0][1].toFixed(1)}" r="9" fill="none" stroke="var(--text)" stroke-opacity=".25"/><circle cx="${pts[0][0].toFixed(1)}" cy="${pts[0][1].toFixed(1)}" r="4.5" fill="var(--text)"/>
+      <line x1="10" y1="${top + H + 5.5}" x2="${W - 10}" y2="${top + H + 5.5}" stroke="var(--line)"/>${chg}${ev}${ticks}
+      <g class="rttap" style="display:none"></g><rect class="rthit" x="0" y="${top}" width="${W}" height="${H}" fill="transparent"/></svg>
+    <div class="muted" style="display:flex;gap:14px;flex-wrap:wrap;font-size:11px;margin-top:6px"><span><i class="rtkey" style="background:var(--ok)"></i>${k.lc}</span>${dear ? `<span><i class="rtkey" style="background:repeating-linear-gradient(45deg,color-mix(in srgb,var(--bad) 45%,transparent) 0 2px,transparent 2px 4px)"></i>${k.dear}</span>` : ""}${sunLines ? `<span><i class="rtkey" style="background:var(--sun);height:2px"></i>${({ da: "sol op/ned", sv: "sol upp/ned", nb: "sol opp/ned", de: "Sonnenauf-/untergang", nl: "zon op/onder", fr: "lever/coucher" })[L] || "sunrise/sunset"}</span>` : ""}</div>`;
+  // ready for the dear hours: one segmented gauge, planned against needed - and what the battery does next
+  const e = r.evening, nx = r.next;
+  const nextLine = nx && !r.empty ? `<div class="rtfoot">${IC.home}<span style="min-width:0">${k.do[nx.do].replace("{p}", num(nx.soc, 0)).replace("{t}", hm(nx.to))}${nx.then ? `<small class="muted" style="display:block;font-size:11.5px">${k.then[nx.then]}</small>` : ""}</span></div>` : "";
+  let gauge = "";
+  if (e) {
+    const pct = e.need > 0 ? e.have / e.need : 1, N = 34, fill = Math.min(1, pct / 1.15), needF = Math.min(1, 1 / 1.15);
+    const segs = Array.from({ length: N }, (_, i) => { const f = i / (N - 1), a = Math.PI * (1 - f), on = f <= fill + 0.001, isNeed = Math.abs(f - needF) < 0.5 / (N - 1);
+      const col = on ? `color-mix(in srgb,var(--batt) ${Math.round((1 - f) * 100)}%,var(--${e.ok ? "ok" : "warn"}))` : "var(--line2)";
+      return `<line x1="${(74 + 52 * Math.cos(a)).toFixed(1)}" y1="${(74 - 52 * Math.sin(a)).toFixed(1)}" x2="${(74 + 64 * Math.cos(a)).toFixed(1)}" y2="${(74 - 64 * Math.sin(a)).toFixed(1)}" stroke="${isNeed ? "var(--text)" : col}" stroke-width="3.2" stroke-linecap="round"/>`; }).join("");
+    gauge = `<div class="rtsec"><div class="rthd">${IC.bolt}${esc(k.eve.replace("{a}", hm(e.from)).replace("{b}", hm(e.to)))}</div>
+      <div style="display:flex;align-items:center;gap:14px;margin-top:8px">
+        <svg width="140" height="92" viewBox="0 0 148 96" style="flex:none">${segs}
+          <text x="74" y="72" text-anchor="middle" class="rtn" font-size="27" font-weight="600" fill="var(--text)" letter-spacing="-1">${num(Math.round(pct * 100), 0)}<tspan font-size="13" fill="var(--muted)" dx="1">%</tspan></text></svg>
+        <div style="flex:1;min-width:0"><div style="color:var(--${e.ok ? "ok" : "warn"});font-weight:600;font-size:15px">${e.ok ? k.ready : k.short.replace("{x}", num(e.need - e.have, 1))}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;margin-top:8px"><div><div class="rtkv">${esc(k.have.replace("{x}", "").replace("kWh", "").trim())}</div><div class="rtval rtn" style="font-size:18px">${num(e.have, 1)} <small>kWh</small></div></div>
+            <div style="border-left:1px solid var(--line);padding-left:12px"><div class="rtkv">${esc(k.need.replace("{x}", "").replace("kWh", "").trim())}</div><div class="rtval rtn" style="font-size:18px">${num(e.need, 1)} <small>kWh</small></div></div></div></div></div>
+      ${nextLine}</div>`;
+  } else if (nextLine) gauge = `<div class="rtsec">${nextLine}</div>`;
   const sp = r.sun_share, tiles = [
-    sp != null ? `<div class="rttile"><div class="rtlbl">${k.src}</div><div class="rtbar" style="margin:10px 0 7px"><span style="width:${sp * 100}%;background:var(--sun)"></span><span style="width:${(1 - sp) * 100}%;background:var(--grid)"></span></div><div style="font-size:12.5px"><b style="color:var(--sun)">☀️ ${k.sunP.replace("{p}", num(sp * 100, 0))}</b> <span class="muted">· ${k.gridP.replace("{p}", num((1 - sp) * 100, 0))}</span></div></div>` : "",
-    r.base ? `<div class="rttile"><div class="rtlbl">${k.base}</div><div class="big" style="margin-top:6px;font-size:18px;white-space:nowrap">≈ ${rtDur(r.base.h)}</div><div class="muted" style="font-size:12px">${k.baseH.replace("{kw}", num(r.base.kw, 1))}</div></div>` : ""].filter(Boolean);
+    sp != null ? `<div class="rttile"><div class="rtlbl">${k.src}</div><div class="rtbar" style="margin:10px 0 7px;height:6px"><span style="width:${sp * 100}%;background:var(--sun)"></span><span style="width:${(1 - sp) * 100}%;background:var(--grid)"></span></div><div style="font-size:12.5px" class="rtn"><b style="color:var(--sun);font-weight:600">${k.sunP.replace("{p}", num(sp * 100, 0))}</b> <span class="muted">· ${k.gridP.replace("{p}", num((1 - sp) * 100, 0))}</span></div></div>` : "",
+    r.base ? `<div class="rttile"><div class="rtlbl">${k.base}</div><div class="rtval rtn" style="margin-top:6px;font-size:18px;white-space:nowrap">≈ ${rtDur(r.base.h)}</div><div class="muted" style="font-size:12px">${k.baseH.replace("{kw}", num(r.base.kw, 1))}</div></div>` : ""].filter(Boolean);
   const s = r.stats || {}, dayName = (d) => { const t = new Date(); const y = new Date(t); y.setDate(t.getDate() - 1); const iso = (x) => x.toISOString().slice(0, 10);
     return d === iso(t) ? k.today : d === iso(y) ? k.yday : new Date(d).toLocaleDateString(LOCALE, { day: "numeric", month: "short" }); };
-  const recs = [s.best ? `<div class="rtchip"><span>🏆</span><div><b>${rtDur(s.best.h)}</b><small>${k.best.replace("{d}", dayName(s.best.day))}</small></div></div>` : "",
-    s.streak ? `<div class="rtchip"><span>🔥</span><div><b>${s.streak === 1 ? k.day1 : k.dayN.replace("{n}", s.streak)}</b><small>${k.streak}</small></div></div>` : ""].filter(Boolean);
-  const hc = (p) => p == null ? "var(--line)" : p > 80 ? "var(--ok)" : p > 55 ? "color-mix(in srgb,var(--ok) 55%,var(--batt))" : p > 35 ? "var(--batt)" : p > 18 ? "color-mix(in srgb,var(--batt) 60%,var(--bad))" : "var(--bad)";
-  const week = s.has_week ? `<div class="rtlbl" style="margin:18px 0 8px;display:flex;justify-content:space-between;align-items:center"><span>${k.week}</span><span style="text-transform:none;letter-spacing:0;font-weight:500;display:flex;align-items:center;gap:6px">${k.empty}<i style="width:44px;height:6px;border-radius:3px;background:linear-gradient(90deg,var(--bad),var(--batt),var(--ok))"></i>${k.fullL}</span></div>
-    <div class="rtheat">${s.week.map((row, j) => `<em>${new Date(s.days[j]).toLocaleDateString(LOCALE, { weekday: "short" }).slice(0, 2)}</em>${row.map((p) => `<span style="background:${hc(p)}"></span>`).join("")}`).join("")}<em></em>${Array.from({ length: 24 }, (_, i) => `<em style="text-align:center">${i % 6 === 0 ? String(i).padStart(2, "0") : ""}</em>`).join("")}</div>
-    ${s.tip ? `<div class="muted" style="font-size:12px;margin-top:8px">${s.tip.kind === "empty_evenings" ? k.tipEmpty.replace("{h}", String(s.tip.from).padStart(2, "0")) : k.tipNever}</div>` : ""}` : "";
-  return `<div class="card fade rtcard"><div class="eyebrow"><span>🔋 ${k.t}</span></div>
-    <div style="display:flex;align-items:center;gap:16px;margin:12px 0 2px">
-      <svg viewBox="0 0 100 100" width="96" height="96" style="flex:none;overflow:visible"><defs><linearGradient id="rtring" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="var(--batt)"/><stop offset="1" stop-color="var(--ok)"/></linearGradient><filter id="rtrg"><feGaussianBlur stdDeviation="3"/></filter></defs>
-        <circle cx="50" cy="50" r="40" fill="none" stroke="var(--line)" stroke-width="9"/>
-        <circle cx="50" cy="50" r="40" fill="none" stroke="url(#rtring)" stroke-width="9" opacity=".45" filter="url(#rtrg)" stroke-dasharray="${ring.toFixed(1)}" stroke-dashoffset="${(ring * (1 - r.soc / 100)).toFixed(1)}" transform="rotate(-90 50 50)"/>
-        <circle cx="50" cy="50" r="40" fill="none" stroke="url(#rtring)" stroke-width="9" stroke-linecap="round" stroke-dasharray="${ring.toFixed(1)}" stroke-dashoffset="${(ring * (1 - r.soc / 100)).toFixed(1)}" transform="rotate(-90 50 50)"/>${dots}
-        <text x="50" y="52" text-anchor="middle" font-size="21" font-weight="800" fill="var(--text)">${num(r.soc, 0)}%</text><text x="50" y="67" text-anchor="middle" font-size="10" fill="var(--muted)">${num(r.kwh, 1)} kWh</text></svg>
-      <div style="min-width:0"><div style="font-size:${r.empty ? 24 : 28}px;font-weight:800;letter-spacing:-.02em;line-height:1.1">${r.empty ? k.empty : r.until ? k.until.replace("{t}", hm(r.until)) : k.beyond}</div>
-        <div class="muted" style="font-size:13.5px;margin-top:4px">${r.empty ? k.emptyH : k.h.replace("{d}", rtDur(r.hours))}<br>${k.use.replace("{kw}", num(r.house_kw, 1))}</div></div></div>
-    ${stormLine}${nextHtml}${eveHtml}
-    <svg class="rtgraph" viewBox="0 0 ${W} ${H + 40}" width="100%" style="margin-top:14px;display:block;overflow:visible;touch-action:pan-y">
-      <defs><linearGradient id="rtsky" x1="0" y1="0" x2="1" y2="0">${sky}</linearGradient>
-        <linearGradient id="rtg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--batt)" stop-opacity=".45"/><stop offset=".7" stop-color="var(--batt)" stop-opacity=".08"/><stop offset="1" stop-color="var(--batt)" stop-opacity="0"/></linearGradient>
-        <linearGradient id="rts" gradientUnits="userSpaceOnUse" x1="0" y1="${top}" x2="0" y2="${top + H}"><stop offset="0" stop-color="var(--ok)"/><stop offset=".45" stop-color="var(--batt)"/><stop offset=".85" stop-color="var(--bad)"/></linearGradient>
-        <linearGradient id="rtsun" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--sun)" stop-opacity=".5"/><stop offset="1" stop-color="var(--sun)" stop-opacity="0"/></linearGradient>
-        <filter id="rtglow" x="-10%" y="-30%" width="120%" height="160%"><feGaussianBlur stdDeviation="3.5"/></filter><clipPath id="rtclip"><rect x="0" y="${top}" width="${W}" height="${H}" rx="14"/></clipPath></defs>
-      <g clip-path="url(#rtclip)"><rect x="0" y="${top}" width="${W}" height="${H}" fill="url(#rtsky)"/>${stars}${sunHill}</g>${moon}${skyLbl}
-      <line x1="0" y1="${ys(r.min_soc).toFixed(1)}" x2="${W}" y2="${ys(r.min_soc).toFixed(1)}" stroke="var(--bad)" stroke-dasharray="4 4" opacity=".6"/>
-      <text x="${W - 6}" y="${(ys(r.min_soc) - 4).toFixed(1)}" text-anchor="end" font-size="9" fill="var(--bad)">${k.min.replace("{p}", num(r.min_soc, 0))}</text>
-      <path d="${path} L${pts[n - 1][0].toFixed(1)} ${top + H} L${pts[0][0].toFixed(1)} ${top + H} Z" fill="url(#rtg)"/>
-      <path d="${path}" fill="none" stroke="url(#rts)" stroke-width="7" opacity=".35" filter="url(#rtglow)"/>
-      <path d="${path}" fill="none" stroke="url(#rts)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-      ${fullI > 0 ? `<circle cx="${pts[fullI][0].toFixed(1)}" cy="${pts[fullI][1].toFixed(1)}" r="5" fill="var(--ok)" stroke="var(--surface)" stroke-width="2"/>` : ""}
-      ${lowI > 0 ? `<circle cx="${pts[lowI][0].toFixed(1)}" cy="${pts[lowI][1].toFixed(1)}" r="5.5" fill="var(--surface)" stroke="url(#rts)" stroke-width="3"/>${bubble(pts[lowI][0], pts[lowI][1] - 14, `${num(r.low.soc, 0)}% · ${hm(r.low.t)}`)}` : ""}
-      <circle cx="${pts[0][0].toFixed(1)}" cy="${pts[0][1].toFixed(1)}" r="6" fill="var(--batt)" opacity=".35"><animate attributeName="r" values="6;13;6" dur="2.4s" repeatCount="indefinite"/><animate attributeName="opacity" values=".45;0;.45" dur="2.4s" repeatCount="indefinite"/></circle>
-      <circle cx="${pts[0][0].toFixed(1)}" cy="${pts[0][1].toFixed(1)}" r="6" fill="var(--batt)" stroke="var(--surface)" stroke-width="2.5"/>
-      <rect x="10" y="${top + H + 7}" width="${W - 20}" height="6" rx="3" fill="var(--line)"/>${seg((c) => c.charge, "var(--ok)")}${seg((c) => c.dear && !c.charge, "var(--warn)")}${ev}${ticks}
-      <g class="rttap" style="display:none"></g><rect class="rthit" x="0" y="${top}" width="${W}" height="${H}" fill="transparent"/></svg>
-    <div class="muted" style="display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;margin-top:8px"><span><i class="rtkey" style="background:var(--ok)"></i>${k.lc}</span>${hasDear ? `<span><i class="rtkey" style="background:var(--warn)"></i>${k.dear}</span>` : ""}</div>
+  const recs = [s.best ? `<div class="rtchip">${IC.cup}<div><b class="rtn">${rtDur(s.best.h)}</b><small>${k.best.replace("{d}", dayName(s.best.day))}</small></div></div>` : "",
+    s.streak ? `<div class="rtchip">${IC.flame}<div><b class="rtn">${s.streak === 1 ? k.day1 : k.dayN.replace("{n}", s.streak)}</b><small>${k.streak}</small></div></div>` : ""].filter(Boolean);
+  const hc = (p) => p == null ? "var(--line)" : p < 12 ? "color-mix(in srgb,var(--bad) 45%,transparent)" : `color-mix(in srgb,var(--batt) ${Math.round(25 + p * 0.75)}%,var(--surface2))`;
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const week = s.has_week ? `<div class="rtsec"><div class="rthd">${IC.cal}${k.week}<span class="r" style="display:flex;align-items:center;gap:6px">${k.empty}<i style="width:46px;height:4px;border-radius:2px;background:linear-gradient(90deg,color-mix(in srgb,var(--bad) 45%,transparent),color-mix(in srgb,var(--batt) 35%,var(--surface2)),var(--batt))"></i>${k.fullL}</span></div>
+    <div class="rtheat" style="margin-top:12px">${s.week.map((row, j) => { const td = s.days[j] === todayIso;
+      return `<em style="${td ? "color:var(--text);font-weight:700" : ""}">${new Date(s.days[j]).toLocaleDateString(LOCALE, { weekday: "short" }).slice(0, 1).toUpperCase()}</em>${row.map((p) => `<span style="background:${hc(p)}${td ? ";box-shadow:0 0 0 .5px color-mix(in srgb,var(--text) 30%,transparent)" : ""}"></span>`).join("")}`; }).join("")}<em></em>${Array.from({ length: 24 }, (_, i) => `<em style="text-align:center">${i % 6 === 0 ? String(i).padStart(2, "0") : ""}</em>`).join("")}</div>
+    ${s.tip ? `<div class="muted" style="font-size:12px;margin-top:10px;display:flex;gap:8px"><i style="width:6px;height:6px;border-radius:50%;background:var(--batt);margin-top:5px;flex:none"></i>${s.tip.kind === "empty_evenings" ? k.tipEmpty.replace("{h}", String(s.tip.from).padStart(2, "0")).replace(/^💡\s*/, "") : k.tipNever.replace(/^💡\s*/, "")}</div>` : ""}</div>` : "";
+  return `<div class="card fade rtcard"><div class="rthd">${IC.bat}${k.t}</div>
+    ${hero}${stormLine}${graph}${gauge}
     ${tiles.length ? `<div style="display:grid;grid-template-columns:${tiles.length > 1 ? "1fr 1fr" : "1fr"};gap:10px;margin-top:14px">${tiles.join("")}</div>` : ""}
-    ${recs.length ? `<div class="rtlbl" style="margin:18px 0 8px">${k.rec}</div><div style="display:flex;gap:8px;flex-wrap:wrap">${recs.join("")}</div>` : ""}
+    ${recs.length ? `<div class="rtlbl" style="margin:16px 0 8px">${k.rec}</div><div style="display:flex;gap:8px;flex-wrap:wrap">${recs.join("")}</div>` : ""}
     ${week}</div>`;
 }
 // Tap or slide on the battery's curve: the hour, the level and what happens then.
@@ -1168,7 +1199,7 @@ function rtTap(e) {
   const what = kw > 0.15 ? (c.charge ? k.tCharge : k.tSun).replace("{kw}", num(kw, 1)) : kw < -0.15 ? k.tUse.replace("{kw}", num(-kw, 1)) : k.tHold;
   const w = Math.max(96, what.length * 5.3 + 22), bx = px + w + 14 > R.W ? px - w - 10 : px + 10;
   const g = svg.querySelector(".rttap"); g.style.display = "";
-  g.innerHTML = `<line x1="${px}" y1="8" x2="${px}" y2="158" stroke="var(--text)" stroke-opacity=".35" stroke-dasharray="2 3"/><circle cx="${px}" cy="${py}" r="5" fill="var(--surface)" stroke="var(--batt)" stroke-width="2.5"/>
+  g.innerHTML = `<line x1="${px}" y1="${R.top || 8}" x2="${px}" y2="${(R.top || 8) + (R.H || 150)}" stroke="var(--text)" stroke-opacity=".35" stroke-dasharray="2 3"/><circle cx="${px}" cy="${py}" r="5" fill="var(--surface)" stroke="var(--batt)" stroke-width="2.5"/>
     <rect x="${bx}" y="${Math.max(10, py - 48)}" width="${w}" height="40" rx="10" fill="var(--surface)" fill-opacity=".94" stroke="var(--line2)"/>
     <text x="${bx + 10}" y="${Math.max(10, py - 48) + 16}" font-size="10.5" font-weight="800" fill="var(--text)">${R.hm(c.t)} · ${num(c.soc, 0)} %</text><text x="${bx + 10}" y="${Math.max(10, py - 48) + 31}" font-size="9.5" fill="var(--muted)">${what}</text>`;
 }
