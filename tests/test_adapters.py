@@ -405,3 +405,20 @@ def test_goodwe_profile():
                                (["General mode", "Eco charge mode"], "normal", "General mode")):
         pat = [v for p, k, v in prof[intent] if k == "select"][0][3:]
         assert adapters.pick_option(pat, opts) == want
+
+
+def test_goodwe_ems_profile():
+    """GoodWe EMS: the operation mode profile is picked by itself when both are there; EMS hits its options."""
+    from energy_pilot import adapters
+
+    both = ["select.inverter_operation_mode", "number.goodwe_eco_mode_power", "number.goodwe_eco_mode_soc",
+            "select.goodwe_ems_mode", "number.goodwe_ems_power_limit"]
+    assert adapters.guess_profile(both, {"goodwe"}) == "goodwe"
+    assert adapters.guess_profile(["select.goodwe_ems_mode", "number.goodwe_ems_power_limit"], set()) == "goodwe_ems"
+    opts = ["auto", "charge_pv", "discharge_pv", "import_ac", "export_ac", "conserve", "off_grid", "battery_standby",
+            "buy_power", "sell_power", "charge_battery", "discharge_battery"]
+    prof = adapters.PROFILES["goodwe_ems"]
+    for intent, want in (("normal", "auto"), ("hold", "battery_standby"), ("charge", "charge_battery"), ("export", "discharge_battery")):
+        pat = [v for p, k, v in prof[intent] if k == "select"][0][3:]
+        assert adapters.pick_option(pat, opts) == want
+    assert prof["charge"][-1][1] == "select"  # the power limit first, then the mode

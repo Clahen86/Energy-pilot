@@ -415,6 +415,21 @@ PROFILES: dict[str, dict[str, Any]] = {
         "export": [(r"number\..*eco_mode_power$", "number", "{rate}"), (r"number\..*eco_mode_soc$", "number", "{target}"),
                    (r"select\..*(inverter_)?operation_mode$", "select", "re:^eco.?discharge")],
     },
+    # GoodWe EMS (the experimental GoodWe integration, newer firmware): the EMS mode with a power limit in W - the newer
+    # way GoodWe controls its inverters, next to the operation mode above (some show both; the operation mode is picked
+    # by itself, EMS is chosen in the settings). Entity names from a user's GW10KL-ET; the self-test checks each step.
+    "goodwe_ems": {
+        "name": "GoodWe EMS (experimental integration)",
+        "match": r"ems_mode|ems_power_limit",
+        "source": "integration",
+        "normal": [(r"select\..*ems_mode$", "select", "re:^auto$")],
+        "hold": [(r"select\..*ems_mode$", "select", "re:^battery_standby$|standby")],
+        "charge": [(r"number\..*ems_power_limit$", "number", "{power_w}"),
+                   (r"select\..*ems_mode$", "select", "re:^charge_battery$")],
+        # Selling from the battery (only when the user turns it on).
+        "export": [(r"number\..*ems_power_limit$", "number", "{power_w}"),
+                   (r"select\..*ems_mode$", "select", "re:^discharge_battery$")],
+    },
     # Alpha ESS (Poshy163/homeassistant-alphaESS, cloud): charge and discharge windows by service, with the serial.
     # Alpha ESS cloud (CharlesGillanders/homeassistant-alphaESS). Its periodic schedule: times in whole quarters,
     # a period written 00:00-00:00 is deleted (and an empty list is refused), a new period needs its power in W, and
