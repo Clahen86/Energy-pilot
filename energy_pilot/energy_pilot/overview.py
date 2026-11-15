@@ -13,6 +13,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 # Known names first (the user's own setup), then words to look for.
+GRID_SELL_PLUS = {"goodwe"}  # integrations whose grid power is plus when selling
 ROLES: dict[str, dict[str, Any]] = {
     "pv_power": {"known": ["sensor.growatt_sph_pv_power"], "class": "power", "words": ["pv_power", "solar_power", "sol_effekt", "pv"]},
     "house_power": {"known": ["sensor.husets_forbrug_uden_bil"], "class": "power", "words": ["house", "hus", "load", "forbrug", "consumption"]},
@@ -190,10 +191,16 @@ class Overview:
     def grid_sign_found(self) -> int | None:
         """Found from the house's own balance: with the battery resting, what the grid gives is house - sun."""
         votes = list(getattr(self, "_grid_votes", []))
-        if len(votes) < 8:
-            return None
         s = sum(votes)
-        return 1 if s >= 0.6 * len(votes) else -1 if s <= -0.6 * len(votes) else None
+        if len(votes) >= 8 and abs(s) >= 0.6 * len(votes):
+            return 1 if s > 0 else -1
+        # Not found from the balance (no house sensor, say): what the integration is known to do. GoodWe's meter
+        # counts selling as plus (a user in New Zealand had to turn it by hand).
+        reg = getattr(getattr(self, "controller", None), "_ent_reg", None) or {}
+        e = self.role("grid_power") if reg else None
+        if e and (reg.get(e) or {}).get("platform") in GRID_SELL_PLUS:
+            return -1
+        return None
 
     def _watch_grid(self, raw: float | None, house: float | None, pv: float | None, batt: float | None, ev: float | None) -> None:
         if raw is None or house is None or pv is None or (batt is not None and abs(batt) > 150) or abs(raw) < 150:

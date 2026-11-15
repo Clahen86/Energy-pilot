@@ -26,3 +26,18 @@ def test_normal_meter_and_unclear_cases():
     assert o.grid_sign_found() == 1
     assert ov({"grid_sign": -1}).grid_sign() == -1
     assert ov().grid_sign() == 1  # nothing seen yet
+
+
+def test_goodwe_grid_is_plus_when_selling():
+    """No house sensor to find it from: GoodWe's meter is known to count selling as plus."""
+    from types import SimpleNamespace
+
+    from energy_pilot.overview import Overview
+
+    ov = Overview.__new__(Overview)
+    ov.settings = {}
+    ov.role = lambda r: "sensor.goodwe_active_power" if r == "grid_power" else None
+    ov.controller = SimpleNamespace(_ent_reg={"sensor.goodwe_active_power": {"platform": "goodwe"}})
+    assert ov.grid_sign() == -1
+    ov.settings = {"grid_sign": 1}  # the user's own choice wins
+    assert ov.grid_sign() == 1
