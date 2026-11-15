@@ -64,6 +64,7 @@ class Ledger:
                 s["stored_kwh"] += kwh * math.sqrt(efficiency)  # only what ends up in the battery
                 s["stored_cost"] += grid_kwh * price + (sun_kwh * sell if solar_value == "sell" else 0.0)
                 s["stored_sun"] = s.get("stored_sun", 0.0) + sun_kwh * math.sqrt(efficiency)  # how much of it is sun
+                s["sun_seen"] = s.get("sun_seen", 0.0) + kwh * math.sqrt(efficiency)  # charged since this was kept
             elif batt < -20 and s["stored_kwh"] > 0:  # discharging: the average stays
                 out = -batt / 1000 * hours / math.sqrt(efficiency)
                 keep = max(0.0, 1 - out / s["stored_kwh"])
@@ -78,6 +79,7 @@ class Ledger:
                     s["low_since"] = since
                     if (now - datetime.fromisoformat(since)).total_seconds() >= 300:
                         s["stored_kwh"] = s["stored_cost"] = s["stored_sun"] = 0.0
+                        s["sun_seen"] = 1e9  # a new round: all of it is measured
                 else:
                     s.pop("low_since", None)
                 over = soc > min_soc + 1 and s["stored_kwh"] > soc / 100 * capacity_kwh * 1.05
@@ -130,6 +132,8 @@ class Ledger:
             "stored_kwh": round(s["stored_kwh"], 2), "avg_cost": round(other_avg if other_avg is not None else avg, 3) if (other_avg or avg) is not None else None,
             "avg_source": "other" if other_avg is not None else "own",
             "today": total(d), "month": total(m), "year": total(y), "total": round(total("") + s.get("older", 0.0), 2),
-            "sun_share": round(min(1.0, s.get("stored_sun", 0.0) / s["stored_kwh"]), 2) if s["stored_kwh"] > 0.2 else None,
+            # sun vs grid only once most of what's in it was charged while this was kept
+            "sun_share": round(min(1.0, s.get("stored_sun", 0.0) / s["stored_kwh"]), 2)
+            if s["stored_kwh"] > 0.2 and s.get("sun_seen", 0.0) >= s["stored_kwh"] * 0.6 else None,
             "since": s.get("since"), "today_detail": {k: round(v, 2) for k, v in (days.get(d) or {}).items()},
         }

@@ -34,3 +34,11 @@ def test_next_action_and_evening():
               "house": 1.5, "sun": 0} for i in range(20)]
     e = evening(curve, 50, 10, 10)
     assert e["need"] == 6.0 and e["have"] == 8.0 and e["ok"]
+
+
+def test_next_action_with_quarter_slots():
+    now = datetime(2026, 11, 15, 10, 5, tzinfo=TZ)
+    t = now.replace(minute=0)
+    steps = [{"t": (t + timedelta(minutes=15 * i)).isoformat(), "action": a, "soc": 30 + i} for i, a in enumerate(["hold", "charge_grid", "charge_grid", "hold"])]
+    n = next_action(steps, now)
+    assert n["do"] == "hold" and n["to"].startswith("2026-11-15T10:15") and n["then"] == "charge"

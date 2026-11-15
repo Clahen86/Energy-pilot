@@ -32,13 +32,16 @@ def next_action(steps: list[dict[str, Any]] | None, now: datetime) -> dict[str, 
             rows.append((datetime.fromisoformat(x["t"]), ACTION.get(x.get("action"), "hold"), x.get("soc")))
         except (KeyError, TypeError, ValueError):
             continue
-    rows = [r for r in rows if r[0] + timedelta(hours=1) > now]
+    rows.sort(key=lambda r: r[0])
+    # the plan's slots may be quarters: each step lasts until the next one starts
+    slot = min((b[0] - a[0] for a, b in zip(rows, rows[1:]) if b[0] > a[0]), default=timedelta(hours=1))
+    rows = [r for r in rows if r[0] + slot > now]
     if not rows:
         return None
     do, i = rows[0][1], 0
     while i + 1 < len(rows) and rows[i + 1][1] == do:
         i += 1
-    out = {"do": do, "to": (rows[i][0] + timedelta(hours=1)).isoformat(), "soc": rows[i][2]}
+    out = {"do": do, "to": (rows[i][0] + slot).isoformat(), "soc": rows[i][2]}
     if i + 1 < len(rows):
         out["then"] = rows[i + 1][1]
     return out
