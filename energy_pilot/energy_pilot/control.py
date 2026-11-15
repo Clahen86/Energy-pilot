@@ -47,6 +47,7 @@ class Controller:
         self._sun_on_more: dict[str, bool] = {}
         self.more_why: dict[str, str] = {}
         self._sun_on = False  # the car is charging on the sun's surplus (for the start/stop margin)
+        self._phase_at: dict[str, float] = {}  # when each charger last changed between 1 and 3 phases
         self.car_why = ""
         self.lone_ok: dict[str, bool] = {}  # a charger's only switch may start it (found on its own device)
         self.chosen: dict[str, str] = {}  # the switch picked for a charger in the settings
@@ -394,9 +395,11 @@ class Controller:
                     need = 0.0  # at its limit: it stops, in the sun too (spares the battery)
             st["onoff"] = self.onoff("car")
             st["min_a"] = adapters.lowest_amps(getattr(self, "entities", {}).get("car", []), getattr(getattr(self, "ha", None), "states", {}))
+            st.update(self._phase_settings("car", st))
             d = decide(f, st, hour in planned, manual, need, self._sun_on)
             self._sun_on, self.car_why = d["sun"], d["why"]
-            out["car"] = {"intent": "charge" if d["charge"] else "stop", "ctx": {"current": d["current"]}}
+            self._phase_seen("car", st, d.get("phases"))
+            out["car"] = {"intent": "charge" if d["charge"] else "stop", "ctx": {"current": d["current"], **({"phases": d["phases"]} if d.get("phases") else {})}}
         out.update(self._more_intents(f, res, out.get("car")))
         return out
 
@@ -450,7 +453,7 @@ class Controller:
             return float(want["ctx"]["current"]) * VOLT * ph
 
         main_kw = float(st.get("charger_kw") or 7.4)
-        taken = watts(first, main_kw, st.get("charger_phases"))
+        taken = watts(first, main_kw, ((first or {}).get("ctx") or {}).get("phases") or st.get("charger_phases"))
         cars_now = sum(max(0.0, x.get("power") or 0.0) for x in (f.get("cars") or []))
         main_now = max(0.0, (f.get("ev") or 0.0) - cars_now)  # flow's ev has all the chargers in it
         base_grid = (f.get("grid") - main_now - cars_now) if f.get("grid") is not None else None
@@ -469,13 +472,41 @@ class Controller:
                   "peak_kw": (self.engine.power_tariff() or {}).get("limit_kw") if getattr(self, "engine", None) else None,
                   "ev_follow_sun": c.get("follow_sun", st.get("ev_follow_sun", bool(self.ov.role("pv_power")))), "onoff": self.onoff(part),
                   "min_a": adapters.lowest_amps(getattr(self, "entities", {}).get(part, []), getattr(getattr(self, "ha", None), "states", {}))}
+            cs["ev_mode"] = c.get("mode")  # each charger's own Cheapest/Sun choice
+            cs.update(self._phase_settings(part, cs))
             need = float((plan or {}).get("need_kwh") if (plan or {}).get("need_kwh") is not None else 1.0)
             d = decide(flow, cs, planned, bool(c.get("now")), need, self._sun_on_more.get(part, False))
             self._sun_on_more[part], self.more_why[part] = d["sun"], d["why"]
-            want = {"intent": "charge" if d["charge"] else "stop", "ctx": {"current": d["current"]}}
+            self._phase_seen(part, cs, d.get("phases"))
+            want = {"intent": "charge" if d["charge"] else "stop", "ctx": {"current": d["current"], **({"phases": d["phases"]} if d.get("phases") else {})}}
             out[part] = want
-            taken += watts(want, kw, c.get("phases"))
+            taken += watts(want, kw, d.get("phases") or c.get("phases"))
         return out
+
+    PHASE_HOLD_S = 600  # at most one change between 1 and 3 phases per 10 minutes (the car pauses at each)
+
+    def _phase_settings(self, part: str, st: dict[str, Any]) -> dict[str, Any]:
+        """What decide() needs to switch phases - only with the setting on and a phase choice on the charger."""
+        if not st.get("ev_phase_switch"):
+            return {}
+        pc = adapters.phase_control(self.entities.get(part, []), self.ha.states)
+        if not pc:
+            return {}
+        held = time.time() - self._phase_at.get(part, 0) < self.PHASE_HOLD_S
+        return {"phase_switch": True, "phase_now": pc["now"], "phase_lock": held and pc["now"] is not None}
+
+    def _phase_seen(self, part: str, st: dict[str, Any], phases: int | None) -> None:
+        if phases and st.get("phase_switch") and st.get("phase_now") and phases != st["phase_now"]:
+            self._phase_at[part] = time.time()
+
+    def _phase_call(self, part: str, want: dict[str, Any]) -> list[dict[str, Any]]:
+        ph = (want.get("ctx") or {}).get("phases")
+        if want.get("intent") != "charge" or ph not in (1, 3):
+            return []
+        pc = adapters.phase_control(self.entities.get(part, []), self.ha.states)
+        if not pc:
+            return []
+        return [{"domain": "select", "service": "select_option", "data": {"entity_id": pc["entity"], "option": pc[str(ph)]}}]
 
     def calls(self, part: str, want: dict[str, Any]) -> list[dict[str, Any]]:
         if part == "generator":
@@ -489,11 +520,12 @@ class Controller:
             calls = self._clamp(adapters.resolve(steps.get(want["intent"]) or steps.get("normal", []), self._pool(part), want["ctx"]))
             return self._fixed(part, want["intent"], calls)
         if part.startswith("car") and part != "car":
-            return self._clamp(adapters.charger_calls(want["intent"], self.entities.get(part, []), self.platforms.get(part),
-                                                      want["ctx"]["current"], self.car_devices.get(part), self.ha.states,
-                                                      switch=self.auto_switch(part)))
-        return self._clamp(adapters.charger_calls(want["intent"], self.entities["car"], self.platforms["car"], want["ctx"]["current"],
-                                                  getattr(self, "car_device", None), self.ha.states, switch=self.auto_switch("car")))
+            return self._phase_call(part, want) + self._clamp(adapters.charger_calls(
+                want["intent"], self.entities.get(part, []), self.platforms.get(part), want["ctx"]["current"],
+                self.car_devices.get(part), self.ha.states, switch=self.auto_switch(part)))
+        return self._phase_call("car", want) + self._clamp(adapters.charger_calls(
+            want["intent"], self.entities["car"], self.platforms["car"], want["ctx"]["current"],
+            getattr(self, "car_device", None), self.ha.states, switch=self.auto_switch("car")))
 
     def _clamp(self, calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Numbers within the control's own min/max - Home Assistant refuses a value outside them. A select value

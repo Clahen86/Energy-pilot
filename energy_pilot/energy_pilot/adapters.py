@@ -635,6 +635,25 @@ def _amp_option(options: list[str], current: float) -> str | None:
     return max(under)[1] if under else min(vals)[1]
 
 
+def phase_control(entities: list[str], states: dict[str, Any] | None) -> dict[str, Any] | None:
+    """The charger's own 1/3-phase choice, when it has one Energy Pilot can read back: a select named for phases
+    (evcc "phases_configured", go-e "phase_switch_mode" ...) with one option for 1 phase and one for 3 -
+    {"entity", "1": option, "3": option, "now": 1 | 3 | None}. Chargers without it are never switched."""
+    one = re.compile(r"(^|[^0-9])1([^0-9]|$)|single|one|^en|1p", re.I)
+    three = re.compile(r"(^|[^0-9])3([^0-9]|$)|three|^tre|3p", re.I)
+    for e in entities or []:
+        if not e.startswith("select.") or not re.search(r"phase", e, re.I):
+            continue
+        st = (states or {}).get(e) or {}
+        opts = [str(o) for o in (st.get("attributes") or {}).get("options") or []]
+        o1 = next((o for o in opts if one.search(o) and not three.search(o) and "auto" not in o.lower()), None)
+        o3 = next((o for o in opts if three.search(o) and not one.search(o) and "auto" not in o.lower()), None)
+        if o1 and o3:
+            cur = str(st.get("state"))
+            return {"entity": e, "1": o1, "3": o3, "now": 1 if cur == o1 else 3 if cur == o3 else None}
+    return None
+
+
 def lowest_amps(entities: list[str], states: dict[str, Any] | None) -> int | None:
     """The charger's lowest current when it only takes fixed steps (a select: 8/10/13/16 A) or has a minimum."""
     for e in entities or []:

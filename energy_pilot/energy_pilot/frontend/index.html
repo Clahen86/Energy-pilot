@@ -695,6 +695,15 @@ const T_FX = {
   sv: { t: "Väder och högtider på startsidan", h: "Det riktiga vädret, årstiden och dagens högtid i energibilden" },
   nb: { t: "Vær og høytider på forsiden", h: "Det ekte været, årstiden og dagens høytid i energibildet" },
 };
+const T_PH = {
+  da: { t: "Skift mellem 1 og 3 faser", h: "Ved lidt sol lader bilen på 1 fase (fra ca. 1,4 kW i stedet for 4,1), ved meget sol på 3. Højst ét skift pr. 10 minutter – bilen holder en lille pause ved hvert skift" },
+  en: { t: "Switch between 1 and 3 phases", h: "On a little sun the car charges on 1 phase (from about 1.4 kW instead of 4.1), on a lot of sun on 3. At most one switch per 10 minutes – the car pauses briefly at each" },
+  de: { t: "Zwischen 1 und 3 Phasen wechseln", h: "Bei wenig Sonne lädt das Auto einphasig (ab ca. 1,4 kW statt 4,1), bei viel Sonne dreiphasig. Höchstens ein Wechsel pro 10 Minuten – das Auto pausiert bei jedem kurz" },
+  fr: { t: "Basculer entre 1 et 3 phases", h: "Avec peu de soleil, la voiture charge sur 1 phase (dès 1,4 kW au lieu de 4,1), avec beaucoup sur 3. Au plus un changement toutes les 10 minutes – courte pause à chaque fois" },
+  nl: { t: "Wisselen tussen 1 en 3 fasen", h: "Bij weinig zon laadt de auto op 1 fase (vanaf ca. 1,4 kW in plaats van 4,1), bij veel zon op 3. Hooguit één wissel per 10 minuten – de auto pauzeert even bij elke wissel" },
+  sv: { t: "Växla mellan 1 och 3 faser", h: "Vid lite sol laddar bilen på 1 fas (från ca 1,4 kW i stället för 4,1), vid mycket sol på 3. Högst ett byte per 10 minuter – bilen pausar kort vid varje byte" },
+  nb: { t: "Bytt mellom 1 og 3 faser", h: "Ved lite sol lader bilen på 1 fase (fra ca. 1,4 kW i stedet for 4,1), ved mye sol på 3. Høyst ett bytte per 10 minutter – bilen tar en kort pause ved hvert bytte" },
+};
 const T_GN = {
   da: { t: "Skjul små net-strømme", h: "Under grænsen, og når det kun varer få sekunder, vises nettet som roligt – ikke som køb eller salg. Nogle invertere trækker lidt fra nettet for at holde takten" },
   en: { t: "Hide small grid flows", h: "Below the limit, and when it only lasts a few seconds, the grid shows as quiet – not as buying or selling. Some inverters draw a little from the grid to stay in sync" },
@@ -1941,6 +1950,7 @@ function styleView() {
       ${row(y.charger, y.chargerH, numIn("charger_kw", 7.4, "0.1", "kW"))}
       ${row(T.sw.t, T.sw.h, swPick("car", v.ev_switch || "", `data-text="ev_switch"`))}
       ${adv("car", `${settings.roles.pv_power ? row(y.followSun, y.followSunH, tog("ev_follow_sun", true)) : ""}
+      ${settings.phase_ctl?.car && settings.roles.pv_power ? row((T_PH[L] || T_PH.en).t, (T_PH[L] || T_PH.en).h, tog("ev_phase_switch", false)) : ""}
       ${v.import_limit_kw ? row(y.fuseGuard, y.fuseGuardH.replace("{x}", num(v.import_limit_kw, 0)), tog("ev_fuse_guard", true)) : ""}
       ${quietRow("car")}
       ${row(y.evInHouse, settings.ev_detected == null ? y.evInHouseUnknown : settings.ev_detected ? y.evInHouseYes : y.evInHouseNo,

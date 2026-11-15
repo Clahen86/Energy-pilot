@@ -101,6 +101,19 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
                               "tested": _tested(overview)}
         return web.json_response(data)
 
+    def _phase_ctl() -> dict[str, str | None]:
+        """Which chargers have their own 1/3-phase choice (so the setting can be shown)."""
+        ctl = overview.controller
+        if not ctl:
+            return {}
+        from .adapters import phase_control
+
+        out = {}
+        for part in ["car", *getattr(ctl, "car_parts", lambda: [])()]:
+            pc = phase_control((getattr(ctl, "entities", None) or {}).get(part) or [], runner.ha.states)
+            out[part] = pc["entity"] if pc else None
+        return out
+
     async def get_settings(_req: web.Request) -> web.Response:
         guess = overview.engine._guess_capacity() if overview.engine else None
         from .sources import ZONES, price_area
@@ -111,6 +124,7 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
                                   "zones": ZONES.get(country, []), "tou_presets": __import__("energy_pilot.sources", fromlist=["TOU_PRESETS"]).TOU_PRESETS, "country": country, "currency": runner.ha.config.get("currency"),
                                   "sources": {r: overview.source(r) for r in overview.roles()},
                                   "candidates": overview.candidates(),
+                                  "phase_ctl": _phase_ctl(),
                                   "ev_detected": overview.engine.ev_detected if overview.engine else None,
                                   "all_sensors": overview.all_sensors(),
                                   "battery_sign_found": overview.engine.sign_found() if overview.engine else None,
