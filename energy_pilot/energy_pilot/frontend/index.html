@@ -1276,21 +1276,33 @@ const T_CAR = {
   sv: { from: "från {t}", slots: "laddar {a}–{b}", sun: "på sol", grid: "från nätet", nowC: "Laddar nu", noPlan: "Ingen laddning planerad", cap: "av {x} kWh", target: "mål {p} %", stop: "Stoppa – laddar nu", plugIn: "Koppla in bilen" },
   nb: { from: "fra {t}", slots: "lader {a}–{b}", sun: "på sol", grid: "fra nettet", nowC: "Lader nå", noPlan: "Ingen lading planlagt", cap: "av {x} kWh", target: "mål {p} %", stop: "Stopp – lader nå", plugIn: "Koble til bilen" },
 };
-const CAR_IC = `<path d="M5 16.5h14M4 16.5v-3.2l1.8-4.6A2 2 0 0 1 7.7 7.5h8.6a2 2 0 0 1 1.9 1.2l1.8 4.6v3.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="7.5" cy="16.5" r="1.8" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="16.5" cy="16.5" r="1.8" fill="none" stroke="currentColor" stroke-width="1.6"/>`;
+const CAR_IC = `<path d="M5 19.5c0-2.6 1.4-3.6 4.2-4.1l7.6-1.4c3.4-4.6 8-6.6 15.2-6.6 6.6 0 11 1.8 14.6 5.6l6.4 1.2c2.6.5 4 1.9 4 4.4v2.2h-3.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M20.5 13.6c2.8-3.3 6.3-4.6 11.6-4.6 4.6 0 7.9 1.1 10.6 3.6l.8 1z" fill="currentColor" fill-opacity=".22" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M32.6 9.2v4.8" stroke="currentColor" stroke-width="1.2"/>
+  <path d="M9.6 21.7H5M23.4 21.7h17.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+  <circle cx="16.5" cy="21.5" r="4.2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="16.5" cy="21.5" r="1.4" fill="currentColor"/>
+  <circle cx="47.5" cy="21.5" r="4.2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="47.5" cy="21.5" r="1.4" fill="currentColor"/>
+  <path d="M57.5 16.2h2.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".7"/>`;
 function carCard(ev, f) {
   const C = T_CAR[L] || T_CAR.en, charging = (f.ev || 0) > 30, hm = (d) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   // the plan's charging hours from now (and the night's prices for the little graph)
   const now = new Date(), hrs = (data.plan?.hours || []).filter((h) => new Date(h.t).getTime() > now.getTime() - 3600000).slice(0, 18);
-  const slots = hrs.filter((h) => (h.car_kwh || 0) > 0), first = slots[0] ? new Date(slots[0].t) : null;
-  const last = slots.length ? new Date(new Date(slots[slots.length - 1].t).getTime() + 3600000) : null;
+  const slots = hrs.filter((h) => (h.car_kwh || 0) > 0);
+  // the real times: the plan's own slots (quarters), not the hour they fall in
+  const q = (data.engine?.car?.hours || []).map((t) => new Date(t)).filter((d) => d.getTime() + (data.engine.car.slot_min || 60) * 60000 > now.getTime()).sort((a, b) => a - b);
+  const qmin = (data.engine?.car?.slot_min || 60) * 60000;
+  const first = q[0] || (slots[0] ? new Date(slots[0].t) : null);
+  const last = q.length ? new Date(q[q.length - 1].getTime() + qmin) : slots.length ? new Date(new Date(slots[slots.length - 1].t).getTime() + 3600000) : null;
   // the ring: the car's own level against its target - or, without it, what this charge has taken against "at most"
   const soc = ev.soc_known ? ev.soc : null, tg = ev.soc_known ? ev.target : null;
   const frac = soc != null ? soc / 100 : ev.cap ? Math.min(1, (ev.session_kwh || 0) / ev.cap) : 0, tgF = tg != null ? tg / 100 : 1;
-  const R1 = 56, C1 = 2 * Math.PI * R1;
+  const R1 = 56, C1 = 2 * Math.PI * R1, lvl = 113 - frac * 94, tgY = 113 - tgF * 94;
+  const wave = (y) => `M0 ${y} C10 ${y - 3} 20 ${y - 3} 30 ${y} S50 ${y + 3} 60 ${y} S80 ${y - 3} 90 ${y} S110 ${y + 3} 120 ${y} S140 ${y - 3} 150 ${y} S170 ${y + 3} 180 ${y} V140 H0Z`;
   const tk = Array.from({ length: 60 }, (_, i) => { const a = i * 6 * Math.PI / 180, r2 = i % 5 ? 65 : 66.5;
     return `<line x1="${(66 + 63 * Math.sin(a)).toFixed(1)}" y1="${(66 - 63 * Math.cos(a)).toFixed(1)}" x2="${(66 + r2 * Math.sin(a)).toFixed(1)}" y2="${(66 - r2 * Math.cos(a)).toFixed(1)}" stroke="var(--text)" stroke-opacity="${i % 5 ? .08 : .18}"/>`; }).join("");
   const ring = `<svg viewBox="0 0 132 132" width="124" height="124" style="flex:none">
       <defs><linearGradient id="evr" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="color-mix(in srgb,var(--car) 50%,#fff)"/><stop offset=".55" stop-color="var(--car)"/><stop offset="1" stop-color="color-mix(in srgb,var(--car) 70%,#5a0f3a)"/></linearGradient>
+        <linearGradient id="evlq" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--car)" stop-opacity=".5"/><stop offset="1" stop-color="var(--car)" stop-opacity=".1"/></linearGradient>
+        <clipPath id="evin"><circle cx="66" cy="66" r="47"/></clipPath>
         <filter id="evgw" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3.5"/></filter></defs>${tk}
       <circle cx="66" cy="66" r="${R1}" fill="none" stroke="var(--line2)" stroke-width="6"/>
       ${tg != null ? `<circle cx="66" cy="66" r="${R1}" fill="none" stroke="var(--car)" stroke-opacity=".18" stroke-width="6" stroke-dasharray="${C1.toFixed(1)}" stroke-dashoffset="${(C1 * (1 - tgF)).toFixed(1)}" transform="rotate(-90 66 66)"/>` : ""}
@@ -1299,11 +1311,13 @@ function carCard(ev, f) {
       ${tg != null && tg < 100 ? `<g transform="rotate(${(tg * 3.6).toFixed(1)} 66 66)"><line x1="66" y1="6" x2="66" y2="16" stroke="var(--text)" stroke-width="2" stroke-linecap="round"/></g>` : ""}
       ${charging ? `<circle r="3.2" fill="var(--car)"><animateMotion dur="2.4s" repeatCount="indefinite" path="M66 10 a56 56 0 1 1 -0.1 0"/></circle>` : ""}
       <circle cx="66" cy="66" r="47" fill="var(--surface2)"/>
-      <g transform="translate(47 30) scale(1.6)" style="color:${f.plug || charging ? "var(--car)" : "var(--faint)"}">${CAR_IC}</g>
-      ${soc != null ? `<text x="66" y="86" text-anchor="middle" class="rtn" font-size="22" font-weight="600" fill="var(--text)" letter-spacing="-.5">${num(soc, 0)}<tspan font-size="12" fill="var(--muted)" dx="1">%</tspan></text>
-        <text x="66" y="100" text-anchor="middle" font-size="9.5" fill="var(--muted)" letter-spacing=".06em">${esc(C.target.replace("{p}", num(tg, 0)).toUpperCase())}</text>`
-      : `<text x="66" y="86" text-anchor="middle" class="rtn" font-size="20" font-weight="600" fill="var(--text)" letter-spacing="-.5">${num(ev.session_kwh || 0, 1)}</text>
-        <text x="66" y="100" text-anchor="middle" font-size="9.5" fill="var(--muted)">${ev.cap ? esc(C.cap.replace("{x}", num(ev.cap, 0))) : "kWh"}</text>`}</svg>`;
+      <g clip-path="url(#evin)"><path class="rtwave" d="${wave(lvl)}" fill="url(#evlq)"/><path class="rtwave rtwave2" d="${wave(lvl + 3)}" fill="var(--car)" fill-opacity=".10"/>
+        ${tg != null && tg < 100 ? `<line x1="19" x2="113" y1="${tgY.toFixed(1)}" y2="${tgY.toFixed(1)}" stroke="var(--text)" stroke-opacity=".35" stroke-dasharray="2 3"/>` : ""}</g>
+      <g transform="translate(37.2 30) scale(.9)" style="color:${f.plug || charging ? "var(--text)" : "var(--faint)"}">${CAR_IC}</g>
+      ${soc != null ? `<text x="66" y="77" text-anchor="middle" class="rtn" font-size="24" font-weight="600" fill="var(--text)" letter-spacing="-.5">${num(soc, 0)}<tspan font-size="12" fill="var(--muted)" dx="1">%</tspan></text>
+        <text x="66" y="93" text-anchor="middle" font-size="9.5" fill="var(--muted)" letter-spacing=".06em">${esc(C.target.replace("{p}", num(tg, 0)).toUpperCase())}</text>`
+      : `<text x="66" y="77" text-anchor="middle" class="rtn" font-size="21" font-weight="600" fill="var(--text)" letter-spacing="-.5">${num(ev.session_kwh || 0, 1)}</text>
+        <text x="66" y="93" text-anchor="middle" font-size="9.5" fill="var(--muted)">${ev.cap ? esc(C.cap.replace("{x}", num(ev.cap, 0))) : "kWh"}</text>`}</svg>`;
   // the big line: charging now, ready at, or plug it in
   const ready = ev.ready && ev.ready !== "00:00:00" ? String(ev.ready).slice(0, 5) : null;
   const need = soc != null && tg != null && soc < tg && ev.car_kwh ? (tg - soc) / 100 * ev.car_kwh : null;
@@ -1318,7 +1332,7 @@ function carCard(ev, f) {
   const fromSun = charging && f.pv != null && f.house != null && (f.pv - Math.max(0, f.house - (f.ev || 0))) > (f.ev || 0) * 0.6;
   const flowLine = charging ? `<div class="evflow"><span class="evnode" style="--c:var(--${fromSun ? "sun" : "grid"})">${fromSun ? icon("sun") : icon("grid")}</span>
       <svg viewBox="0 0 100 10" preserveAspectRatio="none"><line x1="0" y1="5" x2="100" y2="5" stroke="var(--${fromSun ? "sun" : "grid"})" stroke-opacity=".3" stroke-width="2"/><line class="evfl" x1="0" y1="5" x2="100" y2="5" stroke="var(--${fromSun ? "sun" : "grid"})" stroke-width="3" stroke-linecap="round"/></svg>
-      <span class="evnode" style="--c:var(--car)"><svg viewBox="0 0 24 24" width="18" height="18" style="color:var(--car)">${CAR_IC}</svg></span>
+      <span class="evnode" style="--c:var(--car)"><svg viewBox="0 0 64 28" width="24" height="12" style="color:var(--car)">${CAR_IC}</svg></span>
       <span class="muted" style="font-size:12px;white-space:nowrap">${fromSun ? C.sun : C.grid}</span></div>` : "";
   // the night ahead: prices as bars, the car's hours in pink, a flag at "ready"
   let graph = "";
@@ -1328,9 +1342,17 @@ function carCard(ev, f) {
       return `<rect x="${(x + 2).toFixed(1)}" y="${(64 - hh).toFixed(1)}" width="${(bw - 4).toFixed(1)}" height="${hh.toFixed(1)}" rx="3" fill="${ch ? "var(--car)" : "var(--line2)"}"/>${ch ? `<rect x="${(x + 2).toFixed(1)}" y="${(64 - hh).toFixed(1)}" width="${(bw - 4).toFixed(1)}" height="${hh.toFixed(1)}" rx="3" fill="var(--car)" opacity=".45" filter="url(#evg5)"/>` : ""}`; }).join("");
     const t0 = new Date(hrs[0].t).getTime(), xr = (d) => 10 + (d.getTime() - t0) / 3600000 * bw;
     let rd = null; if (ready) { rd = new Date(now); const [hh, mm] = ready.split(":").map(Number); rd.setHours(hh, mm, 0, 0); if (rd <= now) rd.setDate(rd.getDate() + 1); }
-    const flag = rd && xr(rd) < W - 10 ? `<line x1="${xr(rd).toFixed(1)}" y1="8" x2="${xr(rd).toFixed(1)}" y2="64" stroke="var(--car)" stroke-opacity=".6" stroke-dasharray="2 3"/><path d="M${xr(rd).toFixed(1)} 8 h16 l-4 4.5 4 4.5 h-16z" fill="var(--car)"/>` : "";
+    // "ready": a hairline with a small label chip on top and a ringed dot on the axis
+    let flag = "";
+    if (rd && xr(rd) < W - 10) {
+      const x = xr(rd), lbl = `${T.readyAt} ${ready}`, cw = lbl.length * 5.4 + 16, cx = Math.max(10, Math.min(W - 10 - cw, x - cw / 2));
+      flag = `<line x1="${x.toFixed(1)}" y1="-2" x2="${x.toFixed(1)}" y2="64" stroke="var(--text)" stroke-opacity=".35"/>
+        <rect x="${cx.toFixed(1)}" y="-16" width="${cw.toFixed(1)}" height="15" rx="7.5" fill="var(--surface2)" stroke="var(--line2)"/>
+        <text x="${(cx + cw / 2).toFixed(1)}" y="-5.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="var(--text)" class="rtn">${esc(lbl)}</text>
+        <circle cx="${x.toFixed(1)}" cy="64" r="6" fill="var(--text)" fill-opacity=".12"/><circle cx="${x.toFixed(1)}" cy="64" r="3" fill="var(--surface)" stroke="var(--text)" stroke-width="1.6"/>`;
+    }
     const lab = [0, Math.floor(n / 2), n - 1].map((i, j) => `<text x="${(10 + i * bw + (j === 2 ? bw : 0)).toFixed(1)}" y="80" text-anchor="${["start", "middle", "end"][j]}" font-size="10" fill="var(--muted)">${j === 0 ? T.now || "nu" : hm(new Date(hrs[i].t))}</text>`).join("");
-    graph = `<svg viewBox="0 0 ${W} ${slots.length ? 96 : 84}" width="100%" style="display:block;margin-top:16px"><defs><filter id="evg5"><feGaussianBlur stdDeviation="2.5"/></filter></defs>
+    graph = `<svg viewBox="0 -18 ${W} ${(slots.length ? 96 : 84) + 18}" width="100%" style="display:block;margin-top:12px"><defs><filter id="evg5"><feGaussianBlur stdDeviation="2.5"/></filter></defs>
       ${bars}<line x1="10" y1="64" x2="${W - 10}" y2="64" stroke="var(--line)"/><line x1="10" y1="8" x2="10" y2="64" stroke="var(--text)" stroke-opacity=".2"/><circle cx="10" cy="64" r="3.5" fill="var(--text)"/>${flag}${lab}
       ${slots.length ? `<text x="${W / 2}" y="94" text-anchor="middle" font-size="9.5" fill="var(--car)">${esc(C.slots.replace("{a}", hm(first)).replace("{b}", hm(last)))}</text>` : ""}</svg>`;
   }
@@ -1342,7 +1364,7 @@ function carCard(ev, f) {
     ev.soc_known ? evSocHtml(ev, true) : "",
     ev.cap != null && !ev.soc_known ? `<div class="evrow"><div class="t"><b>${T.atMost}</b><span>${T.xPerCharge}</span></div><div class="range"><input type="range" min="0" max="${ev.cap_max || 100}" step="1" value="${ev.cap}" data-ev="cap"><b id="capv" class="rtn">${num(ev.cap, 0)} kWh</b></div></div>` : ""].join("");
   const btn = ev.manual != null ? `<button class="evnow ${ev.manual ? "on" : ""}" data-ev="manual" aria-label="${T.chargeNow}"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M13 2.5 5.5 13.5H12l-1 8 7.5-11H12z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>${ev.manual ? esc(C.stop) : T.chargeNow}</button>` : "";
-  return `<div class="card fade evcard"><div class="rthd"><svg viewBox="0 0 24 24" class="rti" style="color:var(--car)">${CAR_IC}</svg>${T.carTitle}${ev.session_kwh != null ? `<span class="r rtn" style="font-weight:500;color:var(--muted)">${num(ev.session_kwh, 1)} kWh ${T.session}</span>` : ""}</div>
+  return `<div class="card fade evcard"><div class="rthd"><svg viewBox="0 0 64 28" class="rti" style="color:var(--car);width:24px">${CAR_IC}</svg>${T.carTitle}${ev.session_kwh != null ? `<span class="r rtn" style="font-weight:500;color:var(--muted)">${num(ev.session_kwh, 1)} kWh ${T.session}</span>` : ""}</div>
     ${hero}${flowLine}${graph}<div class="rtsec" style="padding-top:4px">${rows}</div>${btn}</div>`;
 }
 function evSocHtml(ev, compact = false) {
