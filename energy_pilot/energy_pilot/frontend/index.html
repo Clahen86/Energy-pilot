@@ -10,12 +10,12 @@
     --text:#f3f5f9; --muted:#8b93a3; --faint:#5b6372;
     --sun:#f5b544; --grid:#6ea8fe; --sell:#3ddc97; --batt:#a78bfa; --car:#f472b6; --house:#e8ebf1;
     --ok:#3ddc97; --warn:#f5b544; --bad:#ff5d6c; --accent:#7c6cff;
-    --sky-day:#1a2740; --sky-dusk:#1a2740; --sky-night:#131924; --star:#ffffff; --sky-lbl:#ffb27a;
+    --sky-day:#1b2a44; --sky-dusk:#3d2b42; --sky-night:#0c1324; --star:#ffffff; --sky-lbl:#ffb27a;
   }
   @media (prefers-color-scheme: light) {
     :root:not([data-theme=dark]) { --bg:#f4f6fa; --surface:#ffffff; --surface2:#f0f3f8; --line:rgba(15,23,42,.08); --line2:rgba(15,23,42,.14);
       --text:#0b1220; --muted:#5d6676; --faint:#9aa3b2; --house:#1f2937;
-      --sky-day:#e1ebfa; --sky-dusk:#e1ebfa; --sky-night:#f0f3f8; --star:#7280b8; --sky-lbl:#c2662a; }
+      --sky-day:#e3eeff; --sky-dusk:#ffe1cc; --sky-night:#d6dcf0; --star:#7280b8; --sky-lbl:#c2662a; }
   }
   .rtcard { background:radial-gradient(120% 55% at 90% -10%, color-mix(in srgb, var(--batt) 20%, transparent), transparent 60%), radial-gradient(90% 40% at 0% 100%, color-mix(in srgb, var(--ok) 8%, transparent), transparent 60%), var(--surface); }
   .rtnext { display:flex; align-items:center; gap:12px; margin-top:14px; padding:12px 14px; border-radius:16px; background:linear-gradient(135deg, color-mix(in srgb, var(--batt) 16%, transparent), color-mix(in srgb, var(--grid) 8%, transparent)); border:1px solid color-mix(in srgb, var(--batt) 28%, transparent); }
@@ -287,14 +287,11 @@
   .repimg button { position:absolute; top:3px; right:3px; width:22px; height:22px; border-radius:50%; border:0; background:rgba(0,0,0,.6); color:#fff; font-size:12px; cursor:pointer; }
   .repattach { display:block; text-align:center; margin-top:8px; }
 </style>
-<link rel="stylesheet" href="./static/energy-theme.css">
 </head>
 <body>
 <main id="root"><div class="muted" style="padding:40px;text-align:center">Indlæser…</div></main>
 <nav><div id="tabs"></div></nav>
-<script type="module">
-import { renderEnergyScene, patchEnergyScene, sceneStyles, artUrl } from "./static/energy-scene.js";
-const visualStyle = document.createElement("style"); visualStyle.textContent = sceneStyles; document.head.appendChild(visualStyle);
+<script>
 if (new URLSearchParams(location.search).get("theme")) document.documentElement.dataset.theme = new URLSearchParams(location.search).get("theme");
 const LANGS = ["da", "en", "de", "fr", "nl", "sv", "nb"];
 const L = (() => { const c = (new URLSearchParams(location.search).get("lang") || navigator.language || "en").slice(0, 2).toLowerCase();
@@ -667,7 +664,7 @@ function sceneInfo() {
   if (q.get("season")) out.season = q.get("season");
   if (q.get("hol")) out.holiday = q.get("hol") === "none" ? null : { key: q.get("hol"), colours: SCENE_HOL[q.get("hol")] || ["#ffd34d"] };
   const el = Number(out.elevation);
-  out.time = q.get("t") || (out.elevation == null || isNaN(el) ? out.time || "day" : el > 6 ? "day" : el > -6 ? "dusk" : "night");
+  out.time = q.get("t") || (isNaN(el) ? "day" : el > 6 ? "day" : el > -6 ? "dusk" : "night");
   out.dark = document.documentElement.dataset.theme === "dark" || (document.documentElement.dataset.theme !== "light" && !matchMedia("(prefers-color-scheme: light)").matches);
   return out;
 }
@@ -786,23 +783,28 @@ function sceneSvg() {
   return `<svg class="scene" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${s}</svg>`;
 }
 
-function sceneLabels() {
-  return { pv:T.sun, house:T.house, batt:T.battery, ev:T.car, grid:T.grid, flow:T.title,
-    charging:T.charging, discharging:T.discharging, idle:T.idle, buy:T.buy, sell:T.sell,
-    plugged:T.plugged, notPlugged:T.notPlugged };
-}
 function flowSvg(f) {
-  return renderEnergyScene(f, sceneInfo(), { connections:flowPaths(f), labels:sceneLabels(),
-    format:num, split, id:"app-energy", light:document.documentElement.dataset.theme === "light" ||
-      (document.documentElement.dataset.theme !== "dark" && matchMedia("(prefers-color-scheme: light)").matches) });
+  const h = f.has, gridCol = (f.grid || 0) < -GRID_NOISE_W ? "var(--sell)" : "var(--grid)";
+  const soc = f.soc ?? 0, r = 38, circ = 2 * Math.PI * r;
+  const socRing = `<circle r="${r}" fill="none" stroke="var(--batt)" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="${circ}" stroke-dashoffset="${circ * (1 - soc / 100)}" transform="rotate(-90)" id="socring"/>`;
+  const [pv, pvu] = split(f.pv), [ho, hou] = split(f.house), [gr, gru] = split(f.grid), [ev, evu] = split(f.ev);
+  const battCap = f.battery > NOISE_W ? `${T.charging}` : f.battery < -NOISE_W ? `${T.discharging}` : T.idle;
+  const sc = sceneInfo();
+  return `<svg viewBox="-20 -20 400 352"><defs><filter id="sc-blur2" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="2"/></filter><filter id="sc-blur4" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter><filter id="glow" filterUnits="userSpaceOnUse" x="-40" y="-40" width="480" height="430"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+    ${h.pv ? '<path class="base" d="M180 74 L180 116"/>' : ""}${h.grid ? '<path class="base" d="M286 150 L214 150"/>' : ""}
+    ${h.battery ? '<path class="base" d="M74 150 L146 150"/>' : ""}${h.ev ? '<path class="base" d="M180 184 L180 228"/>' : ""}
+    ${flowBeams(f, "glow")}
+    ${h.pv ? node("sun", 180, 40, "var(--sun)", pv, pvu, T.sun.toUpperCase(), "", "above", (f.pv || 0) > 30, sunIcon(sc)) : ""}
+    ${h.grid ? node("grid", 320, 150, gridCol, gr, gru, (f.grid < -GRID_NOISE_W ? T.sell : f.grid > GRID_NOISE_W ? T.buy : T.grid).toUpperCase(), "", "below", Math.abs(f.grid || 0) > GRID_NOISE_W) : ""}
+    ${node("house", 180, 150, "var(--house)", ho, hou, null, houseRing(sc), "below", true)}
+    ${h.battery ? node("battery", 40, 150, "var(--batt)", `${num(f.soc, 0)}`, "%", `${battCap} ${f.battery && Math.abs(f.battery) > NOISE_W ? kw(f.battery) : ""}`.trim().toUpperCase(), socRing, "below", Math.abs(f.battery || 0) > NOISE_W) : ""}
+    ${h.ev ? node("car", 180, 260, "var(--car)", f.ev > NOISE_W ? ev : "–", f.ev > NOISE_W ? evu : "", (f.ev > NOISE_W ? T.charging : f.plug ? T.plugged : T.notPlugged).toUpperCase(), "", "below", (f.ev || 0) > 30) : ""}
+  </svg>`;
 }
-
 function flowSig(f) {
   const b = (w) => w == null || Math.abs(w) < 30 ? 0 : (w > 0 ? 1 : -1) * (Math.abs(w) > 3000 ? 3 : Math.abs(w) > 1200 ? 2 : 1);
   const p = flowPaths(f);
-  const sc = sceneInfo();
-  const sceneKey = sc && [sc.time, sc.season, sc.condition, sc.holiday?.key, sc.dark, sc.outdoor == null ? null : Math.round(sc.outdoor)];
-  return JSON.stringify(sceneKey) + "|" + Object.keys(p).sort().map((k) => k + Math.min(3, Math.floor(p[k] / 1200))).join(",") + "|" + Object.values(f.has).join();
+  return Object.keys(p).sort().map((k) => k + Math.min(3, Math.floor(p[k] / 1200))).join(",") + "|" + Object.values(f.has).join();
 }
 
 /* ---------- views ---------- */
@@ -1044,26 +1046,22 @@ function runtimeCard() {
   const S = r.sky?.set, R = r.sky?.rise, dayNow = S && R ? new Date(S) < new Date(R) : (cv[0].sun || 0) > 0.02;
   const fx = (iso, dh = 0) => Math.max(0, Math.min(1, (xt(iso) + dh * (W - 20) / (n - 1)) / W));
   let stops = [[0, dayNow ? "day" : "night"]];
-  const turn = (iso, toNight) => { if (!inR(iso)) return; stops.push([fx(iso, -1), toNight ? "day" : "night"], [fx(iso, 1), toNight ? "night" : "day"]); };
+  const turn = (iso, toNight) => { if (!inR(iso)) return; stops.push([fx(iso, -1.2), toNight ? "day" : "night"], [fx(iso), "dusk"], [fx(iso, 1.4), toNight ? "night" : "day"]); };
   [[S, true], [R, false]].filter(([t]) => t).sort((a, b) => new Date(a[0]) - new Date(b[0])).forEach(([t, nt]) => turn(t, nt));
   stops.push([1, stops[stops.length - 1][1]]);
   const sky = stops.map(([o, c]) => `<stop offset="${o.toFixed(3)}" stop-color="var(--sky-${c})"/>`).join("");
   const nights = []; { let a = dayNow ? null : 0; stops.forEach(([o, c]) => { if (c === "night" && a == null) a = o; if (c !== "night" && a != null) { if (o - a > 0.05) nights.push([a, o]); a = null; } }); if (a != null && 1 - a > 0.05) nights.push([a, 1]); }
   let seed = 7; const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
-  const stars = nights.map(([a, b]) => Array.from({ length: Math.round((b - a) * 18) }, () => `<circle cx="${((a + rnd() * (b - a)) * W).toFixed(0)}" cy="${(top + 6 + rnd() * 70).toFixed(0)}" r="${(0.5 + rnd() * 0.8).toFixed(1)}" fill="var(--star)" opacity="${(0.15 + rnd() * 0.3).toFixed(2)}"/>`).join("")).join("");
-  const moon = nights.length && (nights[0][1] - nights[0][0]) > 0.2 ? ((x) => `<g transform="translate(${x.toFixed(1)} ${top + 18})"><circle r="16" fill="url(#rtmoonglow)"/><circle r="6.5" fill="url(#rtmoon)"/>
-      <circle cx="-2" cy="-1.6" r="1.3" fill="#9aa0ab" opacity=".45"/><circle cx="1.8" cy="1.9" r="1" fill="#9aa0ab" opacity=".4"/><circle cx="2.4" cy="-2.4" r=".6" fill="#9aa0ab" opacity=".4"/><circle cx="-1.2" cy="2.8" r=".55" fill="#9aa0ab" opacity=".35"/>
-      <circle r="6.5" fill="url(#rtmoonshade)"/></g>`)(((nights[0][0] + nights[0][1]) / 2) * W) : "";
-  const days = []; { let a = null; stops.forEach(([o, c]) => { if (c === "day" && a == null) a = o; if (c !== "day" && a != null) { if (o - a > 0.08) days.push([a, o]); a = null; } }); }
-  const sunIc = days.length ? ((x) => `<g transform="translate(${x.toFixed(1)} ${top + 18})"><circle r="22" fill="url(#rtsunglow)"/><circle r="6.5" fill="url(#rtsunball)"/></g>`)(Math.max(22, days[0][1] * W - 20)) : "";
+  const stars = nights.map(([a, b]) => Array.from({ length: Math.round((b - a) * 40) }, () => `<circle cx="${((a + rnd() * (b - a)) * W).toFixed(0)}" cy="${(top + 6 + rnd() * 70).toFixed(0)}" r="${(0.5 + rnd() * 0.8).toFixed(1)}" fill="var(--star)" opacity="${(0.25 + rnd() * 0.5).toFixed(2)}"/>`).join("")).join("");
+  const moon = nights.length && (nights[0][1] - nights[0][0]) > 0.2 ? `<text x="${(((nights[0][0] + nights[0][1]) / 2) * W).toFixed(0)}" y="${top + 20}" text-anchor="middle" font-size="12">🌙</text>` : "";
   const skyLbl = [[S, "↓"], [R, "↑"]].filter(([t]) => inR(t)).map(([t, a]) => `<text x="${xt(t).toFixed(1)}" y="${top + H - 6}" text-anchor="middle" font-size="9" fill="var(--sky-lbl)">${a} ${hm(t)}</text>`).join("");
   // the sun's forecast: a golden hill along the bottom
   const maxSun = Math.max(...cv.map((c) => c.sun || 0)), sunSum = cv.reduce((a, c) => a + (c.sun || 0), 0);
   let sunHill = "";
   if (maxSun > 0.1) {
     const sp = cv.map((c, i) => [xs(i), top + H - ((c.sun || 0) / maxSun) * H * 0.34]), sd = smooth(sp), pk = cv.findIndex((c) => c.sun === maxSun);
-    sunHill = `<path d="${sd} L${sp[n - 1][0].toFixed(1)} ${top + H} L${sp[0][0].toFixed(1)} ${top + H} Z" fill="url(#rtsun)"/>
-      ${sunSum > 0.3 ? `<text x="${Math.max(30, Math.min(W - 30, xs(pk))).toFixed(1)}" y="${(sp[pk][1] - 6).toFixed(1)}" text-anchor="middle" font-size="9.5" fill="var(--sun)" opacity=".85">${k.sunK.replace("{x}", num(sunSum, 1))}</text>` : ""}`;
+    sunHill = `<path d="${sd} L${sp[n - 1][0].toFixed(1)} ${top + H} L${sp[0][0].toFixed(1)} ${top + H} Z" fill="url(#rtsun)"/><path d="${sd}" fill="none" stroke="var(--sun)" stroke-opacity=".55" stroke-width="1.2" stroke-dasharray="3 3"/>
+      ${sunSum > 0.3 ? `<text x="${Math.max(30, Math.min(W - 30, xs(pk))).toFixed(1)}" y="${(sp[pk][1] - 6).toFixed(1)}" text-anchor="middle" font-size="9.5" fill="var(--sun)">${k.sunK.replace("{x}", num(sunSum, 1))}</text>` : ""}`;
   }
   // the timeline under it: cheap charging, the dear hours, what else runs
   const step = (W - 20) / (n - 1), runs = (f) => { const o = []; cv.forEach((c, i) => { if (!f(c)) return; const l = o[o.length - 1]; if (l && l[1] === i - 1) l[1] = i; else o.push([i, i]); }); return o; };
@@ -1106,23 +1104,18 @@ function runtimeCard() {
     ${stormLine}${nextHtml}${eveHtml}
     <svg class="rtgraph" viewBox="0 0 ${W} ${H + 40}" width="100%" style="margin-top:14px;display:block;overflow:visible;touch-action:pan-y">
       <defs><linearGradient id="rtsky" x1="0" y1="0" x2="1" y2="0">${sky}</linearGradient>
-        <linearGradient id="rtg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--batt)" stop-opacity=".3"/><stop offset=".7" stop-color="var(--batt)" stop-opacity=".05"/><stop offset="1" stop-color="var(--batt)" stop-opacity="0"/></linearGradient>
-        <linearGradient id="rts" gradientUnits="userSpaceOnUse" x1="0" y1="${top}" x2="0" y2="${top + H}"><stop offset="0" stop-color="var(--batt)"/><stop offset="${((ys(r.min_soc) - top) / H).toFixed(3)}" stop-color="var(--batt)"/><stop offset="${((ys(r.min_soc) - top) / H + 0.001).toFixed(3)}" stop-color="var(--bad)"/><stop offset="1" stop-color="var(--bad)"/></linearGradient>
-        <linearGradient id="rtsun" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--sun)" stop-opacity=".28"/><stop offset="1" stop-color="var(--sun)" stop-opacity="0"/></linearGradient>
-        <radialGradient id="rtsunglow"><stop offset="0" stop-color="#ffd27a" stop-opacity=".55"/><stop offset=".35" stop-color="#ffb347" stop-opacity=".18"/><stop offset="1" stop-color="#ffb347" stop-opacity="0"/></radialGradient>
-        <radialGradient id="rtsunball" cx=".4" cy=".38"><stop offset="0" stop-color="#fffbe8"/><stop offset=".55" stop-color="#ffe08a"/><stop offset="1" stop-color="#ffb43d"/></radialGradient>
-        <radialGradient id="rtmoonglow"><stop offset="0" stop-color="#dfe6ff" stop-opacity=".22"/><stop offset="1" stop-color="#dfe6ff" stop-opacity="0"/></radialGradient>
-        <radialGradient id="rtmoon" cx=".42" cy=".4"><stop offset="0" stop-color="#f4f2ea"/><stop offset=".7" stop-color="#d9d6cc"/><stop offset="1" stop-color="#b9b6ad"/></radialGradient>
-        <radialGradient id="rtmoonshade" cx="1.05" cy=".45" r=".85"><stop offset=".55" stop-color="#0b1222" stop-opacity="0"/><stop offset="1" stop-color="#0b1222" stop-opacity=".55"/></radialGradient>
+        <linearGradient id="rtg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--batt)" stop-opacity=".45"/><stop offset=".7" stop-color="var(--batt)" stop-opacity=".08"/><stop offset="1" stop-color="var(--batt)" stop-opacity="0"/></linearGradient>
+        <linearGradient id="rts" gradientUnits="userSpaceOnUse" x1="0" y1="${top}" x2="0" y2="${top + H}"><stop offset="0" stop-color="var(--ok)"/><stop offset=".45" stop-color="var(--batt)"/><stop offset=".85" stop-color="var(--bad)"/></linearGradient>
+        <linearGradient id="rtsun" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--sun)" stop-opacity=".5"/><stop offset="1" stop-color="var(--sun)" stop-opacity="0"/></linearGradient>
         <filter id="rtglow" x="-10%" y="-30%" width="120%" height="160%"><feGaussianBlur stdDeviation="3.5"/></filter><clipPath id="rtclip"><rect x="0" y="${top}" width="${W}" height="${H}" rx="14"/></clipPath></defs>
-      <g clip-path="url(#rtclip)"><rect x="0" y="${top}" width="${W}" height="${H}" fill="url(#rtsky)"/>${stars}${sunHill}</g>${moon}${sunIc}${skyLbl}
+      <g clip-path="url(#rtclip)"><rect x="0" y="${top}" width="${W}" height="${H}" fill="url(#rtsky)"/>${stars}${sunHill}</g>${moon}${skyLbl}
       <line x1="0" y1="${ys(r.min_soc).toFixed(1)}" x2="${W}" y2="${ys(r.min_soc).toFixed(1)}" stroke="var(--bad)" stroke-dasharray="4 4" opacity=".6"/>
       <text x="${W - 6}" y="${(ys(r.min_soc) - 4).toFixed(1)}" text-anchor="end" font-size="9" fill="var(--bad)">${k.min.replace("{p}", num(r.min_soc, 0))}</text>
       <path d="${path} L${pts[n - 1][0].toFixed(1)} ${top + H} L${pts[0][0].toFixed(1)} ${top + H} Z" fill="url(#rtg)"/>
-      <path d="${path}" fill="none" stroke="var(--batt)" stroke-width="6" opacity=".18" filter="url(#rtglow)"/>
-      <path d="${path}" fill="none" stroke="url(#rts)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="${path}" fill="none" stroke="url(#rts)" stroke-width="7" opacity=".35" filter="url(#rtglow)"/>
+      <path d="${path}" fill="none" stroke="url(#rts)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
       ${fullI > 0 ? `<circle cx="${pts[fullI][0].toFixed(1)}" cy="${pts[fullI][1].toFixed(1)}" r="5" fill="var(--ok)" stroke="var(--surface)" stroke-width="2"/>` : ""}
-      ${lowI > 0 ? `<circle cx="${pts[lowI][0].toFixed(1)}" cy="${pts[lowI][1].toFixed(1)}" r="5" fill="var(--surface)" stroke="var(--batt)" stroke-width="2.5"/>${bubble(pts[lowI][0], pts[lowI][1] - 14, `${num(r.low.soc, 0)}% · ${hm(r.low.t)}`)}` : ""}
+      ${lowI > 0 ? `<circle cx="${pts[lowI][0].toFixed(1)}" cy="${pts[lowI][1].toFixed(1)}" r="5.5" fill="var(--surface)" stroke="url(#rts)" stroke-width="3"/>${bubble(pts[lowI][0], pts[lowI][1] - 14, `${num(r.low.soc, 0)}% · ${hm(r.low.t)}`)}` : ""}
       <circle cx="${pts[0][0].toFixed(1)}" cy="${pts[0][1].toFixed(1)}" r="6" fill="var(--batt)" opacity=".35"><animate attributeName="r" values="6;13;6" dur="2.4s" repeatCount="indefinite"/><animate attributeName="opacity" values=".45;0;.45" dur="2.4s" repeatCount="indefinite"/></circle>
       <circle cx="${pts[0][0].toFixed(1)}" cy="${pts[0][1].toFixed(1)}" r="6" fill="var(--batt)" stroke="var(--surface)" stroke-width="2.5"/>
       <rect x="10" y="${top + H + 7}" width="${W - 20}" height="6" rx="3" fill="var(--line)"/>${seg((c) => c.charge, "var(--ok)")}${seg((c) => c.dear && !c.charge, "var(--warn)")}${ev}${ticks}
@@ -1159,20 +1152,20 @@ function home() {
     d.house_today != null ? metric("house", T.houseToday, num(d.house_today, 1), "kWh",
       d.house_other != null ? `${d.house_other_appdaemon ? (T.xYourAD) : (T.xOtherForecast)}: ${num(d.house_other, 1)}` : (T.xExpected)) : "",
   ].join("");
-  return `${updateCard()}${testNudge()}<div class="card flow fade" id="flowcard"><div id="flow">${flowSvg(f)}</div></div>
+  return `${updateCard()}${testNudge()}<div class="card flow fade" id="flowcard">${sceneSvg()}<div id="flow">${flowSvg(f)}</div></div>
     ${dec ? `<div class="card status fade" style="--c:${DECCOL[dec.kind]}"><div class="dotc">${icon(DECICON[dec.kind])}</div>
       <div><h2>${esc(dec.text)}</h2><p>${esc(reason)}</p>${dec.engine && dec.saving > 0 ? `<p class="save">${T.saves.replace("{x}", kr(dec.saving))}</p>` : ""}
       ${dec.other ? `<p class="muted">${esc(T.otherSays.replace("{x}", dec.other.text.toLowerCase()))}</p>` : ""}
       ${dec.reason ? `<details><summary>${T.why}</summary>${esc(dec.reason)}</details>` : ""}</div></div>` : ""}
     <div class="metrics fade">${metrics}</div>
     ${savedCard()}
+    ${runtimeCard()}
     ${genCard()}
     ${d.ev ? carCard(d.ev, f) : ""}
     ${moreCars()}
     ${thingsCard()}
     ${d.plan && d.plan.cheapest && d.plan.cheapest.length ? `<div class="card fade"><div class="eyebrow"><span>${T.cheapest}</span><button class="link" data-tab="plan">${(T_SEEPLAN[L] || T_SEEPLAN.en)} →</button></div>
-      <div class="chips">${d.plan.cheapest.map((t) => `<span class="chip good">${clock(t)}</span>`).join("")}</div></div>` : ""}
-    ${runtimeCard()}`;
+      <div class="chips">${d.plan.cheapest.map((t) => `<span class="chip good">${clock(t)}</span>`).join("")}</div></div>` : ""}`;
 }
 function genCard() {
   const g = data.engine?.generator, k = T.gen;
@@ -1192,7 +1185,10 @@ function savedCard() {
     ${g.avg_cost != null ? `<div class="lrow"><span>${k.inBattery}</span><b>${num(g.battery_kwh ?? g.stored_kwh, 1)} kWh</b><em>${k.costs.replace("{p}", kr(g.avg_cost))}${g.avg_source === "other" ? " · " + k.fromOther : ""}</em></div>` : ""}
     <div class="muted" style="margin-top:6px">${k.hint}</div></div>`;
 }
-const CAR_ART = `<img class="pic" src="${artUrl('car')}" alt="" loading="lazy">`;
+const CAR_ART = `<svg class="pic" viewBox="0 0 240 90" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M14 62c0-8 4-12 14-14l26-5 22-18c6-5 13-7 21-7h40c9 0 17 3 24 9l17 15 28 5c10 2 14 7 14 15v4c0 3-2 5-5 5h-11"/>
+  <path d="M60 71H90M150 71h22M14 66c0 3 2 5 5 5h12"/><path d="M80 43h58l-16-17c-3-3-7-4-11-4H96c-4 0-8 2-11 5z" opacity=".55"/>
+  <circle cx="45" cy="70" r="13"/><circle cx="45" cy="70" r="5" opacity=".6"/><circle cx="186" cy="70" r="13"/><circle cx="186" cy="70" r="5" opacity=".6"/></svg>`;
 function carCard(ev, f) {
   const charging = (f.ev || 0) > 30;
   return `<div class="card fade"><div class="eyebrow"><span>${T.carTitle}</span>${ev.session_kwh != null ? `<span>${num(ev.session_kwh, 1)} kWh ${T.session}</span>` : ""}</div>
@@ -1356,7 +1352,7 @@ function controlView() {
   const part = (key, title, ic) => {
     const st = control[key];
     if (!st || (!st.now && !st.entities.length && !key.startsWith("bat"))) return "";
-    return `<div class="cpart"><div class="cp-head">${key.startsWith("car") || key.startsWith("bat") ? `<img class="cp-art" src="${artUrl(key.startsWith("car") ? "car" : "battery")}" alt="" loading="lazy">` : `<span class="sec-ic" style="--sc:var(--sun)">${icon(ic)}</span>`}<div><b>${title}</b>
+    return `<div class="cpart"><div class="cp-head"><span class="sec-ic" style="--sc:${key.startsWith("car") ? "var(--car)" : "var(--batt)"}">${icon(ic)}</span><div><b>${title}</b>
         <span>${st.now ? `${c.now}: ${describe(key, st.now)}` : ""}${st.blocked ? `${st.now ? "<br>" : ""}<em class="blk">${c.blocked[st.blocked]}</em>` : ""}</span></div></div>
       ${st.mode === "shadow" && key !== "generator" ? readyList(st) : ""}
       ${st.mode !== "control" && key.startsWith("car") ? ghostView(key) : ""}
@@ -2103,7 +2099,6 @@ function render(quiet = false) {
 function patch() {
   // Only the numbers - the beams keep running.
   const f = data.flow;
-  patchEnergyScene(document, f, {format:num, split, labels:sceneLabels()});
   if (flowSig(f) !== flowKey) { const el = $("#flow"); if (el) { el.innerHTML = flowSvg(f); flowKey = flowSig(f); } return; }
   const setv = (id, pair) => { const v = document.getElementById("v-" + id); if (v && v.firstChild) { v.firstChild.nodeValue = pair[0]; const u = document.getElementById("u-" + id); if (u) u.textContent = pair[1] ? " " + pair[1] : ""; } };
   setv("sun", split(f.pv)); setv("house", split(f.house)); setv("grid", split(f.grid)); setv("battery", [num(f.soc, 0), "%"]);

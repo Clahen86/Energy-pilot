@@ -1,4 +1,3 @@
-import { renderEnergyScene, patchEnergyScene, sceneStyles, artUrl } from "./energy-scene.js";
 // Energipilot dashboard cards: energy flow, today's plan, the car, the battery - or all of them.
 // type: custom:energipilot-card   view: flow | plan | car | battery | savings | overview
 // Live numbers come straight from your own sensors (sensor.energipilot tells which ones), so they move at once.
@@ -231,16 +230,15 @@ class EnergipilotCard extends HTMLElement {
     else body = v === "plan" ? this._planHtml() : v === "car" ? this._carHtml() : v === "battery" ? this._batteryHtml() : v === "flow" ? this._flowHtml()
       : v === "savings" ? this._savingsHtml()
       : `${this._flowHtml()}${this._statusHtml()}${this._savingsHtml(true)}${this._batteryHtml(true)}${this._carHtml(true)}${this._planHtml(true)}`;
-    this.shadowRoot.innerHTML = `<style>${CSS}\n${sceneStyles}\n${CARD_THEME}</style><ha-card>${this._config.title ? `<div class="title">${esc(this._config.title)}</div>` : ""}${body}</ha-card>`;
+    this.shadowRoot.innerHTML = `<style>${CSS}</style><ha-card>${this._config.title ? `<div class="title">${esc(this._config.title)}</div>` : ""}${body}</ha-card>`;
     this._wire();
   }
   _patch() {
     // Only the numbers - the beams keep running.
     const f = this._flow(), root = this.shadowRoot;
-    patchEnergyScene(root, f, {format:(v,d)=>this._n(v,d),split:v=>this._split(v),labels:this._sceneLabels()});
     const setv = (id, pair) => { const el = root.getElementById("v-" + id); if (el?.firstChild) { el.firstChild.nodeValue = pair[0]; const u = root.getElementById("u-" + id); if (u) u.textContent = pair[1] ? " " + pair[1] : ""; } };
     setv("sun", this._split(f.pv)); setv("house", this._split(f.house)); setv("grid", this._split(f.grid)); setv("battery", [this._n(f.soc, 0), "%"]);
-    setv("car", this._split(f.ev));
+    if (f.ev > 30) setv("car", this._split(f.ev));
     const ring = root.getElementById("soc"); if (ring) ring.setAttribute("stroke-dashoffset", 2 * Math.PI * 38 * (1 - (f.soc || 0) / 100));
     const bs = root.getElementById("bsoc"); if (bs?.firstChild) bs.firstChild.nodeValue = this._n(f.soc, 0);
     const bb = root.getElementById("bbar"); if (bb) bb.style.width = `${f.soc || 0}%`;
@@ -294,19 +292,21 @@ class EnergipilotCard extends HTMLElement {
       ${cap != null ? `<text class="cap" y="${above ? -42 : 50}">${esc(cap)}</text>` : ""}</g>`;
   }
   _flowHtml() {
-    const f = this._flow(), t = this.t;
-    return `<div class="flow">${renderEnergyScene(f, cardSceneInfo(this._hass, this._config), {
-      connections:flowPaths(f), labels:this._sceneLabels(), format:(v,d)=>this._n(v,d),
-      split:v=>this._split(v), id:"card-"+this._uid, light:!this._hass.themes?.darkMode
-    })}</div>`;
+    const f = this._flow(), t = this.t, h = f.has, gc = (f.grid || 0) < -NOISE_W ? "#3ddc97" : "#6ea8fe", r = 38, c = 2 * Math.PI * r;
+    const [pv, pvu] = this._split(f.pv), [ho, hou] = this._split(f.house), [gr, gru] = this._split(f.grid), [ev, evu] = this._split(f.ev);
+    const ring = `<circle r="${r}" fill="none" stroke="#a78bfa" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - (f.soc || 0) / 100)}" transform="rotate(-90)" id="soc"/>`;
+    const sc = cardSceneInfo(this._hass, this._config);
+    return `<div class="flow">${cardSceneSvg(sc)}<svg class="dia" viewBox="-20 -20 400 352"><defs><filter id="sc-blur2" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="2"/></filter><filter id="sc-blur4" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4"/></filter><filter id="g${this._uid}" filterUnits="userSpaceOnUse" x="-40" y="-40" width="480" height="430"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+      ${h.pv ? '<path class="base" d="M180 74 L180 116"/>' : ""}${h.grid ? '<path class="base" d="M286 150 L214 150"/>' : ""}
+      ${h.battery ? '<path class="base" d="M74 150 L146 150"/>' : ""}${h.ev ? '<path class="base" d="M180 184 L180 228"/>' : ""}
+      ${flowBeams(f, "g" + this._uid)}
+      ${h.pv ? this._node("sun", 180, 40, "#f5b544", pv, pvu, t.sun.toUpperCase(), "", true, (f.pv || 0) > 30, cardSunIcon(sc)) : ""}
+      ${h.grid ? this._node("grid", 320, 150, gc, gr, gru, (f.grid < -NOISE_W ? t.sell : f.grid > NOISE_W ? t.buy : t.grid).toUpperCase(), "", false, Math.abs(f.grid || 0) > NOISE_W) : ""}
+      ${this._node("house", 180, 150, "var(--ep-house)", ho, hou, null, cardHouseRing(sc), false, true)}
+      ${h.battery ? this._node("battery", 40, 150, "#a78bfa", this._n(f.soc, 0), "%", (f.batt > NOISE_W ? t.charging : f.batt < -NOISE_W ? t.discharging : t.idle).toUpperCase(), ring, false, Math.abs(f.batt || 0) > NOISE_W) : ""}
+      ${h.ev ? this._node("car", 180, 260, "#f472b6", f.ev > 30 ? ev : "–", f.ev > 30 ? evu : "", (f.ev > 30 ? t.charging : f.plug ? t.plugged : t.notPlugged).toUpperCase(), "", false, (f.ev || 0) > 30) : ""}
+    </svg></div>`;
   }
-  _sceneLabels() {
-    const t=this.t;
-    return {pv:t.sun,house:lang(this._hass)==="da"?"Hus":(TX[lang(this._hass)].leg.house),batt:t.battery,ev:t.car,grid:t.grid,
-      charging:t.charging,discharging:t.discharging,idle:t.idle,buy:t.buy,sell:t.sell,
-      plugged:t.plugged,notPlugged:t.notPlugged};
-  }
-
   _statusHtml() {
     const d = this._hass.states[SENSOR].attributes.decision, t = this.t;
     if (!d || !d.kind) return "";
@@ -316,7 +316,7 @@ class EnergipilotCard extends HTMLElement {
     const f = this._flow(), d = this._hass.states[SENSOR].attributes.decision || {}, t = this.t;
     if (f.soc == null) return "";
     const state = f.batt > NOISE_W ? `${t.charging} ${this._split(f.batt).join(" ")}` : f.batt < -NOISE_W ? `${t.discharging} ${this._split(f.batt).join(" ")}` : t.idle;
-    return `<div class="${inline ? "sec" : "pad"}"><img class="equipment-art" src="${artUrl('battery')}" alt="" loading="lazy"><div class="eyebrow">${ic("battery")} ${t.battery}<span>${d.target != null ? `${t.target} ${this._n(d.target, 0)} %` : ""}</span></div>
+    return `<div class="${inline ? "sec" : "pad"}"><div class="eyebrow">${ic("battery")} ${t.battery}<span>${d.target != null ? `${t.target} ${this._n(d.target, 0)} %` : ""}</span></div>
       <div class="big"><span id="bsoc">${this._n(f.soc, 0)}</span><small>%</small> <em>${esc(state)}</em></div><div class="bar"><span id="bbar" style="width:${f.soc}%"></span></div>${this._runtimeHtml()}</div>`;
   }
   _runtimeHtml() {
@@ -341,7 +341,7 @@ class EnergipilotCard extends HTMLElement {
     const ev = this._hass.states[SENSOR].attributes.ev, f = this._flow(), t = this.t;
     if (!ev) return "";
     const charging = (f.ev || 0) > 30, e = ev.entities || {};
-    return `<div class="${inline ? "sec" : "pad"}"><img class="equipment-art" src="${artUrl('car')}" alt="" loading="lazy"><div class="eyebrow">${ic("car")} ${t.car}<span>${ev.session_kwh != null ? `${this._n(ev.session_kwh, 1)} kWh` : ""}</span></div>
+    return `<div class="${inline ? "sec" : "pad"}"><div class="eyebrow">${ic("car")} ${t.car}<span>${ev.session_kwh != null ? `${this._n(ev.session_kwh, 1)} kWh` : ""}</span></div>
       <div class="big" style="font-size:20px">${charging ? `${t.charging} ${this._split(f.ev).join(" ")}` : f.plug ? t.plugged : t.notPlugged}</div>
       ${e.ev_manual ? `<div class="ctl"><b>${t.chargeNow}</b><button class="tg ${this._hass.states[e.ev_manual]?.state === "on" ? "on" : ""}" data-toggle="${e.ev_manual}"></button></div>` : ""}
       ${e.ev_ready ? `<div class="ctl"><b>${t.readyAt}</b><input type="time" data-time="${e.ev_ready}" value="${esc(String(this._hass.states[e.ev_ready]?.state || "").slice(0, 5))}"></div>` : ""}
@@ -469,21 +469,6 @@ const CSS = `
   .ax { font:500 10px system-ui; fill:var(--secondary-text-color); text-anchor:middle; } .day { stroke:var(--divider-color); stroke-dasharray:2 4; }
   .empty { display:flex; gap:10px; align-items:center; padding:20px; color:var(--secondary-text-color); }
   @media (prefers-reduced-motion: reduce) { .beam { animation:none; } }
-`;
-
-const CARD_THEME = `
-  :host { --ep-house:var(--primary-text-color); --car:#83cbd6; }
-  ha-card { border-radius:20px; border:1px solid color-mix(in srgb,var(--primary-text-color) 12%,transparent); background:linear-gradient(135deg,color-mix(in srgb,var(--ha-card-background,var(--card-background-color,#102031)) 94%,#61b5c3),var(--ha-card-background,var(--card-background-color,#102031))); box-shadow:0 8px 24px #00000012; padding:0 0 4px; }
-  .flow { padding:0; }
-  .status { border:1px solid color-mix(in srgb,var(--c) 20%,transparent); border-radius:13px; margin-top:12px; }
-  .pad,.sec { padding:17px; }
-  .big { font-weight:720; }
-  .equipment-art { float:right; width:100px; height:68px; object-fit:contain; filter:saturate(.65) drop-shadow(0 4px 6px #0003); }
-  .sec::after,.pad::after { content:""; display:block; clear:both; }
-  .bar { height:6px; }
-  .stile { border:1px solid var(--divider-color,#ffffff16); border-radius:13px; }
-  .seg { border:1px solid var(--divider-color,#ffffff16); padding:3px; }
-  button:focus-visible,input:focus-visible { outline:2px solid var(--primary-color,#65c3ca); outline-offset:3px; }
 `;
 
 class EnergipilotCardEditor extends HTMLElement {
