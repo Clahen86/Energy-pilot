@@ -59,14 +59,30 @@ class Cards:
             _LOGGER.info("Home Assistant's folder isn't mapped: add the card resource by hand")
             return
         target = HA_CONFIG / "www" / "energipilot" / CARD.name
+        # The module and its artwork are dependencies of the card. Install them before
+        # publishing the resource; include them in the version so a cached module cannot
+        # leave dashboards showing a different scene than the app after an update.
+        bundle = [CARD.parent / "energy-scene.js", *sorted((CARD.parent / "art").glob("*.png"))]
         try:
+            digest = hashlib.sha1(CARD.read_bytes())
+            for source in bundle:
+                digest.update(source.name.encode())
+                digest.update(source.read_bytes())
+            stamp = digest.hexdigest()[:8]
             target.parent.mkdir(parents=True, exist_ok=True)
-            if not target.exists() or target.read_bytes() != CARD.read_bytes():
-                shutil.copyfile(CARD, target)
+            for source in bundle:
+                destination = target.parent / source.relative_to(CARD.parent)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                if not destination.exists() or destination.read_bytes() != source.read_bytes():
+                    shutil.copyfile(source, destination)
+            content = CARD.read_text().replace('from "./energy-scene.js"', f'from "./energy-scene.js?v={stamp}"')
+            if not target.exists() or target.read_text() != content:
+                pending = target.with_suffix(".js.tmp")
+                pending.write_text(content)
+                pending.replace(target)
         except OSError:
-            _LOGGER.warning("Could not copy the card to %s", target, exc_info=True)
+            _LOGGER.warning("Could not install dashboard artwork in %s", target.parent, exc_info=True)
             return
-        stamp = hashlib.sha1(CARD.read_bytes()).hexdigest()[:8]
         url = f"/local/energipilot/{CARD.name}?v={stamp}"
         try:
             resources = await self.ha.command({"type": "lovelace/resources"})
