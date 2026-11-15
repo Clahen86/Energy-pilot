@@ -396,7 +396,7 @@ class Controller:
             st["min_a"] = adapters.lowest_amps(getattr(self, "entities", {}).get("car", []), getattr(getattr(self, "ha", None), "states", {}))
             d = decide(f, st, hour in planned, manual, need, self._sun_on)
             self._sun_on, self.car_why = d["sun"], d["why"]
-            out["car"] = {"intent": "charge" if d["charge"] else "stop", "ctx": {"current": d["current"]}}
+            out["car"] = {"intent": "charge" if d["charge"] else "stop", "ctx": {"current": d["current"], "phases": d.get("phases")}}
         out.update(self._more_intents(f, res, out.get("car")))
         return out
 
@@ -470,9 +470,9 @@ class Controller:
                   "ev_follow_sun": c.get("follow_sun", st.get("ev_follow_sun", bool(self.ov.role("pv_power")))), "onoff": self.onoff(part),
                   "min_a": adapters.lowest_amps(getattr(self, "entities", {}).get(part, []), getattr(getattr(self, "ha", None), "states", {}))}
             need = float((plan or {}).get("need_kwh") if (plan or {}).get("need_kwh") is not None else 1.0)
-            d = decide(flow, cs, planned, bool(c.get("now")), need, self._sun_on_more.get(part, False))
+            d = decide(f, cs, planned, bool(c.get("now")), need, self._sun_on_more.get(part, False))
             self._sun_on_more[part], self.more_why[part] = d["sun"], d["why"]
-            want = {"intent": "charge" if d["charge"] else "stop", "ctx": {"current": d["current"]}}
+            want = {"intent": "charge" if d["charge"] else "stop", "ctx": {"current": d["current"], "phases": d.get("phases")}}
             out[part] = want
             taken += watts(want, kw, c.get("phases"))
         return out
@@ -489,11 +489,12 @@ class Controller:
             calls = self._clamp(adapters.resolve(steps.get(want["intent"]) or steps.get("normal", []), self._pool(part), want["ctx"]))
             return self._fixed(part, want["intent"], calls)
         if part.startswith("car") and part != "car":
-            return self._clamp(adapters.charger_calls(want["intent"], self.entities.get(part, []), self.platforms.get(part),
-                                                      want["ctx"]["current"], self.car_devices.get(part), self.ha.states,
-                                                      switch=self.auto_switch(part)))
+             return self._clamp(adapters.charger_calls(want["intent"], self.entities.get(part, []), self.platforms.get(part),
+                                                       want["ctx"]["current"], self.car_devices.get(part), self.ha.states,
+                                                       switch=self.auto_switch(part), phases=want["ctx"].get("phases")))
         return self._clamp(adapters.charger_calls(want["intent"], self.entities["car"], self.platforms["car"], want["ctx"]["current"],
-                                                  getattr(self, "car_device", None), self.ha.states, switch=self.auto_switch("car")))
+                                                   getattr(self, "car_device", None), self.ha.states, switch=self.auto_switch("car"),
+                                                   phases=want["ctx"].get("phases")))
 
     def _clamp(self, calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Numbers within the control's own min/max - Home Assistant refuses a value outside them. A select value

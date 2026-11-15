@@ -467,7 +467,8 @@ CHARGER_SERVICES = {
              "stop": [("keba.disable", "service", {})]},
     # Easee (nordicopen/easee_hass): actions with the charger's device
     "easee": {"charge": [("easee.set_charger_dynamic_limit", "service", {"device_id": "{device_id}", "current": "{current}"}),
-                         ("easee.action_command", "service", {"device_id": "{device_id}", "action_command": "resume"})],
+                         ("easee.action_command", "service", {"device_id": "{device_id}", "action_command": "resume"}),
+                         ("easee.set_charger_phase_mode", "service", {"device_id": "{device_id}", "phase_mode": "{phase_mode}"})],
               "stop": [("easee.action_command", "service", {"device_id": "{device_id}", "action_command": "pause"})]},
     # Zaptec (custom-components/zaptec): "Available current" and the Resume/Stop charging buttons
     "zaptec": {"charge": [(r"number\..*available_current$", "number", "{current}"), (r"button\..*resume_charging$", "press", None)],
@@ -663,9 +664,14 @@ def charger_switch(entities: list[str], lone_ok: bool = False) -> str | None:
 
 def charger_calls(intent: str, entities: list[str], platform: str | None, current: float,
                   device_id: str | None = None, states: dict[str, Any] | None = None,
-                  switch: str | None = None) -> list[dict[str, Any]]:
+                  switch: str | None = None, phases: int | None = None) -> list[dict[str, Any]]:
     """Start at a current, or stop - by the charger integration's own way where known, else its switch and number."""
-    ctx = {"current": round(current), "device_id": device_id or ""}
+    phase_mode = "3_phase"
+    if phases == 1:
+        phase_mode = "1_phase"
+    elif phases == 3:
+        phase_mode = "3_phase"
+    ctx = {"current": round(current), "device_id": device_id or "", "phase_mode": phase_mode}
     if platform in CHARGER_SERVICES:
         return resolve(CHARGER_SERVICES[platform][intent], entities, ctx)
     switch = switch or charger_switch(entities)
