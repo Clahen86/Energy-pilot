@@ -171,7 +171,9 @@ class Overview:
                          # stop selling at negative prices (curtail.py)
                          "curtail", "curtail_saved", "curtail_test", "share_full",
                          # storm watch (storm.py)
-                         "storm", "storm_gust", "storm_soc", "storm_hold", "readonly_dismissed"):
+                         "storm", "storm_gust", "storm_soc", "storm_hold", "readonly_dismissed",
+                         # the session meter at plug-in (async_plug_marks)
+                         "plug_marks"):
                 self.settings[key] = value
         self.file.write_text(json.dumps(self.settings, indent=2))
 
@@ -245,6 +247,49 @@ class Overview:
             return [e for e in chosen if e in self.ha.states]
         one = self.role(name)
         return [one] if one else []
+
+    async def async_plug_marks(self) -> None:
+        """For each charger with a plug and a session meter: what the meter showed when the car was plugged in -
+        read from the history at that moment, kept until the car is unplugged (see chargers.session)."""
+        pairs = [(self.role("ev_plug"), self.role("ev_session"))]
+        pairs += [(c.get("plug"), c.get("session")) for c in chargers.extras(self.settings)]
+        marks = dict(self.settings.get("plug_marks") or {})
+        changed = False
+        for plug_e, session_e in pairs:
+            if not plug_e or not session_e:
+                continue
+            if not chargers.is_plugged((self.ha.states.get(plug_e) or {}).get("state")):
+                changed |= marks.pop(plug_e, None) is not None
+                continue
+            if plug_e in marks:
+                continue
+            value = await self._meter_at_plug_in(plug_e, session_e)
+            if value is not None:
+                marks[plug_e], changed = value, True
+        if changed:
+            self.save({"plug_marks": marks})
+
+    async def _meter_at_plug_in(self, plug_e: str, session_e: str) -> float | None:
+        from datetime import timedelta
+
+        start = (datetime.now(ZoneInfo("UTC")) - timedelta(days=3)).isoformat()
+        try:
+            res = await self.ha.command({"type": "history/history_during_period", "start_time": start, "entity_ids": [plug_e],
+                                         "minimal_response": True, "no_attributes": True, "significant_changes_only": False})
+            rows = (res or {}).get(plug_e) or []
+            at = None
+            for prev, row in zip([None, *rows], rows):  # the last time it went from out to in
+                if chargers.is_plugged(row.get("s")) and (prev is None or not chargers.is_plugged(prev.get("s"))):
+                    at = row.get("lu") or row.get("lc")
+            if at is None:
+                return None
+            when = datetime.fromtimestamp(float(at), ZoneInfo("UTC")).isoformat()
+            res = await self.ha.command({"type": "history/history_during_period", "start_time": when, "entity_ids": [session_e],
+                                         "minimal_response": True, "no_attributes": True, "include_start_time_state": True})
+            first = ((res or {}).get(session_e) or [{}])[0]
+            return float(first.get("s"))
+        except Exception:  # noqa: BLE001 - no history: the last-changed rule decides
+            return None
 
     def role(self, name: str) -> str | None:
         if name == "price" and self.settings.get("price_source") in ("tou", "spot"):
@@ -381,7 +426,7 @@ class Overview:
         if plug is None and self.settings.get("ev_switch"):
             plug = True  # a plain switch (a smart plug) can't tell whether a car is in: taken as plugged in, or it never turns on
 
-        cars = [chargers.read(st, c) for c in chargers.extras(self.settings)] or None
+        cars = [chargers.read(st, c, self.settings.get("plug_marks")) for c in chargers.extras(self.settings)] or None
         if cars and any(c["power"] is not None for c in cars):
             ev = (ev or 0.0) + sum(c["power"] or 0.0 for c in cars)  # all the chargers: shown and taken out of the house together
         # Positive battery = charging (Growatt reports discharge as negative). Grid: positive = buying.
@@ -663,7 +708,8 @@ class Overview:
                 "ready": val("ev_ready") if r["ev_ready"] else self.settings.get("ev_ready"),
                 "cap": _num(st.get(r["ev_cap"])) if r["ev_cap"] else self.settings.get("ev_need_kwh"),
                 "cap_max": ((st.get(r["ev_cap"]) or {}).get("attributes") or {}).get("max") if r["ev_cap"] else None,
-                "session_kwh": chargers.session(st, r["ev_session"], r["ev_plug"]),
+                "session_kwh": chargers.session(st, r["ev_session"], r["ev_plug"],
+                                                (self.settings.get("plug_marks") or {}).get(r["ev_plug"] or "")),
                 **self._ev_soc(),
                 "entities": {k: r[k] for k in ("ev_manual", "ev_ready", "ev_cap", "ev_soc")}}
 

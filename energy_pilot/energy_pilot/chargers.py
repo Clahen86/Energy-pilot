@@ -43,9 +43,13 @@ def _num(s: dict[str, Any] | None) -> float | None:
         return None
 
 
-def session(states: dict[str, Any], session_e: str | None, plug_e: str | None) -> float | None:
+def session(states: dict[str, Any], session_e: str | None, plug_e: str | None, mark: float | None = None) -> float | None:
     """What was charged since the car was plugged in. Many chargers (KEBA, …) keep the last session's number until
-    the next one starts charging - a number older than the plug-in belongs to the previous car visit: 0."""
+    the next one starts charging - a number older than the plug-in belongs to the previous car visit: 0.
+
+    mark: what the meter showed when the car was plugged in (remembered by Energy Pilot, also over a restart - a
+    restart gives every sensor a new "last changed", so that alone can't tell). The meter then counts from it: the
+    same number is 0, a lower one is a new session that started from 0, a higher one counts on from the mark."""
     if not session_e:
         return None
     s = states.get(session_e) or {}
@@ -55,6 +59,8 @@ def session(states: dict[str, Any], session_e: str | None, plug_e: str | None) -
     p = states.get(plug_e) or {}
     if not is_plugged(p.get("state")):
         return v
+    if mark is not None:
+        return round(v - mark, 2) if v >= mark - 0.01 else v
     try:
         if datetime.fromisoformat(s["last_changed"]) < datetime.fromisoformat(p["last_changed"]):
             return 0.0
@@ -63,7 +69,7 @@ def session(states: dict[str, Any], session_e: str | None, plug_e: str | None) -
     return v
 
 
-def read(states: dict[str, Any], c: dict[str, Any]) -> dict[str, Any]:
+def read(states: dict[str, Any], c: dict[str, Any], marks: dict[str, float] | None = None) -> dict[str, Any]:
     """One extra charger now: power (W), plugged in, charged this session (kWh)."""
     w = _num(states.get(c["power"])) if c.get("power") else None
     if w is not None and str(((states.get(c["power"]) or {}).get("attributes") or {}).get("unit_of_measurement") or "").lower() == "kw":
@@ -71,7 +77,7 @@ def read(states: dict[str, Any], c: dict[str, Any]) -> dict[str, Any]:
     # No plug sensor: power tells - but a plain switch (a smart plug) draws nothing while off, so it is taken as plugged in.
     plug = is_plugged((states.get(c["plug"]) or {}).get("state")) if c.get("plug") else bool(c.get("switch")) or (w or 0) > 100
     return {"name": c.get("name") or "", "power": w, "plug": plug,
-            "session_kwh": session(states, c.get("session"), c.get("plug"))}
+            "session_kwh": session(states, c.get("session"), c.get("plug"), (marks or {}).get(c.get("plug") or ""))}
 
 
 def ready_at(c: dict[str, Any], now: datetime) -> datetime | None:

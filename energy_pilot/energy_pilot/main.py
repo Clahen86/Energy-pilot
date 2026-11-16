@@ -162,6 +162,7 @@ async def main() -> None:
         await asyncio.sleep(60)
         while True:
             try:
+                await overview.async_plug_marks()  # what the meter showed at plug-in (charged this session)
                 if controller.entities["car"] or controller.platforms["car"] or controller.car_parts():
                     await controller.tick(("car",))  # charger 1 and the extra chargers (car2 …)
             except Exception:  # noqa: BLE001
