@@ -2335,7 +2335,7 @@ function wire() {
   });
   document.querySelectorAll("[data-h]").forEach((g) => g.onclick = () => {
     const h = data.plan.hours.filter((x) => x.price != null || x.sun != null)[Number(g.dataset.h)];
-    $("#tip").innerHTML = `<b>${clock(h.t)}</b> · ${kr(h.price)}/kWh${h.sun != null ? ` · ${T.legSun} ${num(h.sun, 1)} kWh` : ""}${h.house != null ? ` · ${T.legHouse} ${num(h.house, 1)} kWh` : ""}${h.soc != null ? ` · ${T.battery} ${num(h.soc, 0)} %` : ""}${h.charge ? ` · ${T.legCharge}` : ""}${h.export ? ` · ${T.legExport}` : ""}${h.car ? ` · ${T.legCar}${h.car_kwh ? ` ${num(h.car_kwh, 1)} kWh` : ""}` : ""}`;
+    $("#tip").innerHTML = `<b>${clock(h.t)}</b> · ${kr(h.price)}/kWh${h.sun != null ? ` · ${T.legSun} ${num(h.sun, 1)} kWh` : ""}${h.house != null ? ` · ${T.legHouse} ${num(h.house, 1)} kWh` : ""}${h.soc != null ? ` · ${T.battery} ${num(h.soc, 0)} %${data.engine?.capacity ? ` · ${num(h.soc * data.engine.capacity / 100, 1)} kWh` : ""}` : ""}${h.charge ? ` · ${T.legCharge}` : ""}${h.export ? ` · ${T.legExport}` : ""}${h.car ? ` · ${T.legCar}${h.car_kwh ? ` ${num(h.car_kwh, 1)} kWh` : ""}` : ""}`;
   });
   document.querySelectorAll("[data-cmode]").forEach((b) => b.onclick = async () => {
     if (b.dataset.cmode === "control" && !confirm(T.ctl.confirm)) return;
