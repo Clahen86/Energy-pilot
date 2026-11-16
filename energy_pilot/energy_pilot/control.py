@@ -286,6 +286,11 @@ class Controller:
             return chosen
         return adapters.guess_profile(self.entities["battery"], {self.platforms["battery"] or ""}, self.model)
 
+    def can_block_sun(self) -> bool:
+        """The inverter's hold sets how much it may charge - then the sun can be kept out of the battery."""
+        hold = str((self.profile_steps() or {}).get("hold") or "")
+        return "{max_charge_w}" in hold or "{max_charge_kw}" in hold
+
     def profile_steps(self, part: str = "battery") -> dict[str, list] | None:
         key = self.profile_key(part)
         if key == "custom" and part == "battery":
@@ -358,6 +363,10 @@ class Controller:
             if "{house_w}" in str(self.profile_steps() or {}):
                 # Only for profiles that use it (EcoFlow), rounded - so others aren't re-sent at every small change.
                 out["battery"]["ctx"]["house_w"] = int(round((f.get("house") or 0.0) / 50) * 50)
+            # The plan holds while the sun has a surplus it sells: the battery mustn't fill up with it anyway (a plain
+            # hold still takes the sun). Only inverters whose hold sets the charge limit can do this.
+            if intent == "hold" and (step.get("grid") or 0.0) < -0.01 and getattr(self.ov, "sell_sun", lambda: False)() and self.can_block_sun():
+                out["battery"]["ctx"].update(max_charge_w=0, max_charge_kw=0, sell_sun=True)
         # The car charging on the plan's cheap power right now: the battery holds, so the car takes it from the grid.
         bw = out.get("battery")
         cw = out.get("car")

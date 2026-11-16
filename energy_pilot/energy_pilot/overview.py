@@ -50,6 +50,7 @@ DECISIONS = {
         "FREE_CHARGE": ("Batteriet lader", "charge"), "CHARGE": ("Batteriet lader", "charge"),
         "GRID_CHARGE": ("Lader batteriet med billig strøm", "grid"), "FREE_GRID_CHARGE": ("Lader batteriet med billig strøm", "grid"),
         "FREE_HOLD": ("Gemmer strømmen til senere", "hold"), "FREE_EXPORT": ("Sælger strøm fra batteriet", "export"), "HOLD": ("Gemmer strømmen til senere", "hold"),
+        "SELL_SUN": ("Sælger solen – det giver mere end at gemme den", "export"),
         "NOOP": ("Alt kører som planlagt", "hold"),
     },
     "en": {
@@ -57,6 +58,7 @@ DECISIONS = {
         "FREE_CHARGE": ("The battery is charging", "charge"), "CHARGE": ("The battery is charging", "charge"),
         "GRID_CHARGE": ("Charging the battery with cheap power", "grid"), "FREE_GRID_CHARGE": ("Charging the battery with cheap power", "grid"),
         "FREE_HOLD": ("Saving the power for later", "hold"), "FREE_EXPORT": ("Selling power from the battery", "export"), "HOLD": ("Saving the power for later", "hold"),
+        "SELL_SUN": ("Selling the sun – it pays more than storing it", "export"),
         "NOOP": ("Everything runs as planned", "hold"),
     },
     "de": {
@@ -64,6 +66,7 @@ DECISIONS = {
         "FREE_CHARGE": ("Die Batterie lädt", "charge"), "CHARGE": ("Die Batterie lädt", "charge"),
         "GRID_CHARGE": ("Lädt die Batterie mit günstigem Strom", "grid"), "FREE_GRID_CHARGE": ("Lädt die Batterie mit günstigem Strom", "grid"),
         "FREE_HOLD": ("Hebt den Strom für später auf", "hold"), "FREE_EXPORT": ("Verkauft Strom aus der Batterie", "export"), "HOLD": ("Hebt den Strom für später auf", "hold"),
+        "SELL_SUN": ("Verkauft die Sonne – das bringt mehr als speichern", "export"),
         "NOOP": ("Alles läuft nach Plan", "hold"),
     },
     "fr": {
@@ -71,6 +74,7 @@ DECISIONS = {
         "FREE_CHARGE": ("La batterie charge", "charge"), "CHARGE": ("La batterie charge", "charge"),
         "GRID_CHARGE": ("Charge la batterie avec de l'électricité bon marché", "grid"), "FREE_GRID_CHARGE": ("Charge la batterie avec de l'électricité bon marché", "grid"),
         "FREE_HOLD": ("Garde l'énergie pour plus tard", "hold"), "FREE_EXPORT": ("Vend l'énergie de la batterie", "export"), "HOLD": ("Garde l'énergie pour plus tard", "hold"),
+        "SELL_SUN": ("Vend le soleil – plus rentable que le stocker", "export"),
         "NOOP": ("Tout se déroule comme prévu", "hold"),
     },
     "nl": {
@@ -78,6 +82,7 @@ DECISIONS = {
         "FREE_CHARGE": ("De batterij laadt", "charge"), "CHARGE": ("De batterij laadt", "charge"),
         "GRID_CHARGE": ("Laadt de batterij met goedkope stroom", "grid"), "FREE_GRID_CHARGE": ("Laadt de batterij met goedkope stroom", "grid"),
         "FREE_HOLD": ("Bewaart de stroom voor later", "hold"), "FREE_EXPORT": ("Verkoopt stroom uit de batterij", "export"), "HOLD": ("Bewaart de stroom voor later", "hold"),
+        "SELL_SUN": ("Verkoopt de zon – dat levert meer op dan opslaan", "export"),
         "NOOP": ("Alles loopt volgens plan", "hold"),
     },
     "sv": {
@@ -85,6 +90,7 @@ DECISIONS = {
         "FREE_CHARGE": ("Batteriet laddar", "charge"), "CHARGE": ("Batteriet laddar", "charge"),
         "GRID_CHARGE": ("Laddar batteriet med billig ström", "grid"), "FREE_GRID_CHARGE": ("Laddar batteriet med billig ström", "grid"),
         "FREE_HOLD": ("Sparar strömmen till senare", "hold"), "FREE_EXPORT": ("Säljer ström från batteriet", "export"), "HOLD": ("Sparar strömmen till senare", "hold"),
+        "SELL_SUN": ("Säljer solen – det ger mer än att spara den", "export"),
         "NOOP": ("Allt går som planerat", "hold"),
     },
     "nb": {
@@ -92,6 +98,7 @@ DECISIONS = {
         "FREE_CHARGE": ("Batteriet lader", "charge"), "CHARGE": ("Batteriet lader", "charge"),
         "GRID_CHARGE": ("Lader batteriet med billig strøm", "grid"), "FREE_GRID_CHARGE": ("Lader batteriet med billig strøm", "grid"),
         "FREE_HOLD": ("Sparer strømmen til senere", "hold"), "FREE_EXPORT": ("Selger strøm fra batteriet", "export"), "HOLD": ("Sparer strømmen til senere", "hold"),
+        "SELL_SUN": ("Selger solen – det gir mer enn å lagre den", "export"),
         "NOOP": ("Alt går som planlagt", "hold"),
     },
 }
@@ -173,7 +180,7 @@ class Overview:
                          # storm watch (storm.py)
                          "storm", "storm_gust", "storm_soc", "storm_hold", "readonly_dismissed",
                          # the session meter at plug-in (async_plug_marks)
-                         "plug_marks"):
+                         "plug_marks", "sell_sun"):
                 self.settings[key] = value
         self.file.write_text(json.dumps(self.settings, indent=2))
 
@@ -223,6 +230,13 @@ class Overview:
         if not hasattr(self, "_grid_votes"):
             self._grid_votes = deque(maxlen=30)
         self._grid_votes.append(vote)
+
+    def sell_sun(self) -> bool:
+        """"Sell the sun instead of storing it" - on for new installs, off for those who had Energy Pilot before
+        (they are offered it, so the battery doesn't suddenly behave otherwise)."""
+        if "sell_sun" in self.settings:
+            return bool(self.settings["sell_sun"])
+        return str(self.settings.get("first_seen") or "") >= "2026-11-17"
 
     def price_scale(self) -> float:
         """1, or 0.01 when the price sensor gives øre/cents (found by autofix.py)."""
@@ -449,7 +463,10 @@ class Overview:
         if not b:
             return None
         key = {"discharge": "FREE_DISCHARGE", "charge": "FREE_CHARGE", "grid": "GRID_CHARGE", "hold": "FREE_HOLD", "export": "FREE_EXPORT"}[b["now"]]
-        text, kind = DECISIONS.get(lang, DECISIONS["en"])[key]
+        first = (b.get("steps") or [{}])[0]
+        if key == "FREE_HOLD" and (first.get("grid") or 0) < -0.01 and self.sell_sun() and self.controller and self.controller.can_block_sun():
+            key = "SELL_SUN"  # the sun's surplus is sold, not stored
+        text, kind = DECISIONS.get(lang, DECISIONS["en"]).get(key) or DECISIONS["en"][key]
         return {"key": key, "text": text, "kind": kind, "reason": None, "target": b["target"], "plan": [], "engine": True,
                 "saving": b["saving"]}
 
@@ -750,6 +767,7 @@ class Overview:
             "house_other": _num(self.ha.states.get(house_e)) if house_e and self.engine and self.engine.house_today() else None,
             "house_other_appdaemon": bool(house_e and "appdaemon" in house_e),
             "settings": self.settings,
+            "sell_sun": {"on": self.sell_sun(), "can": bool(getattr(self, "controller", None) and self.controller.can_block_sun())},
             "scene": self._scene(),
             "ghosts": self.engine.ghosts.view() if self.engine and getattr(self.engine, "ghosts", None) else {},
         }

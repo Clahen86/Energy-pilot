@@ -373,7 +373,8 @@ const T_ALL = {
         safe: ["Tryghed", "Holder altid 30 % til strømafbrud - sparer lidt mindre"], car_first: ["Bilen først", "Solen går til bilen før batteriet"],
         battery_first: ["Batteriet først", "Bilen får solen, når batteriet er fuldt"] },
       minSoc: "Batteri-minimum", minSocH: "Går aldrig under dette", grid: "Må lade fra nettet", gridH: "Når strømmen er billig nok til at betale sig",
-      export: "Sælg fra batteriet", exportH: "Når salgsprisen giver en tydelig gevinst - efter tab og slid", exportLimit: "Eksportgrænse", exportLimitH: "Hvad du må sende ud på nettet (tom: ingen grænse)",
+      export: "Sælg fra batteriet", exportH: "Når salgsprisen giver en tydelig gevinst - efter tab og slid",
+      sellSun: "Sælg solen i stedet for at gemme den", sellSunH: "Når salgsprisen nu giver mere end at gemme solen til senere – efter tab og slid – lader batteriet ikke fra solen, og overskuddet sælges. Batteriet sælger aldrig selv noget her. Slå fra, hvis du altid vil have solen i batteriet (fx til strømsvigt).", exportLimit: "Eksportgrænse", exportLimitH: "Hvad du må sende ud på nettet (tom: ingen grænse)",
       wear: "Slid pr. kWh", wearH: "Hver kWh ind eller ud slider lidt på batteriet – regnet ud for dig: {x}. Lad feltet stå tomt",
       btype: "Batteritype", btypes: { lfp: "LFP (lithium-jern)", nmc: "NMC (lithium)", sodium: "Natrium-ion", lead: "Bly (AGM/gel)" },
       btypeWhy: { inverter: "Fundet i inverterens indstillinger: {t}", model: "Fundet ud fra batteriets model: {t}", efficiency: "Virkningsgraden ligner {t}", default: "Ikke fundet – regner med {t}, den mest almindelige", chosen: "Valgt af dig" },
@@ -454,6 +455,7 @@ const T_ALL = {
       ev_house: "Det ser ud til, at bilen {seen} med i husets forbrug – valget står til det modsatte.", evYes: "er", evNo: "ikke er",
       export_blocked: "Salg fra batteriet er slået til, men inverter-styringen kan ikke sælge (eller mangler kontroller).",
       export_no_price: "Salg fra batteriet er slået til, men planen kender ingen salgspris. Slå \"Regn med salgsprisen\" til.",
+      sell_sun: "De næste dage lader batteriet ca. {kwh} kWh fra solen, som det betaler sig bedre at sælge. Slå \"Sælg solen i stedet for at gemme den\" til? Batteriet lader så ikke fra solen i de timer, og overskuddet sælges.",
       export_no_gain: "Ingen time betaler sig at sælge i: den bedste salgspris ({sell}) er under det, strømmen er værd i huset (ca. {worth}).",
       no_soc: "Kan ikke se batteriniveauet – vælg sensoren under \"Det du har\".",
       house_no_stats: "Din forbrugs-sensor ({sensor}) gemmer ingen statistik i Home Assistant, så EP kan ikke lære husets forbrug af historikken. Ret det ved at give sensoren state_class: measurement – eller lad EP gemme historikken selv.",
@@ -487,6 +489,7 @@ const T_ALL = {
         safe: ["Safety", "Always keeps 30 % for power cuts - saves a little less"], car_first: ["Car first", "The sun goes to the car before the battery"],
         battery_first: ["Battery first", "The car gets the sun once the battery is full"] },
       minSoc: "Battery minimum", minSocH: "Never goes below this", grid: "May charge from the grid", gridH: "When power is cheap enough to pay off",
+      sellSun: "Sell the sun instead of storing it", sellSunH: "When exporting now pays more than storing the sun for later – after losses and wear – the battery doesn't charge from the sun and the surplus is sold. The battery itself never sells anything here. Turn off if you always want the sun in the battery (e.g. for power cuts).",
       export: "Sell from the battery", exportH: "When the export price gives a clear gain - after losses and wear", exportLimit: "Export limit", exportLimitH: "What you may send to the grid (empty: no limit)",
       wear: "Wear per kWh", wearH: "Every kWh in or out wears the battery a little – worked out for you: {x}. Leave it empty",
       btype: "Battery type", btypes: { lfp: "LFP (lithium iron)", nmc: "NMC (lithium)", sodium: "Sodium-ion", lead: "Lead (AGM/gel)" },
@@ -568,6 +571,7 @@ const T_ALL = {
       ev_house: "It looks like the car {seen} part of the house use – the choice says the opposite.", evYes: "is", evNo: "isn't",
       export_blocked: "Selling from the battery is on, but the inverter control can't sell (or controls are missing).",
       export_no_price: "Selling from the battery is on, but the plan has no export price. Turn on \"Use the export price\".",
+      sell_sun: "The next days the battery takes about {kwh} kWh from the sun that pays more to sell. Turn on \"Sell the sun instead of storing it\"? The battery then doesn't charge from the sun in those hours, and the surplus is sold.",
       export_no_gain: "No hour pays to sell: the best export rate ({sell}) is below what the power is worth in the house (about {worth}).",
       no_soc: "Can't see the battery level – pick the sensor under \"What you have\".",
       house_no_stats: "Your consumption sensor ({sensor}) keeps no statistics in Home Assistant, so EP can't learn the house's use from its history. Fix it by giving the sensor state_class: measurement – or let EP keep the history itself.",
@@ -2134,6 +2138,7 @@ function batteryList(v, row, numIn) {
       <button class="link" data-batdel="${i}">${b.remove}</button></div>`).join("")}
     <button class="ghostbtn" data-batadd>${b.add}</button>`;
 }
+const T_EN_Y = { sellSun: "Sell the sun instead of storing it", sellSunH: "When exporting now pays more than storing the sun for later – after losses and wear – the battery doesn't charge from the sun and the surplus is sold. Turn off if you always want the sun in the battery." };
 const STYLES = [["cheapest", "bolt"], ["solar", "sun"], ["safe", "battery"], ["car_first", "car"], ["battery_first", "layers"]];
 function styleView() {
   const v = settings.settings, style = v.style || "cheapest", y = T.y;
@@ -2163,6 +2168,7 @@ function styleView() {
     ${section("grid", (T_PRIO[L] || T_PRIO.en).t, (T_PRIO[L] || T_PRIO.en).h, `${row(y.sell, y.sellH, tog("sell"))}
       ${v.sell ? `<div class="muted" style="margin:4px 0 2px">${y.sellSensorH}</div>${roleRows(["sell_price"])}` : ""}
       ${hasBatt ? `${row(y.grid, y.gridH, tog("grid_charge", true))}
+      ${data?.sell_sun?.can ? row(y.sellSun || T_EN_Y.sellSun, y.sellSunH || T_EN_Y.sellSunH, tog("sell_sun", !!data.sell_sun.on)) : ""}
       ${row(y.export, y.exportH, tog("battery_export"))}
       ${v.battery_export ? row(y.exportLimit, y.exportLimitH, numIn("export_limit_kw", "", "0.1", "kW")) : ""}
       ${v.battery_export ? row(y.noExpCheap, y.noExpCheapH, tog("battery_no_export_cheap")) : ""}` : ""}`, "prio")}

@@ -83,6 +83,16 @@ def run(engine: Any, hours: list, b: Any, plan: Any, end_value: float) -> list[d
     if chosen is not None and seen is not None and bool(chosen) != bool(seen):
         out.append({"key": "ev_house", "level": "info", "vals": {"seen": bool(seen)}, "fix": {"ev_in_house": None}, "goto": "car"})
 
+    # 3b. Sell the sun instead of storing it - offered to those who had Energy Pilot before it came (new installs
+    #     have it on). Only when the plan does sell surplus sun while the battery would take it anyway.
+    st_keys = engine.ov.settings
+    ctl = getattr(engine.ov, "controller", None)
+    sell_sun = getattr(engine.ov, "sell_sun", None)
+    if callable(sell_sun) and "sell_sun" not in st_keys and not sell_sun() and plan is not None and ctl and ctl.can_block_sun():
+        kwh = sum(-s.grid_kwh for s in plan.steps if s.action == "hold" and s.grid_kwh < -0.01 and s.soc_end < b.max_soc - 1)
+        if kwh >= 1:
+            out.append({"key": "sell_sun", "level": "info", "vals": {"kwh": round(kwh, 1)}, "fix": {"sell_sun": True}, "goto": "battery"})
+
     # 4. Selling from the battery.
     if st.get("battery_export"):
         if not b.export:
