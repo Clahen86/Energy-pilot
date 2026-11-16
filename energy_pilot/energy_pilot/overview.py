@@ -251,6 +251,8 @@ class Overview:
     async def async_plug_marks(self) -> None:
         """For each charger with a plug and a session meter: what the meter showed when the car was plugged in -
         read from the history at that moment, kept until the car is unplugged (see chargers.session)."""
+        from . import chargers
+
         pairs = [(self.role("ev_plug"), self.role("ev_session"))]
         pairs += [(c.get("plug"), c.get("session")) for c in chargers.extras(self.settings)]
         marks = dict(self.settings.get("plug_marks") or {})
@@ -270,7 +272,7 @@ class Overview:
             self.save({"plug_marks": marks})
 
     async def _meter_at_plug_in(self, plug_e: str, session_e: str) -> float | None:
-        from datetime import timedelta
+        from . import chargers
 
         start = (datetime.now(ZoneInfo("UTC")) - timedelta(days=3)).isoformat()
         try:
