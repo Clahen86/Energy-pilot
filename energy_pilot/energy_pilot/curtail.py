@@ -122,6 +122,11 @@ class Curtail:
         self.last = {"want": want, "sell": sell, "mode": mode, "active": saved is not None, "t": time.time()}
         if mode != "control":
             return
+        # The battery is selling, or the test drives it: the same setting (a Deye's limit mode) is the battery's now.
+        busy = self.ctl and ("battery" in getattr(self.ctl, "testing", set())
+                             or ((getattr(self.ctl, "last", None) or {}).get("battery") or {}).get("intent") == "export")
+        if want and busy:
+            return
         if want:
             if saved is None:
                 saved = {e: st for e, _v in self.targets() if (st := (self.ha.states.get(e) or {}).get("state")) not in (None, "unknown", "unavailable")}

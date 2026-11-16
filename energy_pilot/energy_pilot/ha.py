@@ -130,7 +130,9 @@ class HomeAssistant:
             await self._subscribe(event)
 
     async def call_service(self, domain: str, service: str, data: dict[str, Any], response: bool = False) -> Any:
-        target = {k: data.pop(k) for k in ("entity_id", "device_id", "area_id") if k in data}
+        # device_id stays in the data: integration actions (Easee, Huawei, GivEnergy) take it as one text - as a target
+        # Home Assistant turns it into a list, which they refuse ("value should be a string at 'device_id'").
+        target = {k: data.pop(k) for k in ("entity_id", "area_id") if k in data}
         msg: dict[str, Any] = {"type": "call_service", "domain": domain, "service": service, "service_data": data}
         if target:
             msg["target"] = target
