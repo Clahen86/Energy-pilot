@@ -374,6 +374,8 @@ class Overview:
         from . import chargers
 
         plug = chargers.is_plugged((st.get(r["ev_plug"]) or {}).get("state")) if r["ev_plug"] else None
+        if plug is None and self.settings.get("ev_switch"):
+            plug = True  # a plain switch (a smart plug) can't tell whether a car is in: taken as plugged in, or it never turns on
 
         cars = [chargers.read(st, c) for c in chargers.extras(self.settings)] or None
         if cars and any(c["power"] is not None for c in cars):

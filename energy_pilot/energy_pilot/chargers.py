@@ -68,7 +68,8 @@ def read(states: dict[str, Any], c: dict[str, Any]) -> dict[str, Any]:
     w = _num(states.get(c["power"])) if c.get("power") else None
     if w is not None and str(((states.get(c["power"]) or {}).get("attributes") or {}).get("unit_of_measurement") or "").lower() == "kw":
         w *= 1000
-    plug = is_plugged((states.get(c["plug"]) or {}).get("state")) if c.get("plug") else (w or 0) > 100
+    # No plug sensor: power tells - but a plain switch (a smart plug) draws nothing while off, so it is taken as plugged in.
+    plug = is_plugged((states.get(c["plug"]) or {}).get("state")) if c.get("plug") else bool(c.get("switch")) or (w or 0) > 100
     return {"name": c.get("name") or "", "power": w, "plug": plug,
             "session_kwh": session(states, c.get("session"), c.get("plug"))}
 
