@@ -116,21 +116,23 @@ To slags prognoser side om side, og den bedste bestemmer:
 - **Lærer også:** solprognosens sædvanlige fejl på skyede og klare dage, en sikkerhedsmargin i de dyre timer og bilens vaner.
 - **Ingen statistik i Home Assistant?** Har din forbrugs-sensor ingen `state_class`, siger den til – og kan selv gemme
   historikken med ét tryk.
+- **Plan mod virkelighed:** under *Plan* viser Selvkontrol-kortet i går time for time – hus, sol og batteri, planlagt
+  mod det, der faktisk skete – og hvor præcis planen var i %. Tryk på en time for tallene.
 
-<p align="center"><img src="docs/learn_da.png" width="380" alt="Det har den lært"></p>
+<p align="center"><img src="docs/learn_da.png" width="380" alt="Det har den lært"> <img src="docs/pvr_da.png" width="380" alt="Plan mod virkelighed"></p>
 
 ### 🛡️ Sikker og nem
 - **Test dit system** – prøver at holde, lade og sælge (og laderen, hvis bilen er sat til) ved højst 1 kW i et par
   minutter hver og tjekker, at batteriet faktisk gør det. Fejler et trin, prøver den selv inverterens andre sikre
   muligheder og beholder den, der virker (kan fortrydes). Alt sættes tilbage bagefter – også hvis Home Assistant
   genstarter undervejs.
-- **Få hjælp** – skriv hvad der er galt, vedhæft op til 3 billeder, og tryk *Send*. Testresultatet og diagnosen går
+- **Få hjælp** – på sin egen **Hjælp**-fane nederst: skriv hvad der er galt, vedhæft op til 3 billeder, og tryk *Send*. Testresultatet og diagnosen går
   privat til udvikleren, og du får et nummer. Du ser præcis, hvad der sendes, først.
 - **Fortæller om opdateringer – uden at mase**: et lille kort i appen, når der er en nyere version – små rettelser når
   du er en uge bagud, nye funktioner efter to dage, og med det samme når en fejl, du havde, er rettet. *Senere* skjuler
   det i en uge. En besked i Home Assistant (aldrig på telefonen) kun når din egen fejl er rettet, eller ved en vigtig rettelse.
 - **Svar fra udvikleren** – når udvikleren svarer på din *Få hjælp* (eller på en fejl, appen har sendt), står svaret
-  under *Indstillinger*, og du får en besked i Home Assistant. Du kan skrive tilbage derfra.
+  på *Hjælp*-fanen, og du får en besked i Home Assistant. Du kan skrive tilbage derfra.
 - **Retter selv enkle fejl**, vist som én linje med Fortryd: hovedsikring skrevet i ampere, batteriprocent som 0–1,
   effekt i kW uden enhed, pris i øre, en sensor der har skiftet navn eller er gået i stå.
 - **En statuslampe** øverst – grøn, gul eller rød – med ét tryk til det, der skal ses på.
@@ -232,8 +234,8 @@ Nej. Med kun solceller planlægger og viser den din dag. Med kun en lader lader 
 
 <details><summary><b>Noget ser forkert ud – hvad gør jeg?</b></summary>
 
-Kør **Test dit system** (under Styring), og tryk så på **Få hjælp** – skriv hvad der er galt, og vedhæft gerne et
-billede. Det kræver ingen GitHub-konto. Du kan også *Hente diagnosefil* under Indstillinger og vedhæfte den i et
+Kør **Test dit system** (under Styring), og åbn så **Hjælp**-fanen – skriv hvad der er galt, og vedhæft gerne et
+billede. Det kræver ingen GitHub-konto. Du kan også *Hente diagnosefil* dér og vedhæfte den i et
 [issue](https://github.com/Clahen86/Energy-pilot/issues).
 </details>
 

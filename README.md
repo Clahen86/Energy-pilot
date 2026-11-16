@@ -116,18 +116,20 @@ Two ways of forecasting side by side, and the better one decides:
   the car's habits.
 - **No statistics in Home Assistant?** If your house sensor has no `state_class`, it says so – and can keep the
   history itself with one tap.
+- **Plan vs. actual:** under *Plan*, the Self-check card shows yesterday hour by hour – house, solar and battery,
+  planned against what really happened – with how accurate the plan was in %. Tap an hour for its numbers.
 
-<p align="center"><img src="docs/learn_en.png" width="380" alt="What it has learned"></p>
+<p align="center"><img src="docs/learn_en.png" width="380" alt="What it has learned"> <img src="docs/pvr_en.png" width="380" alt="Plan vs. actual"></p>
 
 ### 🛡️ Safe and easy
 - **Test your system** – tries hold, charge and sell (and the charger if the car is plugged in) at most 1 kW for a
   couple of minutes each, and checks that the battery really does it. If a step fails, it tries the inverter's other
   safe options by itself and keeps the one that works (you can undo it). Everything is put back afterwards – also if
   Home Assistant restarts in the middle.
-- **Get help** – write what's wrong, attach up to 3 pictures and press *Send*. The test result and diagnostics go
+- **Get help** – on its own **Help** tab at the bottom: write what's wrong, attach up to 3 pictures and press *Send*. The test result and diagnostics go
   privately to the developer, and you get a reference number. You see exactly what is sent first.
 - **Answers from the developer** – when the developer replies to your *Get help* (or to an error the app reported),
-  the answer shows under *Settings* with a notification in Home Assistant. You can write back from there.
+  the answer shows on the *Help* tab with a notification in Home Assistant. You can write back from there.
 - **Fixes simple mistakes by itself**, shown as one line with an undo: a main fuse written in amps, a battery level
   given as 0–1, power in kW without a unit, a price in cents, a sensor that was renamed or stopped updating.
 - **Tells you about updates – without nagging**: a small card in the app when a newer version is out – small fixes
@@ -234,8 +236,8 @@ No. With just solar it plans and shows your day. With just a charger it charges 
 
 <details><summary><b>Something looks wrong – what do I do?</b></summary>
 
-Run **Test your system** (under Control), then press **Get help** – write what's wrong and attach a picture if you
-like. No GitHub account needed. You can also *Download diagnostics* under Settings and attach the file to an
+Run **Test your system** (under Control), then open the **Help** tab – write what's wrong and attach a picture if you
+like. No GitHub account needed. You can also *Download diagnostics* there and attach the file to an
 [issue](https://github.com/Clahen86/Energy-pilot/issues).
 </details>
 

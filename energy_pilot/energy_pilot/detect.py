@@ -35,7 +35,9 @@ NOT_HOME_BATTERY = ("mobile_app", "zha", "matter", "mqtt_room", "ble_monitor", "
                     "bmw_connected_drive", "renault", "kia_uvo", "hyundai_kia_connect", "mercedes_me", "mbapi2020",
                     "polestar_api", "myskoda", "skodaconnect", "audiconnect", "nissan_leaf", "fordpass", "toyota",
                     "volvo", "volvooncall", "stellantis_vehicles", "smartcar", "seatconnect", "cupra_we_connect",
-                    "jlrincontrol", "porscheconnect", "zoe", "leaf", "evcc_intg")
+                    "jlrincontrol", "porscheconnect", "zoe", "leaf", "evcc_intg",
+                    # Octopus Intelligent: the car's level and charge target (a Tesla was taken for the house battery)
+                    "octopus_energy")
 
 # The car's own battery level ("ev_soc"): only from a car's integration (or a device a car maker made), never by name
 # alone - a phone, a watch, a Zigbee sensor, the house battery or the car's 12 V battery are all "battery %".

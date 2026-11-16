@@ -14,6 +14,8 @@ from zoneinfo import ZoneInfo
 
 # Known names first (the user's own setup), then words to look for.
 GRID_SELL_PLUS = {"goodwe"}  # integrations whose grid power is plus when selling
+# Where a price can live: a sensor, a helper, Octopus' rate events - never an update, a button or a switch.
+PRICE_DOMAINS = ("sensor", "input_number", "number", "event")
 ROLES: dict[str, dict[str, Any]] = {
     "pv_power": {"known": ["sensor.growatt_sph_pv_power"], "class": "power", "words": ["pv_power", "solar_power", "sol_effekt", "pv"]},
     "house_power": {"known": ["sensor.husets_forbrug_uden_bil"], "class": "power", "words": ["house", "hus", "load", "forbrug", "consumption"]},
@@ -255,8 +257,8 @@ class Overview:
             chosen = next((e for e in chosen if e in states), None)
         if chosen == "":
             return None  # switched off by the user
-        if chosen and chosen in states:
-            return chosen
+        if chosen and chosen in states and not (name in ("price", "sell_price") and chosen.split(".")[0] not in PRICE_DOMAINS):
+            return chosen  # (a price is never an update, a button or a switch - such a pick is passed over)
         spec = ROLES[name]
         for e in spec["known"]:
             if e in states and states[e].get("state") not in ("unavailable", "unknown", None):
@@ -308,6 +310,8 @@ class Overview:
                     continue
                 if cls == "energy" and not (dc == "energy" or (domain == "sensor" and not dc and unit in ("kwh", "wh"))):
                     continue
+                if name in ("price", "sell_price") and domain not in PRICE_DOMAINS:
+                    continue  # "update.tibber_price_…" is named like a price but holds none
                 guess = e in spec["known"] or any(w in e for w in spec["words"])
                 if name == "ev_soc":
                     # Cars' levels first; other % sensors may still be picked by hand (a template, MQTT …).
