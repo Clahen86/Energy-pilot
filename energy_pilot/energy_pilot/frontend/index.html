@@ -263,7 +263,7 @@
     background:linear-gradient(transparent, var(--bg) 45%); }
   nav div { display:flex; gap:2px; background:color-mix(in srgb, var(--surface) 82%, transparent); border:1px solid var(--line2); border-radius:18px; padding:5px;
     backdrop-filter:blur(20px) saturate(1.4); -webkit-backdrop-filter:blur(20px) saturate(1.4); box-shadow:0 12px 30px -12px rgba(0,0,0,.5); }
-  nav button { border:0; background:transparent; color:var(--muted); font:inherit; font-size:11px; font-weight:600; padding:7px 14px 6px; border-radius:13px; cursor:pointer;
+  nav button { border:0; background:transparent; color:var(--muted); font:inherit; font-size:11px; font-weight:600; padding:7px 10px 6px; border-radius:13px; cursor:pointer;
     display:flex; flex-direction:column; align-items:center; gap:3px; min-width:68px; }
   nav button svg { width:21px; height:21px; } nav button.on { color:var(--text); background:var(--surface2); }
   .fade { animation:fade .4s cubic-bezier(.2,.8,.2,1) both; } .nofade .fade { animation:none; } @keyframes fade { from { opacity:0; transform:translateY(8px); } }
@@ -1513,11 +1513,70 @@ function learnCard() {
   return `<div class="card fade"><div class="eyebrow"><span>${k.title}</span>${l.week_saving != null ? `<span>${k.week} ${kr(l.week_saving)}</span>` : ""}</div>
     ${y ? `<div class="muted" style="margin-bottom:6px">${k.yesterday}</div>${rows.map((r) => `<div class="lrow"><span>${r[0]}</span><b>${r[1]}</b><em>${r[2]}</em></div>`).join("")}`
       : `<div class="muted">${k.first}</div>`}
+    ${pvrCard(y)}
     <div class="eyebrow" style="margin:16px 0 6px"><span>${k.learned}</span></div>
     <div class="lrow"><span>${k.biasCloudy}</span><b>${pct(l.solar_bias.cloudy)}</b><em></em></div>
     <div class="lrow"><span>${k.biasClear}</span><b>${pct(l.solar_bias.clear)}</b><em></em></div>
     <div class="lrow"><span>${k.margin}</span><b>${num(l.house_margin, 2)} kWh</b><em>${k.marginH}</em></div>
     <div class="lrow"><span>${k.endValue}</span><b>${pct(l.end_factor)}</b><em>${k.endValueH}</em></div>${blendRows()}</div>`;
+}
+const T_PVR = {
+  da: { title: "Plan mod virkelighed · i går", house: "Hus", sun: "Sol", soc: "Batteri", hit: "præcis", plan: "Planlagt", real: "Faktisk", tap: "Tryk på en time", none: "Kommer i morgen tidlig, når EP har en hel dag at sammenligne.", noSoc: "Batteriet kommer med fra i morgen." },
+  en: { title: "Plan vs. real · yesterday", house: "House", sun: "Solar", soc: "Battery", hit: "accurate", plan: "Planned", real: "Actual", tap: "Tap an hour", none: "Comes tomorrow morning, once EP has a whole day to compare.", noSoc: "The battery joins from tomorrow." },
+  de: { title: "Plan gegen Wirklichkeit · gestern", house: "Haus", sun: "Sonne", soc: "Batterie", hit: "genau", plan: "Geplant", real: "Tatsächlich", tap: "Tippe auf eine Stunde", none: "Kommt morgen früh, wenn EP einen ganzen Tag vergleichen kann.", noSoc: "Die Batterie kommt ab morgen dazu." },
+  fr: { title: "Plan contre réalité · hier", house: "Maison", sun: "Soleil", soc: "Batterie", hit: "précis", plan: "Prévu", real: "Réel", tap: "Touchez une heure", none: "Arrive demain matin, quand EP aura une journée entière à comparer.", noSoc: "La batterie s'ajoute à partir de demain." },
+  nl: { title: "Plan tegen werkelijkheid · gisteren", house: "Huis", sun: "Zon", soc: "Batterij", hit: "nauwkeurig", plan: "Gepland", real: "Werkelijk", tap: "Tik op een uur", none: "Komt morgenvroeg, als EP een hele dag kan vergelijken.", noSoc: "De batterij komt er vanaf morgen bij." },
+  sv: { title: "Plan mot verklighet · i går", house: "Hus", sun: "Sol", soc: "Batteri", hit: "träffsäker", plan: "Planerat", real: "Faktiskt", tap: "Tryck på en timme", none: "Kommer i morgon bitti, när EP har en hel dag att jämföra.", noSoc: "Batteriet kommer med från i morgon." },
+  nb: { title: "Plan mot virkelighet · i går", house: "Hus", sun: "Sol", soc: "Batteri", hit: "presis", plan: "Planlagt", real: "Faktisk", tap: "Trykk på en time", none: "Kommer i morgen tidlig, når EP har en hel dag å sammenligne.", noSoc: "Batteriet kommer med fra i morgen." },
+};
+let pvrKind = "house", pvrHour = null;
+function pvrCard(yd) {
+  const k = T_PVR[L] || T_PVR.en, rows = (yd && yd.hours) || [], acc = (yd && yd.accuracy) || {};
+  const has = (kind) => rows.some((r) => r[kind] && r[kind][0] != null && r[kind][1] != null);
+  const kinds = ["house", "sun", "soc"].filter((x) => x !== "sun" || has("sun"));
+  if (!kinds.includes(pvrKind)) pvrKind = "house";
+  const seg = `<div class="seg" style="margin:10px 0 12px">${kinds.map((x) => `<button class="${pvrKind === x ? "on" : ""}" data-pvr-k="${x}">${k[x]}</button>`).join("")}</div>`;
+  const head = `<div class="eyebrow" style="margin:16px 0 0"><span>${k.title}</span></div>`;
+  if (!rows.length) return `${head}<div class="muted" style="margin-top:6px">${k.none}</div>`;
+  const kind = pvrKind, col = { house: "var(--grid)", sun: "var(--sun)", soc: "var(--batt)" }[kind];
+  if (!has(kind)) return `${head}${seg}<div class="muted">${kind === "soc" ? k.noSoc : k.none}</div>`;
+  const by = Array.from({ length: 24 }, (_, h) => rows.find((r) => r.h === h) || null);
+  const W = 336, H = 132, top = 8, base = 112, sw = W / 24;
+  const vals = by.flatMap((r) => r && r[kind] ? r[kind].filter((v) => v != null) : []);
+  const max = kind === "soc" ? 100 : Math.max(0.5, ...vals) * 1.1;
+  const y = (v) => base - (v / max) * (base - top);
+  let g = "";
+  for (const f of kind === "soc" ? [25, 50, 75, 100] : [0.5, 1].map((x) => x * max / 1.1)) g += `<line x1="0" x2="${W}" y1="${y(f)}" y2="${y(f)}" stroke="var(--line)" />`;
+  if (kind === "soc") {
+    const path = (i) => by.map((r, h) => r && r.soc[i] != null ? [h * sw + sw / 2, y(r.soc[i])] : null).filter(Boolean).map((p, n) => `${n ? "L" : "M"}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(" ");
+    const real = path(1), first = by.findIndex((r) => r && r.soc[1] != null), last = 23 - [...by].reverse().findIndex((r) => r && r.soc[1] != null);
+    g += `<defs><linearGradient id="pvrA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${col}" stop-opacity=".35"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></linearGradient></defs>`;
+    if (real) g += `<path d="${real} L${(last * sw + sw / 2).toFixed(1)} ${base} L${(first * sw + sw / 2).toFixed(1)} ${base}Z" fill="url(#pvrA)"/><path d="${real}" fill="none" stroke="${col}" stroke-width="2.2" stroke-linejoin="round"/>`;
+    g += `<path d="${path(0)}" fill="none" stroke="var(--text)" stroke-opacity=".7" stroke-width="1.6" stroke-dasharray="4 3"/>`;
+  } else {
+    by.forEach((r, h) => {
+      if (!r || !r[kind]) return;
+      const [p, a] = r[kind], x = h * sw + 2, w = sw - 4;
+      if (a != null) g += `<rect x="${x}" y="${y(a)}" width="${w}" height="${Math.max(0, base - y(a))}" rx="2.5" fill="${col}" opacity="${pvrHour === h ? .95 : .7}"/>`;
+      if (p != null) g += `<rect x="${x + .5}" y="${y(p)}" width="${w - 1}" height="${Math.max(0, base - y(p))}" rx="2.5" fill="none" stroke="var(--text)" stroke-opacity=".9" stroke-width="1.3" stroke-dasharray="3 2"/>`;
+    });
+  }
+  if (pvrHour != null) g += `<line x1="${pvrHour * sw + sw / 2}" x2="${pvrHour * sw + sw / 2}" y1="${top}" y2="${base}" stroke="var(--text)" stroke-opacity=".35"/>`;
+  g += `<line x1="0" x2="${W}" y1="${base}" y2="${base}" stroke="var(--line2)"/>`;
+  for (const h of [0, 6, 12, 18, 23]) g += `<text x="${h * sw + sw / 2}" y="${base + 15}" text-anchor="middle" font-size="10" fill="var(--faint)">${String(h).padStart(2, "0")}</text>`;
+  g += by.map((_, h) => `<rect data-pvr-h="${h}" x="${h * sw}" y="0" width="${sw}" height="${H}" fill="transparent" style="cursor:pointer"/>`).join("");
+  const unit = kind === "soc" ? " %" : " kWh", fmt = (v) => v == null ? "–" : kind === "soc" ? `${num(v, 0)} %` : `${num(v, 1)} kWh`;
+  const sum = (i) => by.reduce((t, r) => t + (r && r[kind] && r[kind][0] != null && r[kind][1] != null ? r[kind][i] : 0), 0);
+  const a = acc[kind], tone = a == null ? "var(--text)" : a >= 85 ? "var(--ok)" : a >= 65 ? "var(--text)" : "var(--warn)";
+  const sub = kind === "soc" ? "" : `${k.plan} ${num(sum(0), 1)} kWh · ${k.real} ${num(sum(1), 1)} kWh`;
+  const hr = pvrHour != null && by[pvrHour] && by[pvrHour][kind] ? by[pvrHour][kind] : null;
+  const tip = hr ? `<b>${String(pvrHour).padStart(2, "0")}:00</b> · ${k.plan} ${fmt(hr[0])} · ${k.real} ${fmt(hr[1])}` : k.tap;
+  return `${head}${seg}
+    <div style="display:flex;align-items:baseline;gap:8px"><b style="color:${tone};font-size:28px;letter-spacing:-.02em">${a == null ? "–" : `${a} %`}</b><span class="muted">${k.hit}</span></div>
+    ${sub ? `<div class="muted" style="font-size:13px;margin-top:2px">${sub}</div>` : ""}
+    <svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;margin-top:10px">${g}</svg>
+    <div style="display:flex;gap:14px;font-size:12px;color:var(--muted);margin-top:4px"><span style="display:inline-flex;align-items:center;gap:6px"><i style="width:12px;height:10px;border-radius:2px;background:${col};opacity:.7;display:inline-block"></i>${k.real}</span><span style="display:inline-flex;align-items:center;gap:6px"><i style="width:12px;height:10px;border-radius:2px;border:1.3px dashed var(--text);opacity:.75;display:inline-block"></i>${k.plan}</span></div>
+    <div class="muted" id="pvrtip" style="font-size:13px;margin-top:8px">${tip}</div>`;
 }
 function planView() { return `<div class="card fade"><div class="eyebrow"><span>${T.planTitle}</span></div>${priceNote()}${planSvg(data.plan)}</div>${learnCard()}`; }
 function ring(p) {
@@ -1750,13 +1809,13 @@ function wireFix() {
   $("[data-g3skip]")?.addEventListener("click", async () => { await api("/api/settings", { setup_done: true, test_skipped: true }); await load(); tab = "home"; localStorage.setItem("ep_tab", tab); render(); });
 }
 const T_REP = {
-  da: { send: "Få hjælp", sub: "Skriv hvad der er galt, og vedhæft gerne billeder. Udvikleren får også testresultatet og diagnosen.", attach: "📷 Vedhæft billeder", max3: "Højst 3 billeder", whatq: "Hvad bliver sendt?", rm: "Fjern", what: "Det her bliver sendt:", items: ["Testresultatet", "Version, mærke og land", "Dine indstillinger (uden koder)", "Målinger fra batteri, sol, net og bil", "Planen og hvad Energipilot sendte"], no: "Ingen navne, adresser, koder eller placering. Kun udvikleren ser det.", note: "Skriv evt. hvad der er galt (valgfrit)", ok: "Send", cancel: "Annuller", sending: "Sender…", sent: "Sendt ✓ – dit nummer er {id}. Nævn det, hvis du skriver til udvikleren.", fail: "Kunne ikke sende lige nu. Brug knapperne herunder i stedet." },
-  en: { send: "Get help", sub: "Tell what's wrong and attach pictures if you like. The developer also gets the test result and the diagnostics.", attach: "📷 Attach pictures", max3: "At most 3 pictures", whatq: "What is sent?", rm: "Remove", what: "This is sent:", items: ["The test result", "Version, brand and country", "Your settings (no passwords)", "Readings from battery, solar, grid and car", "The plan and what Energy Pilot sent"], no: "No names, addresses, passwords or location. Only the developer sees it.", note: "Tell what's wrong (optional)", ok: "Send", cancel: "Cancel", sending: "Sending…", sent: "Sent ✓ – your number is {id}. Mention it if you write to the developer.", fail: "Couldn't send right now. Use the buttons below instead." },
-  de: { send: "Hilfe holen", sub: "Beschreibe, was nicht stimmt, und hänge gern Bilder an. Der Entwickler bekommt auch das Testergebnis und die Diagnose.", attach: "📷 Bilder anhängen", max3: "Höchstens 3 Bilder", whatq: "Was wird gesendet?", rm: "Entfernen", what: "Das wird gesendet:", items: ["Das Testergebnis", "Version, Marke und Land", "Deine Einstellungen (ohne Passwörter)", "Messwerte von Batterie, Solar, Netz und Auto", "Der Plan und was Energy Pilot gesendet hat"], no: "Keine Namen, Adressen, Passwörter oder Standort. Nur der Entwickler sieht es.", note: "Was ist falsch? (optional)", ok: "Senden", cancel: "Abbrechen", sending: "Sende…", sent: "Gesendet ✓ – deine Nummer ist {id}.", fail: "Senden geht gerade nicht. Nutze die Knöpfe unten." },
-  fr: { send: "Obtenir de l'aide", sub: "Décrivez le problème et joignez des images si vous voulez. Le développeur reçoit aussi le résultat du test et le diagnostic.", attach: "📷 Joindre des images", max3: "3 images maximum", whatq: "Qu'est-ce qui est envoyé ?", rm: "Retirer", what: "Ceci est envoyé :", items: ["Le résultat du test", "Version, marque et pays", "Vos réglages (sans mots de passe)", "Mesures batterie, solaire, réseau et voiture", "Le plan et ce qu'Energy Pilot a envoyé"], no: "Aucun nom, adresse, mot de passe ni position. Seul le développeur le voit.", note: "Décrivez le problème (facultatif)", ok: "Envoyer", cancel: "Annuler", sending: "Envoi…", sent: "Envoyé ✓ – votre numéro est {id}.", fail: "Envoi impossible pour l'instant. Utilisez les boutons ci-dessous." },
-  nl: { send: "Hulp vragen", sub: "Vertel wat er mis is en voeg gerust afbeeldingen toe. De ontwikkelaar krijgt ook het testresultaat en de diagnose.", attach: "📷 Afbeeldingen toevoegen", max3: "Maximaal 3 afbeeldingen", whatq: "Wat wordt verstuurd?", rm: "Verwijderen", what: "Dit wordt verstuurd:", items: ["Het testresultaat", "Versie, merk en land", "Je instellingen (zonder wachtwoorden)", "Metingen van batterij, zon, net en auto", "Het plan en wat Energy Pilot stuurde"], no: "Geen namen, adressen, wachtwoorden of locatie. Alleen de ontwikkelaar ziet het.", note: "Wat is er mis? (optioneel)", ok: "Versturen", cancel: "Annuleren", sending: "Versturen…", sent: "Verstuurd ✓ – je nummer is {id}.", fail: "Versturen lukt nu niet. Gebruik de knoppen hieronder." },
-  sv: { send: "Få hjälp", sub: "Skriv vad som är fel och bifoga gärna bilder. Utvecklaren får också testresultatet och diagnostiken.", attach: "📷 Bifoga bilder", max3: "Högst 3 bilder", whatq: "Vad skickas?", rm: "Ta bort", what: "Det här skickas:", items: ["Testresultatet", "Version, märke och land", "Dina inställningar (utan lösenord)", "Mätningar från batteri, sol, nät och bil", "Planen och vad Energy Pilot skickade"], no: "Inga namn, adresser, lösenord eller plats. Bara utvecklaren ser det.", note: "Vad är fel? (valfritt)", ok: "Skicka", cancel: "Avbryt", sending: "Skickar…", sent: "Skickat ✓ – ditt nummer är {id}.", fail: "Kunde inte skicka just nu. Använd knapparna nedan." },
-  nb: { send: "Få hjelp", sub: "Skriv hva som er galt, og legg gjerne ved bilder. Utvikleren får også testresultatet og diagnosen.", attach: "📷 Legg ved bilder", max3: "Maks 3 bilder", whatq: "Hva blir sendt?", rm: "Fjern", what: "Dette blir sendt:", items: ["Testresultatet", "Versjon, merke og land", "Innstillingene dine (uten passord)", "Målinger fra batteri, sol, nett og bil", "Planen og hva Energy Pilot sendte"], no: "Ingen navn, adresser, passord eller posisjon. Bare utvikleren ser det.", note: "Hva er galt? (valgfritt)", ok: "Send", cancel: "Avbryt", sending: "Sender…", sent: "Sendt ✓ – nummeret ditt er {id}.", fail: "Kunne ikke sende nå. Bruk knappene under." },
+  da: { short: "Hjælp", send: "Få hjælp", sub: "Skriv hvad der er galt, og vedhæft gerne billeder. Udvikleren får også testresultatet og diagnosen.", attach: "📷 Vedhæft billeder", max3: "Højst 3 billeder", whatq: "Hvad bliver sendt?", rm: "Fjern", what: "Det her bliver sendt:", items: ["Testresultatet", "Version, mærke og land", "Dine indstillinger (uden koder)", "Målinger fra batteri, sol, net og bil", "Planen og hvad Energipilot sendte"], no: "Ingen navne, adresser, koder eller placering. Kun udvikleren ser det.", note: "Skriv evt. hvad der er galt (valgfrit)", ok: "Send", cancel: "Annuller", sending: "Sender…", sent: "Sendt ✓ – dit nummer er {id}. Nævn det, hvis du skriver til udvikleren.", fail: "Kunne ikke sende lige nu. Brug knapperne herunder i stedet." },
+  en: { short: "Help", send: "Get help", sub: "Tell what's wrong and attach pictures if you like. The developer also gets the test result and the diagnostics.", attach: "📷 Attach pictures", max3: "At most 3 pictures", whatq: "What is sent?", rm: "Remove", what: "This is sent:", items: ["The test result", "Version, brand and country", "Your settings (no passwords)", "Readings from battery, solar, grid and car", "The plan and what Energy Pilot sent"], no: "No names, addresses, passwords or location. Only the developer sees it.", note: "Tell what's wrong (optional)", ok: "Send", cancel: "Cancel", sending: "Sending…", sent: "Sent ✓ – your number is {id}. Mention it if you write to the developer.", fail: "Couldn't send right now. Use the buttons below instead." },
+  de: { short: "Hilfe", send: "Hilfe holen", sub: "Beschreibe, was nicht stimmt, und hänge gern Bilder an. Der Entwickler bekommt auch das Testergebnis und die Diagnose.", attach: "📷 Bilder anhängen", max3: "Höchstens 3 Bilder", whatq: "Was wird gesendet?", rm: "Entfernen", what: "Das wird gesendet:", items: ["Das Testergebnis", "Version, Marke und Land", "Deine Einstellungen (ohne Passwörter)", "Messwerte von Batterie, Solar, Netz und Auto", "Der Plan und was Energy Pilot gesendet hat"], no: "Keine Namen, Adressen, Passwörter oder Standort. Nur der Entwickler sieht es.", note: "Was ist falsch? (optional)", ok: "Senden", cancel: "Abbrechen", sending: "Sende…", sent: "Gesendet ✓ – deine Nummer ist {id}.", fail: "Senden geht gerade nicht. Nutze die Knöpfe unten." },
+  fr: { short: "Aide", send: "Obtenir de l'aide", sub: "Décrivez le problème et joignez des images si vous voulez. Le développeur reçoit aussi le résultat du test et le diagnostic.", attach: "📷 Joindre des images", max3: "3 images maximum", whatq: "Qu'est-ce qui est envoyé ?", rm: "Retirer", what: "Ceci est envoyé :", items: ["Le résultat du test", "Version, marque et pays", "Vos réglages (sans mots de passe)", "Mesures batterie, solaire, réseau et voiture", "Le plan et ce qu'Energy Pilot a envoyé"], no: "Aucun nom, adresse, mot de passe ni position. Seul le développeur le voit.", note: "Décrivez le problème (facultatif)", ok: "Envoyer", cancel: "Annuler", sending: "Envoi…", sent: "Envoyé ✓ – votre numéro est {id}.", fail: "Envoi impossible pour l'instant. Utilisez les boutons ci-dessous." },
+  nl: { short: "Hulp", send: "Hulp vragen", sub: "Vertel wat er mis is en voeg gerust afbeeldingen toe. De ontwikkelaar krijgt ook het testresultaat en de diagnose.", attach: "📷 Afbeeldingen toevoegen", max3: "Maximaal 3 afbeeldingen", whatq: "Wat wordt verstuurd?", rm: "Verwijderen", what: "Dit wordt verstuurd:", items: ["Het testresultaat", "Versie, merk en land", "Je instellingen (zonder wachtwoorden)", "Metingen van batterij, zon, net en auto", "Het plan en wat Energy Pilot stuurde"], no: "Geen namen, adressen, wachtwoorden of locatie. Alleen de ontwikkelaar ziet het.", note: "Wat is er mis? (optioneel)", ok: "Versturen", cancel: "Annuleren", sending: "Versturen…", sent: "Verstuurd ✓ – je nummer is {id}.", fail: "Versturen lukt nu niet. Gebruik de knoppen hieronder." },
+  sv: { short: "Hjälp", send: "Få hjälp", sub: "Skriv vad som är fel och bifoga gärna bilder. Utvecklaren får också testresultatet och diagnostiken.", attach: "📷 Bifoga bilder", max3: "Högst 3 bilder", whatq: "Vad skickas?", rm: "Ta bort", what: "Det här skickas:", items: ["Testresultatet", "Version, märke och land", "Dina inställningar (utan lösenord)", "Mätningar från batteri, sol, nät och bil", "Planen och vad Energy Pilot skickade"], no: "Inga namn, adresser, lösenord eller plats. Bara utvecklaren ser det.", note: "Vad är fel? (valfritt)", ok: "Skicka", cancel: "Avbryt", sending: "Skickar…", sent: "Skickat ✓ – ditt nummer är {id}.", fail: "Kunde inte skicka just nu. Använd knapparna nedan." },
+  nb: { short: "Hjelp", send: "Få hjelp", sub: "Skriv hva som er galt, og legg gjerne ved bilder. Utvikleren får også testresultatet og diagnosen.", attach: "📷 Legg ved bilder", max3: "Maks 3 bilder", whatq: "Hva blir sendt?", rm: "Fjern", what: "Dette blir sendt:", items: ["Testresultatet", "Versjon, merke og land", "Innstillingene dine (uten passord)", "Målinger fra batteri, sol, nett og bil", "Planen og hva Energy Pilot sendte"], no: "Ingen navn, adresser, passord eller posisjon. Bare utvikleren ser det.", note: "Hva er galt? (valgfritt)", ok: "Send", cancel: "Avbryt", sending: "Sender…", sent: "Sendt ✓ – nummeret ditt er {id}.", fail: "Kunne ikke sende nå. Bruk knappene under." },
 };
 const T_ANS = {
   da: { close: "Luk", title: "Svar fra udvikleren", note: "Besked fra udvikleren om en fejl", dev: "Udvikleren", you: "Dig", wait: "Venter på svar – du får besked i Home Assistant.", ph: "Skriv tilbage…", send: "Send svar", sent: "Sendt ✓", fail: "Kunne ikke sende lige nu." },
@@ -1869,6 +1928,12 @@ function wireRep() {
     render();
   });
 }
+function helpView() {
+  return `<div class="card fade"><div class="eyebrow" style="margin-bottom:10px"><span>${TR.send}</span></div>
+    ${reportBlock(selftest?.report_url || null)}
+    ${repInfo?.available ? `<a class="ghostbtn" style="display:block;text-align:center;text-decoration:none;margin-top:8px" href="api/diagnostics" download>${T.chk.diag}</a>` : ""}
+    <div class="muted" style="margin-top:8px">${T.chk.diagH}</div></div>`;
+}
 function testCard() {
   const t = T_TEST[L] || T_TEST.en, s = selftest;
   if (!s || !s.can) return "";
@@ -1906,7 +1971,6 @@ function testCard() {
     const left = (s.restored && s.restored.left) || [];
     foot = `${bad ? `<div class="stnote warn">${t.failNote}</div>` : fixed ? `<div class="stnote">${t.fixedNote.replace("{n}", fixed)}</div>` : `<div class="stnote">${t.allOk}</div>`}
       ${left.length ? `<div class="stnote warn">${t.left.replace("{x}", left.map((x) => `${esc(x.entity)} = ${esc(x.value)}`).join(", "))}</div>` : `<div class="muted" style="margin-top:8px">${t.back}</div>`}
-      ${reportBlock(s.report_url)}
       <button class="ghostbtn" style="margin-top:8px" data-st-clear>${t.again}</button>`;
   }
   return `<div class="card fade stcard">${head}<ul class="ststeps">${rows.join("")}</ul>${foot}</div>`;
@@ -2238,8 +2302,7 @@ function settingsView() {
   return `${checksCard()}${styleView()}<div class="card fade" id="sec-roles"><div class="eyebrow"><span>${T.setTitle}</span><button class="link" data-redetect>${T.findAgain}</button></div><div class="muted">${T.setHint}</div>
     ${Object.entries(GROUPS).map(([g, roles]) => `<div class="group"><h4>${icon(GROUPICON[g])}${T.groups[g]}</h4>${roleRows(roles)}</div>`).join("")}
     <button class="ghostbtn" data-setup>${T.runGuide}</button></div>${curtailCard()}${stormCard()}
-    <div class="card fade"><div class="ctl" style="margin-bottom:10px"><div class="t"><b>${TF.share}</b><span>${TF.shareH}</span></div><button class="toggle ${(settings.settings.share_anonymous ?? true) ? "on" : ""}" data-bool="share_anonymous" data-def="true"></button></div>${(settings.settings.share_anonymous ?? true) ? `<div class="ctl" style="margin-bottom:10px"><div class="t"><b>${TF.full}</b><span>${TF.fullH}</span></div><button class="toggle ${settings.settings.share_full ? "on" : ""}" data-bool="share_full" data-def="false"></button></div>` : ""}<button class="stgo" style="margin:0 0 10px" data-gotest>✓ ${(T_TEST[L] || T_TEST.en).testBtn}</button>${repInfo?.available ? (curFailed() ? "" : reportBlock(null)) : `<a class="ghostbtn" style="display:block;text-align:center;text-decoration:none;margin-top:0" href="api/diagnostics" download>${T.chk.diag}</a>`}
-    <div class="muted" style="margin-top:8px">${T.chk.diagH}</div></div><div id="ep-suggest"></div>`;
+    <div class="card fade"><div class="ctl" style="margin-bottom:10px"><div class="t"><b>${TF.share}</b><span>${TF.shareH}</span></div><button class="toggle ${(settings.settings.share_anonymous ?? true) ? "on" : ""}" data-bool="share_anonymous" data-def="true"></button></div>${(settings.settings.share_anonymous ?? true) ? `<div class="ctl" style="margin-bottom:10px"><div class="t"><b>${TF.full}</b><span>${TF.fullH}</span></div><button class="toggle ${settings.settings.share_full ? "on" : ""}" data-bool="share_full" data-def="false"></button></div>` : ""}</div><div id="ep-suggest"></div>`;
 }
 // "Fits your home too" and "From the same developer" (suggest.js) under the settings - the same file as in the integrations.
 // Kept between draws; what was shown or closed is kept by Energy Pilot.
@@ -2286,7 +2349,7 @@ function render(quiet = false) {
   const root = $("#root");
   if (!data) return;
   const control = (data.shadow || []).filter((a) => a.mode === "control").length + (data.in_control || []).length;
-  const body = tab === "setup" ? setupView() : tab === "plan" ? planView() : tab === "shadow" ? shadowView() : tab === "settings" ? settingsView() : home();
+  const body = tab === "setup" ? setupView() : tab === "help" ? helpView() : tab === "plan" ? planView() : tab === "shadow" ? shadowView() : tab === "settings" ? settingsView() : home();
   document.querySelector("nav").style.display = tab === "setup" ? "none" : "";
   const html = `<div class="top"><div class="brand"><span class="logo"><svg viewBox="0 0 24 24" fill="#fff"><path d="${"M13 2 4 14h7l-1 8 9-12h-7z"}"/></svg></span><h1>${T.title}</h1></div>
     <span style="display:flex;align-items:center">${tab !== "setup" && data.engine ? `<button class="slight ${lightState()}" data-light><i></i>${TF.light[lightState()]}</button>` : ""}<span class="badge ${control ? "live" : ""}"><i></i>${control ? `${control} ${T.modes.control.toLowerCase()}` : T.modes.shadow}</span></span></div>${body}`;
@@ -2294,7 +2357,7 @@ function render(quiet = false) {
   root.classList.toggle("nofade", quiet);  // updates don't fade in again
   root.innerHTML = lastHtml = html;
   const TABICON = { home: "gauge", plan: "chart", shadow: "layers", settings: "sliders" };
-  $("#tabs").innerHTML = Object.entries(T.tabs).map(([k, v]) => `<button class="${tab === k ? "on" : ""}" data-tab="${k}">${icon(TABICON[k])}<span>${v}</span></button>`).join("");
+  $("#tabs").innerHTML = [...Object.entries(T.tabs), ["help", TR.short || TR.send]].map(([k, v]) => `<button class="${tab === k ? "on" : ""}" data-tab="${k}">${k === "help" ? `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.6"/><circle cx="12" cy="17" r=".6" fill="currentColor"/></svg>` : icon(TABICON[k])}<span>${v}</span></button>`).join("");
   flowKey = flowSig(data.flow);
   wire();
   suggestHere();
@@ -2333,6 +2396,8 @@ function wire() {
     if (tab === "settings") { settings = await api("/api/settings"); control = await api("/api/control"); }
     render(); window.scrollTo(0, 0);
   });
+  document.querySelectorAll("[data-pvr-k]").forEach((b) => b.onclick = () => { pvrKind = b.dataset.pvrK; pvrHour = null; render(); });
+  document.querySelectorAll("[data-pvr-h]").forEach((b) => b.onclick = () => { const h = Number(b.dataset.pvrH); pvrHour = pvrHour === h ? null : h; render(); });
   document.querySelectorAll("[data-h]").forEach((g) => g.onclick = () => {
     const h = data.plan.hours.filter((x) => x.price != null || x.sun != null)[Number(g.dataset.h)];
     $("#tip").innerHTML = `<b>${clock(h.t)}</b> · ${kr(h.price)}/kWh${h.sun != null ? ` · ${T.legSun} ${num(h.sun, 1)} kWh` : ""}${h.house != null ? ` · ${T.legHouse} ${num(h.house, 1)} kWh` : ""}${h.soc != null ? ` · ${T.battery} ${num(h.soc, 0)} %${data.engine?.capacity ? ` · ${num(h.soc * data.engine.capacity / 100, 1)} kWh` : ""}` : ""}${h.charge ? ` · ${T.legCharge}` : ""}${h.export ? ` · ${T.legExport}` : ""}${h.car ? ` · ${T.legCar}${h.car_kwh ? ` ${num(h.car_kwh, 1)} kWh` : ""}` : ""}`;

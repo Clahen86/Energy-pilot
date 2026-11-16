@@ -986,14 +986,21 @@ class Engine:
         pv = by_hour(list((await self._hourly_sum(self.ov.role_all("pv_power"), 2)).items())) if self.ov.role_all("pv_power") else {}
         prices = {k: v["price"] for k, v in self.learning._expected(day.strftime("%Y-%m-%d")).items() if v.get("price") is not None}
         soc_start = None
+        socs_end: dict[str, float] = {}
         if self.ov.role("battery_soc"):
-            socs = by_hour(await self._hourly_kw(self.ov.role("battery_soc"), 2))
+            socs_all = await self._hourly_kw(self.ov.role("battery_soc"), 2)
+            socs = by_hour(socs_all)
             first = socs.get(day.strftime("%Y-%m-%dT00"))
+            # The level at the end of each hour = the mean of the next hour (the end of the day: the first of the next).
+            scale = (lambda v: self.ov.scaled("battery_soc", v)) if hasattr(self.ov, "scaled") else (lambda v: v)
+            socs_end = {(w - timedelta(hours=1)).strftime("%Y-%m-%dT%H"): scale(kw * 1000) for w, kw in socs_all
+                        if (w - timedelta(hours=1)).date() == day.date()}
             soc_start = first * 1000 if first is not None else None  # _hourly_kw divides by 1000 for non-kW units
             soc_start = self.ov.scaled("battery_soc", soc_start) if hasattr(self.ov, "scaled") else soc_start
         if not house:
             return
-        report = self.learning.review(day, house, pv, self.settings(), prices, soc_start)
+        report = self.learning.review(day, house, pv, self.settings(), prices, soc_start,
+                                      socs_end if self.ov.role("battery_soc") else None)
         if report is not None:
             # How well each way hit yesterday - the ML share moves towards what it earned.
             for kind in ("house", "sun"):
@@ -1124,6 +1131,10 @@ class Engine:
                 "now": ACTION_KIND[p.steps[0].action] if p.steps else "hold", "target": p.steps[run].soc_end if p.steps else None,
                 "cost": p.cost, "cost_without": p.cost_without, "saving": p.saving, "capacity": b.capacity_kwh,
             }
+            # The planned battery level at the end of this hour - set beside what really happened the next morning.
+            end_h = times[0] + timedelta(hours=1)
+            if inside := [st for st in p.steps if st.start < end_h]:
+                L.expect([{"t": times[0].isoformat(), "soc_plan": inside[-1].soc_end}])
         try:
             from . import checks
 

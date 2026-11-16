@@ -74,7 +74,9 @@ class Learning:
             for line in self.log_file.read_text().splitlines():
                 row = json.loads(line)
                 if str(row.get("t", "")).startswith(day):
-                    out.setdefault(row["t"][:13], row)  # the first guess for each hour
+                    hour = out.setdefault(row["t"][:13], {})
+                    for k, v in row.items():
+                        hour.setdefault(k, v)  # the first guess for each hour (house and sun, the battery apart)
         except (OSError, ValueError):
             pass
         return out
@@ -82,7 +84,7 @@ class Learning:
     # ---------- the nightly review ----------
 
     def review(self, day: datetime, house: dict[str, float], pv: dict[str, float], battery: Battery,
-               prices: dict[str, float], soc_start: float | None) -> dict[str, Any] | None:
+               prices: dict[str, float], soc_start: float | None, soc: dict[str, float] | None = None) -> dict[str, Any] | None:
         """Yesterday with the real numbers. house/pv/prices: {"YYYY-MM-DDTHH": kWh or price}."""
         key = day.strftime("%Y-%m-%d")
         if self.state.get("reviewed") == key:
@@ -123,7 +125,16 @@ class Learning:
                          and (kind == "house" or (exp[h].get("sun_s") or 0) > 0.05 or real[h] > 0.05)]
                 if len(pairs) >= 6:
                     report[f"{kind}_err_{way}"] = round(mean(abs(a - b) for a, b in pairs), 3)
-        self.state["reports"] = (self.state.get("reports") or [])[-29:] + [report]
+        # Plan against what happened, hour by hour - the "Plan vs. real" chart. Only the newest day keeps them.
+        rows = []
+        for h in sorted(set(exp) | set(house)):
+            e = exp.get(h) or {}
+            rows.append({"h": int(h[11:13]), "house": [_r(e.get("house")), _r(house.get(h))], "sun": [_r(e.get("sun")), _r(pv.get(h)) if pv else None],
+                         "soc": [_r(e.get("soc_plan"), 0), _r((soc or {}).get(h), 0)]})
+        report["hours"] = rows
+        report["accuracy"] = accuracy(rows)
+        old = [{k: v for k, v in r.items() if k != "hours"} for r in (self.state.get("reports") or [])[-29:]]
+        self.state["reports"] = old + [report]
         self.state["reviewed"] = key
         self.save()
         self._trim(day)
@@ -147,3 +158,20 @@ class Learning:
             "solar_bias": self.state["solar_bias"], "house_margin": self.margin, "end_factor": self.end_factor,
             "days": len(reports),
         }
+
+
+def _r(v: Any, nd: int = 2) -> float | None:
+    return round(float(v), nd) if isinstance(v, (int, float)) else None
+
+
+def accuracy(rows: list[dict[str, Any]]) -> dict[str, float | None]:
+    """How close the plan came, 0-100 %: 100 minus the hourly misses against the real total (house, sun);
+    the battery: 100 minus the mean miss in percentage points."""
+    out: dict[str, float | None] = {}
+    for kind in ("house", "sun"):
+        pairs = [r[kind] for r in rows if r[kind][0] is not None and r[kind][1] is not None]
+        real = sum(b for _, b in pairs)
+        out[kind] = round(max(0.0, 100 - 100 * sum(abs(a - b) for a, b in pairs) / real)) if pairs and real > 0.5 else None
+    pairs = [r["soc"] for r in rows if r["soc"][0] is not None and r["soc"][1] is not None]
+    out["soc"] = round(max(0.0, 100 - mean(abs(a - b) for a, b in pairs))) if len(pairs) >= 6 else None
+    return out
