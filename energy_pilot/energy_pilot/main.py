@@ -88,6 +88,9 @@ async def main() -> None:
     from .curtail import Curtail
 
     curtail = Curtail(ha, overview, controller)  # stop selling solar when the price is negative
+    from .replan import Replan
+
+    replan = Replan(ha, overview)  # a new plan as soon as the prices change
     overview.curtail = curtail
     from .selftest import SelfTest
 
@@ -129,6 +132,7 @@ async def main() -> None:
                 if asyncio.get_running_loop().time() - learned > 86400 or not engine.profile or own_changed:
                     await engine.learn()
                     learned = asyncio.get_running_loop().time()
+                replan.refresh()
                 await engine.refresh_sources()
                 await engine.refresh_service_prices()
                 await engine.refresh_agile_predict()
@@ -147,7 +151,8 @@ async def main() -> None:
             import time as _time
 
             to_quarter = 900 - _time.time() % 900 + 5
-            await asyncio.sleep(min(300, to_quarter))
+            if await replan.sleep(min(300, to_quarter)):
+                logging.getLogger("energy_pilot.engine").info("Prices changed - making a new plan")
 
     asyncio.create_task(run_engine())
 
