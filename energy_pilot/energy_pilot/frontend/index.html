@@ -1267,7 +1267,7 @@ function home() {
   const metrics = [
     d.price.now != null ? metric("bolt", T.priceNow, num(d.price.now, 2), `${SYM()}/kWh`, lv ? `<span class="lvl ${lv}">${T[lv]}</span> ${T.xToday}` : "", "t-price") : "",
     d.solar.solar_today != null ? metric("sun", T.sunToday, num(d.solar.solar_today, 1), "kWh", d.solar.solar_tomorrow != null ? `${T.xTomorrow} ${num(d.solar.solar_tomorrow, 1)} kWh` : "") : "",
-    f.soc != null ? metric("battery", T.battery, num(f.soc, 0), "%", (dec?.target != null ? `${T.target} ${num(dec.target, 0)} %` : "") +
+    f.soc != null ? metric("battery", T.battery, num(f.soc, 0), "%", (d.engine?.capacity ? `${num(f.soc * d.engine.capacity / 100, 1)} / ${num(d.engine.capacity, 1)} kWh${dec?.target != null ? " · " : ""}` : "") + (dec?.target != null ? `${T.target} ${num(dec.target, 0)} %` : "") +
       (f.batteries ? `<br>${f.batteries.map((x, i) => `${esc(x.name || T.bat.n.replace("{n}", i + 1))}: ${x.soc != null ? num(x.soc, 0) + " %" : "–"}`).join(" · ")}` : ""), "t-soc", `<div class="bar"><span id="t-socbar" style="width:${f.soc}%"></span></div>`) : "",
     d.house_today != null ? metric("house", T.houseToday, num(d.house_today, 1), "kWh",
       d.house_other != null ? `${d.house_other_appdaemon ? (T.xYourAD) : (T.xOtherForecast)}: ${num(d.house_other, 1)}` : (T.xExpected)) : "",
@@ -2458,9 +2458,9 @@ function wire() {
     ["data-tou-days", "days", String], ["data-tou-price", "price", (x) => Number(String(x).replace(",", "."))]]) {
     document.querySelectorAll(`[${attr}]`).forEach((el) => el.onchange = () => { const t = tou(); t.periods[Number(el.getAttribute(attr))][key] = conv(el.value); saveSet({ tou: t }); });
   }
-  const num = (x) => x === "" ? null : Number(String(x).replace(",", "."));
-  $("[data-tou-sdefault]")?.addEventListener("change", (e) => { const t = tou(); t.sell_default = num(e.target.value); saveSet({ tou: t }); });
-  $("[data-tou-scap]")?.addEventListener("change", (e) => { const t = tou(); t.sell_cap_kwh = num(e.target.value) || null; saveSet({ tou: t }); });
+  const toNum = (x) => x === "" ? null : Number(String(x).replace(",", "."));
+  $("[data-tou-sdefault]")?.addEventListener("change", (e) => { const t = tou(); t.sell_default = toNum(e.target.value); saveSet({ tou: t }); });
+  $("[data-tou-scap]")?.addEventListener("change", (e) => { const t = tou(); t.sell_cap_kwh = toNum(e.target.value) || null; saveSet({ tou: t }); });
   $("[data-tou-sadd]")?.addEventListener("click", () => { const t = tou(); (t.sell_periods = t.sell_periods || []).push({ price: 0.15, from: "18:00", to: "21:00", days: "all" }); saveSet({ tou: t }); });
   for (const [attr, key, conv] of [["data-tou-sfrom", "from", String], ["data-tou-sto", "to", String], ["data-tou-sdays", "days", String], ["data-tou-sprice", "price", num]]) {
     document.querySelectorAll(`[${attr}]`).forEach((el) => el.onchange = () => { const t = tou(); t.sell_periods[Number(el.getAttribute(attr))][key] = conv(el.value); saveSet({ tou: t }); });
