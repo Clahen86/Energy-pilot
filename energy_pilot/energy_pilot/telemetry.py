@@ -321,6 +321,7 @@ class Telemetry:
         if not d or "reports" not in d:
             return self.ov.settings.get("replies") or {}
         got = {"reports": d["reports"][:5], "notes": (d.get("notes") or [])[:5], "t": time.time()}
+        self._keep_sent(got)
         if isinstance(d.get("latest"), dict) and d["latest"].get("version"):
             self.ov.save({"latest": d["latest"]})
         newest = max((str(m.get("t") or "") for r in got["reports"] + got["notes"] for m in r.get("msgs") or [] if m.get("from") == "dev"), default="")
@@ -338,10 +339,32 @@ class Telemetry:
             await self._update_notices()
         return got
 
+    def _keep_sent(self, got: dict[str, Any]) -> None:
+        """What the user just sent is shown at once: GitHub may list a new comment only minutes later. Kept until
+        GitHub has it (or an hour has gone)."""
+        sent = [x for x in getattr(self, "_sent", []) if time.time() - x["t"] < 3600]
+        for x in list(sent):
+            r = next((r for r in got.get("reports") or [] if str(r.get("id")) == x["id"]), None)
+            if r is None:
+                continue
+            msgs = r.setdefault("msgs", [])
+            if any(m.get("from") == "you" and str(m.get("text") or "").strip() == x["text"] for m in msgs):
+                sent.remove(x)  # GitHub has it now
+            else:
+                msgs.append({"from": "you", "text": x["text"], "t": x["iso"]})
+        self._sent = sent
+
     async def write_back(self, report_id: str, text: str) -> dict[str, Any]:
         d = await self._ask("/reply", {"id": str(report_id)[:40], "text": str(text)[:4000]})
         if d and d.get("ok"):
-            await self.fetch_answers(notify=False)
+            from datetime import datetime, timezone
+
+            self._sent = getattr(self, "_sent", []) + [{"id": str(report_id)[:40], "text": str(text)[:4000].strip(), "t": time.time(),
+                                                         "iso": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}]
+            got = await self.fetch_answers(notify=False)
+            if "reports" in got and got.get("t", 0) < time.time() - 5:  # the fetch failed: shown from what's stored
+                self._keep_sent(got)
+                self.ov.save({"replies": got})
             return {"ok": True}
         return {"ok": False, "error": (d or {}).get("error", "unreachable")}
 
