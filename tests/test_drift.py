@@ -72,3 +72,21 @@ def test_predbat_in_control_is_named():
     assert c.watch_checks()[0]["key"] == "predbat_on"
     ha.states["select.predbat_mode"] = {"state": "Monitor"}
     assert c.watch_checks() == []
+
+
+def test_victron_unchanged_value_is_written_with_a_changed_plan(monkeypatch):
+    """The power follows the slot (ctx changes) - the unchanged maximum is written too, or it goes stale."""
+    async def fast(_):
+        return None
+    monkeypatch.setattr(C.asyncio, "sleep", fast)
+    ha = FakeHA({"select.mode": {"state": "Normal"}})
+    c = ctl_with(ha, "victron")
+    asyncio.run(c.tick())
+    c.intents = lambda: {"battery": {"intent": "hold", "ctx": {"soc": 51}}}
+    asyncio.run(c.tick())
+    assert ha.sent.count("select.mode") == 2
+    g = ctl_with(FakeHA({"select.mode": {"state": "Normal"}}))  # others: only what isn't set yet
+    asyncio.run(g.tick())
+    g.intents = lambda: {"battery": {"intent": "hold", "ctx": {"soc": 51}}}
+    asyncio.run(g.tick())
+    assert g.ha.sent.count("select.mode") == 1

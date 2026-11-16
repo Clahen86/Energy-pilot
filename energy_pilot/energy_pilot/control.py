@@ -600,8 +600,10 @@ class Controller:
                 restored = self._restore(part, want["intent"])
                 calls = calls + restored
                 entry["calls"] = calls
-                # The same values again on time: an inverter that forgets them (Victron) gets them written anyway.
-                force = not changed and self._forced(prof) and self.is_battery(part)
+                # An inverter that forgets what it was told (Victron) or whose timer only starts over on a write (Solis,
+                # SolarEdge) gets every value written each time - not only the changed ones, or an unchanged one (the
+                # maximum charge power while the power follows the slot) is never written again and goes stale.
+                force = self._forced(prof) and self.is_battery(part)
                 if self.is_battery(part):
                     async with self._lock():
                         entry["result"] = await self._send(calls, force=force)
