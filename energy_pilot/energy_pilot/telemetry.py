@@ -117,7 +117,12 @@ class Telemetry:
             except Exception:  # noqa: BLE001
                 pass
         has = (f.get("has") or {}) if isinstance(f, dict) else {}
-        return {
+        # No battery profile: which integration the battery's level comes from (e.g. "sunsynk") - only that name,
+        # so the developer can see which inverters are worth a profile.
+        bat_int = None
+        if c and not c.profile_key("battery") and (soc := o.role("battery_soc") if hasattr(o, "role") else None):
+            bat_int = next((e.get("platform") for e in getattr(c, "registry", None) or [] if e.get("entity_id") == soc), None)
+        out = {
             "version": os.environ.get("BUILD_VERSION", "dev"), "ha": str(o.ha.config.get("version") or "")[:12],
             "country": o.ha.config.get("country"), "currency": o.ha.config.get("currency"),
             "lang": s.get("language") or o.ha.config.get("language"),
@@ -132,6 +137,9 @@ class Telemetry:
             "features": {"export": bool(s.get("battery_export")), "targets": bool(s.get("battery_targets")), "things": bool(s.get("things")),
                          "power_tariff": bool(s.get("power_tariff_price")), "offgrid": bool(s.get("offgrid"))},
         }
+        if bat_int:
+            out["battery_integration"] = str(bat_int)[:40]
+        return out
 
     def test_result(self, results: list[dict[str, Any]]) -> None:
         c = getattr(self.ov, "controller", None)

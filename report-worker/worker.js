@@ -245,6 +245,7 @@ async function weekly(env) {
     `**Countries:** ${count((d) => d.country)} · **languages:** ${count((d) => d.lang)}`,
     `**Has:** battery ${has("battery")} · car ${has("car")} · solar ${has("pv")} · runs cheaply ${has("things")} · several batteries ${has("batteries")}`,
     `**Profiles:** ${count((d) => d.profile)} · **chargers:** ${count((d) => d.charger)} · **prices:** ${count((d) => d.price)}`,
+    `**Unknown battery integrations:** ${(() => { const a = {}; rows.filter((r) => !r.d.profile && r.d.has?.battery).forEach((r) => { const k = r.d.battery_integration || "?"; a[k] = (a[k] || 0) + 1; }); return Object.entries(a).sort((x, y) => y[1] - x[1]).map(([k, n]) => `${k} ${n}`).join(" · ") || "–"; })()}`,
     `**Saved per month (avg, own currency):** ${avg((d) => d.saved_month)} · battery kWh (avg): ${avg((d) => d.battery_kwh)}`,
     `**Forecast error, sun (avg):** ${avg((d) => d.sun_err)} · **house:** ${avg((d) => d.house_err)} · sources: ${count((d) => d.sun_source)}`,
     `**Features:** ${["export", "targets", "things", "power_tariff", "offgrid"].map((k) => `${k} ${rows.filter((r) => r.d.features?.[k]).length}`).join(" · ")}`,
