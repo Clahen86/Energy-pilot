@@ -19,7 +19,7 @@ class Replan:
         self.ha, self.ov = ha, ov
         self.wake = asyncio.Event()
         self.watched: set[str] = set()
-        self._last = 0.0
+        self._last = float("-inf")  # the first change wakes the round at once (monotonic time can start low)
         self._pending = False
         ha.on_state.append(self.on_state)
 
