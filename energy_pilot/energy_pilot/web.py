@@ -88,6 +88,7 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
                 if other == 0 and overview.engine.ledger.state.get("stored_kwh", 0) > 0.5:
                     other = None
             data["ledger"] = overview.engine.ledger.summary(_dt.now(_Z(runner.ha.config.get("time_zone") or "UTC")), other)
+            data["ledger"]["view"] = overview.settings.get("saved_view") or "bat"
             soc = (overview.flow() or {}).get("soc")
             if soc is not None:
                 data["ledger"]["battery_kwh"] = round(soc / 100 * overview.engine.settings().capacity_kwh, 1)
@@ -171,7 +172,7 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
                 await overview.controller.discover()  # the chosen switch is used at once
             except Exception:  # noqa: BLE001
                 pass
-        if overview.engine:
+        if overview.engine and set(body) - {"saved_view"}:  # only what the card shows: no new plan
             try:
                 overview.engine.run()  # the new choices show at once
             except Exception:  # noqa: BLE001

@@ -65,3 +65,22 @@ def test_one_wrong_low_reading_keeps_the_cost():
     led.tick(t + timedelta(minutes=1), {**flow, "soc": 0}, 2.5, 0.0, 11.7, 10, 0.92)   # a glitch
     led.tick(t + timedelta(minutes=2), flow, 2.5, 0.0, 11.7, 10, 0.92)
     assert round(led.state["stored_cost"], 1) == 23.0
+
+
+def test_sun_and_battery_saving(tmp_path):
+    led = Ledger(tmp_path)
+    # 1 hour: house 3 kW at 2.00, sun gives 1 kW, the battery 2 kW, nothing bought
+    run(led, [{"battery": -2000, "pv": 1000, "house": 3000, "grid": 0, "soc": 60}] * 60, 2.0)
+    s = led.summary(T)
+    assert round(s["today"], 1) == 4.0  # the battery alone: 2 kWh at 2.00
+    assert round(s["all"]["today"], 1) == 6.0  # sun and battery: all 3 kWh the house used
+    assert s["all"]["since"] == T.date().isoformat()
+
+
+def test_sun_selling_counts_with_sun(tmp_path):
+    led = Ledger(tmp_path)
+    # 1 hour: sun 4 kW, house 1 kW, 3 kW sold at 0.50 - the battery idle
+    run(led, [{"battery": 0, "pv": 4000, "house": 1000, "grid": -3000, "soc": 60}] * 60, 2.0, sell=0.5)
+    s = led.summary(T)
+    assert round(s["today"], 2) == 0.0
+    assert round(s["all"]["today"], 2) == 3.5  # 1 kWh not bought (2.00) + 3 kWh sold (1.50)

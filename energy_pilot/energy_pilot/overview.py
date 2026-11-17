@@ -180,7 +180,9 @@ class Overview:
                          # storm watch (storm.py)
                          "storm", "storm_gust", "storm_soc", "storm_hold", "readonly_dismissed",
                          # the session meter at plug-in (async_plug_marks)
-                         "plug_marks", "sell_sun"):
+                         "plug_marks", "sell_sun",
+                         # which savings the card shows (battery / sun and battery)
+                         "saved_view"):
                 self.settings[key] = value
         self.file.write_text(json.dumps(self.settings, indent=2))
 
