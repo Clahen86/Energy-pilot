@@ -35,8 +35,22 @@ class Ledger:
             self.state.update(json.loads(self.file.read_text()))
         except (OSError, ValueError):
             pass
+        self._seed_all()
         self._at: datetime | None = None
         self._saved_at = 0.0
+
+    def _seed_all(self) -> None:
+        """Sun and battery came later (0.89): the days before it start with what the battery saved - the sun's own
+        part wasn't measured then, so it's a little low for them, but it never shows less than the battery alone."""
+        s = self.state
+        if s.get("all_seeded") or not s.get("since"):
+            return
+        for day in s["days"].values():
+            if "all" not in day:
+                day["all"] = day.get("saved", 0.0)
+        s["older_all"] = s.get("older", 0.0)
+        s["all_since"] = s["since"]
+        s["all_seeded"] = True
 
     def save(self) -> None:
         try:

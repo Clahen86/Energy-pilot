@@ -84,3 +84,13 @@ def test_sun_selling_counts_with_sun(tmp_path):
     s = led.summary(T)
     assert round(s["today"], 2) == 0.0
     assert round(s["all"]["today"], 2) == 3.5  # 1 kWh not bought (2.00) + 3 kWh sold (1.50)
+
+
+def test_old_days_start_with_the_battery(tmp_path):
+    import json
+    (tmp_path / "energy_pilot_ledger.json").write_text(json.dumps({
+        "stored_kwh": 0.0, "stored_cost": 0.0, "since": "2026-11-07", "older": 1.0,
+        "days": {"2026-11-07": {"saved": 5.0}, "2026-11-08": {"saved": 3.0}}}))
+    s = Ledger(tmp_path).summary(T)
+    assert s["all"]["total"] == s["total"] == 9.0
+    assert s["all"]["since"] == "2026-11-07"
