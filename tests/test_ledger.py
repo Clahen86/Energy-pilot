@@ -94,3 +94,16 @@ def test_old_days_start_with_the_battery(tmp_path):
     s = Ledger(tmp_path).summary(T)
     assert s["all"]["total"] == s["total"] == 9.0
     assert s["all"]["since"] == "2026-11-07"
+
+
+def test_day_of_0890_gets_the_morning(tmp_path):
+    import json
+    (tmp_path / "energy_pilot_ledger.json").write_text(json.dumps({
+        "stored_kwh": 0.0, "stored_cost": 0.0, "since": "2026-11-07", "all_since": "2026-11-17",
+        "days": {"2026-11-16": {"saved": 5.0}, "2026-11-17": {"saved": -9.0, "all": 1.0}}}))
+    led = Ledger(tmp_path)
+    assert led.state["days"]["2026-11-17"]["all"] == -8.0
+    assert led.state["days"]["2026-11-16"]["all"] == 5.0
+    Ledger(tmp_path)  # only once
+    led.save()
+    assert Ledger(tmp_path).state["days"]["2026-11-17"]["all"] == -8.0

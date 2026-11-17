@@ -45,6 +45,11 @@ class Ledger:
         s = self.state
         if s.get("all_seeded") or not s.get("since"):
             return
+        # 0.89.0 counted sun and battery only from the moment it started: that day also gets the battery's saving
+        # from before (the battery's part after it is then counted twice - a little, and only for that one day)
+        first = s["days"].get(s.get("all_since") or "")
+        if first and "all" in first:
+            first["all"] += first.get("saved", 0.0)
         for day in s["days"].values():
             if "all" not in day:
                 day["all"] = day.get("saved", 0.0)
