@@ -437,7 +437,11 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
                         return web.json_response({"error": res.get("error") or f"http_{r.status}"}, status=502)
         except Exception as err:  # noqa: BLE001
             return web.json_response({"error": "unreachable", "detail": str(err)[:200]}, status=502)
-        overview.save({"last_report": {"id": res.get("id"), "t": __import__("time").time()}, "replies": {}})
+        notes = dict(overview.settings.get("report_notes") or {})
+        if res.get("id") and payload["note"].strip():  # the question is shown above the answers
+            notes[str(res["id"])] = payload["note"].strip()
+        overview.save({"last_report": {"id": res.get("id"), "t": __import__("time").time()}, "replies": {},
+                       "report_notes": dict(list(notes.items())[-10:])})
         return web.json_response({"ok": True, "id": res.get("id")})
 
     async def report_info(_req: web.Request) -> web.Response:
@@ -462,9 +466,12 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
         if tel and b.get("hide"):  # "Close" on an answer - it comes back with a new comment
             tel.hide(str(b["hide"]))
             return web.json_response({"ok": True, "replies": tel.visible()})
-        if not tel or not str(b.get("text") or "").strip():
+        images = [{"name": str(i.get("name") or "picture")[:60], "data": i["data"]}
+                  for i in (b.get("images") or [])[:3]
+                  if isinstance(i, dict) and isinstance(i.get("data"), str) and len(i["data"]) <= 2_000_000]
+        if not tel or not (str(b.get("text") or "").strip() or images):
             return web.json_response({"ok": False, "error": "content"}, status=400)
-        res = await tel.write_back(b.get("id"), b.get("text"))
+        res = await tel.write_back(b.get("id"), b.get("text"), images)
         return web.json_response({**res, "replies": tel.visible()}, status=200 if res.get("ok") else 502)
 
     app.router.add_post("/api/report", report)

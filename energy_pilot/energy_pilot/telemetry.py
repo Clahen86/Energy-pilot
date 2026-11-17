@@ -226,6 +226,8 @@ class Telemetry:
                     continue
                 if mark_seen and new and (not sh or sh.get("t") != new):
                     shown[k], changed = {"t": new, "at": now}, True
+                if kind == "reports" and not r.get("question"):  # what the user asked, kept here when it was sent
+                    r = {**r, "question": (self.ov.settings.get("report_notes") or {}).get(str(r.get("id"))) or None}
                 out[kind].append({**r, "key": k})
         if changed:
             keep = {self._key(r) for kind in ("reports", "notes") for r in got.get(kind) or []}
@@ -351,15 +353,15 @@ class Telemetry:
             if any(m.get("from") == "you" and str(m.get("text") or "").strip() == x["text"] for m in msgs):
                 sent.remove(x)  # GitHub has it now
             else:
-                msgs.append({"from": "you", "text": x["text"], "t": x["iso"]})
+                msgs.append({"from": "you", "text": x["text"], "t": x["iso"], **({"pics": x["pics"]} if x.get("pics") else {})})
         self._sent = sent
 
-    async def write_back(self, report_id: str, text: str) -> dict[str, Any]:
-        d = await self._ask("/reply", {"id": str(report_id)[:40], "text": str(text)[:4000]})
+    async def write_back(self, report_id: str, text: str, images: list[dict[str, str]] | None = None) -> dict[str, Any]:
+        d = await self._ask("/reply", {"id": str(report_id)[:40], "text": str(text or "")[:4000], "images": images or []})
         if d and d.get("ok"):
             from datetime import datetime, timezone
 
-            self._sent = getattr(self, "_sent", []) + [{"id": str(report_id)[:40], "text": str(text)[:4000].strip(), "t": time.time(),
+            self._sent = getattr(self, "_sent", []) + [{"id": str(report_id)[:40], "text": str(text or "")[:4000].strip(), "pics": len(images or []), "t": time.time(),
                                                          "iso": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}]
             got = await self.fetch_answers(notify=False)
             if "reports" in got and got.get("t", 0) < time.time() - 5:  # the fetch failed: shown from what's stored

@@ -182,7 +182,7 @@ class Overview:
                          # the session meter at plug-in (async_plug_marks)
                          "plug_marks", "sell_sun",
                          # which savings the card shows (battery / sun and battery)
-                         "saved_view"):
+                         "saved_view", "report_notes"):
                 self.settings[key] = value
         self.file.write_text(json.dumps(self.settings, indent=2))
 

@@ -402,7 +402,7 @@ async function comments(env, issue) {
   const [i, c] = await Promise.all([gh(`issues/${issue}`, "GET"), gh(`issues/${issue}/comments?per_page=50`, "GET")]);
   if (!i.ok || !c.ok) return null;
   const info = await i.json();
-  const d = { state: info.state, closed_at: info.closed_at || null, list: (await c.json()).map((x) => ({ body: String(x.body || ""), t: x.created_at })) };
+  const d = { state: info.state, closed_at: info.closed_at || null, body: String(info.body || ""), list: (await c.json()).map((x) => ({ body: String(x.body || ""), t: x.created_at })) };
   await caches.default.put(key, new Response(JSON.stringify(d), { headers: { "cache-control": "max-age=300" } }));
   return d;
 }
@@ -625,10 +625,12 @@ async function replies(request, env, app) {
     if (!d) continue;
     const msgs = d.list.map((x) => {
       const mine = x.body.startsWith(USER_MARK);
-      const text = mine ? x.body.slice(USER_MARK.length).trim().replace(/^> ?/gm, "") : x.body;
-      return { from: mine ? "you" : "dev", text: text.slice(0, 4000), t: x.t };
+      const raw = mine ? x.body.slice(USER_MARK.length) : x.body;
+      const pics = (raw.match(/^!\[/gm) || []).length;
+      const text = (mine ? raw.split("\n").filter((l) => !l.startsWith("![")).join("\n").trim().replace(/^> ?/gm, "") : raw);
+      return { from: mine ? "you" : "dev", text: text.slice(0, 4000), t: x.t, ...(mine && pics ? { pics } : {}) };
     });
-    out.push({ id: row.id, day: row.day, state: d.state, closed_at: d.closed_at, msgs });
+    out.push({ id: row.id, day: row.day, state: d.state, closed_at: d.closed_at, ...asked(d.body || ""), msgs });
   }
   // Notes on app errors this installation had (the last 60 days).
   await backfillErrors(env);
@@ -646,17 +648,34 @@ async function replies(request, env, app) {
   return json({ reports: out, notes, latest });
 }
 
+// What the user wrote when sending the report (the quoted lines at the top of the issue), and how many pictures.
+function asked(body) {
+  const lines = body.split("\n"), q = [];
+  let i = lines.findIndex((l) => l.startsWith(">"));
+  while (i >= 0 && i < lines.length && lines[i].startsWith(">")) q.push(lines[i++].replace(/^> ?/, ""));
+  const pics = (body.match(/^!\[/gm) || []).length;
+  return { question: q.join("\n").trim().slice(0, 4000) || null, ...(pics ? { question_pics: pics } : {}) };
+}
+
 async function userReply(request, env, app) {
   if (!env.DB) return json({ error: "no_db" }, 503);
   if (!(await allowed(request, "u", 10))) return json({ error: "rate" }, 429);
-  const b = await readBody(request);
+  const b = await readBody(request, MAX_BYTES);
   const install = String(b?.install || "").slice(0, 40), text = String(b?.text || "").trim().slice(0, 4000);
-  if (!/^[a-f0-9-]{16,40}$/.test(install) || !text) return json({ error: "content" }, 400);
+  const imgs = (Array.isArray(b?.images) ? b.images.slice(0, 3) : []).filter((i) => i && typeof i.data === "string" && i.data.length <= 3_000_000);
+  if (!/^[a-f0-9-]{16,40}$/.test(install) || (!text && !imgs.length)) return json({ error: "content" }, 400);
   await schema(env);
   const row = await env.DB.prepare("SELECT issue FROM reports WHERE id = ?1 AND install = ?2 AND app = ?3").bind(String(b.id || ""), install, app).first();
   if (!row) return json({ error: "unknown" }, 404);
   const gh = github(env);
-  const r = await gh(`issues/${row.issue}/comments`, "POST", { body: `${USER_MARK}\n\n> ${text.replaceAll("\n", "\n> ")}` });
+  const base = `https://github.com/${env.REPORT_REPO}/blob/main`, stamp = Date.now().toString(36), pics = [];
+  for (const [n, img] of imgs.entries()) {  // pictures in an answer: stored beside the report's own
+    const name = `reports/${app}/${String(b.id).slice(0, 40)}-r${stamp}-${n + 1}.jpg`;
+    const p = await gh(`contents/${name}`, "PUT", { message: `Reply picture ${n + 1}`, content: img.data });
+    if (p.ok) pics.push(`![${String(img.name || "picture").replaceAll("]", "")}](${base}/${name}?raw=true)`);
+  }
+  const quote = text ? `> ${text.replaceAll("\n", "\n> ")}` : "";
+  const r = await gh(`issues/${row.issue}/comments`, "POST", { body: [USER_MARK, quote, pics.join("\n")].filter(Boolean).join("\n\n") });
   if (!r.ok) return json({ error: "store", status: r.status }, 502);
   await gh(`issues/${row.issue}`, "PATCH", { state: "open" });
   return json({ ok: true });
