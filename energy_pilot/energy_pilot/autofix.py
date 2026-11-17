@@ -13,12 +13,16 @@ Anything that steers the inverter or the charger is never changed here.
 
 from __future__ import annotations
 
+import re
+
 from collections import deque
 import statistics
 import time
 from typing import Any
 
 POWER_ROLES = ("pv_power", "battery_power", "grid_power", "house_power", "ev_power")
+# A meter for one phase only (Deye "Load L1 Power", "phase_a") - never taken for the whole house or grid.
+PHASE_METER = re.compile(r"(^|[\s_.-])(l[123]|phase[\s_-]?[abc123])([\s_-]|$)", re.I)
 STUCK_ROLES = ("grid_power", "house_power")  # these never sit still for hours in a lived-in house
 ONE_PHASE = {"GB", "IE", "US", "CA", "AU", "NZ", "JP", "MX", "PH"}  # houses mostly on one phase
 STUCK_S = 6 * 3600
@@ -86,6 +90,9 @@ class AutoFix:
         self.price_scale()
         self.renamed(st, now)
         self.stuck(st, roles, now)
+
+    def _phases(self) -> int:
+        return 1 if str(self.ov.ha.config.get("country") or "").upper() in ONE_PHASE else 3
 
     def fuse(self) -> None:
         v = _f(self.ov.settings.get("import_limit_kw"))
@@ -173,6 +180,9 @@ class AutoFix:
             e = c.get("entity_id")
             if not e or e == bad or not c.get("guess"):
                 continue
+            name = str(((st.get(e) or {}).get("attributes") or {}).get("friendly_name") or "")
+            if (PHASE_METER.search(e) or PHASE_METER.search(name)) and self._phases() == 3:
+                continue  # one phase of three: the house would look a third of its size
             s = st.get(e) or {}
             try:
                 fresh = now - datetime.fromisoformat(str(s.get("last_changed"))).timestamp() < 3600

@@ -107,3 +107,25 @@ def test_battery_doing_the_opposite_goes_to_normal():
     asyncio.run(c.guard())
     assert c.safe_until["battery"] > time.time() and ticked == [("battery",)]
     assert C.Controller._opposite("charge", {"battery": 200}) is False  # slow, not opposite
+
+
+def test_a_stuck_house_meter_is_not_swapped_for_one_phase():
+    # Deye: "load_totalpower" stuck, and the first other meter found was "Load L1 Power" - a third of the house
+    from datetime import datetime, timedelta, timezone
+
+    fresh = datetime.now(timezone.utc).isoformat()
+    old = (datetime.now(timezone.utc) - timedelta(hours=10)).isoformat()
+    states = {"sensor.load_totalpower": {"state": "800", "last_changed": old},
+              "sensor.inverter_load_l1_power": {"state": "400", "last_changed": fresh},
+              "sensor.inverter_load_power": {"state": "1200", "last_changed": fresh}}
+    roles = {"house_power": "sensor.load_totalpower"}
+    o, store = ov({"roles": dict(roles)}, states=states, roles=roles)
+    o.candidates = lambda: {"house_power": [{"entity_id": "sensor.inverter_load_l1_power", "guess": True},
+                                            {"entity_id": "sensor.inverter_load_power", "guess": True}]}
+    A.AutoFix(o).run()
+    assert store["roles"]["house_power"] == "sensor.inverter_load_power"
+    # on one phase (the UK) the L1 meter is the whole house
+    o, store = ov({"roles": dict(roles)}, states=states, roles=roles, country="GB")
+    o.candidates = lambda: {"house_power": [{"entity_id": "sensor.inverter_load_l1_power", "guess": True}]}
+    A.AutoFix(o).run()
+    assert store["roles"]["house_power"] == "sensor.inverter_load_l1_power"
