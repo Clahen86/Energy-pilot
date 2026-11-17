@@ -483,8 +483,12 @@ CHARGER_SERVICES = {
     "keba": {"charge": [("keba.set_current", "service", {"current": "{current}"}), ("keba.enable", "service", {})],
              "stop": [("keba.disable", "service", {})]},
     # Easee (nordicopen/easee_hass): actions with the charger's device
+    # Easee charges at the lower of the charger's and the circuit's dynamic limit: both are set (the circuit's on
+    # all three phases - a car on one phase takes only its own). Last, so charging has started if it's refused.
     "easee": {"charge": [("easee.set_charger_dynamic_limit", "service", {"device_id": "{device_id}", "current": "{current}"}),
-                         ("easee.action_command", "service", {"device_id": "{device_id}", "action_command": "resume"})],
+                         ("easee.action_command", "service", {"device_id": "{device_id}", "action_command": "resume"}),
+                         ("easee.set_circuit_dynamic_limit", "service", {"device_id": "{device_id}", "current_p1": "{current}",
+                                                                          "current_p2": "{current}", "current_p3": "{current}"})],
               "stop": [("easee.action_command", "service", {"device_id": "{device_id}", "action_command": "pause"})]},
     # Zaptec (custom-components/zaptec): "Available current" and the Resume/Stop charging buttons
     "zaptec": {"charge": [(r"number\..*available_current$", "number", "{current}"), (r"button\..*resume_charging$", "press", None)],

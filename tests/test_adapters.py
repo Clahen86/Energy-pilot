@@ -200,6 +200,9 @@ def test_chargers_from_their_integrations_code():
     easee = adapters.charger_calls("charge", [], "easee", 16, "devE")
     assert easee[0] == {"domain": "easee", "service": "set_charger_dynamic_limit", "data": {"device_id": "devE", "current": 16}}
     assert adapters.charger_calls("stop", [], "easee", 16, "devE")[0]["data"]["action_command"] == "pause"
+    circuit = easee[-1]
+    assert circuit["service"] == "set_circuit_dynamic_limit"
+    assert circuit["data"] == {"device_id": "devE", "current_p1": 16, "current_p2": 16, "current_p3": 16}
     z = ["number.zaptec_installation_available_current", "button.zaptec_go_resume_charging", "button.zaptec_go_stop_charging"]
     assert [c["service"] for c in adapters.charger_calls("charge", z, "zaptec", 10)] == ["set_value", "press"]
     assert adapters.charger_calls("stop", z, "zaptec", 10)[0]["data"]["entity_id"] == "button.zaptec_go_stop_charging"
