@@ -333,6 +333,12 @@ class Controller:
             step = b["steps"][0]
             bat = self.engine.settings()
             intent = {"charge_grid": "charge", "hold": "hold", "export": "export"}.get(step["action"], "normal")
+            # A hold only because the sun was to cover the house (nothing bought in the plan): the battery runs as
+            # normal - the same in the plan, but when the house uses more than foreseen it comes from the battery,
+            # not the grid. Not when the sun's surplus is to be sold instead of stored (below).
+            sells_sun = (step.get("grid") or 0.0) < -0.01 and getattr(self.ov, "sell_sun", lambda: False)() and self.can_block_sun()
+            if intent == "hold" and (step.get("grid") or 0.0) <= 0.01 and not sells_sun:
+                intent = "normal"
             slot_h = (b.get("slot_min") or 60) / 60  # the step is one price slot (a quarter of an hour in Europe)
             # The time left of the slot: the battery is to reach the step's level by its end, so the power follows
             # what is really left - not the whole slot (that left the battery above the plan when the house used less).
@@ -365,7 +371,7 @@ class Controller:
                 out["battery"]["ctx"]["house_w"] = int(round((f.get("house") or 0.0) / 50) * 50)
             # The plan holds while the sun has a surplus it sells: the battery mustn't fill up with it anyway (a plain
             # hold still takes the sun). Only inverters whose hold sets the charge limit can do this.
-            if intent == "hold" and (step.get("grid") or 0.0) < -0.01 and getattr(self.ov, "sell_sun", lambda: False)() and self.can_block_sun():
+            if intent == "hold" and sells_sun:
                 out["battery"]["ctx"].update(max_charge_w=0, max_charge_kw=0, sell_sun=True)
         # The car charging on the plan's cheap power right now: the battery holds, so the car takes it from the grid.
         bw = out.get("battery")

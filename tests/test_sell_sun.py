@@ -34,3 +34,13 @@ def test_off_or_not_selling_keeps_charging():
 def test_only_where_the_hold_sets_the_limit():
     assert _ctl(profile="victron").can_block_sun()
     assert not _ctl(profile="solarman").can_block_sun()
+
+
+def test_hold_only_for_the_sun_runs_normal():
+    # the plan held because the sun was to cover the house: the battery covers what it doesn't (FR report, 100 % and buying)
+    assert _ctl(sell_sun=False, grid=-0.1).intents()["battery"]["intent"] == "normal"
+    assert _ctl(sell_sun=False, grid=0.0).intents()["battery"]["intent"] == "normal"
+    # a hold that buys from the grid to keep the battery for later stays a hold
+    assert _ctl(sell_sun=False, grid=0.6).intents()["battery"]["intent"] == "hold"
+    # selling the sun instead of storing it stays a hold
+    assert _ctl(sell_sun=True, grid=-0.8).intents()["battery"]["intent"] == "hold"
