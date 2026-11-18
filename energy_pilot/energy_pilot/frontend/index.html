@@ -1312,7 +1312,7 @@ function home() {
     d.house_today != null ? metric("house", T.houseToday, num(d.house_today, 1), "kWh",
       d.house_other != null ? `${d.house_other_appdaemon ? (T.xYourAD) : (T.xOtherForecast)}: ${num(d.house_other, 1)}` : (T.xExpected)) : "",
   ].join("");
-  return `${updateCard()}${testNudge()}<div class="card flow fade" id="flowcard">${sceneSvg()}<div id="flow">${flowSvg(f)}</div></div>
+  return `${whatsNewCard()}${updateCard()}${testNudge()}<div class="card flow fade" id="flowcard">${sceneSvg()}<div id="flow">${flowSvg(f)}</div></div>
     ${dec ? `<div class="card status fade" style="--c:${DECCOL[dec.kind]}"><div class="dotc">${icon(DECICON[dec.kind])}</div>
       <div><h2>${esc(dec.text)}</h2><p>${esc(reason)}</p>${dec.engine && dec.saving > 0 ? `<p class="save">${T.saves.replace("{x}", kr(dec.saving))}</p>` : ""}
       ${dec.other ? `<p class="muted">${esc(T.otherSays.replace("{x}", dec.other.text.toLowerCase()))}</p>` : ""}
@@ -1899,13 +1899,35 @@ const UPD = { da: { t: "Ny version {v}", fx: "Fejlen, du havde, er rettet:", go:
   fr: { t: "Nouvelle version {v}", fx: "Votre erreur est corrigée :", go: "Mettre à jour", later: "Plus tard", imp: "Correction importante", now: "Vous avez {v}" },
   sv: { t: "Ny version {v}", fx: "Felet du hade är rättat:", go: "Uppdatera", later: "Senare", imp: "Viktig rättning", now: "Du har {v}" },
   nb: { t: "Ny versjon {v}", fx: "Feilen du hadde er rettet:", go: "Oppdater", later: "Senere", imp: "Viktig retting", now: "Du har {v}" } };
+// What changed, version by version (from CHANGELOG.md) - on the update card and in "What's new" after an update
+const WN = { da: { t: "Nyt i Energipilot {v}", ok: "OK", more: "+{n} mere" }, en: { t: "New in Energy Pilot {v}", ok: "OK", more: "+{n} more" },
+  de: { t: "Neu in Energy Pilot {v}", ok: "OK", more: "+{n} weitere" }, fr: { t: "Nouveau dans Energy Pilot {v}", ok: "OK", more: "+{n} de plus" },
+  nl: { t: "Nieuw in Energy Pilot {v}", ok: "OK", more: "+{n} meer" }, sv: { t: "Nytt i Energy Pilot {v}", ok: "OK", more: "+{n} till" },
+  nb: { t: "Nytt i Energipilot {v}", ok: "OK", more: "+{n} til" } };
+function changeList(changes) {
+  const w = WN[L] || WN.en, e = (x) => String(x ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  return `<div style="font-size:13px;margin-top:6px">${changes.map((c) => `<div style="font-weight:700;margin-top:6px">${e(c.version)}</div>
+    <ul style="margin:2px 0 0;padding-left:18px">${c.items.map((i) => `<li>${e(i)}</li>`).join("")}${c.more ? `<li class="muted">${e(w.more.replace("{n}", c.more))}</li>` : ""}</ul>`).join("")}</div>`;
+}
+function whatsNewCard() {
+  const n = answers?.whatsnew; if (!n) return "";
+  const w = WN[L] || WN.en;
+  return `<div class="card fade" style="display:flex;gap:12px;align-items:flex-start"><div style="font-size:22px;line-height:1">✨</div>
+    <div style="flex:1;min-width:0"><b>${w.t.replace("{v}", n.to)}</b>${changeList(n.changes)}</div>
+    <button class="link" data-wnok style="font-size:13px">${w.ok}</button></div>`;
+}
+document.addEventListener("click", async (e) => {
+  if (!e.target.closest("[data-wnok]")) return;
+  if (answers) { answers.whatsnew = null; lastHtml = ""; render(); }
+  fetch("api/replies", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ whatsnew_seen: true }) }).catch(() => {});
+});
 function updateCard() {
   const u = answers?.update; if (!u || !u.due) return "";
   const k = UPD[L] || UPD.en, esc2 = (x) => String(x ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
   return `<div class="card fade" style="display:flex;gap:12px;align-items:flex-start"><div style="font-size:22px;line-height:1">${u.fixed?.length ? "✅" : "⬆️"}</div>
     <div style="flex:1;min-width:0"><b>${esc2(k.t.replace("{v}", u.version))}</b>${u.important ? ` <span style="font-size:11px;font-weight:700;color:#fff;background:#e5484d;border-radius:99px;padding:2px 8px">${k.imp}</span>` : ""}
     ${u.fixed?.length ? `<div style="font-size:13px;color:var(--ok);margin-top:4px">${k.fx} ${u.fixed.map((f) => esc2(f.error)).join(" · ")}</div>` : ""}
-    ${u.note ? `<div class="muted" style="font-size:13px;margin-top:2px">${esc2(u.note)}</div>` : ""}<div class="muted" style="font-size:13px">${esc2(k.now.replace("{v}", u.current))}</div></div>
+    ${u.changes?.length ? changeList(u.changes) : u.note ? `<div class="muted" style="font-size:13px;margin-top:2px">${esc2(u.note)}</div>` : ""}<div class="muted" style="font-size:13px">${esc2(k.now.replace("{v}", u.current))}</div></div>
     <div style="display:flex;flex-direction:column;gap:6px"><a href="https://my.home-assistant.io/redirect/supervisor_addon/?addon=55081cca_energy_pilot" target="_blank" rel="noopener" style="text-decoration:none;text-align:center;font-size:13px;font-weight:700;color:#fff;background:var(--accent);border-radius:99px;padding:7px 14px">${k.go}</a>
     ${u.fixed?.length ? "" : `<button class="link" data-updlater style="font-size:12px">${k.later}</button>`}</div></div>`;
 }
@@ -1934,7 +1956,7 @@ function answerBlock() {
 const TR = T_REP[L] || T_REP.en;
 let ansNote = "", ansImgs = [];  // a reply being written: its text and pictures survive a redraw
 let repInfo = null, repState = null, repNote = "", repImgs = [];  // repState: null | "open" | "sending" | {id} | "fail"
-async function loadRep() { repInfo = await api("/api/report").catch(() => null); loadAns().then(() => { if (answerBlock()) render(); }); }
+async function loadRep() { repInfo = await api("/api/report").catch(() => null); loadAns().then(() => { if (answerBlock() || answers?.whatsnew || answers?.update?.due) render(); }); }
 function shrink(file) {  // a picture made smaller in the browser: at most 1600 px, JPEG - a phone photo becomes ~300 kB
   return new Promise((ok) => {
     const img = new Image(), url = URL.createObjectURL(file);

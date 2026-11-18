@@ -174,7 +174,7 @@ class Overview:
                          # learning together (telemetry.py)
                          "install_id", "first_seen", "first_control", "share_anonymous", "telemetry_sent", "community", "community_ignore", "replies", "replies_seen", "last_error", "replies_hidden", "replies_shown",
                          # the update card (telemetry.py)
-                         "latest", "behind", "update_snooze", "update_told",
+                         "latest", "behind", "update_snooze", "update_told", "whatsnew_seen", "changelog_for", "changelog_remote",
                          # stop selling at negative prices (curtail.py)
                          "curtail", "curtail_saved", "curtail_test", "share_full",
                          # storm watch (storm.py)

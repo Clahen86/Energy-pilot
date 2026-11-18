@@ -279,8 +279,55 @@ class Telemetry:
         sn = self.ov.settings.get("update_snooze") or {}
         snoozed = now < float(sn.get("until") or 0) and not (big and self._ver(lv)[:2] > self._ver(sn.get("version"))[:2])
         due = bool(fixed) or (now - float(since[lv]) >= (2 if big else 7) * DAY_S and not snoozed)
+        from . import changelog
+
+        changes = changelog.between(changelog.parse(str(self.ov.settings.get("changelog_remote") or "")), cur, lv)
         return {"version": lv, "current": cur, "note": str(lt.get("note") or ""), "important": bool(lt.get("important")),
-                "repo": str(lt.get("repo") or ""), "big": big, "fixed": fixed, "due": due}
+                "repo": str(lt.get("repo") or ""), "big": big, "fixed": fixed, "due": due, "changes": changes}
+
+    def whatsnew(self) -> dict[str, Any] | None:
+        """After an update: what changed since the version that was here before - once, until "OK"."""
+        from . import changelog
+
+        cur = os.environ.get("BUILD_VERSION", "dev")
+        if cur == "dev":
+            return None
+        seen = str(self.ov.settings.get("whatsnew_seen") or "")
+        if not seen:
+            self.ov.save({"whatsnew_seen": cur})  # a new install: nothing is new to them
+            return None
+        if self._ver(seen) >= self._ver(cur):
+            return None
+        changes = changelog.between(changelog.local(), seen, cur)
+        if not changes:
+            self.ov.save({"whatsnew_seen": cur})
+            return None
+        return {"from": seen, "to": cur, "changes": changes}
+
+    def whatsnew_seen(self) -> None:
+        self.ov.save({"whatsnew_seen": os.environ.get("BUILD_VERSION", "dev")})
+
+    async def fetch_changelog(self) -> None:
+        """The newest CHANGELOG.md from GitHub, when a newer version is out - so the update card lists what it brings."""
+        import aiohttp
+
+        from . import changelog
+
+        lt, cur = self.ov.settings.get("latest") or {}, os.environ.get("BUILD_VERSION", "dev")
+        lv = str(lt.get("version") or "")
+        if not lv or cur == "dev" or self._ver(lv) <= self._ver(cur) or self.ov.settings.get("changelog_for") == lv:
+            return
+        try:
+            async with aiohttp.ClientSession() as s:
+                async with s.get(changelog.REMOTE, timeout=aiohttp.ClientTimeout(total=20)) as r:
+                    if r.status != 200:
+                        return
+                    text = await r.text()
+        except Exception:  # noqa: BLE001
+            return
+        keep = changelog.between(changelog.parse(text), cur, lv, most=12, items=8)
+        self.ov.save({"changelog_for": lv, "changelog_remote": "\n".join(
+            [f"## {c['version']} – {c['date']}\n" + "\n".join(f"- {i}" for i in c["items"]) for c in keep])})
 
     async def _update_notices(self) -> None:
         """A notification in Home Assistant (never on the phone): an error it had is fixed, or 30 days behind something important."""
@@ -326,6 +373,7 @@ class Telemetry:
         self._keep_sent(got)
         if isinstance(d.get("latest"), dict) and d["latest"].get("version"):
             self.ov.save({"latest": d["latest"]})
+            await self.fetch_changelog()
         newest = max((str(m.get("t") or "") for r in got["reports"] + got["notes"] for m in r.get("msgs") or [] if m.get("from") == "dev"), default="")
         seen = self.ov.settings.get("replies_seen")
         seen = seen if isinstance(seen, str) else ""

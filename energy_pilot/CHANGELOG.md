@@ -1,0 +1,980 @@
+# Changelog – Energy Pilot
+
+Newest first. Each version lists what changed since the one before.
+
+## 0.92.1 – 2026-11-19
+
+- Self-test text says it won't sell when selling is turned off
+
+## 0.92.0 – 2026-11-18
+
+- Says why the battery is kept for later
+- Never sells from the battery below what buying it back costs
+- Learned efficiency at most 95 %
+
+## 0.91.0 – 2026-11-18
+
+- Pause and resume for machines that carry on after a power cut
+- A fuller car card (sources, planned hours, this charge)
+
+## 0.90.3 – 2026-11-17
+
+- Auto-fix: a stuck house or grid meter is never swapped for a one-phase meter
+
+## 0.90.2 – 2026-11-17
+
+- A hold only because the sun covers the house runs the battery as normal
+
+## 0.90.1 – 2026-11-17
+
+- Easee: also set the circuit's dynamic limit, so the charging current follows the plan
+
+## 0.90.0 – 2026-11-17
+
+- Help answers: your own question on top, pictures in replies
+
+## 0.89.2 – 2026-11-17
+
+- Ledger: the day 0.89.0 started also gets the battery's saving from before
+
+## 0.89.1 – 2026-11-17
+
+- Sun and battery savings: earlier days start with the battery's saving
+
+## 0.89.0 – 2026-11-17
+
+- Savings card: switch between battery and sun + battery, remembered
+
+## 0.88.0 – 2026-11-16
+
+- Sell the sun instead of storing it when that pays more
+
+## 0.87.2 – 2026-11-16
+
+- Charged this session from the plug-in really works (missing import)
+
+## 0.87.1 – 2026-11-16
+
+- Replan: first price change wakes the round at once
+- Price entity must be a price (not an update entity), Octopus car level is no house battery
+- README: Help tab, plan vs. actual
+- Charged this session counts from the plug-in, also after a restart
+
+## 0.87.0 – 2026-11-16
+
+- Plan vs. actual chart, Help tab
+
+## 0.86.8 – 2026-11-16
+
+- New plan as soon as prices change
+
+## 0.86.7 – 2026-11-16
+
+- Get help: a message you send shows at once, until GitHub lists it
+- Messages you send show at once
+
+## 0.86.6 – 2026-11-16
+
+- Plan tap: values rounded again (a local num shadowed the formatter)
+- Battery tile shows kWh now and of the capacity
+- Battery kWh on the front page, plan values rounded
+
+## 0.86.5 – 2026-11-16
+
+- Statistics: a battery without a profile sends its integration's name (e.g. sunsynk)
+- Worker shows unknown battery integrations
+- Statistics name the integration of unrecognised batteries
+
+## 0.86.4 – 2026-11-16
+
+- Easee/Huawei/GivEnergy: device_id stays in the action's data (text, not a list)
+- Sell stop steps aside while the battery sells or is tested
+- Easee device_id fix, sell stop pauses while the battery sells
+
+## 0.86.3 – 2026-11-16
+
+- Victron/Solis/SolarEdge: every value written each round, so an unchanged one (max charge power) never goes stale
+- Victron ESS values never go stale while charging
+
+## 0.86.2 – 2026-11-16
+
+- Car: a charger switch without a plug sensor (smart plug) counts as plugged in
+- Smart plug chargers work without a plug sensor
+
+## 0.86.1 – 2026-11-16
+
+- Plan: battery also in kWh when tapping an hour
+- Battery in kWh in the plan
+
+## 0.86.0 – 2026-11-16
+
+- Colour themes - Standard, Neon, Nordic, Forest and High contrast, each in dark and light (Settings, kept on the device)
+
+## 0.85.3 – 2026-11-15
+
+- Car card shows the plan's real times (quarters), a real car icon, the ring fills like water to the car's level or this charge, a clean ready marker instead of the flag
+
+## 0.85.2 – 2026-11-15
+
+- Charge now tells the charger at once instead of at the next round
+
+## 0.85.1 – 2026-11-15
+
+- A new look for the car card (ring, ready time, the night's charging hours, sun or grid flow, Charge now button), the car above the battery card
+
+## 0.85.0 – 2026-11-15
+
+- A new look for the battery card - ring with the level and the minimum, a clean timeline with the dear hours and sunrise/sunset, one gauge for the dear hours, a calmer week
+
+## 0.84.1 – 2026-11-15
+
+- Phase switching also by a 'force 1 phase' switch (Peblar) and local names, Growatt cloud profile, FoxESS holds in Self Use, zone names no longer hide integration words in setup info
+
+## 0.84.0 – 2026-11-15
+
+- Switch between 1 and 3 phases on the sun's surplus (chargers with their own phase choice), Sun only never buys from the grid
+
+## 0.83.2 – 2026-11-15
+
+- Car ready time read in any format (no more plan stop), self-test says when a device went offline and puts its settings back once it returns, inverter battery limits in diagnostics
+
+## 0.83.1 – 2026-11-15
+
+- The inverter's own lowest battery level: named when the battery won't follow, and a settings check that offers to use it
+- Spots when the inverter's own lowest battery level stops the plan, and offers to use it
+
+## 0.83.0 – 2026-11-15
+
+- Choose how small grid flows to hide (30-200 W) and short sync draws no longer show as buying
+- Store and update links open right inside Home Assistant
+
+## 0.81.0 – 2026-11-15
+
+- Revert "0.82.0: natural energy scenes and animated flow in app and dashboard cards"
+
+## 0.82.0 – 2026-11-15
+
+- Battery card: next step follows quarter slots
+- Sun share shown once measured
+- Natural energy scenes and animated flow in app and dashboard cards
+
+## 0.81.0 – 2026-11-15
+
+- New battery card - next step, ready for the dear hours, sky graph with sun forecast and events, tap for details, sun share, essentials-only runtime, records and the week
+- Savings above it, settings check only in settings
+
+## 0.80.2 – 2026-11-15
+
+- AlphaESS guide when a period is missing in its app (test and settings check), Alpha ESS tested
+- A solar forecast alone no longer counts as a battery in setup info
+
+## 0.80.1 – 2026-11-15
+
+- A battery that can only be read (Powerwall local, SolarEdge cloud, FusionSolar) - one quiet line with the integration that can control it
+
+## 0.80.0 – 2026-11-15
+
+- GoodWe: the grid's sign known (plus when selling) when it can't be found from the house's balance
+- GoodWe EMS profile (EMS mode with a power limit, the experimental GoodWe integration)
+
+## 0.79.0 – 2026-11-15
+
+- GoodWe as a built-in profile (operation mode with eco power and level)
+
+## 0.78.2 – 2026-11-15
+
+- Setup names - people found also with æ/ø/å (like Home Assistant's own ids), rooms stay
+- Worker: installs and devices counted apart
+
+## 0.78.1 – 2026-11-15
+
+- Storm watch: official warnings from Meteoalarm, DWD, Météo-France, Environment Canada, GDACS, NWS, BOM, MetService, MET, Met Office and NHC
+- AlphaESS - a charge period never runs over midnight (split before and after it)
+
+## 0.78.0 – 2026-11-15
+
+- How long the battery lasts (home, dashboard card, sensor) and storm watch (off by default)
+
+## 0.77.2 – 2026-11-14
+
+- Setup - the maker and model also from the other entities, the charger's device or the integration
+
+## 0.77.1 – 2026-11-14
+
+- Report worker: choices shown as choices (not turned on), versions separated
+- Setup names nearly whole (only people, rooms, zones, home and device names swapped)
+- Charger profile, price integration, no empty test
+
+## 0.77.0 – 2026-11-14
+
+- Report worker: newest version from the tags too (not only Releases), asked again every hour
+- How it is set up for the developer (names cleaned, or full with Share my setup)
+- Worker: setups section, newest version on the page
+
+## 0.76.1 – 2026-11-14
+
+- Stop selling: chosen from the brand when turned on, a test with the guide, diagnostics when it fails
+- AlphaESS - longer test for the cloud, the integration's error shown with what to do, an error from a service no longer counts as done
+
+## 0.76.0 – 2026-11-14
+
+- Stop selling solar at negative prices
+
+## 0.75.0 – 2026-11-14
+
+- Worker: count installations per app and country (from the connection), and a private /stats page
+- Worker /stats: everything on one page - Energy Pilot inverters and self-tests, Madplan, app errors, help messages
+- Update card (new version, your error fixed) and the version in the daily question
+
+## 0.74.0 – 2026-11-14
+
+- Receiver: Appliance Watch
+- Suggestions of the other apps (fits your home, from the same developer)
+
+## 0.73.3 – 2026-11-14
+
+- A machine Appliance Watch knows - Runs cheaply uses its real programme (minutes and kWh)
+
+## 0.73.2 – 2026-11-14
+
+- Receiver: House Chat
+- Alpha ESS for the newer integration - hold is a discharge window away from now, charge carries its power, normal never deletes a period, windows never overlap
+
+## 0.73.1 – 2026-11-14
+
+- Receiver: Replace Device, Update Guard, Database Doctor and Heat Pilot
+- Errors from Home Assistant restarting or the network (502, timeout, no connection) are not reported
+
+## 0.73.0 – 2026-11-14
+
+- Close on answers, answers go away by themselves, asked every 10 minutes the first week
+
+## 0.72.1 – 2026-11-14
+
+- Tests: skip the sklearn check where it isn't installed (CI)
+- A new answer always gives a notification, also when the page is open
+- README
+
+## 0.72.0 – 2026-11-14
+
+- A comment on an app-error issue reaches the installations that had the error
+
+## 0.71.1 – 2026-11-14
+
+- Learning models off quietly on a CPU that can't run them, with a note
+
+## 0.71.0 – 2026-11-14
+
+- Receiver: several apps (Energy Pilot ⚡ and Madplan 🍽️) each with its own badge
+- Madplan: offers per chain (alarm at 0 from several homes), items the search did not find, errors, weekly overview
+- Answers to Get help in the app, Alpha ESS times in whole quarters
+
+## 0.70.0 – 2026-11-14
+
+- Learn together: anonymous daily line, test results, fixes and app errors to the recipient (D1)
+- Confirmed fixes (3 homes) are used by everyone with the same profile, with Undo
+- 'testet af N'
+- Ugentlig oversigt (cron)
+- Kontakt under Indstillinger
+- README
+- Learn together + the card finds the savings figure right after a restart too
+
+## 0.69.0 – 2026-11-14
+
+- Dashboard card shows what the battery has saved - new Saved view (today large, yesterday/month/year/total) and a line on All
+- The amount counts up smoothly
+
+## 0.68.2 – 2026-11-13
+
+- Runs cheaply follows shadow (turns nothing on/off, starts no machine - notification only) until Energy Pilot controls something
+- A charger switched on by hand is not turned off until the battery is full
+
+## 0.68.1 – 2026-11-13
+
+- Get help: the button is called Get help in 7 languages, explanation under the button, up to 3 images (made smaller in the browser) shown in the issue
+- Worker gemmer billederne i det private repo
+- Get help with message and images
+
+## 0.68.0 – 2026-11-13
+
+- Send to the developer: Cloudflare Worker (report-worker/) that stores reports in a private repo
+- /api/report sender test + diagnose (uden all_controls)
+- Button explaining what is sent, optional note and number
+- Falls back to GitHub link + download until the URL is set
+- Send to the developer - one button sends test and diagnostics to ep-reports (private repo), shows what is sent, optional note and a number
+
+## 0.67.1 – 2026-11-13
+
+- The test's result, saved values and fixes were not saved (the settings file did not know the keys) - now saved
+- The test does not start without saved values and remembers them in memory too
+
+## 0.67.0 – 2026-11-13
+
+- Guide with the test (explanation, Start/Skip), status light, test card on the front page, automatic fixes with Undo (fuse in amps, 0-1 battery percent, kW without unit, price in øre, renamed and frozen sensors), a battery doing the opposite goes to normal for an hour, a charger that does not start is restarted once
+
+## 0.66.0 – 2026-11-13
+
+- Test your system - tries hold/charge/sell/normal and charger at at most 1 kW, measures whether it happens (30 s in a row, min. 1 min), tries other safe options itself and remembers what works (can be undone), puts everything back (also after a restart), GitHub button with filled-in result
+- Button at the top under Control and under Settings
+
+## 0.65.13 – 2026-11-13
+
+- Solis (every 10 min) and SolarEdge (every 30 min) rewrite the remote control even if HA shows the value - their timers only restart on a write
+
+## 0.65.12 – 2026-11-13
+
+- Ids (device_id, serial, *_id) are always sent as text - Easee rejected device_id "45" as a number
+
+## 0.65.11 – 2026-11-13
+
+- Huawei working mode picks the integration's own option (maximise_self_consumption)
+- All select values are matched to the control's own options regardless of case/spaces/underscores
+
+## 0.65.10 – 2026-11-13
+
+- A Victron control showing Unknown is written immediately (the integration shows Unknown 5 min after the last write) - only unavailable is waited on
+
+## 0.65.9 – 2026-11-13
+
+- Victron keep-alive every minute check - resent on time (4 min) and immediately when the controls are back after unavailable
+- Resends are counted in the log
+
+## 0.65.8 – 2026-11-13
+
+- Flow: no line to the car for a charger's standby power (below 100 W)
+
+## 0.65.7 – 2026-11-13
+
+- Plan: equal prices charge in the first slots, not the last
+
+## 0.65.6 – 2026-11-13
+
+- Flow: grid shows selling/buying from 30 W (was 100 W)
+
+## 0.65.5 – 2026-11-13
+
+- Deye: limit the grid charge current to the planned power, put the owner's back after
+
+## 0.65.4 – 2026-11-13
+
+- Small fixes
+
+## 0.65.3 – 2026-11-13
+
+- Settings page: put back the charger switch list removed by mistake in 0.65.2
+
+## 0.65.2 – 2026-11-13
+
+- Runs cheaply: pick lists show only plugs, start buttons and the plug's own power sensor - 'Show all' for the rest
+
+## 0.65.1 – 2026-11-13
+
+- Runs cheaply: only real machines and plugs are offered (no room sensors, no robot mowers' settings), looked up at start
+
+## 0.65.0 – 2026-11-13
+
+- Runs cheaply: small batteries and machines on the sun or in cheap hours, after the house battery and the car
+
+## 0.64.0 – 2026-11-13
+
+- House sensor without statistics: say so, and offer to keep the house's history in Energy Pilot itself
+
+## 0.63.5 – 2026-11-13
+
+- Remove the house heat model (husmodel) from Energy Pilot - it is about heating, not power
+
+## 0.63.4 – 2026-11-12
+
+- The dashboard card takes the height it needs on a sections dashboard - the overview no longer runs into the card below
+
+## 0.63.3 – 2026-11-12
+
+- The plan in the card and the app opens at the time now - it waits until the card has a width
+
+## 0.63.2 – 2026-11-12
+
+- Fix the front page (a wrong name for the language stopped it)
+
+## 0.63.1 – 2026-11-12
+
+- The Shadow tab is called Control
+- The front page shows the cheapest hours with a link to the plan instead of the plan graph a second time
+
+## 0.63.0 – 2026-11-12
+
+- A charger in shadow shows the charge Energy Pilot would make (dashed in the plan) beside what really happened, with the average price of each
+- How much a car takes is learned per charger
+
+## 0.62.2 – 2026-11-12
+
+- The plan graph shows car charging only for chargers Energy Pilot runs - a charger in shadow is charged by something else
+
+## 0.62.1 – 2026-11-12
+
+- The sell switch is 'Use the export price' - it tells the plan, it doesn't steer the inverter
+
+## 0.62.0 – 2026-11-12
+
+- Header counts Energy Pilot's own control
+- Selling and charging switches grouped
+- Clearer switches
+- 'Sell from solar'
+- Minimum slider ignores scrolling
+- Settings change log
+
+## 0.61.3 – 2026-11-12
+
+- Grid and battery under 100 W shown as idle (inverter trimming is not selling)
+
+## 0.61.2 – 2026-11-12
+
+- Easter computed in-house (no dateutil)
+- CI installs holidays
+
+## 0.61.1 – 2026-11-12
+
+- The dashboard card's energy picture shows the weather, the season and the holiday like the app
+
+## 0.61.0 – 2026-11-12
+
+- The flow card shows the real weather, the time of day, the season and the day's holiday - by country
+
+## 0.60.3 – 2026-11-12
+
+- Growatt lets go of the all-day grid-first slot after selling
+- Charge taper never lower than a level above
+
+## 0.60.2 – 2026-11-12
+
+- A selling grid setpoint (Victron) is never kept as the owner's - back to 0 when selling stops and when leaving control
+
+## 0.60.1 – 2026-11-12
+
+- Hours without battery history are left out of the house use
+
+## 0.60.0 – 2026-11-12
+
+- Option to not sell from the battery in the cheap hours
+- Clearer no-gain message
+
+## 0.59.4 – 2026-11-12
+
+- Never suggest a phone's battery as a home battery
+
+## 0.59.3 – 2026-11-12
+
+- The plan shows the car's charging like the sun - kWh per hour as a pink area
+
+## 0.59.2 – 2026-11-12
+
+- Chargers with fixed steps (8/10/13 A) stop when even the lowest step would go over the import limit
+
+## 0.59.1 – 2026-11-11
+
+- 'Max from the grid' at 0 or at/below the minimum is ignored - it would stop all grid charging (red Tempo days too)
+
+## 0.59.0 – 2026-11-11
+
+- Battery targets: at least X % at a set time every day, even when it doesn't pay
+
+## 0.58.3 – 2026-11-11
+
+- The decision sensor knows 'selling from the battery' - before, it stayed on the previous state
+
+## 0.58.2 – 2026-11-11
+
+- Quiet hours for the battery only stop charging from the grid - solar surplus still charges (issue #13)
+
+## 0.58.1 – 2026-11-10
+
+- Hold never asks for less than the battery minimum (at 9 % Growatt keeps 10 % - it was shown as not confirmed)
+
+## 0.58.0 – 2026-11-10
+
+- Own tariff plan: feed-in price by time (e.g. 15c from 6-9pm) and a daily cap on paid feed-in - folded away under the tariff plan, only for those who need it
+
+## 0.57.1 – 2026-11-10
+
+- House history: every charger is taken out, not only charger 1
+
+## 0.57.0 – 2026-11-10
+
+- No home power sensor: the house's use is worked out from the history of grid, sun, battery and car - it learns the daily shape straight away, and 'house today' and the nightly review work too
+
+## 0.56.1 – 2026-11-10
+
+- Plan chart: hours a forecast leaves out (the night with Forecast.Solar) count as no sun - the line no longer runs straight through the night
+
+## 0.56.0 – 2026-11-10
+
+- Sun forecast from more sources: Solcast, Open-Meteo Solar Forecast (wh_period), Home Assistant's Energy dashboard forecast (Forecast.Solar and the rest) - and its own learned forecast when none gives the hours
+- The plan no longer goes without sun
+
+## 0.55.0 – 2026-11-10
+
+- Control: a setting that changes back by itself is set again at once
+- Told when something else (Predbat, an automation) steers the battery too
+- The battery's power follows the time left of the slot and the house's real use, so it ends where the plan says
+
+## 0.54.0 – 2026-11-10
+
+- Battery control and Car control as selects in Home Assistant (Shadow / Control / Off) - an automation can switch Energy Pilot on and off
+
+## 0.53.2 – 2026-11-10
+
+- Victron: the ESS settings are sent again every 4 minutes - Victron puts them back to its defaults after about 10 minutes
+
+## 0.53.1 – 2026-11-10
+
+- Megarevo through SolarAssistant: Work mode for normal (Self consume) and hold (Battery priority), matched loosely by name
+- No grid charging, so the plan never buys for the battery
+
+## 0.53.0 – 2026-11-10
+
+- Car: two limits - from the grid up to (e.g. 80 %) and with the sun up to (e.g. 100 %)
+- The sun's surplus fills the rest for free
+
+## 0.52.7 – 2026-11-10
+
+- Car: a session number older than the plug-in belongs to the last visit (KEBA keeps it until charging starts) - counted as 0, so the car gets its full charge
+
+## 0.52.6 – 2026-11-10
+
+- Car battery: every percentage sensor of a car is offered to choose (two cars, names it doesn't know) - only ones named like a battery level are ever picked by themselves
+
+## 0.52.5 – 2026-11-10
+
+- Deye: the global grid-charge switch follows 'may charge from the grid' (set, not toggled) - the programmes decide
+- Switches already in the wanted state aren't written again
+
+## 0.52.4 – 2026-11-10
+
+- Charger behind a sum sensor (Zappi + 'All EV power' group): found from the plug's device, never group switches
+- A minimum-SoC setting is not an extra battery
+
+## 0.52.3 – 2026-11-10
+
+- Battery cost: Energy Pilot's own number when it runs the battery (the paused system's stands still)
+
+## 0.52.2 – 2026-11-10
+
+- Battery cost: Energy Pilot's own number when it runs the battery (the paused system's stands still)
+
+## 0.52.1 – 2026-11-10
+
+- Charger control: never offer child locks (Danish 'børne' looked like French 'borne')
+
+## 0.52.0 – 2026-11-10
+
+- Charger control: pick the switch that starts a charger (Shelly, Tuya Local, smart plug)
+- On/off-only chargers run at full power
+
+## 0.51.0 – 2026-11-10
+
+- The car's battery level: charge to a target, 100 % for the next trip, car battery size learned
+
+## 0.50.2 – 2026-11-10
+
+- Fix: a second _clamp broke control in 0.50.1
+
+## 0.50.1 – 2026-11-10
+
+- Huawei, GivEnergy, Sungrow, Victron: give full charge/discharge power back
+- Numbers kept inside the entity's range
+- The follow check also names limits at their minimum and blocking modes
+
+## 0.50.0 – 2026-11-10
+
+- Limits a charge or sale set are given back (Sigenergy, Victron, EcoFlow, GivEnergy, Growatt TL-XH, Deye solar sell)
+- Warn when the battery doesn't follow the plan
+
+## 0.49.3 – 2026-11-10
+
+- Plan the quarter now whole (the battery held late in every quarter) and run at each quarter's start
+
+## 0.49.2 – 2026-11-10
+
+- Growatt: set the free-mode discharge/charge rates and let slot 1 go, so the battery always covers the house
+
+## 0.49.1 – 2026-11-10
+
+- Dashboard card: show the battery plan like the app (battery level, selling, car, legend)
+
+## 0.49.0 – 2026-11-09
+
+- Grid charging stops at 95 % (NMC 90 %) - the sun may fill it, and every 14 days without a full battery it charges to 100 % once to balance
+
+## 0.48.0 – 2026-11-09
+
+- Learns how the battery really charges near full
+- The house battery doesn't empty itself into the car
+
+## 0.47.0 – 2026-11-09
+
+- Power tariffs - month's peak kept, battery shaves peaks, car charges beside them
+
+## 0.46.0 – 2026-11-09
+
+- Calmer design - found sensors folded to one line, ready-to-control checklist, compact extra car cards, bigger plan chart, AppDaemon block only when there is one
+
+## 0.45.0 – 2026-11-09
+
+- New sensors - next battery charge, next car charge, next sale, cheapest hour, house use today, solar forecast
+
+## 0.44.0 – 2026-11-09
+
+- Clear engine text, newer texts in German/French/Dutch/Swedish/Norwegian, usual main fuse suggested
+
+## 0.43.1 – 2026-11-09
+
+- Victron ESS controls found on another device than the battery level (Victron MQTT + GX)
+
+## 0.43.0 – 2026-11-09
+
+- Wear counted on all battery use
+- Battery type found by itself (LFP/NMC/sodium/lead) and sets wear, minimum and efficiency
+
+## 0.42.0 – 2026-11-09
+
+- Grid power direction - found from the house's balance, or set by hand (Grid → Advanced)
+
+## 0.41.1 – 2026-11-09
+
+- Plug status lists (VEVOR plugged_in, OCPP …), charging current as a select, charger controls only from its own device
+
+## 0.41.0 – 2026-11-09
+
+- More batteries can be controlled - each through its own inverter, starts in shadow, power shared by what each can take
+
+## 0.40.0 – 2026-11-09
+
+- Extra chargers can be controlled - each starts in shadow
+- Charger 1 first, the others turned down first
+
+## 0.39.3 – 2026-11-09
+
+- Selling from the battery reached the plan again
+- Extra sensors aligned under the first
+- 12 V car batteries not suggested
+
+## 0.39.2 – 2026-11-09
+
+- Any kWh sensor can be picked as a solar forecast
+
+## 0.39.1 – 2026-11-09
+
+- Spot prices outside Denmark include tomorrow
+
+## 0.39.0 – 2026-11-08
+
+- Flere ladebokse (hver bil for sig, under hovedsikringen, kun skygge)
+
+## 0.38.0 – 2026-11-08
+
+- More home batteries (planned as one, found automatically, shadow only)
+
+## 0.37.0 – 2026-11-08
+
+- New images: front page with own decision, settings with selling from the battery
+- Settings check with fix button, Advanced, diagnostics file
+
+## 0.36.11 – 2026-11-08
+
+- Selling from the battery also for Deye via ESPHome (Selling first) and EcoFlow PowerStream (custom load above house consumption)
+
+## 0.36.10 – 2026-11-08
+
+- Selling from the battery for Victron (grid setpoint), Growatt (Grid first) and Deye/Solarman (Export First)
+- The owner's own settings are remembered before selling and restored afterwards
+
+## 0.36.9 – 2026-11-08
+
+- The battery cost price tolerates a wrong battery percentage for a moment (resets/trims only after 5 min)
+
+## 0.36.8 – 2026-11-08
+
+- Octopus Agile uses Agile Predict as price forecast (region from the tariff), own forecast as fallback
+
+## 0.36.7 – 2026-11-08
+
+- Selling from the battery also for Huawei, Solis, Sigenergy, SolarEdge and GivEnergy (looked up in the integrations' source code)
+- Missing sell controls do not block control
+
+## 0.36.6 – 2026-11-08
+
+- Selling hours are shown in the plan graph (own color, legend and in the hour's details)
+
+## 0.36.0 – 2026-11-08
+
+- Sell from the battery (optional) - the plan sells when the sell price gives a profit after losses and wear (wear calculated per currency), export limit
+- Selling in the Sofar (Solarman/SolaX), SolaX, Fox ESS and Sungrow profiles
+
+## 0.35.2 – 2026-11-08
+
+- Only writes values that are not already set, and resends a value once if it was not accepted (Solarman drops writes)
+
+## 0.35.1 – 2026-11-08
+
+- The quarter-hour plan can use the battery, even when the house uses less than one step per quarter-hour (fine step 1%, smallest step covers the house)
+
+## 0.35.0 – 2026-11-08
+
+- Power back into the battery is worth the refill price (not the average) - uses the battery in the morning and does not buy late
+- The front page shows its own decision with AppDaemon's next to it
+
+## 0.34.1 – 2026-11-08
+
+- Writes energy_pilot_uses.json with the sensors it uses, so database tools do not stop their history
+
+## 0.34.0 – 2026-11-08
+
+- Off-grid mode - the generator is controlled from the battery, solar and consumption forecast: starts before the reserve is reached, minimum run time, fills to a target, quiet hours, emergency limit always
+- Card on the front page, part of Shadow
+
+## 0.33.0 – 2026-11-08
+
+- Prices and chargers checked against the integrations' source code - Nord Pool/Tibber (HA's own), EnergyZero and easyEnergy fetched via their action
+- ENTSO-E, Frank Energie and Zonneplan are read
+- Charging profiles for Easee, Zaptec, go-e, Wallbox, Peblar, OCPP, Alfen, Ohme and zappi
+
+## 0.32.0 – 2026-11-08
+
+- More profiles checked against the source code - GivEnergy fixed (timed charge service, pause mode), new Solis (RC force charge, resent every 10 min) and Alpha ESS (cloud services)
+- Tesla and Enphase confirmed against HA's own code
+
+## 0.31.0 – 2026-11-08
+
+- Profiler tjekket mod integrationernes kildekode - Huawei rettet (navne, 'Maximise self consumption', device_id, stop forcible charge), SolarEdge (AC charge policy, timeout, hold tager sol), Fox ESS (force charge power/max SoC)
+- Nye: Sigenergy, Sofar via SolaX Modbus, Tesla Powerwall, Enphase IQ Battery
+- Test with real entity names
+
+## 0.30.0 – 2026-11-08
+
+- German, French, Dutch, Swedish and Norwegian in panel, card, the engine's decisions and the companion integration (English underneath so nothing is missing)
+- Language follows Home Assistant
+
+## 0.29.0 – 2026-11-08
+
+- EDF Tempo - prices from today's/tomorrow's color and the six Tempo prices (Tempo day 06-06, night 22-06)
+- Unknown color is not guessed
+
+## 0.28.2 – 2026-11-08
+
+- 'Found' line on one line, model name without repetition
+
+## 0.28.1 – 2026-11-08
+
+- Inverter list sorted by brand with ✅/🧪, and 'Found: ... - all controls found' above it
+
+## 0.28.0 – 2026-11-08
+
+- Sofar profile (Solarman, Self Use / Passive with min/max battery power)
+- The integration's name only counts when its controls exist (Solarman is used by both Deye and Sofar)
+
+## 0.27.0 – 2026-11-08
+
+- Deye via ESPHome/lokal Modbus (klatremis, seks Time point-programmer)
+- Cars' batteries are not mistaken for the home battery
+- 'Self-chosen' can pick any control in HA
+
+## 0.26.0 – 2026-11-08
+
+- EcoFlow PowerStream profile (custom load following house consumption, hold = 0 W, no grid charging - the plan does not buy for the battery)
+- Tal holdes inden for kontrollens min/max
+
+## 0.25.0 – 2026-11-08
+
+- New images: Shadow (Now it would, Copy/Your system), Settings (follow the sun, main fuse, discharge power and more), self-check with first report
+- Learns the battery's usable capacity (and efficiency) from charges and discharges - kWh per percentage point both ways, independently of each other
+- Used when the field is empty, suggestion when the set number differs
+
+## 0.24.4 – 2026-11-08
+
+- Another system's battery cost price is only used when it is credible (at most 3 x the highest price) - otherwise Energy Pilot's own
+
+## 0.24.3 – 2026-11-08
+
+- 'House today' counted yesterday's consumption just after midnight
+
+## 0.24.2 – 2026-11-07
+
+- Tomorrow's price mixed in Strømligning's spot price (without tariff) - now only the 'tomorrow' entity that matches today's (same type: VAT, spot, export)
+- Amber-forecast-sensoren findes
+
+## 0.24.1 – 2026-11-07
+
+- Shadow shows what the engine would do, even when another system is in control
+- The columns are called Copy and Your system
+
+## 0.24.0 – 2026-11-07
+
+- The car follows the sun live (current follows surplus, also charges outside the plan on clear surplus, margin against on/off) and protects the main fuse
+- Both can be turned off
+- Bilen tjekkes hvert minut
+
+## 0.23.0 – 2026-11-07
+
+- Octopus Energy - rates/next_day_rates and event entities are read for buying and selling (import and export kept separate), price now from the rates
+
+## 0.22.0 – 2026-11-07
+
+- Victron ESS profile (force charge + max charge/discharge power, grid setpoint is not touched)
+- Egen afladeeffekt i indstillingerne
+
+## 0.21.3 – 2026-11-07
+
+- Settings failed (KeyError 'guess') when a found sensor did not match the list's filter
+
+## 0.21.2 – 2026-11-07
+
+- The search field is a small link 'Find another sensor' so the settings do not get cluttered
+
+## 0.21.1 – 2026-11-07
+
+- Settings no longer stick out beyond the cards on phones (rows wrap, search field and add on their own line)
+
+## 0.21.0 – 2026-11-07
+
+- The battery's sign is detected automatically (Fox ESS and others count discharge as positive) + option
+- Varying sell price from a sensor (e.g. Amber) with forecast, used hour by hour/quarter-hour by quarter-hour
+
+## 0.20.0 – 2026-11-07
+
+- The lists show all sensors with the right unit (also Victron and templates without device_class), best guess at the top, search field
+- Multiple solar systems and solar forecasts are added together
+
+## 0.19.1 – 2026-11-07
+
+- Deye profile (Solarman integration) - all six Time of Use programs are set the same, no times are touched
+
+## 0.19.0 – 2026-11-07
+
+- New images: panel 0.18.4 (House today, car in house consumption) and the cards in a new design
+- Image for Facebook in the facebook folder
+- Plans in the market's price periods - quarter-hour in Europe (since Oct 2025), half hour in the UK, hour otherwise
+- Battery and car use the cheapest quarter-hours
+
+## 0.18.4 – 2026-11-07
+
+- The self-check also subtracts the car from house consumption when it is included
+
+## 0.18.3 – 2026-11-07
+
+- Detects whether the car is included in house consumption and subtracts it (live, today and in the history the forecast learns from)
+- Choices under Car and charger
+
+## 0.18.2 – 2026-11-07
+
+- Image for the beta tester post
+- Opslagsbillede: viser ML
+- 'House today' is the engine's own (used so far + forecast for the rest of the day), another forecast is shown next to it
+
+## 0.18.1 – 2026-11-07
+
+- The Shadow tab does not flicker - the page is only redrawn when something has changed, and without fade-in
+
+## 0.18.0 – 2026-11-07
+
+- Blend - simple forecast from day one, ML takes over gradually as it hits better (consumption, sun, tomorrow's prices before 13:00)
+- The car's habits and the battery's efficiency are learned
+- Vind i vejret, 60 dages historik
+- The panel shows who decides
+
+## 0.17.0 – 2026-11-07
+
+- Battery cost price (weighted average like AppDaemon, solar power free or at sell price, uses your AppDaemon's numbers when it exists) and measured savings today/month/year/total - card in the panel and sensors in the companion
+
+## 0.16.0 – 2026-11-07
+
+- Inverter models (Growatt SPH/SPA and MIN/MOD TL-XH chosen by model), requirement check: if a control is missing the engine does not control (never half a command), test view of found/missing controls
+
+## 0.15.2 – 2026-11-07
+
+- House consumption in tomorrow's plan: the engine's forecast fills the hours another forecast does not cover
+
+## 0.15.1 – 2026-11-07
+
+- Tomorrow's prices from all price integrations (also 'tomorrow' entities, Nord Pool, Tibber, EDS formats), missing hours are filled from own spot prices at the user's price level, notification when they are missing
+
+## 0.15.0 – 2026-11-07
+
+- Energy flow shows the real power paths (solar→battery, grid→battery, battery→car ...) in panel and card, thickness by power, color by source
+- Glow around active nodes, the sun rotates, dot grid
+
+## 0.14.0 – 2026-11-07
+
+- Docker (compose + image via GitHub Actions), README in Danish/English with images, apps only if they exist
+
+## 0.13.0 – 2026-11-07
+
+- Companion integration (Charge now, Ready at, Max, Battery minimum, Style, All in shadow, decision, price, savings) - the app installs it and announces itself via Supervisor discovery
+
+## 0.12.0 – 2026-11-07
+
+- Adapters - the engine can control inverters (Growatt, Huawei, SolaX, Sungrow, SolarEdge, Fox ESS, GivEnergy + custom profile for all brands) and chargers (KEBA, Easee, Zaptec, go-e, Wallbox, OCPP and more via switch + current)
+- Shadow/control per part, read-back, stays out when another system controls the battery
+
+## 0.11.2 – 2026-11-07
+
+- Quiet hours separately: the home battery and the car each have their own time range
+
+## 0.11.1 – 2026-11-07
+
+- Settings split into cards with icons: Home battery, Car and charger, Electricity price, Grid, Quiet hours
+
+## 0.11.0 – 2026-11-07
+
+- Self-learning - notes what it expected each hour, reviews yesterday each night: solar correction (cloudy/clear), consumption margin in expensive hours, end value found by re-planning yesterday with real numbers
+- Self-check card with report
+
+## 0.10.0 – 2026-11-07
+
+- Own tariff plan (periods with price, weekday/weekend, months) with templates (day/night, peak, PG&E, SCE, Economy 7) - works in countries without spot prices like the USA
+
+## 0.9.0 – 2026-11-07
+
+- Virker i hele Europa - priszoner pr. land (energy-charts.info udenfor DK), valuta efter ECB-kurs, moms pr. land, helligdage pr. land (holidays), valuta i panelet
+
+## 0.8.0 – 2026-11-07
+
+- The engine manages by itself - Danish holidays, weather and solar radiation (Open-Meteo), own electricity prices (Energi Data Service + tariff, tax, VAT
+- Price area and grid tariff can be corrected), own solar forecast learned from the system's production, ML house consumption with temperature and days off
+
+## 0.7.0 – 2026-11-07
+
+- Choices - style (cheapest, most sun, peace of mind, car/battery first) and fine tuning (minimum, charge from grid, sell, size/power, import cap, car cheapest/solar only, charger power, quiet hours)
+
+## 0.6.0 – 2026-11-07
+
+- Own engine - house consumption forecast (learned from 28 days of statistics), battery plan (DP over the price hours, sun, losses, no selling from battery), car plan (sun first, then cheapest before ready time)
+- Shown in the plan graph and compared with AppDaemon
+
+## 0.5.0 – 2026-11-07
+
+- Finds what you have by itself (Energy dashboard, known integrations, names), shows where it was found, house consumption is calculated if missing, guide at first start
+
+## 0.4.0 – 2026-11-07
+
+- Cards for the dashboard (energy flow, battery, car, plan or everything) - the card file goes in /local and is added as a resource, data from sensor.energipilot
+
+## 0.3.0 – 2026-11-07
+
+- Professional design - line icons, light rays in the energy flow, key figures, sleek car, sharp plan graph, tab bar with icons, dark/light theme
+
+## 0.2.0 – 2026-11-07
+
+- New panel - live energy flow, decision in plain language, price/sun/battery/house, car buttons, today's plan, shadow tab with agreement, settings for what you have
+
+## 0.1.1 – 2026-11-07
+
+- Repo-adresse: Clahen86/Energy-pilot
+- App: Python image directly in Dockerfile (build.yaml is deprecated)
+
+## 0.1.0 – 2026-11-07
+
+- Energy Pilot: runs AppDaemon apps unchanged in shadow (does nothing, shows what it would do, compares with your system) or takes control
+- First panel
+- App-pakning
+- Read calls (get_*) also run in shadow
+- Replies are packed as in AppDaemon
+- Repo as app repository (repository.yaml, energy_pilot/ with config, Dockerfile, DOCS)
