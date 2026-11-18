@@ -20,8 +20,10 @@ class Ghosts:
     def part(self, part: str) -> dict[str, Any]:
         return self.s.setdefault(part, {"plug": False, "plan": None, "own": None, "last": None, "needs": []})
 
-    def see(self, part: str, now: datetime, plugged: bool | None, power_w: float | None, price: float | None, dt_s: float) -> None:
-        """Every half minute: plugged in or out, and what the charger draws now."""
+    def see(self, part: str, now: datetime, plugged: bool | None, power_w: float | None, price: float | None, dt_s: float,
+            sun_w: float | None = None, sell: float | None = None) -> None:
+        """Every half minute: plugged in or out, and what the charger draws now. sun_w: the part of it the sun gives
+        (worth what selling it would pay, the rest the price now)."""
         if plugged is None:
             return
         g = self.part(part)
@@ -37,11 +39,23 @@ class Ghosts:
         own = g.get("own")
         if plugged and own is not None and power_w is not None and power_w > 200:
             kwh = power_w / 1000 * dt_s / 3600
+            sun = min(kwh, max(0.0, sun_w or 0.0) / 1000 * dt_s / 3600)
             own["kwh"] = round(own["kwh"] + kwh, 5)
+            own["sun_kwh"] = round(own.get("sun_kwh", 0.0) + sun, 5)
             if price is not None:
-                own["cost"] = round(own["cost"] + kwh * price, 6)
+                own["cost"] = round(own["cost"] + (kwh - sun) * price + sun * (sell or 0.0), 6)
             own["first"] = own["first"] or now.isoformat()
             own["last"] = now.isoformat()
+
+    @staticmethod
+    def sun_to_car(car_w: float | None, pv_w: float | None, grid_w: float | None, batt_w: float | None) -> float:
+        """The sun's part of what the car draws: the grid and the battery feed the car first (the sun the house first),
+        what is left of it is the sun's."""
+        if not car_w or car_w <= 0 or not pv_w or pv_w <= 30:
+            return 0.0
+        grid = min(car_w, max(0.0, grid_w or 0.0))
+        batt = min(car_w - grid, max(0.0, -(batt_w or 0.0)))
+        return min(pv_w, max(0.0, car_w - grid - batt))
 
     def need(self, part: str, setting: float) -> float:
         """How much this car usually takes per charge: learned once it has seen 3 charges, else the setting."""

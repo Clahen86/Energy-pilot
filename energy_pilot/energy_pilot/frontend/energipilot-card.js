@@ -177,11 +177,21 @@ function cardSceneSvg(sc) {
   return `<svg class="scene" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${s}</svg>`;
 }
 
+// The car view: where its power comes from now, its level, the planned hours and this charge.
+const CAR_T = {
+  da: { from: "Strømmen til bilen", sun: "Sol", batt: "Husbatteri", grid: "Net", done: "Færdig ca. kl. {t}", ready: "klar kl. {t}", hours: "Planlagte ladetimer", none: "ingen planlagt", h: "t", sess: "Denne opladning", kwh: "Ladet", cost: "Pris", sunp: "Fra sol", now: "nu" },
+  en: { from: "Power to the car", sun: "Sun", batt: "Home battery", grid: "Grid", done: "Done about {t}", ready: "ready at {t}", hours: "Planned charging hours", none: "none planned", h: "h", sess: "This charge", kwh: "Charged", cost: "Cost", sunp: "From sun", now: "now" },
+  de: { from: "Strom zum Auto", sun: "Sonne", batt: "Hausbatterie", grid: "Netz", done: "Fertig ca. {t} Uhr", ready: "fertig um {t}", hours: "Geplante Ladestunden", none: "keine geplant", h: "Std", sess: "Dieser Ladevorgang", kwh: "Geladen", cost: "Kosten", sunp: "Von der Sonne", now: "jetzt" },
+  fr: { from: "L'énergie vers la voiture", sun: "Soleil", batt: "Batterie maison", grid: "Réseau", done: "Terminé vers {t}", ready: "prête à {t}", hours: "Heures de charge prévues", none: "aucune prévue", h: "h", sess: "Cette charge", kwh: "Chargé", cost: "Coût", sunp: "Du soleil", now: "maint." },
+  nl: { from: "Stroom naar de auto", sun: "Zon", batt: "Thuisbatterij", grid: "Net", done: "Klaar rond {t}", ready: "klaar om {t}", hours: "Geplande laaduren", none: "geen gepland", h: "u", sess: "Deze laadbeurt", kwh: "Geladen", cost: "Kosten", sunp: "Van de zon", now: "nu" },
+  sv: { from: "Strömmen till bilen", sun: "Sol", batt: "Husbatteri", grid: "Nät", done: "Klar ca kl. {t}", ready: "klar kl. {t}", hours: "Planerade laddtimmar", none: "inga planerade", h: "h", sess: "Den här laddningen", kwh: "Laddat", cost: "Kostnad", sunp: "Från sol", now: "nu" },
+  nb: { from: "Strømmen til bilen", sun: "Sol", batt: "Husbatteri", grid: "Nett", done: "Ferdig ca. kl. {t}", ready: "klar kl. {t}", hours: "Planlagte ladetimer", none: "ingen planlagt", h: "t", sess: "Denne ladingen", kwh: "Ladet", cost: "Kostnad", sunp: "Fra sol", now: "nå" },
+};
 class EnergipilotCard extends HTMLElement {
   setConfig(config) { this._config = { view: "overview", ...config }; if (!this.shadowRoot) this.attachShadow({ mode: "open" }); this._uid = Math.random().toString(36).slice(2, 7); }
   static getConfigElement() { return document.createElement("energipilot-card-editor"); }
   static getStubConfig() { return { view: "flow" }; }
-  getCardSize() { return { flow: 5, plan: 4, car: 3, battery: 2, savings: 3, overview: 11 }[this._config.view] || 5; }
+  getCardSize() { return { flow: 5, plan: 4, car: 7, battery: 2, savings: 3, overview: 11 }[this._config.view] || 5; }
   getGridOptions() { return { columns: 12, min_columns: 6, rows: "auto" }; }  // as tall as what it shows
 
   set hass(hass) {
@@ -193,7 +203,7 @@ class EnergipilotCard extends HTMLElement {
     if (key === this._key) return;
     const shape = (ep?.last_updated || "") + this._sig();
     this._key = key;
-    if (shape !== this._shape || !this.shadowRoot.innerHTML) { this._shape = shape; this._render(); } else this._patch();
+    if (shape !== this._shape || !this.shadowRoot.innerHTML || this._config.view === "car") { this._shape = shape; this._render(); } else this._patch();
   }
 
   get t() { return TX[lang(this._hass)]; }
@@ -211,7 +221,8 @@ class EnergipilotCard extends HTMLElement {
     const rawBatt = this._w(r.battery_power);
     const pv = this._w(r.pv_power), house = this._w(r.house_power), batt = rawBatt == null ? null : rawBatt * sign, soc = this._num(r.battery_soc);
     let grid = this._w(r.grid_power); const ev = this._w(r.ev_power);
-    const plug = r.ev_plug ? this._hass.states[r.ev_plug]?.state === "on" : null;
+    const ps = r.ev_plug ? String(this._hass.states[r.ev_plug]?.state || "").toLowerCase() : null;
+    const plug = ps == null ? null : ps === "on" || /^(charg|plug|connect|wait|paus|suspend|ready|finish|complete|occupied)/.test(ps);  // an "on" or a charger's own state
     if (grid == null && pv != null && house != null) grid = house + (ev || 0) + (batt || 0) - pv;
     return { pv, house, batt, soc, grid, ev, plug, has: { pv: pv != null, battery: soc != null || batt != null, grid: grid != null, ev: !!(r.ev_power || r.ev_plug) } };
   }
@@ -338,6 +349,7 @@ class EnergipilotCard extends HTMLElement {
     return `<div class="rt">🔋 <b>${esc(bits[0])}</b>${bits[1] ? ` · ${esc(bits[1])}` : ""}</div>${st}`;
   }
   _carHtml(inline = false) {
+    if (!inline) return this._carFull();
     const ev = this._hass.states[SENSOR].attributes.ev, f = this._flow(), t = this.t;
     if (!ev) return "";
     const charging = (f.ev || 0) > 30, e = ev.entities || {};
@@ -346,6 +358,62 @@ class EnergipilotCard extends HTMLElement {
       ${e.ev_manual ? `<div class="ctl"><b>${t.chargeNow}</b><button class="tg ${this._hass.states[e.ev_manual]?.state === "on" ? "on" : ""}" data-toggle="${e.ev_manual}"></button></div>` : ""}
       ${e.ev_ready ? `<div class="ctl"><b>${t.readyAt}</b><input type="time" data-time="${e.ev_ready}" value="${esc(String(this._hass.states[e.ev_ready]?.state || "").slice(0, 5))}"></div>` : ""}
       ${ev.soc_known ? this._evSoc(ev) : ""}
+      ${e.ev_cap && !ev.soc_known ? `<div class="ctl"><b>${t.atMost}</b><span class="rg"><input type="range" min="0" max="${this._hass.states[e.ev_cap]?.attributes.max || 100}" value="${this._hass.states[e.ev_cap]?.state}" data-cap="${e.ev_cap}"><i id="capv">${this._n(this._num(e.ev_cap), 0)} kWh</i></span></div>` : ""}
+    </div>`;
+  }
+  _carFull() {
+    const a = this._hass.states[SENSOR].attributes, ev = a.ev, f = this._flow(), t = this.t, c = CAR_T[lang(this._hass)] || CAR_T.en;
+    if (!ev) return "";
+    const e = ev.entities || {}, charging = (f.ev || 0) > 30, car = Math.max(0, f.ev || 0);
+    const hm = (d) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    // the car's share of each source now: the grid and the battery feed it first (the sun the house first), the sun the rest
+    const g = Math.min(car, Math.max(0, f.grid || 0)), b = Math.min(car - g, Math.max(0, -(f.batt || 0))), sn = (f.pv || 0) > 30 ? Math.max(0, car - g - b) : 0;
+    const parts = [["sun", c.sun, sn, "var(--sun)", f.has.pv], ["battery", c.batt, b, "var(--batt)", f.has.battery], ["grid", c.grid, charging && !f.has.pv && !f.has.battery ? car : g, "var(--grid)", true]].filter((p) => p[4]);
+    const W = 340, cx = 290, gap = 58, H = Math.max(120, parts.length * gap + 4), cy = H / 2, y0 = cy - (parts.length - 1) * gap / 2;
+    const icn = (k, col, sz = 20) => `<g transform="translate(${-sz / 2} ${-sz / 2})" style="color:${col}"><svg width="${sz}" height="${sz}" viewBox="0 0 24 24" class="ic" style="width:${sz}px;height:${sz}px">${P[k]}</svg></g>`;
+    const lanes = parts.map(([k, l, w, col], i) => {
+      const y = y0 + i * gap, on = charging && w > 30, d = `M 150 ${y} C 215 ${y}, 205 ${cy}, ${cx - 38} ${cy}`, [v, u] = this._split(w);
+      return `<path class="base" d="${d}"/>${on ? `<path class="beam" d="${d}" stroke="${col}" style="--d:${(2.4 - Math.min(1.4, w / 3000)).toFixed(2)}s"/>` : ""}
+        <g transform="translate(30 ${y})" opacity="${on ? 1 : .45}"><circle r="24" class="nbg"/><circle r="24" fill="none" stroke="${col}" stroke-opacity=".6" stroke-width="1.4"/>${icn(k, col)}</g>
+        <text x="64" y="${y - 6}" class="cap" style="text-anchor:start">${esc(l.toUpperCase())}</text>
+        <text x="64" y="${y + 13}" class="val" style="text-anchor:start;font-size:15px">${on ? v : "–"}<tspan class="unit">${on ? " " + u : ""}</tspan></text>`;
+    }).join("");
+    const [e1, e2] = this._split(car);
+    const node = `<g transform="translate(${cx} ${cy})" class="node ${charging ? "on" : ""}" style="--nc:var(--car)"><circle r="40" class="halo"/><circle r="36" class="nbg"/><circle r="36" fill="none" stroke="var(--car)" stroke-opacity=".6" stroke-width="1.4"/>
+      <g transform="translate(0 -9)">${icn("car", "var(--car)", 24)}</g><text class="val" y="17">${charging ? e1 : "–"}<tspan class="unit">${charging ? " " + e2 : ""}</tspan></text></g>`;
+    // the next 24 hours: the car's in pink, the price as the height
+    const now = Date.now(), rows = (a.plan || []).filter((h) => h.price != null);
+    const step = rows.length > 1 ? new Date(rows[1].t) - new Date(rows[0].t) : 3600e3;
+    const hrs = rows.filter((h) => new Date(h.t).getTime() + step > now).slice(0, Math.round(24 * 3600e3 / step));
+    const mine = hrs.filter((h) => h.car), BW = 336 / Math.max(1, hrs.length);
+    const pmin = Math.min(...hrs.map((h) => h.price)), pmax = Math.max(...hrs.map((h) => h.price));
+    const per = Math.max(1, Math.round(6 * 3600e3 / step));
+    const bars = hrs.map((h, i) => { const hh = 14 + 30 * (h.price - pmin) / Math.max(.001, pmax - pmin), d = new Date(h.t);
+      return `<rect x="${(i * BW + BW * .15).toFixed(1)}" y="${(50 - hh).toFixed(1)}" width="${(BW * .7).toFixed(1)}" height="${hh.toFixed(1)}" rx="${Math.min(3, BW * .25).toFixed(1)}" fill="${h.car ? "var(--car)" : "var(--secondary-background-color, rgba(127,127,127,.18))"}"/>
+        ${i % per === 0 ? `<text class="ax" x="${(i * BW + BW / 2).toFixed(1)}" y="64">${i === 0 ? c.now : String(d.getHours()).padStart(2, "0")}</text>` : ""}`; }).join("");
+    const done = mine.length ? new Date(new Date(mine[mine.length - 1].t).getTime() + step) : null;
+    const span = mine.length ? `${mine.length * step / 3600e3 >= 1 ? this._n(mine.length * step / 3600e3, mine.length * step % 3600e3 ? 1 : 0) : this._n(mine.length * step / 3600e3, 2)} ${c.h} · ${hm(new Date(mine[0].t))}–${hm(done)}` : c.none;
+    const ready = ev.ready ? String(ev.ready).slice(0, 5) : "";
+    const state = charging ? t.charging : f.plug ? t.plugged : t.notPlugged;
+    const ch = ev.charge;
+    const sess = ch || ev.session_kwh != null ? `<div class="eyebrow" style="margin-top:14px">${c.sess}</div>
+      <div class="stiles" style="grid-template-columns:repeat(${ch ? 3 : 1},1fr)"><div class="stile"><span>${c.kwh}</span><b>${this._n(ev.session_kwh ?? ch?.kwh, 1)} kWh</b></div>
+      ${ch ? `<div class="stile"><span>${c.cost}</span><b>${this._money(ch.cost)}</b></div><div class="stile"><span>${c.sunp}</span><b style="color:var(--sun)">${Math.round(ch.sun * 100)} %</b></div>` : ""}</div>` : "";
+    const top = ev.soc_known && ev.soc != null
+      ? `<div class="big">${this._n(ev.soc, 0)}<small> %</small>${done && charging ? `<em>${c.done.replace("{t}", hm(done))}</em>` : ""}</div><div class="evb" style="margin-top:8px"><span style="width:${ev.soc}%"></span><i style="left:${ev.target}%"></i></div>`
+      : `<div class="big" style="font-size:22px">${charging ? `${t.charging} ${e1} ${e2}` : state}${done && charging ? `<em>${c.done.replace("{t}", hm(done))}</em>` : ""}</div>`;
+    const to = Object.keys(this._hass.states).find((x) => x.startsWith("number.") && x.endsWith("charge_to")), trip = Object.keys(this._hass.states).find((x) => x.startsWith("switch.") && x.endsWith("next_trip"));
+    return `<div class="pad"><div class="eyebrow">${ic("car")} ${t.car}<span>${esc(state)}${ready ? ` · ${esc(c.ready.replace("{t}", ready))}` : ""}</span></div>
+      ${top}
+      <div class="eyebrow" style="margin-top:14px">${c.from}</div>
+      <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;overflow:visible">${lanes}${node}</svg>
+      ${hrs.length ? `<div class="eyebrow" style="margin-top:12px">${c.hours}<span>${esc(span)}</span></div>
+      <svg viewBox="0 0 336 68" style="width:100%;height:auto;display:block">${bars}</svg>` : ""}
+      ${sess}
+      ${e.ev_manual ? `<div class="ctl"><b>${t.chargeNow}</b><button class="tg ${this._hass.states[e.ev_manual]?.state === "on" ? "on" : ""}" data-toggle="${e.ev_manual}"></button></div>` : ""}
+      ${e.ev_ready ? `<div class="ctl"><b>${t.readyAt}</b><input type="time" data-time="${e.ev_ready}" value="${esc(String(this._hass.states[e.ev_ready]?.state || "").slice(0, 5))}"></div>` : ""}
+      ${ev.soc_known && to ? `<div class="ctl"><b>${t.evs.to}</b><span class="seg">${[70, 80, 90, 100].map((v) => `<button data-to="${to}" data-v="${v}" class="${!ev.trip && ev.everyday === v ? "on" : ""}">${v}</button>`).join("")}</span></div>` : ""}
+      ${ev.soc_known && trip ? `<div class="ctl"><b>${t.evs.trip}</b><button class="tg ${ev.trip ? "on" : ""}" data-sw="${trip}"></button></div>` : ""}
       ${e.ev_cap && !ev.soc_known ? `<div class="ctl"><b>${t.atMost}</b><span class="rg"><input type="range" min="0" max="${this._hass.states[e.ev_cap]?.attributes.max || 100}" value="${this._hass.states[e.ev_cap]?.state}" data-cap="${e.ev_cap}"><i id="capv">${this._n(this._num(e.ev_cap), 0)} kWh</i></span></div>` : ""}
     </div>`;
   }

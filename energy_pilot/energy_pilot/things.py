@@ -7,6 +7,8 @@ that is left over (what the plan would sell) or cheap hours that keep within the
 A battery sits on a switch (a Shelly, a smart plug): Energy Pilot switches it on in its hours and off again; when the
 charger stops drawing power the battery is full - done for the day. A machine is never switched off: once the user has
 said it is ready, Energy Pilot only starts it (a remote start button or switch), or tells the user when to press start.
+The one exception, chosen by the user for a machine that resumes by itself after a power cut ("resume"): when it
+starts on its plug, Energy Pilot switches the plug off at once and on again at the cheapest time - no Ready needed.
 How much each thing takes and how long is learned from the runs seen (the median of the last ten, from three runs).
 """
 
@@ -22,6 +24,8 @@ RUN_W = 15  # a machine above this draws power: it runs
 IDLE_W = 5  # below this it rests
 MACHINE_END_S = 15 * 60  # a machine resting this long has finished (a dishwasher drying can rest a few minutes)
 FULL_S = 10 * 60  # a battery charger resting this long while on: the battery is full
+REARM_S = 30 * 60  # after a run, power this soon is still the old run (a fan, the door opened), not a new start
+NO_PLAN_S = 15 * 60  # paused this long without a start time: switched on again, never left off
 
 
 def _hhmm(text: str | None, now: datetime) -> datetime | None:
@@ -53,6 +57,7 @@ class Things:
         self.plans: dict[str, dict[str, Any]] = {}
         self._sent: dict[str, datetime] = {}
         self.aw: dict[str, dict[str, Any]] = {}  # Appliance Watch: what a usual run takes, by the machine's power sensor
+        self.replan = False  # a machine was just paused: plan its start now, not at the next round
 
     def st(self, tid: str) -> dict[str, Any]:
         return self.s.setdefault(tid, {"runs": []})
@@ -251,14 +256,27 @@ class Things:
 
     async def _tick_machine(self, ha: Any, t: dict[str, Any], now: datetime, price: float | None, sell: float,
                             grid_w: float | None, dt_s: float, act: bool = True) -> None:
-        """A machine is never switched off: only started when it is ready and the time has come."""
+        """A machine is never switched off: only started when it is ready and the time has come - unless it resumes
+        by itself after a power cut and the user said so: then its plug is switched off when it starts, on at the time."""
         tid, s = t["id"], self.st(t["id"])
         w = _num(ha.states.get(t["power"])) if t.get("power") else None
         p = self.plans.get(tid) or {}
+        resume = bool(t.get("resume") and t.get("switch") and t.get("power")) and act
+        if s.pop("resume_now", None) and t.get("switch"):
+            self._sent[t["switch"]] = now
+            await ha.call_service("homeassistant", "turn_on", {"entity_id": t["switch"]})
+        if resume and await self._pause(ha, t, s, w, now):
+            return
+        if resume and s.get("paused") and not s.get("start_sent") and not p.get("start") \
+                and (now - datetime.fromisoformat(s["paused"])).total_seconds() >= NO_PLAN_S:
+            p = {"start": now.isoformat()}  # no time found: it runs now rather than stay off
         if s.get("armed") and not s.get("running") and not s.get("start_sent") and p.get("start") \
                 and datetime.fromisoformat(p["start"]) <= now:
             s["start_sent"] = now.isoformat()
-            if (st := t.get("start")) and act:  # in shadow the user is only told
+            if resume and s.get("paused"):  # the plug on again: the machine goes on where it was
+                self._sent[t["switch"]] = now
+                await ha.call_service("homeassistant", "turn_on", {"entity_id": t["switch"]})
+            elif (st := t.get("start")) and act:  # in shadow the user is only told
                 domain = st.split(".")[0]
                 if domain == "button":
                     await ha.call_service("button", "press", {"entity_id": st})
@@ -271,7 +289,7 @@ class Things:
         _, minutes, kw = self.need(t)
         running_now = (w is not None and w > RUN_W) or (w is None and s.get("start_sent") is not None)
         if running_now and not s.get("running"):
-            s["running"], s["started"] = True, now.isoformat()
+            s["running"], s["started"], s["paused"] = True, now.isoformat(), None
         if s.get("running"):
             self._measure(s, w if w is not None else kw * 1000, now, self._price_now(price, sell, grid_w), dt_s)
             ended = False
@@ -290,16 +308,34 @@ class Things:
                 s["running"], s["armed"], s["start_sent"], s["started"] = False, False, None, None
         elif s.get("start_sent") and w is not None:
             sent = datetime.fromisoformat(s["start_sent"])
-            if (now - sent).total_seconds() > 30 * 60 and not t.get("start"):
+            remote = t.get("start") or (resume and s.get("paused"))
+            if (now - sent).total_seconds() > 30 * 60 and not remote:
                 pass  # told the user; still waiting for them to press start - keep waiting
-            elif (now - sent).total_seconds() > 10 * 60 and t.get("start"):
+            elif (now - sent).total_seconds() > 10 * 60 and remote:
                 s["start_sent"] = None  # the start didn't take (door open, remote start off): try again next round
+
+    async def _pause(self, ha: Any, t: dict[str, Any], s: dict[str, Any], w: float | None, now: datetime) -> bool:
+        """The user pressed start on a machine that resumes after a power cut: its plug off now, a start time planned."""
+        if s.get("running") or s.get("paused") or s.get("start_sent") or w is None or w <= RUN_W:
+            return False
+        if (ha.states.get(t["switch"]) or {}).get("state") != "on":
+            return False
+        last = (s.get("last") or {}).get("end")
+        if last and (now - datetime.fromisoformat(last)).total_seconds() < REARM_S:
+            return False  # still the run that just ended
+        self._sent[t["switch"]] = now
+        await ha.call_service("homeassistant", "turn_off", {"entity_id": t["switch"]})
+        s["armed"], s["paused"], s["quiet_since"] = True, now.isoformat(), None
+        self.replan = True
+        return True
 
     def arm(self, tid: str, armed: bool) -> None:
         s = self.st(tid)
         s["armed"] = bool(armed)
         if not armed:
             s["start_sent"] = None
+            if s.get("paused"):
+                s["paused"], s["resume_now"] = None, True  # cancelled while paused: the plug on again, it runs now
 
     # ---------- for the page ----------
 
@@ -320,7 +356,8 @@ class Things:
                         "status": status, "hours": p.get("hours") or [], "start": p.get("start"), "sun": p.get("sun", False),
                         "slot_h": p.get("slot_h"), "kwh_now": round(float(s.get("kwh_now") or 0), 2), "need_kwh": round(kwh, 2),
                         "minutes": round(minutes), "learned": self.learned(tid), "last": s.get("last"),
-                        "done_at": s.get("done"), "armed": bool(s.get("armed"))})
+                        "done_at": s.get("done"), "armed": bool(s.get("armed")), "paused": bool(s.get("paused")),
+                        "resume": bool(t.get("resume") and t.get("switch") and t.get("power"))})
         return out
 
 

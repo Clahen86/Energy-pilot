@@ -141,3 +141,65 @@ def test_a_machine_appliance_watch_knows_uses_its_programme():
     kwh, minutes, kw = th.need({"id": "t1", "kind": "machine", "power": "sensor.opvasker_power"})
     assert (kwh, minutes, kw) == (0.9, 180.0, 0.3)
     assert th.need({"id": "t2", "kind": "machine", "power": "sensor.other"})[1] == 120.0  # unknown: the fair guess
+
+
+def _resume_setup():
+    th = Things({})
+    st = {"things": [{"id": "d", "kind": "machine", "resume": True, "switch": "switch.d", "power": "sensor.d", "mode": "cheap", "kwh": 1.0, "kw": 1.0}]}
+    hs = hours([2.0] * 24)
+    hs[5] = Hour(hs[5].start, 0.2, 0.05, 0.5, 0)
+    ha = FakeHA({"switch.d": {"state": "on"}, "sensor.d": {"state": "0"}})
+    return th, st, hs, ha
+
+
+def test_resume_machine_paused_at_start_and_switched_on_at_the_cheapest_time():
+    th, st, hs, ha = _resume_setup()
+    ha.states["sensor.d"]["state"] = "1800"  # the user pressed start
+    asyncio.run(th.tick(ha, st, T0 + timedelta(minutes=1), 2.0, 0.05, 100))
+    assert ha.states["switch.d"]["state"] == "off" and th.replan
+    s = th.st("d")
+    assert s["armed"] and s["paused"] and not s.get("running")
+    ha.states["sensor.d"]["state"] = "0"  # the plug is off
+    assert th.plan(st, hs, T0 + timedelta(minutes=2), {}, {}, None)[0]["start"] == hs[5].start.isoformat()
+    asyncio.run(th.tick(ha, st, T0 + timedelta(hours=1), 2.0, 0.05, 100))
+    assert ha.states["switch.d"]["state"] == "off"  # not yet
+    asyncio.run(th.tick(ha, st, hs[5].start, 0.2, 0.05, 100))
+    assert ha.states["switch.d"]["state"] == "on"
+    t = hs[5].start
+    for i in range(1, 200):  # it goes on where it was, then rests: done - and never paused again
+        ha.states["sensor.d"]["state"] = "1500" if i < 120 else "0"
+        asyncio.run(th.tick(ha, st, t + timedelta(seconds=30 * i), 0.2, 0.05, 100))
+    assert ha.states["switch.d"]["state"] == "on"
+    assert not s["armed"] and not s["running"] and not s["paused"] and s["last"]["kwh"] > 1
+    ha.states["sensor.d"]["state"] = "40"  # the door opened right after: not a new start
+    asyncio.run(th.tick(ha, st, t + timedelta(seconds=30 * 201), 0.2, 0.05, 100))
+    assert ha.states["switch.d"]["state"] == "on"
+
+
+def test_resume_off_or_shadow_never_switches_the_plug():
+    th, st, hs, ha = _resume_setup()
+    st["things"][0]["resume"] = False
+    ha.states["sensor.d"]["state"] = "1800"
+    asyncio.run(th.tick(ha, st, T0, 2.0, 0.05, 100))
+    assert ha.states["switch.d"]["state"] == "on" and th.st("d").get("running")
+    th, st, hs, ha = _resume_setup()
+    ha.states["sensor.d"]["state"] = "1800"
+    asyncio.run(th.tick(ha, st, T0, 2.0, 0.05, 100, act=False))
+    assert ha.states["switch.d"]["state"] == "on"
+
+
+def test_resume_without_a_time_or_cancelled_runs_now():
+    th, st, hs, ha = _resume_setup()
+    ha.states["sensor.d"]["state"] = "1800"
+    asyncio.run(th.tick(ha, st, T0, 2.0, 0.05, 100))
+    ha.states["sensor.d"]["state"] = "0"
+    th.plans = {}  # no start found
+    asyncio.run(th.tick(ha, st, T0 + timedelta(minutes=16), 2.0, 0.05, 100))
+    assert ha.states["switch.d"]["state"] == "on"
+    th, st, hs, ha = _resume_setup()
+    ha.states["sensor.d"]["state"] = "1800"
+    asyncio.run(th.tick(ha, st, T0, 2.0, 0.05, 100))
+    ha.states["sensor.d"]["state"] = "0"
+    th.arm("d", False)  # Cancel while paused
+    asyncio.run(th.tick(ha, st, T0 + timedelta(minutes=1), 2.0, 0.05, 100))
+    assert ha.states["switch.d"]["state"] == "on"

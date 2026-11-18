@@ -731,8 +731,17 @@ class Overview:
                 "cap_max": ((st.get(r["ev_cap"]) or {}).get("attributes") or {}).get("max") if r["ev_cap"] else None,
                 "session_kwh": chargers.session(st, r["ev_session"], r["ev_plug"],
                                                 (self.settings.get("plug_marks") or {}).get(r["ev_plug"] or "")),
-                **self._ev_soc(),
+                **self._ev_soc(), "charge": self._ev_charge(),
                 "entities": {k: r[k] for k in ("ev_manual", "ev_ready", "ev_cap", "ev_soc")}}
+
+    def _ev_charge(self) -> dict[str, Any] | None:
+        """This charge so far (while plugged in): kWh, what it cost, and how much of it the sun gave."""
+        g = getattr(self.engine, "ghosts", None) if self.engine else None
+        own = (g.part("car").get("own") if g else None) or {}
+        if not own.get("kwh"):
+            return None
+        return {"kwh": round(own["kwh"], 2), "cost": round(own.get("cost", 0.0), 2),
+                "sun": round(min(1.0, own.get("sun_kwh", 0.0) / own["kwh"]), 2)}
 
     def _ev_soc(self) -> dict[str, Any]:
         """The car's own level and the target it charges to (see evsoc.py)."""

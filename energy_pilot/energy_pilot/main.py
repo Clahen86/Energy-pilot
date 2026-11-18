@@ -224,7 +224,8 @@ async def main() -> None:
                 # each charger's real charge, measured beside the one Energy Pilot would make (for chargers in shadow)
                 extra = f.get("cars") or []
                 own_w = None if f.get("ev") is None else f["ev"] - sum((c.get("power") or 0.0) for c in extra)
-                engine.ghosts.see("car", now, f.get("plug"), own_w, price, 30)
+                engine.ghosts.see("car", now, f.get("plug"), own_w, price, 30,
+                                  engine.ghosts.sun_to_car(own_w, f.get("pv"), f.get("grid"), f.get("battery")), sell)
                 for i, c in enumerate(extra):
                     engine.ghosts.see(f"car{i + 2}", now, c.get("plug"), c.get("power"), price, 30)
                 engine.car_size.see(f.get("plug"), ev.get("soc"), ev.get("session_kwh"))
@@ -239,6 +240,9 @@ async def main() -> None:
                 if st.get("things"):
                     # in shadow nothing is switched: the things act only when Energy Pilot controls something
                     await engine.things.tick(ha, st, now, price, sell, f.get("grid"), act=any(controller.mode(p) == "control" for p in controller.parts()))
+                    if engine.things.replan:  # a machine was just paused: its start time now
+                        engine.things.replan = False
+                        engine.run()
                 if getattr(overview, "selftest", None):
                     await overview.selftest.retry_pending()  # settings a test left while their device was offline
                 bp = controller.last.get("battery") if hasattr(controller, "last") else None
