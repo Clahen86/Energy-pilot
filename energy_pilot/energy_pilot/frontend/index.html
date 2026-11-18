@@ -1765,7 +1765,7 @@ const T_FIX = {
     nudge: "Test dit system, før du slår Styrer til. Det tager ca. 10 min, og alt sættes tilbage bagefter.", nudgeGo: "Test nu", skip: "Spring over",
     failed: "Testen fandt noget, der ikke virker.", ready: "Systemet testet",
     g3title: "Test dit system", g3text: "Energipilot kan prøve, om den kan styre dit batteri og din lader – før den styrer noget for alvor.",
-    g3a: "Den prøver at holde, lade og sælge – ca. 10 min ved højst 1 kW.", g3b: "Alt sættes tilbage bagefter – også hvis noget går i stå undervejs.",
+    g3a: "Den prøver at holde, lade og sælge – ca. 10 min ved højst 1 kW.", g3aNoSell: "Den prøver at holde og lade – ca. 10 min ved højst 1 kW. Den sælger ikke, fordi salg er slået fra.", g3b: "Alt sættes tilbage bagefter – også hvis noget går i stå undervejs.",
     g3c: "Virker noget ikke, prøver den selv at rette det. Du kan altid fortryde.", g3d: "Du kan springe over og teste senere under Styring.", g3go: "Start test", g3skip: "Spring over – test senere" },
   en: { share: "Share anonymously what works", shareH: "Helps others with the same inverter: brand, model, which entities are used (without your device name), test results and app errors. Never names of people, address or hour-by-hour use.", full: "Share my setup", fullH: "Also sends the full entity names of the inverter, battery and charger, so the profiles can be fixed.", testedBy: "tested by {n}", light: { g: "All good", y: "Have a look", r: "Something doesn't work" }, fixedTitle: "Fixed by itself", undo: "Undo",
     what: { community: "From the community: {intent} “{from}” → “{to}”", fuse: "Main fuse {from} → {to} kW (it was written in amps)", soc_scale: "Battery level now read as 0–100", kw_scale: "{role} now read in kW",
@@ -1776,7 +1776,7 @@ const T_FIX = {
     nudge: "Test your system before you turn on Control. It takes about 10 min, and everything is put back afterwards.", nudgeGo: "Test now", skip: "Skip",
     failed: "The test found something that doesn't work.", ready: "System tested",
     g3title: "Test your system", g3text: "Energy Pilot can check that it can control your battery and charger – before it controls anything for real.",
-    g3a: "It tries to hold, charge and sell – about 10 min at most 1 kW.", g3b: "Everything is put back afterwards – also if something stops on the way.",
+    g3a: "It tries to hold, charge and sell – about 10 min at most 1 kW.", g3aNoSell: "It tries to hold and charge – about 10 min at most 1 kW. It doesn't sell, as selling is turned off.", g3b: "Everything is put back afterwards – also if something stops on the way.",
     g3c: "If something doesn't work, it tries to fix it itself. You can always undo.", g3d: "You can skip and test later under Control.", g3go: "Start test", g3skip: "Skip – test later" },
   de: { share: "Anonym teilen, was funktioniert", shareH: "Hilft anderen mit demselben Wechselrichter: Marke, Modell, genutzte Entitäten (ohne deinen Gerätenamen), Testergebnisse und App-Fehler. Nie Namen von Personen, Adresse oder stündlicher Verbrauch.", full: "Meine Einrichtung teilen", fullH: "Sendet auch die vollen Entitätsnamen von Wechselrichter, Batterie und Wallbox, damit die Profile verbessert werden können.", testedBy: "von {n} getestet", light: { g: "Alles in Ordnung", y: "Bitte ansehen", r: "Etwas funktioniert nicht" }, fixedTitle: "Selbst korrigiert", undo: "Rückgängig",
     what: { community: "Aus der Community: {intent} „{from}“ → „{to}“", fuse: "Hauptsicherung {from} → {to} kW (war in Ampere eingetragen)", soc_scale: "Batteriestand wird jetzt als 0–100 gelesen", kw_scale: "{role} wird jetzt in kW gelesen",
@@ -1786,7 +1786,7 @@ const T_FIX = {
     nudge: "Teste dein System, bevor du Steuern einschaltest. Ca. 10 Min, danach wird alles zurückgesetzt.", nudgeGo: "Jetzt testen", skip: "Überspringen",
     failed: "Der Test hat etwas gefunden, das nicht funktioniert.", ready: "System getestet",
     g3title: "System testen", g3text: "Energy Pilot kann prüfen, ob es Batterie und Wallbox steuern kann – bevor es wirklich steuert.",
-    g3a: "Es versucht zu halten, zu laden und zu verkaufen – ca. 10 Min, höchstens 1 kW.", g3b: "Danach wird alles zurückgesetzt – auch wenn unterwegs etwas hängt.",
+    g3a: "Es versucht zu halten, zu laden und zu verkaufen – ca. 10 Min, höchstens 1 kW.", g3aNoSell: "Es versucht zu halten und zu laden – ca. 10 Min, höchstens 1 kW. Es verkauft nichts, da Verkaufen ausgeschaltet ist.", g3b: "Danach wird alles zurückgesetzt – auch wenn unterwegs etwas hängt.",
     g3c: "Funktioniert etwas nicht, versucht es dies selbst zu korrigieren. Du kannst es immer rückgängig machen.", g3d: "Du kannst überspringen und später unter Steuerung testen.", g3go: "Test starten", g3skip: "Überspringen – später testen" },
   fr: { share: "Partager anonymement ce qui marche", shareH: "Aide les autres avec le même onduleur : marque, modèle, entités utilisées (sans le nom de votre appareil), résultats de test et erreurs. Jamais de noms de personnes, d'adresse ni de consommation heure par heure.", full: "Partager ma configuration", fullH: "Envoie aussi les noms complets des entités de l'onduleur, de la batterie et de la borne, pour corriger les profils.", testedBy: "testé par {n}", light: { g: "Tout va bien", y: "À regarder", r: "Quelque chose ne marche pas" }, fixedTitle: "Corrigé automatiquement", undo: "Annuler",
     what: { community: "De la communauté : {intent} « {from} » → « {to} »", fuse: "Disjoncteur {from} → {to} kW (saisi en ampères)", soc_scale: "Niveau de batterie lu en 0–100", kw_scale: "{role} lu en kW",
@@ -1796,7 +1796,7 @@ const T_FIX = {
     nudge: "Testez votre système avant d'activer le pilotage. Env. 10 min, tout est remis ensuite.", nudgeGo: "Tester", skip: "Passer",
     failed: "Le test a trouvé quelque chose qui ne marche pas.", ready: "Système testé",
     g3title: "Tester votre système", g3text: "Energy Pilot peut vérifier qu'il sait piloter votre batterie et votre borne – avant de piloter pour de vrai.",
-    g3a: "Il essaie de maintenir, charger et vendre – env. 10 min, 1 kW max.", g3b: "Tout est remis ensuite – même si quelque chose s'arrête en route.",
+    g3a: "Il essaie de maintenir, charger et vendre – env. 10 min, 1 kW max.", g3aNoSell: "Il essaie de maintenir et charger – env. 10 min, 1 kW max. Il ne vend rien, la vente est désactivée.", g3b: "Tout est remis ensuite – même si quelque chose s'arrête en route.",
     g3c: "Si quelque chose ne marche pas, il essaie de corriger lui-même. Vous pouvez toujours annuler.", g3d: "Vous pouvez passer et tester plus tard sous Pilotage.", g3go: "Lancer le test", g3skip: "Passer – tester plus tard" },
   nl: { share: "Anoniem delen wat werkt", shareH: "Helpt anderen met dezelfde omvormer: merk, model, welke entiteiten gebruikt worden (zonder je apparaatnaam), testresultaten en app-fouten. Nooit namen van personen, adres of verbruik per uur.", full: "Mijn opstelling delen", fullH: "Stuurt ook de volledige entiteitsnamen van omvormer, batterij en laadpaal, zodat de profielen verbeterd kunnen worden.", testedBy: "getest door {n}", light: { g: "Alles in orde", y: "Even kijken", r: "Iets werkt niet" }, fixedTitle: "Zelf gerepareerd", undo: "Ongedaan maken",
     what: { community: "Van de community: {intent} “{from}” → “{to}”", fuse: "Hoofdzekering {from} → {to} kW (stond in ampère)", soc_scale: "Batterijniveau nu gelezen als 0–100", kw_scale: "{role} nu gelezen in kW",
@@ -1806,7 +1806,7 @@ const T_FIX = {
     nudge: "Test je systeem voordat je Sturen aanzet. Ca. 10 min, daarna wordt alles teruggezet.", nudgeGo: "Nu testen", skip: "Overslaan",
     failed: "De test vond iets dat niet werkt.", ready: "Systeem getest",
     g3title: "Test je systeem", g3text: "Energy Pilot kan controleren of hij je batterij en laadpaal kan sturen – voordat hij echt stuurt.",
-    g3a: "Hij probeert vast te houden, te laden en te verkopen – ca. 10 min, max 1 kW.", g3b: "Daarna wordt alles teruggezet – ook als er onderweg iets vastloopt.",
+    g3a: "Hij probeert vast te houden, te laden en te verkopen – ca. 10 min, max 1 kW.", g3aNoSell: "Hij probeert vast te houden en te laden – ca. 10 min, max 1 kW. Hij verkoopt niets, want verkopen staat uit.", g3b: "Daarna wordt alles teruggezet – ook als er onderweg iets vastloopt.",
     g3c: "Werkt iets niet, dan probeert hij het zelf te repareren. Je kunt altijd ongedaan maken.", g3d: "Je kunt overslaan en later testen onder Sturing.", g3go: "Start test", g3skip: "Overslaan – later testen" },
   sv: { share: "Dela anonymt vad som fungerar", shareH: "Hjälper andra med samma växelriktare: märke, modell, vilka entiteter som används (utan ditt enhetsnamn), testresultat och appfel. Aldrig namn på personer, adress eller förbrukning per timme.", full: "Dela min installation", fullH: "Skickar också de fullständiga entitetsnamnen för växelriktare, batteri och laddbox, så att profilerna kan rättas.", testedBy: "testat av {n}", light: { g: "Allt i ordning", y: "Titta här", r: "Något fungerar inte" }, fixedTitle: "Rättat automatiskt", undo: "Ångra",
     what: { community: "Från gemenskapen: {intent} ”{from}” → ”{to}”", fuse: "Huvudsäkring {from} → {to} kW (var angiven i ampere)", soc_scale: "Batterinivå läses nu som 0–100", kw_scale: "{role} läses nu i kW",
@@ -1816,7 +1816,7 @@ const T_FIX = {
     nudge: "Testa ditt system innan du slår på Styr. Ca 10 min, allt återställs efteråt.", nudgeGo: "Testa nu", skip: "Hoppa över",
     failed: "Testet hittade något som inte fungerar.", ready: "Systemet testat",
     g3title: "Testa ditt system", g3text: "Energy Pilot kan kontrollera att den kan styra ditt batteri och din laddbox – innan den styr på riktigt.",
-    g3a: "Den försöker hålla, ladda och sälja – ca 10 min, högst 1 kW.", g3b: "Allt återställs efteråt – även om något stannar på vägen.",
+    g3a: "Den försöker hålla, ladda och sälja – ca 10 min, högst 1 kW.", g3aNoSell: "Den försöker hålla och ladda – ca 10 min, högst 1 kW. Den säljer inget, eftersom försäljning är avstängd.", g3b: "Allt återställs efteråt – även om något stannar på vägen.",
     g3c: "Fungerar något inte försöker den rätta det själv. Du kan alltid ångra.", g3d: "Du kan hoppa över och testa senare under Styrning.", g3go: "Starta test", g3skip: "Hoppa över – testa senare" },
   nb: { share: "Del anonymt hva som virker", shareH: "Hjelper andre med samme vekselretter: merke, modell, hvilke entiteter som brukes (uten enhetsnavnet ditt), testresultater og appfeil. Aldri navn på personer, adresse eller forbruk time for time.", full: "Del oppsettet mitt", fullH: "Sender også de fulle entitetsnavnene for vekselretter, batteri og lader, så profilene kan rettes.", testedBy: "testet av {n}", light: { g: "Alt i orden", y: "Se her", r: "Noe virker ikke" }, fixedTitle: "Rettet automatisk", undo: "Angre",
     what: { community: "Fra fellesskapet: {intent} «{from}» → «{to}»", fuse: "Hovedsikring {from} → {to} kW (var skrevet i ampere)", soc_scale: "Batterinivå leses nå som 0–100", kw_scale: "{role} leses nå i kW",
@@ -1826,7 +1826,7 @@ const T_FIX = {
     nudge: "Test systemet før du slår på Styrer. Ca. 10 min, alt settes tilbake etterpå.", nudgeGo: "Test nå", skip: "Hopp over",
     failed: "Testen fant noe som ikke virker.", ready: "Systemet testet",
     g3title: "Test systemet ditt", g3text: "Energy Pilot kan sjekke at den kan styre batteriet og laderen din – før den styrer på ordentlig.",
-    g3a: "Den prøver å holde, lade og selge – ca. 10 min, maks 1 kW.", g3b: "Alt settes tilbake etterpå – også hvis noe stopper underveis.",
+    g3a: "Den prøver å holde, lade og selge – ca. 10 min, maks 1 kW.", g3aNoSell: "Den prøver å holde og lade – ca. 10 min, maks 1 kW. Den selger ikke, siden salg er slått av.", g3b: "Alt settes tilbake etterpå – også hvis noe stopper underveis.",
     g3c: "Virker noe ikke, prøver den å rette det selv. Du kan alltid angre.", g3d: "Du kan hoppe over og teste senere under Styring.", g3go: "Start test", g3skip: "Hopp over – test senere" },
 };
 const TF = T_FIX[L] || T_FIX.en;
@@ -2411,7 +2411,7 @@ function setupView() {
       <button class="cta" data-step="3">${T.start}</button><button class="link" data-step="1">${T.back}</button></div>`;
   if (step === 3) return `<div class="hero fade"><div class="logo big" style="font-size:30px;color:#fff">✓</div>
       <h2>${TF.g3title}</h2><p class="muted">${TF.g3text}</p>
-      <ul class="testexplain"><li>⚡ <span>${TF.g3a}</span></li><li>↩️ <span>${TF.g3b}</span></li><li>🔧 <span>${TF.g3c}</span></li><li>⏭️ <span>${TF.g3d}</span></li></ul>
+      <ul class="testexplain"><li>⚡ <span>${settings.settings?.battery_export ? TF.g3a : (TF.g3aNoSell || TF.g3a)}</span></li><li>↩️ <span>${TF.g3b}</span></li><li>🔧 <span>${TF.g3c}</span></li><li>⏭️ <span>${TF.g3d}</span></li></ul>
       <button class="cta" data-g3go>${TF.g3go}</button><button class="link" data-g3skip>${TF.g3skip}</button></div>`;
   const parts = Object.entries(GROUPS).filter(([g]) => g !== "data");
   const foundCount = Object.values(settings.roles).filter(Boolean).length;
