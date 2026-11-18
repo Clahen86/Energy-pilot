@@ -82,3 +82,21 @@ def test_no_selling_in_the_cheap_hours_when_asked():
     assert not any(s.action == "export" and s.start in cheap for s in kept.steps)
     assert any(s.action == "charge_grid" for s in kept.steps)  # it still charges on the cheap power
     assert any(s.action == "export" and s.start.hour in (16, 17, 18) for s in kept.steps)  # and sells at the peak
+
+
+def test_never_sells_below_what_buying_it_back_costs():
+    # The report: sell 1.29 at 23 while the night costs 1.22 to buy back - with loss and wear in and out, a loss.
+    t0 = datetime(2026, 11, 18, 20, tzinfo=ZoneInfo("Europe/Copenhagen"))
+    buy = [2.4, 2.3, 2.2, 1.29, 1.25, 1.22, 1.24, 2.2, 2.5, 2.6]
+    sell = [1.50, 1.44, 1.39, 1.29, 0.70, 0.68, 0.70, 1.2, 1.3, 1.3]
+    hrs = [Hour(t0 + timedelta(hours=i), buy[i], sell[i], 1.4, 0.0) for i in range(len(buy))]
+    b = Battery(capacity_kwh=76.6, export=True, wear=0.15, efficiency=0.95, min_soc=15)
+    p = plan_battery(hrs, 30, b, end_value=1.5)
+    assert all(s.action != "export" and s.grid_kwh >= -1e-9 for s in p.steps)  # not even a rest from rounding
+
+
+def test_learned_efficiency_never_above_95_percent():
+    from energy_pilot.blend import BatteryLearner
+
+    bl = BatteryLearner({"battery_learned": {"in_pp": [0.77] * 10, "out_pp": [0.765] * 10}})
+    assert bl.efficiency(0.92) == 0.95  # 0.99 from the battery's own meter misses the inverter's loss

@@ -385,7 +385,7 @@ class BatteryLearner:
         m = self._medians()
         if not m:
             return datasheet
-        learned = min(1.0, max(0.7, m[1] / m[0]))
+        learned = min(0.95, max(0.7, m[1] / m[0]))  # the battery's own meter misses the inverter's loss: never above 95 %
         w = min(1.0, m[2] / 10)
         return round((1 - w) * datasheet + w * learned, 3)
 

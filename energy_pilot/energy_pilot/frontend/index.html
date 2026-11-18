@@ -1270,9 +1270,38 @@ function rtTap(e) {
     <rect x="${bx}" y="${Math.max(10, py - 48)}" width="${w}" height="40" rx="10" fill="var(--surface)" fill-opacity=".94" stroke="var(--line2)"/>
     <text x="${bx + 10}" y="${Math.max(10, py - 48) + 16}" font-size="10.5" font-weight="800" fill="var(--text)">${R.hm(c.t)} · ${num(c.soc, 0)} %</text><text x="${bx + 10}" y="${Math.max(10, py - 48) + 31}" font-size="9.5" fill="var(--muted)">${what}</text>`;
 }
+// Why the battery is kept: the dearest hours in the plan where it will be used - "For tomorrow 17–20 at up to 3.30 kr · now 2.15 kr"
+const T_HF = {
+  da: { f: "Til {d} {a}–{b} til op til {p} · nu {n}", today: "i dag", tomorrow: "i morgen" },
+  en: { f: "For {d} {a}–{b} at up to {p} · now {n}", today: "today", tomorrow: "tomorrow" },
+  de: { f: "Für {d} {a}–{b} zu bis zu {p} · jetzt {n}", today: "heute", tomorrow: "morgen" },
+  fr: { f: "Pour {d} {a}–{b}, jusqu'à {p} · maintenant {n}", today: "aujourd'hui", tomorrow: "demain" },
+  nl: { f: "Voor {d} {a}–{b} tegen tot {p} · nu {n}", today: "vandaag", tomorrow: "morgen" },
+  sv: { f: "Till {d} {a}–{b} för upp till {p} · nu {n}", today: "i dag", tomorrow: "i morgon" },
+  nb: { f: "Til {d} {a}–{b} til opptil {p} · nå {n}", today: "i dag", tomorrow: "i morgen" },
+};
+function holdFor(d) {
+  const hrs = d.plan?.hours || [], now = Date.now(), use = [];
+  for (let i = 1; i < hrs.length; i++) {
+    const h = hrs[i], p = hrs[i - 1], t = new Date(h.t).getTime();
+    if (t + 3600e3 <= now || h.price == null || h.soc == null || p.soc == null) continue;
+    if (h.soc < p.soc - 0.5) use.push({ i, t, price: h.price });  // the battery is used in this hour
+  }
+  if (!use.length || d.price?.now == null) return "";
+  const top = use.reduce((a, b) => (b.price > a.price ? b : a));
+  if (top.price <= d.price.now) return "";  // nothing dearer ahead: the plain reason says enough
+  const near = new Set(use.filter((u) => u.price >= top.price * 0.9).map((u) => u.i));
+  let a = top.i, b = top.i;
+  while (near.has(a - 1)) a--;
+  while (near.has(b + 1)) b++;
+  const x = T_HF[L] || T_HF.en, start = new Date(hrs[a].t), end = new Date(new Date(hrs[b].t).getTime() + 3600e3);
+  const day = start.toDateString() === new Date().toDateString() ? x.today : x.tomorrow;
+  const hh = (dt) => String(dt.getHours()).padStart(2, "0");
+  return x.f.replace("{d}", day).replace("{a}", hh(start)).replace("{b}", hh(end)).replace("{p}", kr(top.price)).replace("{n}", kr(d.price.now));
+}
 function home() {
   const d = data, f = d.flow, dec = d.decision;
-  const reason = dec ? T.reasons[dec.kind].replace("{p}", kr(d.price.now)) : "";
+  const reason = dec ? (dec.kind === "hold" && holdFor(d)) || T.reasons[dec.kind].replace("{p}", kr(d.price.now)) : "";
   const lv = level(d.price.now, d.plan);
   const metric = (ic, lbl, v, unit, sub, id, extra = "") => `<div class="metric"><div class="lbl">${icon(ic)}${lbl}</div><div class="v" ${id ? `id="${id}"` : ""}>${v}<small>${unit}</small></div>${sub ? `<div class="s">${sub}</div>` : ""}${extra}</div>`;
   const metrics = [

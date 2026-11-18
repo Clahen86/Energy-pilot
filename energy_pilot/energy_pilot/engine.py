@@ -253,6 +253,9 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
     n, m = len(hours), len(levels)
     INF = float("inf")
     pct_step = step_pct / 100 * b.capacity_kwh  # kWh between two levels
+    # Selling from the battery must beat buying the kWh back: the cheapest price ahead after the loss, plus the wear
+    # out and in again. Below that it would sell at a loss - also a small rest from rounding to whole steps.
+    refill = (min(h.price for h in hours) / b.efficiency if b.grid_charge else 0.0) + 2 * b.wear
     best = [[INF] * m for _ in range(n + 1)]
     choice: list[list[tuple[int, str, float, float]]] = [[(0, "hold", 0.0, 0.0)] * m for _ in range(n)]
     req = target_levels(hours, b.targets, b.at)
@@ -291,7 +294,7 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
                     need = max(0.0, h.house - h.sun)
                     action = "discharge"
                     if out > need + 1e-9:
-                        if b.export and h.sell > 0 and h.start not in b.no_export:
+                        if b.export and h.sell > 0 and h.start not in b.no_export and h.sell >= refill - 1e-9:
                             action = "export"  # sells what the house doesn't use
                         elif k != j - 1 or need <= 0:
                             continue  # no exporting from the battery
