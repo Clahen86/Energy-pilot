@@ -129,3 +129,23 @@ def test_a_stuck_house_meter_is_not_swapped_for_one_phase():
     o.candidates = lambda: {"house_power": [{"entity_id": "sensor.inverter_load_l1_power", "guess": True}]}
     A.AutoFix(o).run()
     assert store["roles"]["house_power"] == "sensor.inverter_load_l1_power"
+
+
+def test_unavailable_battery_level_is_swapped_after_half_an_hour():
+    from datetime import datetime, timezone
+
+    fresh = datetime.now(timezone.utc).isoformat()
+    states = {"sensor.old_soc": {"state": "unavailable", "last_changed": fresh},
+              "sensor.new_soc": {"state": "64", "last_changed": fresh, "attributes": {"friendly_name": "Battery SOC"}}}
+    o, store = ov({"roles": {"battery_soc": "sensor.old_soc"}}, states, roles={"battery_soc": "sensor.old_soc"})
+    o.candidates = lambda: {"battery_soc": [{"entity_id": "sensor.new_soc", "guess": True}]}
+    a = A.AutoFix(o)
+    a.run()
+    assert store["roles"]["battery_soc"] == "sensor.old_soc"  # not at once
+    a.gone_since["gone:battery_soc"] -= A.GONE_S + 1
+    a.run()
+    assert store["roles"]["battery_soc"] == "sensor.new_soc" and store["autofix_log"][-1]["what"] == "gone"
+    states["sensor.old_soc"]["state"] = "55"  # an idle level that sits still is never swapped
+    o2, store2 = ov({"roles": {"battery_soc": "sensor.old_soc"}}, states, roles={"battery_soc": "sensor.old_soc"})
+    A.AutoFix(o2).run()
+    assert store2["roles"]["battery_soc"] == "sensor.old_soc"

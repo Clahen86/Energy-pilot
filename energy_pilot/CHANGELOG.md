@@ -2,6 +2,14 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.93.0 – 2026-11-19
+
+- Own profile for an inverter Energy Pilot doesn't know: search its controls (likely ones first) and pick a select's option or a value with one tap - off-grid, factory reset and firmware are never offered
+- A price from a select (Peak / Off Peak) is flagged: it's a name, not a price - use your own tariff plan
+- evcc charging points are started and stopped by their mode (now / off)
+- A battery level, battery power or solar sensor that has been unavailable for half an hour is swapped for one that works, with undo
+- A skipped self-test is offered again after two weeks
+
 ## 0.92.3 – 2026-11-19
 
 - Front page says why the sun goes into the battery instead of being sold: what it is worth later (used or sold) against the feed-in price now

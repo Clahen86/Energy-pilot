@@ -510,6 +510,8 @@ CHARGER_SERVICES = {
                       "stop": [(r"number\..*power_connector_max_current_socket_1$", "number", "0")]},
     # Ohme (built in): no current control - "Charge mode" max charge / paused
     "ohme": {"charge": [(r"select\..*charge_mode$", "select", "max_charge")], "stop": [(r"select\..*charge_mode$", "select", "paused")]},
+    # evcc (marq24/ha-evcc): the loadpoint's "Mode" - now / off (evcc keeps its own current and phases)
+    "evcc_intg": {"charge": [(r"select\..*_mode$", "select", "now")], "stop": [(r"select\..*_mode$", "select", "off")]},
     # myenergi zappi (CJNE/ha-myenergi): "Charge Mode" Fast / Stopped (no current control)
     "myenergi": {"charge": [(r"select\..*charge_mode$", "select", "Fast")], "stop": [(r"select\..*charge_mode$", "select", "Stopped")]},
 }

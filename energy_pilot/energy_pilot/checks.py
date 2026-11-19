@@ -83,6 +83,12 @@ def run(engine: Any, hours: list, b: Any, plan: Any, end_value: float) -> list[d
     if chosen is not None and seen is not None and bool(chosen) != bool(seen):
         out.append({"key": "ev_house", "level": "info", "vals": {"seen": bool(seen)}, "fix": {"ev_in_house": None}, "goto": "car"})
 
+    # 3a. The price is a select (Peak / Off Peak): a name, not a price - the plan can't use it. The own tariff plan
+    #     (the times and prices of each period) does the job.
+    pe = engine.ov.role("price")
+    if pe and pe.split(".")[0] in ("select", "input_select"):
+        out.append({"key": "price_text", "level": "warn", "vals": {"e": pe}, "goto": "grid"})
+
     # 3b. Sell the sun instead of storing it - offered to those who had Energy Pilot before it came (new installs
     #     have it on). Only when the plan does sell surplus sun while the battery would take it anyway.
     st_keys = engine.ov.settings

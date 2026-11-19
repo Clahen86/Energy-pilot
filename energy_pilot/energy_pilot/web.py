@@ -33,6 +33,21 @@ def _fixed_lines(overview: Overview) -> list:
     return lines
 
 
+ASK_AGAIN_S = 14 * 86400  # a skipped self-test is offered again after two weeks
+
+
+def test_skipped(v: object, now: float | None = None) -> bool:
+    """Skipped the self-test: for good when it was skipped before this came (True), else for two weeks."""
+    import time
+
+    if isinstance(v, bool) or v is None:
+        return bool(v)
+    try:
+        return (now or time.time()) - float(v) < ASK_AGAIN_S
+    except (TypeError, ValueError):
+        return False
+
+
 def _tested(overview: Overview) -> dict | None:
     """The last self-test in short, for the status light: none / ok / fixed / failed, and whether it runs."""
     t = getattr(overview, "selftest", None)
@@ -42,7 +57,7 @@ def _tested(overview: Overview) -> dict | None:
     res = st.get("results") or []
     running = bool(t._task and not t._task.done())
     if not res and not running:
-        return {"result": "none", "skipped": bool(overview.settings.get("test_skipped"))}
+        return {"result": "none", "skipped": test_skipped(overview.settings.get("test_skipped"))}
     worst = "failed" if any(r["result"] == "failed" for r in res) else "fixed" if any(r["result"] == "fixed" for r in res) else "ok"
     return {"result": worst, "running": running, "report_url": t.report_url() if res and worst == "failed" else None}
 
@@ -335,6 +350,17 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
     app.router.add_post("/api/settings", save_settings)
     app.router.add_post("/api/detect", redetect)
 
+    async def entity_info(req: web.Request) -> web.Response:
+        """A control's choices for the guide to an own profile: a select's options, a number's range, its value now."""
+        out = {}
+        for e in str(req.query.get("e", "")).split(",")[:40]:
+            s = overview.ha.states.get(e) or {}
+            a = s.get("attributes") or {}
+            out[e] = {"state": s.get("state"), "options": a.get("options") if isinstance(a.get("options"), list) else None,
+                      "min": a.get("min"), "max": a.get("max"), "unit": a.get("unit_of_measurement"),
+                      "name": a.get("friendly_name")}
+        return web.json_response(out)
+
     async def control_status(_req: web.Request) -> web.Response:
         c = overview.controller
         return web.json_response(c.status() if c else {})
@@ -486,6 +512,7 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
     app.router.add_get("/api/selftest", selftest_get)
     app.router.add_post("/api/selftest", selftest_post)
     app.router.add_get("/api/control", control_status)
+    app.router.add_get("/api/entity_info", entity_info)
     app.router.add_post("/api/control", control_mode)
     app.router.add_post("/api/control/release", control_release)
     app.router.add_post("/api/ev", ev)
