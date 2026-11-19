@@ -2,6 +2,10 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.94.3 – 2026-11-19
+
+- Fox ESS: the work mode is found as "Self Use" or "Self-Use", so other Fox integrations than foxess_modbus can hold and go back to normal too
+
 ## 0.94.2 – 2026-11-19
 
 - Fox ESS Modbus: force charge and force discharge power are sent in kW, as the inverter wants - selling from the battery was refused before

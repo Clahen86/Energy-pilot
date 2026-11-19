@@ -353,8 +353,9 @@ PROFILES: dict[str, dict[str, Any]] = {
         "match": r"foxess|fox_",
         # Hold: Self Use with the on-grid minimum at the battery's level now - "Back-up" may charge from the grid
         # (what the users' own profiles did instead). Normal puts the minimum back.
-        "normal": [(r"number\..*min_soc_on_grid$", "number", "{min_soc}"), (r"select\..*work_mode$", "select", "Self Use")],
-        "hold": [(r"number\..*min_soc_on_grid$", "number", "{soc}"), (r"select\..*work_mode$", "select", "Self Use")],
+        # "Self Use" in foxess_modbus, "Self-Use" in other Fox integrations: either is picked.
+        "normal": [(r"number\..*min_soc_on_grid$", "number", "{min_soc}"), (r"select\..*work_mode$", "select", "re:^self.?use$")],
+        "hold": [(r"number\..*min_soc_on_grid$", "number", "{soc}"), (r"select\..*work_mode$", "select", "re:^self.?use$")],
         # Force charge/discharge power is in kW in foxess_modbus (0-5 kW on an H1-5.0) - watts were refused.
         "charge": [(r"number\..*force_charge_power$", "number", "{power_kw}"), (r"number\..*force_charge_max_soc$", "number", "{target}"),
                    (r"select\..*work_mode$", "select", "Force Charge")],
