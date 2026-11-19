@@ -40,6 +40,21 @@ USUAL_FUSE = {"DK": (17, "3 × 25 A"), "SE": (17, "3 × 25 A"), "FI": (17, "3 ×
               "AT": (24, "3 × 35 A"), "NL": (17, "3 × 25 A"), "GB": (23, "100 A"), "IE": (14, "63 A")}
 
 
+VICTRON_LIMIT = re.compile(r"^number\..*ess_max_inverter_power(_limit)?$")
+
+
+def victron_limit(states: dict[str, Any]) -> str | None:
+    """The Victron entity holding the persistent ESS discharge limit, when it is set to 0 (-1 means no limit)."""
+    for e, s in states.items():
+        if VICTRON_LIMIT.match(e):
+            try:
+                if float((s or {}).get("state")) == 0:
+                    return e
+            except (TypeError, ValueError):
+                continue
+    return None
+
+
 def run(engine: Any, hours: list, b: Any, plan: Any, end_value: float) -> list[dict[str, Any]]:
     """The checks for the plan just made. Each: key, level (warn/info), values for the text, fix (settings) or goto."""
     from .engine import plan_battery
@@ -88,6 +103,11 @@ def run(engine: Any, hours: list, b: Any, plan: Any, end_value: float) -> list[d
     pe = engine.ov.role("price")
     if pe and pe.split(".")[0] in ("select", "input_select"):
         out.append({"key": "price_text", "level": "warn", "vals": {"e": pe}, "goto": "grid"})
+
+    # 3c. Victron's persistent ESS limit "Max inverter power" (/Settings/CGwacs/MaxDischargePower) at 0: the battery can't
+    #     discharge whatever Energy Pilot allows through the Hub4 override. Told, never changed.
+    if (e := victron_limit(getattr(getattr(engine.ov, "ha", None), "states", None) or {})):
+        out.append({"key": "victron_limit", "level": "warn", "vals": {"e": e}, "goto": "battery"})
 
     # 3b. Sell the sun instead of storing it - offered to those who had Energy Pilot before it came (new installs
     #     have it on). Only when the plan does sell surplus sun while the battery would take it anyway.

@@ -50,8 +50,11 @@ def _expect(intent: str, f: dict[str, Any], base: dict[str, Any]) -> bool | None
         return b >= -150  # not discharging (the sun may still charge it)
     if intent == "export":
         return b <= -300 and (g is None or g <= -100)
-    # normal: the battery covers the house again - not charging from the grid, not selling
-    return not (b > 300 and (g or 0) > 300) and not (b < -300 and (g or 0) < -300)
+    # normal: the battery covers the house again - not charging from the grid, not selling, and not standing idle while
+    # the house buys from the grid with charge left (a limit elsewhere, like Victron's "Max inverter power" at 0)
+    soc = f.get("soc")
+    idle_buying = -150 < b < 150 and (g or 0) > 300 and (soc is None or soc > 20)
+    return not (b > 300 and (g or 0) > 300) and not (b < -300 and (g or 0) < -300) and not idle_buying
 
 
 def _expect_car(step: str, f: dict[str, Any], base: dict[str, Any]) -> bool | None:
@@ -296,6 +299,9 @@ class SelfTest:
         from .checks import ALPHA_PERIOD
         if err and ALPHA_PERIOD.search(err):
             why = "alpha_period"  # AlphaESS changes only a period that exists: one has to be made in its app first
+        from .checks import victron_limit
+        if intent == "normal" and part == "battery" and why == "no_reaction" and victron_limit(self.ctl.ha.states if hasattr(self.ctl, "ha") else {}):
+            why = "victron_limit"  # the battery may not discharge: Victron's own persistent limit is 0
         rejected = [{"entity": c["data"].get("entity_id"), "value": c["data"].get("option", c["data"].get("value"))}
                     for c in calls if self.ctl._matches(c) is False]
         self._result(part, intent, "failed", why=why, rejected=rejected, error=err,

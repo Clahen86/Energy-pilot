@@ -2,6 +2,12 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.94.1 – 2026-11-19
+
+- The headline says "Planned" when the battery should cover the house but has stood still for 5 minutes while the house buys from the grid
+- Victron: a persistent ESS limit "Max inverter power" at 0 is pointed out - the battery can't discharge then; Energy Pilot never changes it
+- Self-test: "Back to normal" only passes when the battery really covers the house
+
 ## 0.94.0 – 2026-11-19
 
 - "Use of the battery" in the battery settings: spare the battery (as before), in between, or most saved - how much of the battery's wear a move must pay for. An own wear number still wins

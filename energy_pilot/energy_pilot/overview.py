@@ -534,7 +534,23 @@ class Overview:
             key = "SELL_SUN"  # the sun's surplus is sold, not stored
         text, kind = DECISIONS.get(lang, DECISIONS["en"]).get(key) or DECISIONS["en"][key]
         return {"key": key, "text": text, "kind": kind, "reason": None, "target": b["target"], "plan": [], "engine": True,
-                "saving": b["saving"]}
+                "saving": b["saving"], "blocked": self._not_discharging(key)}
+
+    def _not_discharging(self, key: str) -> bool:
+        """The plan says the battery covers the house, but for 5 minutes it has stood still while the house buys from
+        the grid: the headline then says it is planned, not happening (something else holds the battery back)."""
+        import time
+
+        f = self.flow() or {}
+        b, g, soc = f.get("battery"), f.get("grid"), f.get("soc")
+        idle = key == "FREE_DISCHARGE" and b is not None and -50 < b < 50 and (g or 0) > 100 and (soc is None or soc > 15)
+        if not idle:
+            self._idle_since = None
+            return False
+        now = time.time()
+        if getattr(self, "_idle_since", None) is None:
+            self._idle_since = now
+        return now - self._idle_since >= 300
 
     def decision(self, lang: str) -> dict[str, Any] | None:
         """Energy Pilot's own decision - the same plan as the curve below it. Another system (AppDaemon) that
