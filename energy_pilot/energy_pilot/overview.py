@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 import json
+import re
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -249,8 +250,29 @@ class Overview:
         k = (self.settings.get("role_scale") or {}).get(role)
         return v * k if v is not None and k else v
 
+    def _battery_eff(self) -> int | None:
+        """The round-trip efficiency the plan uses now (learned, or the datasheet's), in % - shown with "why it holds"."""
+        try:
+            return round(self.engine.settings().efficiency * 100) if self.engine else None
+        except Exception:  # noqa: BLE001 - only a hint on the front page
+            return None
+
+    def battery_pair(self) -> tuple[str, str] | None:
+        """(charge, discharge) when the battery's power is two sensors that each show one way only - Fox ESS Modbus
+        has "Battery Charge" and "Battery Discharge", both 0 or more. Then the power is charge less discharge."""
+        e = self.role("battery_power") or ""
+        m = re.match(r"^(sensor\..*battery_)(dis)?charge(_power)?$", e)
+        if not m:
+            return None
+        other = m.group(1) + ("" if m.group(2) else "dis") + "charge" + (m.group(3) or "")
+        if other not in self.ha.states:
+            return None
+        return (other, e) if m.group(2) else (e, other)
+
     def battery_sign(self) -> int:
         """+1: positive battery power is charging (Growatt). -1: positive is discharging (Fox ESS). Chosen, or found."""
+        if self.battery_pair():
+            return 1  # charge less discharge: always positive when charging
         chosen = self.settings.get("battery_sign")
         if chosen in (1, -1):
             return chosen
@@ -421,7 +443,10 @@ class Overview:
         pv = self.scaled("pv_power", sum(arrays) if arrays else None)  # several arrays are added up
         house = self.scaled("house_power", _watts(st.get(r["house_power"])) if r["house_power"] else None)
         batt = self.scaled("battery_power", _watts(st.get(r["battery_power"])) if r["battery_power"] else None)
-        if batt is not None:
+        if (pair := self.battery_pair()) is not None:
+            c, d = (self.scaled("battery_power", _watts(st.get(x))) for x in pair)
+            batt = None if c is None and d is None else (c or 0) - (d or 0)
+        elif batt is not None:
             batt *= self.battery_sign()  # some integrations (Fox ESS Modbus …) count discharging as positive
         soc = self.scaled("battery_soc", _num(st.get(r["battery_soc"])) if r["battery_soc"] else None)
         packs = None
@@ -778,6 +803,7 @@ class Overview:
             "house_other": _num(self.ha.states.get(house_e)) if house_e and self.engine and self.engine.house_today() else None,
             "house_other_appdaemon": bool(house_e and "appdaemon" in house_e),
             "settings": self.settings,
+            "battery_eff": self._battery_eff(),
             "sell_sun": {"on": self.sell_sun(), "can": bool(getattr(self, "controller", None) and self.controller.can_block_sun())},
             "scene": self._scene(),
             "ghosts": self.engine.ghosts.view() if self.engine and getattr(self.engine, "ghosts", None) else {},

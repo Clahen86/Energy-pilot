@@ -682,7 +682,11 @@ class Engine:
         from the grid and the sun, less what goes into the battery and the car. Only hours where grid and sun are known."""
         grid = dict(await self._hourly_kw(self.ov.role("grid_power"), days))
         pv = await self._hourly_sum(self.ov.role_all("pv_power"), days)
-        batt = dict(await self._hourly_kw(b, days)) if (b := self.ov.role("battery_power")) else {}
+        if (pair := self.ov.battery_pair()) is not None:  # charge and discharge as two sensors (Fox ESS Modbus)
+            ch, dis = dict(await self._hourly_kw(pair[0], days)), dict(await self._hourly_kw(pair[1], days))
+            batt = {t: ch.get(t, 0.0) - dis.get(t, 0.0) for t in set(ch) | set(dis)}
+        else:
+            batt = dict(await self._hourly_kw(b, days)) if (b := self.ov.role("battery_power")) else {}
         ev = await self._all_cars(days)
         return computed_house(grid, pv, batt, ev, self.ov.grid_sign(), self.ov.battery_sign())
 

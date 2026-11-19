@@ -1272,13 +1272,13 @@ function rtTap(e) {
 }
 // Why the battery is kept: the dearest hours in the plan where it will be used - "For tomorrow 17–20 at up to 3.30 kr · now 2.15 kr"
 const T_HF = {
-  da: { f: "Til {d} {a}–{b} til op til {p} · nu {n}", today: "i dag", tomorrow: "i morgen" },
-  en: { f: "For {d} {a}–{b} at up to {p} · now {n}", today: "today", tomorrow: "tomorrow" },
-  de: { f: "Für {d} {a}–{b} zu bis zu {p} · jetzt {n}", today: "heute", tomorrow: "morgen" },
-  fr: { f: "Pour {d} {a}–{b}, jusqu'à {p} · maintenant {n}", today: "aujourd'hui", tomorrow: "demain" },
-  nl: { f: "Voor {d} {a}–{b} tegen tot {p} · nu {n}", today: "vandaag", tomorrow: "morgen" },
-  sv: { f: "Till {d} {a}–{b} för upp till {p} · nu {n}", today: "i dag", tomorrow: "i morgon" },
-  nb: { f: "Til {d} {a}–{b} til opptil {p} · nå {n}", today: "i dag", tomorrow: "i morgen" },
+  da: { e: "batteriet regnes {e} % effektivt", f: "Til {d} {a}–{b} til op til {p} · nu {n}", today: "i dag", tomorrow: "i morgen" },
+  en: { e: "battery counted {e} % efficient", f: "For {d} {a}–{b} at up to {p} · now {n}", today: "today", tomorrow: "tomorrow" },
+  de: { e: "Batterie mit {e} % Wirkungsgrad gerechnet", f: "Für {d} {a}–{b} zu bis zu {p} · jetzt {n}", today: "heute", tomorrow: "morgen" },
+  fr: { e: "batterie comptée à {e} % de rendement", f: "Pour {d} {a}–{b}, jusqu'à {p} · maintenant {n}", today: "aujourd'hui", tomorrow: "demain" },
+  nl: { e: "batterij gerekend op {e} % rendement", f: "Voor {d} {a}–{b} tegen tot {p} · nu {n}", today: "vandaag", tomorrow: "morgen" },
+  sv: { e: "batteriet räknas {e} % effektivt", f: "Till {d} {a}–{b} för upp till {p} · nu {n}", today: "i dag", tomorrow: "i morgon" },
+  nb: { e: "batteriet regnes {e} % effektivt", f: "Til {d} {a}–{b} til opptil {p} · nå {n}", today: "i dag", tomorrow: "i morgen" },
 };
 function holdFor(d) {
   const hrs = d.plan?.hours || [], now = Date.now(), use = [];
@@ -1297,7 +1297,8 @@ function holdFor(d) {
   const x = T_HF[L] || T_HF.en, start = new Date(hrs[a].t), end = new Date(new Date(hrs[b].t).getTime() + 3600e3);
   const day = start.toDateString() === new Date().toDateString() ? x.today : x.tomorrow;
   const hh = (dt) => String(dt.getHours()).padStart(2, "0");
-  return x.f.replace("{d}", day).replace("{a}", hh(start)).replace("{b}", hh(end)).replace("{p}", kr(top.price)).replace("{n}", kr(d.price.now));
+  const line = x.f.replace("{d}", day).replace("{a}", hh(start)).replace("{b}", hh(end)).replace("{p}", kr(top.price)).replace("{n}", kr(d.price.now));
+  return d.battery_eff ? line + " · " + x.e.replace("{e}", d.battery_eff) : line;  // losses in and out: why a small gap isn't worth it
 }
 function home() {
   const d = data, f = d.flow, dec = d.decision;

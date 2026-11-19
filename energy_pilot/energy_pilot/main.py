@@ -208,7 +208,7 @@ async def main() -> None:
                 st, b = overview.settings, engine.settings()
                 sell = float(st.get("sell_price") or 0) if st.get("sell") else 0.0
                 sell = engine.sell_at(engine.sell_prices(), now, sell)  # a changing feed-in price, when chosen
-                if (be := overview.role("battery_power")) and (bs := ha.states.get(be)):
+                if (be := overview.role("battery_power")) and (bs := ha.states.get(be)) and not overview.battery_pair():
                     try:
                         raw = float(bs.get("state")) * (1000 if str((bs.get("attributes") or {}).get("unit_of_measurement", "")).lower() == "kw" else 1)
                     except (TypeError, ValueError):

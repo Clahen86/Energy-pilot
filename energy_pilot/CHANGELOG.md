@@ -2,6 +2,12 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.92.2 – 2026-11-19
+
+- Fox ESS Modbus: battery power from the two sensors "Battery Charge" and "Battery Discharge" - charging no longer reads as 0, so the self-test sees it
+- "Why it holds" also shows the battery efficiency the plan counts with
+- "What's new" after an update, and the update card lists the changes of every version it brings
+
 ## 0.92.1 – 2026-11-19
 
 - Self-test text says it won't sell when selling is turned off
