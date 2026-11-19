@@ -1300,9 +1300,27 @@ function holdFor(d) {
   const line = x.f.replace("{d}", day).replace("{a}", hh(start)).replace("{b}", hh(end)).replace("{p}", kr(top.price)).replace("{n}", kr(d.price.now));
   return d.battery_eff ? line + " · " + x.e.replace("{e}", d.battery_eff) : line;  // losses in and out: why a small gap isn't worth it
 }
+// Why the sun goes into the battery instead of being sold: "Stores the sun: worth up to 0.27 today 16–19 · selling now 0.19"
+const T_SS = {
+  da: "Gemmer solen: værd op til {p} {d} {a}–{b} · at sælge nu {n}",
+  en: "Storing the sun: worth up to {p} {d} {a}–{b} · selling now {n}",
+  de: "Speichert die Sonne: bis zu {p} wert {d} {a}–{b} · jetzt verkaufen {n}",
+  fr: "Stocke le soleil : vaut jusqu'à {p} {d} {a}–{b} · vendre maintenant {n}",
+  nl: "Slaat de zon op: tot {p} waard {d} {a}–{b} · nu verkopen {n}",
+  sv: "Sparar solen: värd upp till {p} {d} {a}–{b} · sälja nu {n}",
+  nb: "Lagrer solen: verdt opptil {p} {d} {a}–{b} · selge nå {n}",
+};
+function sunStore(d) {
+  const s = d.sun_store;
+  if (!s) return "";
+  const x = T_HF[L] || T_HF.en, start = new Date(s.from), end = new Date(s.to);
+  const day = start.toDateString() === new Date().toDateString() ? x.today : x.tomorrow;
+  const hh = (dt) => String(dt.getHours()).padStart(2, "0");
+  return (T_SS[L] || T_SS.en).replace("{p}", kr(s.p)).replace("{d}", day).replace("{a}", hh(start)).replace("{b}", hh(end)).replace("{n}", kr(s.now));
+}
 function home() {
   const d = data, f = d.flow, dec = d.decision;
-  const reason = dec ? (dec.kind === "hold" && holdFor(d)) || T.reasons[dec.kind].replace("{p}", kr(d.price.now)) : "";
+  const reason = dec ? sunStore(d) || (dec.kind === "hold" && holdFor(d)) || T.reasons[dec.kind].replace("{p}", kr(d.price.now)) : "";
   const lv = level(d.price.now, d.plan);
   const metric = (ic, lbl, v, unit, sub, id, extra = "") => `<div class="metric"><div class="lbl">${icon(ic)}${lbl}</div><div class="v" ${id ? `id="${id}"` : ""}>${v}<small>${unit}</small></div>${sub ? `<div class="s">${sub}</div>` : ""}${extra}</div>`;
   const metrics = [

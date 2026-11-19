@@ -2,6 +2,10 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.92.3 – 2026-11-19
+
+- Front page says why the sun goes into the battery instead of being sold: what it is worth later (used or sold) against the feed-in price now
+
 ## 0.92.2 – 2026-11-19
 
 - Fox ESS Modbus: battery power from the two sensors "Battery Charge" and "Battery Discharge" - charging no longer reads as 0, so the self-test sees it

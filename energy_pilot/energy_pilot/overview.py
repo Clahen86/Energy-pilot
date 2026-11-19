@@ -257,6 +257,45 @@ class Overview:
         except Exception:  # noqa: BLE001 - only a hint on the front page
             return None
 
+    def sun_store(self, flow: dict[str, Any], plan: dict[str, Any] | None, now: datetime | None = None) -> dict[str, Any] | None:
+        """Why the sun goes into the battery instead of being sold: the stored kWh is worth more later (sold or used in the
+        house) than the feed-in price now, after the battery's loss. None when the sun isn't being stored or selling is off."""
+        try:
+            if not self.engine or not self.settings.get("sell"):
+                return None
+            pv, house, batt = (flow or {}).get("pv"), (flow or {}).get("house"), (flow or {}).get("battery")
+            if pv is None or batt is None or batt < 50 or pv - (house or 0) < 50:
+                return None  # not charging from a sun surplus
+            res = (self.engine.result or {}).get("battery") or {}
+            steps, slot = res.get("steps") or [], timedelta(minutes=res.get("slot_min") or 60)
+            now = now or datetime.now(ZoneInfo(self.ha.config.get("time_zone") or "UTC"))
+            sells, fixed = self.engine.sell_prices(), float(self.settings.get("sell_price") or 0)
+            sell_now = self.engine.sell_at(sells, now, fixed)
+            hour = {datetime.fromisoformat(h["t"]): h["price"] for h in (plan or {}).get("hours") or [] if h.get("price") is not None}
+            use = []  # (start, worth) of every later slot the battery gives power in
+            for st in steps:
+                t = datetime.fromisoformat(st["t"])
+                if t <= now or st.get("action") not in ("export", "discharge"):
+                    continue
+                v = self.engine.sell_at(sells, t, fixed) if st["action"] == "export" else hour.get(t.replace(minute=0, second=0, microsecond=0))
+                if v is not None:
+                    use.append((t, v))
+            if not use or sell_now is None:
+                return None
+            top = max(v for _, v in use)
+            if top * self.engine.settings().efficiency <= sell_now:
+                return None  # selling now would pay as well: nothing to explain
+            runs: list[list[datetime]] = []  # the dear slots in unbroken runs; the longest is shown (the evening, not one odd slot)
+            for t in sorted(t for t, v in use if v >= top * 0.9):
+                if runs and t - runs[-1][-1] == slot:
+                    runs[-1].append(t)
+                else:
+                    runs.append([t])
+            run = max(runs, key=len)
+            return {"now": sell_now, "p": top, "from": run[0].isoformat(), "to": (run[-1] + slot).isoformat()}
+        except Exception:  # noqa: BLE001 - only a hint on the front page
+            return None
+
     def battery_pair(self) -> tuple[str, str] | None:
         """(charge, discharge) when the battery's power is two sensors that each show one way only - Fox ESS Modbus
         has "Battery Charge" and "Battery Discharge", both 0 or more. Then the power is charge less discharge."""
@@ -804,6 +843,7 @@ class Overview:
             "house_other_appdaemon": bool(house_e and "appdaemon" in house_e),
             "settings": self.settings,
             "battery_eff": self._battery_eff(),
+            "sun_store": self.sun_store(fl, pl),
             "sell_sun": {"on": self.sell_sun(), "can": bool(getattr(self, "controller", None) and self.controller.can_block_sun())},
             "scene": self._scene(),
             "ghosts": self.engine.ghosts.view() if self.engine and getattr(self.engine, "ghosts", None) else {},
