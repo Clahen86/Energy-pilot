@@ -163,7 +163,7 @@ class Overview:
                 self.settings.setdefault("roles", {}).update({k: v for k, v in value.items() if k in ROLES})
             elif key in ("battery_kwh", "import_limit_kw", "language", "setup_done", "style", "price_area", "tariff", "markup", "price_source", "tou", "vat", "battery_min_soc", "grid_charge",
                          "sell", "sell_price", "solar_value", "ev_in_house", "battery_sign", "grid_sign", "grid_noise", "ev_follow_sun", "ev_fuse_guard",
-                         "battery_export", "battery_no_export_cheap", "scene_fx", "battery_wear", "battery_type", "battery_price", "fuse_ok", "own_history", "things", "things_dismissed", "power_tariff_price", "power_tariff_kind", "battery_grid_max", "export_limit_kw", "agile_region", "restore_values",
+                         "battery_export", "battery_no_export_cheap", "scene_fx", "battery_wear", "battery_care", "battery_type", "battery_price", "fuse_ok", "own_history", "things", "things_dismissed", "power_tariff_price", "power_tariff_kind", "battery_grid_max", "export_limit_kw", "agile_region", "restore_values",
                          "offgrid", "reserve_soc", "emergency_soc", "gen_stop_soc", "gen_charge_kw", "gen_min_run_h",
                          "quiet_gen_from", "quiet_gen_to", "battery_charge_kw", "battery_discharge_kw", "ev_mode", "charger_kw", "ev_need_kwh",
                          "quiet_from", "quiet_to", "quiet_battery", "quiet_car",
@@ -638,12 +638,15 @@ class Overview:
         self.fine_prices = prices  # quarter/half-hour prices as they come - the engine plans in those slots
         if prices:
             buckets: dict[str, list[float]] = {}
-            for dt, value in prices.items():
+            for dt, value in sorted(prices.items()):
                 if (h := slot(dt)) is not None:
                     buckets.setdefault(h["t"], []).append(value)
             for key, h in hours.items():
                 if h["t"] in buckets:
-                    h["price"] = round(sum(buckets[h["t"]]) / len(buckets[h["t"]]), 3)
+                    b = buckets[h["t"]]
+                    h["price"] = round(sum(b) / len(b), 3)
+                    if len(b) > 1 and max(b) - min(b) > 0.0005:
+                        h["q"] = [round(v, 3) for v in b]  # the hour's quarters (or halves): the graphs draw each
         # Tomorrow's prices before they're out (around 13:00): estimated - replaced by the real ones when they come.
         if self.engine and prices:
             last = max(prices)
@@ -771,7 +774,7 @@ class Overview:
             if (h := slot(datetime.fromisoformat(row["t"]))) is not None:
                 h.setdefault("house", row["kwh"])
         rows = sorted(hours.values(), key=lambda h: h["t"])
-        prices = [h["price"] for h in rows if "price" in h]
+        prices = [p for h in rows if "price" in h for p in (h.get("q") or [h["price"]])]  # the quarters set the scale
         cheapest = sorted((h for h in rows if "price" in h and h["t"] >= now.replace(minute=0, second=0, microsecond=0).isoformat()),
                           key=lambda h: h["price"])[:3]
         return {"now": now.isoformat(), "hours": rows,

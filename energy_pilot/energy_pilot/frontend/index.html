@@ -1461,9 +1461,10 @@ function carCard(ev, f) {
   // the night ahead: prices as bars, the car's hours in pink, a flag at "ready"
   let graph = "";
   if (hrs.length > 3 && f.plug) {
-    const W = 340, n = hrs.length, bw = (W - 20) / n, pmin = Math.min(...hrs.map((h) => h.price ?? 0)), pmax = Math.max(...hrs.map((h) => h.price ?? 0)) || 1;
+    const qs = hrs.flatMap((h) => h.q || [h.price ?? 0]);
+    const W = 340, n = hrs.length, bw = (W - 20) / n, pmin = Math.min(...qs), pmax = Math.max(...qs) || 1;
     const bars = hrs.map((h, i) => { const x = 10 + i * bw, hh = 10 + ((h.price ?? pmin) - pmin) / Math.max(0.01, pmax - pmin) * 40, ch = (h.car_kwh || 0) > 0;
-      return `<rect x="${(x + 2).toFixed(1)}" y="${(64 - hh).toFixed(1)}" width="${(bw - 4).toFixed(1)}" height="${hh.toFixed(1)}" rx="3" fill="${ch ? "var(--car)" : "var(--line2)"}"/>${ch ? `<rect x="${(x + 2).toFixed(1)}" y="${(64 - hh).toFixed(1)}" width="${(bw - 4).toFixed(1)}" height="${hh.toFixed(1)}" rx="3" fill="var(--car)" opacity=".45" filter="url(#evg5)"/>` : ""}`; }).join("");
+      return `${qBars(h, x + 2, bw - 4, 64, (p) => 10 + ((p ?? pmin) - pmin) / Math.max(0.01, pmax - pmin) * 40, `rx="${h.q ? 1.5 : 3}" fill="${ch ? "var(--car)" : "var(--line2)"}"`)}${ch ? `<rect x="${(x + 2).toFixed(1)}" y="${(64 - hh).toFixed(1)}" width="${(bw - 4).toFixed(1)}" height="${hh.toFixed(1)}" rx="3" fill="var(--car)" opacity=".45" filter="url(#evg5)"/>` : ""}`; }).join("");
     const t0 = new Date(hrs[0].t).getTime(), xr = (d) => 10 + (d.getTime() - t0) / 3600000 * bw;
     let rd = null; if (ready) { rd = new Date(now); const [hh, mm] = ready.split(":").map(Number); rd.setHours(hh, mm, 0, 0); if (rd <= now) rd.setDate(rd.getDate() + 1); }
     // "ready": a hairline with a small label chip on top and a ringed dot on the axis
@@ -1511,6 +1512,12 @@ function priceNote() {
   if (i.filled) return `<p class="pnote">${T.priceFilled}</p>`;
   return "";
 }
+// An hour's price as bars: one per quarter (or half hour) when the price comes like that, else one for the hour.
+function qBars(h, x, w, y0, hOf, attrs, gap = 1) {
+  const q = h.q && h.q.length > 1 ? h.q : [h.price], sw = w / q.length;
+  return q.map((p, k) => { const bh = Math.max(0, hOf(p)), a = typeof attrs === "function" ? attrs(p) : attrs;
+    return `<rect x="${(x + k * sw + (k ? gap / 2 : 0)).toFixed(1)}" y="${(y0 - bh).toFixed(1)}" width="${Math.max(1, sw - (q.length > 1 ? gap : 0)).toFixed(1)}" height="${bh.toFixed(1)}" ${a}/>`; }).join("");
+}
 function planSvg(plan) {
   const hrs = plan.hours.filter((h) => h.price != null || h.sun != null);
   if (!hrs.length) return `<div class="muted">–</div>`;
@@ -1523,7 +1530,7 @@ function planSvg(plan) {
   const bars = hrs.map((h, i) => {
     const x = i * W, bh = h.price != null ? ((h.price - pmin) / (pmax - pmin)) * ph : 0, t = new Date(h.t);
     const past = t < nowT && !(t.getHours() === nowT.getHours() && t.getDate() === nowT.getDate());
-    return `<g data-h="${i}" style="cursor:pointer">${h.price != null ? `<rect x="${x + 5}" y="${y0 - bh}" width="${W - 10}" height="${bh}" rx="3" fill="${col(h.price)}" opacity="${past ? .25 : .85}"/>` : ""}
+    return `<g data-h="${i}" style="cursor:pointer">${h.price != null ? qBars(h, x + 5, W - 10, y0, (p) => ((p - pmin) / (pmax - pmin)) * ph, (p) => `rx="${h.q ? 1.5 : 3}" fill="${col(p)}" opacity="${past ? .25 : .85}"`) : ""}
       ${h.charge ? `<rect x="${x + 5}" y="${y0 + 4}" width="${W - 10}" height="3" rx="1.5" fill="var(--batt)"/>` : ""}
       ${h.export ? `<rect x="${x + 5}" y="${y0 + 4}" width="${W - 10}" height="3" rx="1.5" fill="var(--grid)"/>` : ""}
       ${t.getHours() % 3 === 0 ? `<text class="axis" x="${x + W / 2}" y="${H - 4}" text-anchor="middle">${String(t.getHours()).padStart(2, "0")}</text>` : ""}
@@ -2298,6 +2305,8 @@ function styleView() {
         settings.capacity_learned && v.battery_kwh && Math.abs(v.battery_kwh - settings.capacity_learned) / settings.capacity_learned > 0.05
           ? `<button class="link" data-uselearned="${settings.capacity_learned}">${y.useLearned}</button>` : ""}</span>`)}
       ${row(y.power, y.powerH, numIn("battery_charge_kw", 3, "0.1", "kW"))}
+      ${(() => { const c = T_CARE[L] || T_CARE.en, cur = v.battery_care || "spare";
+        return row(c.t, c.h, `<div class="seg mini">${["spare", "balanced", "most"].map((k, i) => `<button class="${cur === k ? "on" : ""}" data-care="${k}" ${v.battery_wear != null && v.battery_wear !== "" ? "disabled" : ""}>${c.o[i]}</button>`).join("")}</div>`); })()}
       ${adv("battery", `${row(y.powerOut, y.powerOutH, numIn("battery_discharge_kw", v.battery_charge_kw ?? 3, "0.1", "kW"))}
       ${row(T.gmax.title, T.gmax.hint, numIn("battery_grid_max", settings.battery_type_found?.type === "nmc" ? 90 : 95, "1", "%"))}
       ${row(y.btype, btypeHint(), `<select data-btype><option value="">${T.auto}${!v.battery_type && settings.battery_type_found ? ": " + y.btypes[settings.battery_type_found.type] : ""}</option>${["lfp", "nmc", "sodium", "lead"].map((k) => `<option value="${k}" ${v.battery_type === k ? "selected" : ""}>${y.btypes[k]}</option>`).join("")}</select>`)}
@@ -2344,6 +2353,15 @@ function styleView() {
       ${row(T.ledger.solarValue, T.ledger.solarValueH, `<div class="seg mini">${["free", "sell"].map((m) => `<button class="${(v.solar_value || "free") === m ? "on" : ""}" data-sval="${m}">${T.ledger.sv[m]}</button>`).join("")}</div>`)}`)}`)}
 `;
 }
+const T_CARE = {
+  da: { t: "Brug af batteriet", h: "Skån batteriet: kun store prisforskelle bruges. Maks besparelse: også små – batteriet slides lidt hurtigere.", o: ["Skån batteriet", "Midt imellem", "Maks besparelse"] },
+  en: { t: "Use of the battery", h: "Spare the battery: only big price gaps are used. Most saved: small ones too – the battery wears a little faster.", o: ["Spare the battery", "In between", "Most saved"] },
+  de: { t: "Nutzung der Batterie", h: "Batterie schonen: nur große Preisunterschiede werden genutzt. Am meisten sparen: auch kleine – die Batterie altert etwas schneller.", o: ["Batterie schonen", "Dazwischen", "Am meisten sparen"] },
+  fr: { t: "Utilisation de la batterie", h: "Ménager la batterie : seuls les grands écarts de prix sont utilisés. Économie maximale : aussi les petits – la batterie s'use un peu plus vite.", o: ["Ménager la batterie", "Entre les deux", "Économie maximale"] },
+  nl: { t: "Gebruik van de batterij", h: "Batterij sparen: alleen grote prijsverschillen worden gebruikt. Meeste besparing: ook kleine – de batterij slijt iets sneller.", o: ["Batterij sparen", "Ertussenin", "Meeste besparing"] },
+  sv: { t: "Användning av batteriet", h: "Skona batteriet: bara stora prisskillnader används. Mest besparing: även små – batteriet slits lite snabbare.", o: ["Skona batteriet", "Mitt emellan", "Mest besparing"] },
+  nb: { t: "Bruk av batteriet", h: "Skån batteriet: bare store prisforskjeller brukes. Mest sparing: også små – batteriet slites litt raskere.", o: ["Skån batteriet", "Midt imellom", "Mest sparing"] }
+};
 // The guide to an own profile (a brand Energy Pilot doesn't know): search the inverter's controls, likely ones first,
 // and pick a select's option or a value with one tap. {target}, {soc} and {power_w} are filled in when it runs.
 const LIKELY = /mode|work|priority|charg|discharg|soc|battery|batt|export|feed|grid|ems|force|limit/i;
@@ -2664,6 +2682,7 @@ function wire() {
   document.querySelectorAll("[data-ptkind]").forEach((b) => b.onclick = () => saveSet({ power_tariff_kind: b.dataset.ptkind === "auto" ? null : b.dataset.ptkind }));
   $("[data-btype]")?.addEventListener("change", (e) => saveSet({ battery_type: e.target.value || null }));
   document.querySelectorAll("[data-gsign]").forEach((b) => b.onclick = () => saveSet({ grid_sign: { auto: null, norm: 1, rev: -1 }[b.dataset.gsign] }));
+  document.querySelectorAll("[data-care]").forEach((b) => b.onclick = () => saveSet({ battery_care: b.dataset.care }));
   document.querySelectorAll("[data-bsign]").forEach((b) => b.onclick = () => saveSet({ battery_sign: { auto: null, norm: 1, rev: -1 }[b.dataset.bsign] }));
   const tou = () => JSON.parse(JSON.stringify(settings.settings.tou || { default: 0, periods: [] }));
   $("[data-tou-preset]")?.addEventListener("change", (e) => { const p = settings.tou_presets[e.target.value]; if (p) saveSet({ tou: { default: p.default, periods: p.periods } }); });

@@ -2,6 +2,11 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.94.0 – 2026-11-19
+
+- "Use of the battery" in the battery settings: spare the battery (as before), in between, or most saved - how much of the battery's wear a move must pay for. An own wear number still wins
+- The graphs show quarter and half-hour prices as they come - the plan, the car and the dashboard card - not just the hour's average
+
 ## 0.93.0 – 2026-11-19
 
 - Own profile for an inverter Energy Pilot doesn't know: search its controls (likely ones first) and pick a select's option or a value with one tap - off-grid, factory reset and firmware are never offered

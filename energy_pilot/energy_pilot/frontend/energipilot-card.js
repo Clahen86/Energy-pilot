@@ -187,6 +187,12 @@ const CAR_T = {
   sv: { from: "Strömmen till bilen", sun: "Sol", batt: "Husbatteri", grid: "Nät", done: "Klar ca kl. {t}", ready: "klar kl. {t}", hours: "Planerade laddtimmar", none: "inga planerade", h: "h", sess: "Den här laddningen", kwh: "Laddat", cost: "Kostnad", sunp: "Från sol", now: "nu" },
   nb: { from: "Strømmen til bilen", sun: "Sol", batt: "Husbatteri", grid: "Nett", done: "Ferdig ca. kl. {t}", ready: "klar kl. {t}", hours: "Planlagte ladetimer", none: "ingen planlagt", h: "t", sess: "Denne ladingen", kwh: "Ladet", cost: "Kostnad", sunp: "Fra sol", now: "nå" },
 };
+// An hour's price as bars: one per quarter (or half hour) when the price comes like that, else one for the hour.
+function qBars(h, x, w, y0, hOf, attrs, gap = 1) {
+  const q = h.q && h.q.length > 1 ? h.q : [h.price], sw = w / q.length;
+  return q.map((p, k) => { const bh = Math.max(0, hOf(p)), a = typeof attrs === "function" ? attrs(p) : attrs;
+    return `<rect x="${(x + k * sw + (k ? gap / 2 : 0)).toFixed(1)}" y="${(y0 - bh).toFixed(1)}" width="${Math.max(1, sw - (q.length > 1 ? gap : 0)).toFixed(1)}" height="${bh.toFixed(1)}" ${a}/>`; }).join("");
+}
 class EnergipilotCard extends HTMLElement {
   setConfig(config) { this._config = { view: "overview", ...config }; if (!this.shadowRoot) this.attachShadow({ mode: "open" }); this._uid = Math.random().toString(36).slice(2, 7); }
   static getConfigElement() { return document.createElement("energipilot-card-editor"); }
@@ -386,10 +392,10 @@ class EnergipilotCard extends HTMLElement {
     const step = rows.length > 1 ? new Date(rows[1].t) - new Date(rows[0].t) : 3600e3;
     const hrs = rows.filter((h) => new Date(h.t).getTime() + step > now).slice(0, Math.round(24 * 3600e3 / step));
     const mine = hrs.filter((h) => h.car), BW = 336 / Math.max(1, hrs.length);
-    const pmin = Math.min(...hrs.map((h) => h.price)), pmax = Math.max(...hrs.map((h) => h.price));
+    const qs = hrs.flatMap((h) => h.q || [h.price]), pmin = Math.min(...qs), pmax = Math.max(...qs);
     const per = Math.max(1, Math.round(6 * 3600e3 / step));
     const bars = hrs.map((h, i) => { const hh = 14 + 30 * (h.price - pmin) / Math.max(.001, pmax - pmin), d = new Date(h.t);
-      return `<rect x="${(i * BW + BW * .15).toFixed(1)}" y="${(50 - hh).toFixed(1)}" width="${(BW * .7).toFixed(1)}" height="${hh.toFixed(1)}" rx="${Math.min(3, BW * .25).toFixed(1)}" fill="${h.car ? "var(--car)" : "var(--secondary-background-color, rgba(127,127,127,.18))"}"/>
+      return `${qBars(h, i * BW + BW * .15, BW * .7, 50, (p) => 14 + 30 * (p - pmin) / Math.max(.001, pmax - pmin), `rx="${Math.min(h.q ? 1.5 : 3, BW * .25).toFixed(1)}" fill="${h.car ? "var(--car)" : "var(--secondary-background-color, rgba(127,127,127,.18))"}"`)}
         ${i % per === 0 ? `<text class="ax" x="${(i * BW + BW / 2).toFixed(1)}" y="64">${i === 0 ? c.now : String(d.getHours()).padStart(2, "0")}</text>` : ""}`; }).join("");
     const done = mine.length ? new Date(new Date(mine[mine.length - 1].t).getTime() + step) : null;
     const span = mine.length ? `${mine.length * step / 3600e3 >= 1 ? this._n(mine.length * step / 3600e3, mine.length * step % 3600e3 ? 1 : 0) : this._n(mine.length * step / 3600e3, 2)} ${c.h} · ${hm(new Date(mine[0].t))}–${hm(done)}` : c.none;
@@ -437,7 +443,7 @@ class EnergipilotCard extends HTMLElement {
     const bars = hrs.map((h, i) => {
       const d = new Date(h.t), bh = h.price != null ? ((h.price - pmin) / (pmax - pmin)) * ph : 0, cur = d.getHours() === now.getHours() && d.getDate() === now.getDate();
       if (cur) ni = i;
-      return `${h.price != null ? `<rect x="${i * W + 4}" y="${y0 - bh}" width="${W - 8}" height="${bh}" rx="2.5" fill="${col(h.price)}" opacity="${d < now && !cur ? .25 : .85}"/>` : ""}
+      return `${h.price != null ? qBars(h, i * W + 4, W - 8, y0, (p) => ((p - pmin) / (pmax - pmin)) * ph, (p) => `rx="${h.q ? 1.5 : 2.5}" fill="${col(p)}" opacity="${d < now && !cur ? .25 : .85}"`) : ""}
         ${h.charge ? `<rect x="${i * W + 4}" y="${y0 + 3}" width="${W - 8}" height="3" rx="1.5" fill="var(--batt)"/>` : ""}
         ${h.export ? `<rect x="${i * W + 4}" y="${y0 + 3}" width="${W - 8}" height="3" rx="1.5" fill="var(--grid)"/>` : ""}
         ${h.car ? `<rect x="${i * W + 4}" y="${y0 + 8}" width="${W - 8}" height="3" rx="1.5" fill="var(--car)"/>` : ""}

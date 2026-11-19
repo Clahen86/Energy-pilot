@@ -130,6 +130,8 @@ def house_forecast(profile: dict[tuple[bool, int], float], hours: list[datetime]
 
 # ---------- battery plan ----------
 
+CARE = {"spare": 1.0, "balanced": 0.5, "most": 0.2}  # share of the battery's wear a move must pay for
+
 @dataclass
 class Battery:
     capacity_kwh: float = 10.0
@@ -597,7 +599,10 @@ class Engine:
         bt = self.battery_type()
         cap = capacity_kwh or float(s.get("battery_kwh") or self.batt_learn.capacity() or self._guess_capacity() or 10)
         price = float(s["battery_price"]) if s.get("battery_price") not in (None, "") else None
-        return batterytype.wear(bt["type"], str(self.ha.config.get("currency") or "EUR"), cap, price, bt.get("cycles"))
+        base = batterytype.wear(bt["type"], str(self.ha.config.get("currency") or "EUR"), cap, price, bt.get("cycles"))
+        # The user's choice between sparing the battery (all of its wear counted) and the most saved now (a small part:
+        # the battery ages by time too, so not all of the wear is caused by using it). Only on the worked-out wear.
+        return round(base * CARE.get(str(s.get("battery_care") or "spare"), 1.0), 3) if own else base
 
     def quiet_hours(self, what: str) -> list[int]:
         """The hours the battery or the car must not charge - each has its own (older settings: one shared period)."""
