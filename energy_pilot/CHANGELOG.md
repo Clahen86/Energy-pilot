@@ -2,6 +2,10 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.94.2 – 2026-11-19
+
+- Fox ESS Modbus: force charge and force discharge power are sent in kW, as the inverter wants - selling from the battery was refused before
+
 ## 0.94.1 – 2026-11-19
 
 - The headline says "Planned" when the battery should cover the house but has stood still for 5 minutes while the house buys from the grid
