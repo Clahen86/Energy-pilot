@@ -60,7 +60,10 @@ Home Assistant address and a long-lived access token, and open `http://<host>:80
 - Charges when power is cheap or the sun gives too much, and covers the house when power is dear.
 - **Sells from the battery when it pays** (optional) – after losses, wear and your export limit. It can skip the cheap hours.
 - **Battery targets** – "at least 80 % at 7:00", every day.
-- **Counts the wear** – finds the battery type (LFP, NMC, sodium, lead) and never cycles it for a few cents.
+- **Counts the wear** – finds the battery type (LFP, NMC, sodium, lead) and never cycles it for a few cents. You choose how
+  careful: *Spare the battery*, *In between* or *Most saved*.
+- **Says why** – "For tomorrow 17–21 at up to 3.30 · now 2.15" when it holds the battery (with the efficiency it counts
+  with), and "Storing the sun: worth up to 0.27 today 16–19 · selling now 0.19" when it keeps the sun instead of selling it.
 - **Learns the battery** – its real usable capacity, efficiency and how it slows down near full.
 - **Never half a command** – if a control is missing, it doesn't control and tells you what's missing.
 - **Keeps its settings in place** – and tells you if Predbat or an automation keeps changing the battery too.
@@ -131,7 +134,8 @@ Two ways of forecasting side by side, and the better one decides:
 - **Answers from the developer** – when the developer replies to your *Get help* (or to an error the app reported),
   the answer shows on the *Help* tab with a notification in Home Assistant. You can write back from there.
 - **Fixes simple mistakes by itself**, shown as one line with an undo: a main fuse written in amps, a battery level
-  given as 0–1, power in kW without a unit, a price in cents, a sensor that was renamed or stopped updating.
+  given as 0–1, power in kW without a unit, a price in cents, a sensor that was renamed or stopped updating, a battery or
+  solar sensor that stopped answering. A price taken from a select (Peak / Off Peak) is pointed out.
 - **Tells you about updates – without nagging**: a small card in the app when a newer version is out – small fixes
   once you're a week behind, new features after two days, and at once when an error you had is fixed. *Later* hides it
   for a week. A notification in Home Assistant (never on the phone) only for your own error fixed, or an important fix.
@@ -144,6 +148,7 @@ Two ways of forecasting side by side, and the better one decides:
 ### 🏠 Inside Home Assistant
 - A sidebar panel in 7 languages, in light and dark – with the real weather, seasons and holidays on the energy picture.
 - **Dashboard cards** for the energy flow, battery, car and plan.
+- **Quarter-hour prices** – planned and drawn in 15 or 30 minute slots when your price comes like that, not as the hour's average.
 - **Sensors** for your own automations: the decision now, next battery charge, next car charge, next sale, **cheapest
   hour** (start the dishwasher then), what the battery saved and what the power in it cost.
 - **Buttons and switches:** *Charge now*, *Ready at*, and *Battery/Car control* (Shadow / Control / Off).
@@ -191,8 +196,8 @@ Everything goes through the device's own Home Assistant integration.<br>
 
 | | |
 |---|---|
-| **Inverter / battery** | ✅ Growatt SPH (SPA) · ✅ Victron (ESS) · ✅ Deye (Solarman) · ✅ GoodWe (ET/EH/BT/BH) · ✅ Alpha ESS · 🧪 GoodWe EMS · 🧪 Deye (ESPHome) · 🧪 Growatt MIN/MOD TL-XH · 🧪 Growatt (cloud) · 🧪 Sofar (Solarman or SolaX Modbus) · 🧪 Sigenergy · 🧪 Tesla Powerwall · 🧪 Enphase IQ Battery · 🧪 EcoFlow PowerStream · 🧪 Megarevo · 🧪 Huawei SUN2000/LUNA2000 · 🧪 SolaX · 🧪 Sungrow · 🧪 SolarEdge · 🧪 Fox ESS · 🧪 GivEnergy · 🧪 Solis · any other by picking its controls yourself |
-| **EV charger** | ✅ KEBA · 🧪 Easee · 🧪 Zaptec · 🧪 go-e · 🧪 Wallbox · 🧪 Peblar · 🧪 OCPP · 🧪 Alfen · 🧪 Ohme · 🧪 myenergi zappi · any with a switch and a current setting |
+| **Inverter / battery** | ✅ Growatt SPH (SPA) · ✅ Victron (ESS) · ✅ Deye (Solarman) · ✅ GoodWe (ET/EH/BT/BH) · ✅ Alpha ESS · 🧪 GoodWe EMS · 🧪 Deye (ESPHome) · 🧪 Growatt MIN/MOD TL-XH · 🧪 Growatt (cloud) · 🧪 Sofar (Solarman or SolaX Modbus) · 🧪 Sigenergy · 🧪 Tesla Powerwall · 🧪 Enphase IQ Battery · 🧪 EcoFlow PowerStream · 🧪 Megarevo · 🧪 Huawei SUN2000/LUNA2000 · 🧪 SolaX · 🧪 Sungrow · 🧪 SolarEdge · 🧪 Fox ESS · 🧪 GivEnergy · 🧪 Solis · any other with a guide: search its controls and pick an option with one tap |
+| **EV charger** | ✅ KEBA · 🧪 Easee · 🧪 Zaptec · 🧪 go-e · 🧪 Wallbox · 🧪 Peblar · 🧪 OCPP · 🧪 Alfen · 🧪 Ohme · 🧪 myenergi zappi · 🧪 evcc · any with a switch and a current setting |
 | **Prices** | ✅ Strømligning · ✅ built-in spot prices · ✅ Octopus Energy (Intelligent Go, Agile Outgoing) · 🧪 Octopus Agile import · 🧪 Nord Pool · 🧪 Tibber · 🧪 Energi Data Service · 🧪 ENTSO-E · 🧪 Amber · 🧪 EDF Tempo · 🧪 EnergyZero · 🧪 easyEnergy · 🧪 Frank Energie · 🧪 Zonneplan · tariff plans |
 
 **Alpha ESS:** in the AlphaESS app, add one short charge and one short discharge period (e.g. 00:00–00:15) on all weekdays and turn on time-based control. Its integration can only change periods that already exist – Energy Pilot then takes them over and sets the times itself.
