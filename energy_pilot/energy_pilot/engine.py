@@ -523,7 +523,7 @@ class Engine:
             export=self.can_export(),
             wear=self.wear(cap),
             export_limit_kw=float(s["export_limit_kw"]) if s.get("export_limit_kw") else None,
-            taper=self.batt_learn.taper(),
+            taper=self.batt_learn.taper() or self._shared_taper(),  # its own once seen, else what others' show
             grid_max_soc=max([self.grid_max_soc(kind)] + [t[2] for t in targets] + [x[1] for x in storm_at]),  # a target may go past the limit
             targets=targets, at=storm_at,
             peak_kw=(pt := self.power_tariff()) and pt["limit_kw"],
@@ -585,6 +585,16 @@ class Engine:
             return common.efficiency(self.ov, c.profile_key("battery") if c else None, kind)
         except Exception:  # noqa: BLE001 - never in the way of a plan
             return None
+
+    def _shared_taper(self) -> tuple[tuple[float, float], ...]:
+        """How batteries of this model on this inverter slow down near full (shared knowledge), until its own is seen."""
+        from . import common
+
+        c = getattr(self.ov, "controller", None)
+        try:
+            return common.taper(self.ov, c.profile_key("battery") if c else None, getattr(c, "model", None) if c else None)
+        except Exception:  # noqa: BLE001
+            return ()
 
     def battery_type(self) -> dict[str, Any]:
         """The battery's kind - chosen, or found (the inverter's setting, the model, the learned efficiency)."""

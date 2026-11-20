@@ -49,6 +49,22 @@ def efficiency(ov: Any, profile: str | None, kind: str | None) -> float | None:
     return v if 0.7 <= v <= 0.95 else None
 
 
+def taper(ov: Any, profile: str | None, model: str | None) -> tuple[tuple[float, float], ...]:
+    """How batteries of this model on this inverter profile slow down near full: ((from level, share), ...)."""
+    if not profile or not model:
+        return ()
+    got = ((_common(ov).get("taper") or {}).get(f"{profile}|{model}") or {}).get("taper") or []
+    out = []
+    for item in got:
+        try:
+            lvl, share = float(item[0]), float(item[1])
+        except (TypeError, ValueError, IndexError):
+            return ()
+        if 50 <= lvl <= 100 and 0.2 <= share <= 1.0:
+            out.append((lvl, round(share, 2)))
+    return tuple(sorted(out))
+
+
 def blend(own: float, shared: float | None, days: int) -> float:
     """Own value weighed by its days, the shared one by the rest - all own after OWN_DAYS."""
     if shared is None or days >= OWN_DAYS:

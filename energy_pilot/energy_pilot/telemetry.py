@@ -148,6 +148,8 @@ class Telemetry:
                 if m and m[2] >= 5:
                     learned["eff"] = round(min(0.95, max(0.7, m[1] / m[0])), 2)
                     learned["battery_type"] = eng.battery_type()["type"]
+                if tp := eng.batt_learn.taper():
+                    learned["taper"] = [[float(lvl), float(sh)] for lvl, sh in tp]
                 out["learned"] = learned
             except Exception:  # noqa: BLE001
                 pass
@@ -462,7 +464,7 @@ class Telemetry:
             return
         common = d.get("common") if isinstance(d.get("common"), dict) else {}
         self.ov.save({"community": {"fixes": (d.get("fixes") or [])[:500], "tested": d.get("tested") or {},
-                                    "common": {k: v for k, v in common.items() if k in ("sun", "eff") and isinstance(v, dict)},
+                                    "common": {k: v for k, v in common.items() if k in ("sun", "eff", "taper") and isinstance(v, dict)},
                                     "t": time.time()}})
 
 

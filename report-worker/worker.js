@@ -226,6 +226,7 @@ async function fixes(env) {
 // Shared knowledge: what installations have learned themselves (the daily line's "learned"), added up once a day so a
 // new installation can start from it. Only groups of at least CONFIRM installations that agree (the middle half
 // within 25 % of the median) - a spread-out group says nothing about the next house.
+const TAPER_BANDS = [98, 95, 90, 85]; // the levels Energy Pilot watches charging at (blend.py)
 const OWN_DAYS = 14; // an installation's own learning counts from this many days
 async function sharedKnowledge(env) {
   const row = await env.DB.prepare("SELECT v FROM meta WHERE k = 'common'").first();
@@ -233,7 +234,7 @@ async function sharedKnowledge(env) {
   if (old && Date.now() - old.t < 864e5) return old.c;
   const since = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
   const rows = (await env.DB.prepare("SELECT data FROM installs WHERE last_seen >= ?1").bind(since).all()).results || [];
-  const sun = {}, eff = {};
+  const sun = {}, eff = {}, taper = {};
   const add = (map, key, v) => { if (key && Number.isFinite(v)) (map[key] = map[key] || []).push(v); };
   for (const r of rows) {
     const d = safe(r.data) || {}, l = d.learned || {};
@@ -242,6 +243,11 @@ async function sharedKnowledge(env) {
       add(sun, `${d.country}|${d.sun_source}|clear`, Number(l.sun.clear));
     }
     if (d.profile && l.battery_type) add(eff, `${d.profile}|${l.battery_type}`, Number(l.eff));
+    if (d.profile && d.model && Array.isArray(l.taper)) {
+      // a level missing from an installation's curve means it charged at full speed there
+      const seen = Object.fromEntries(l.taper.map(([lvl, sh]) => [String(lvl), Number(sh)]));
+      for (const band of TAPER_BANDS) add(taper, `${d.profile}|${d.model}|${band}`, seen[band] ?? 1);
+    }
   }
   const agreed = (vals, lo, hi) => {
     const v = vals.filter((x) => x >= lo && x <= hi).sort((a, b) => a - b);
@@ -249,7 +255,7 @@ async function sharedKnowledge(env) {
     const q = (p) => v[Math.min(v.length - 1, Math.floor(p * (v.length - 1) + 0.5))], med = q(0.5);
     return (q(0.75) - q(0.25)) / med <= 0.25 ? { med: Math.round(med * 100) / 100, n: v.length } : null;
   };
-  const c = { sun: {}, eff: {} };
+  const c = { sun: {}, eff: {}, taper: {} };
   for (const key of new Set(Object.keys(sun).map((k) => k.replace(/\|(cloudy|clear)$/, "")))) {
     const cl = agreed(sun[`${key}|cloudy`] || [], 0.3, 2), cr = agreed(sun[`${key}|clear`] || [], 0.3, 2);
     if (cl && cr) c.sun[key] = { cloudy: cl.med, clear: cr.med, n: Math.min(cl.n, cr.n) };
@@ -257,6 +263,12 @@ async function sharedKnowledge(env) {
   for (const [key, vals] of Object.entries(eff)) {
     const a = agreed(vals, 0.7, 0.95);
     if (a) c.eff[key] = { eff: a.med, n: a.n };
+  }
+  for (const key of new Set(Object.keys(taper).map((k) => k.replace(/\|\d+$/, "")))) {
+    const bands = TAPER_BANDS.map((b) => [b, agreed(taper[`${key}|${b}`] || [], 0.2, 1)]);
+    if (bands.some(([, a]) => !a)) continue; // the curve only when every level agrees
+    const curve = bands.filter(([, a]) => a.med < 0.95).map(([b, a]) => [b, a.med]).sort((x, y) => x[0] - y[0]);
+    if (curve.length) c.taper[key] = { taper: curve, n: Math.min(...bands.map(([, a]) => a.n)) };
   }
   await env.DB.prepare("INSERT OR REPLACE INTO meta (k, v) VALUES ('common', ?1)").bind(JSON.stringify({ t: Date.now(), c })).run();
   return c;

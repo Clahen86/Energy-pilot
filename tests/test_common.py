@@ -46,3 +46,11 @@ def test_learning_sun_uses_shared_while_young(tmp_path):
     assert abs(lr.sun(10, 10) - 9) < 1e-9  # clear
     lr.state["reports"] = [{}] * 14
     assert lr.sun(10, 80) == 10  # two weeks of its own: its own bias only
+
+
+def test_taper_by_profile_and_model():
+    ov = _ov({"taper": {"growatt|ARK": {"taper": [[98, 0.3], [95, 0.52]], "n": 3}}})
+    assert common.taper(ov, "growatt", "ARK") == ((95.0, 0.52), (98.0, 0.3))
+    assert common.taper(ov, "growatt", "other") == ()
+    assert common.taper(ov, None, "ARK") == ()
+    assert common.taper(_ov({"taper": {"growatt|ARK": {"taper": [["x", 1]]}}}), "growatt", "ARK") == ()
