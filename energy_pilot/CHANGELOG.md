@@ -2,6 +2,17 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.96.0 – 2026-11-21
+
+- Shared knowledge: a new Energy Pilot starts from what others have learned - the sun forecast's correction, the battery's real efficiency and how it slows down near full - and moves to its own numbers over two weeks
+- Sky network: every quarter hour the sun against the forecast is shared for an area of about 10 km. Clouds seen by houses upwind adjust your sun for the next three hours
+- Power cuts nearby: when several houses within 30 km lose the grid, the storm watch (if on) keeps the battery full for three hours
+- Houses like yours: under the share switch you see what similar houses saved this month, and whether a feature like selling from the battery pays more
+- The battery's health: its usable capacity compared with others of the same model
+- Fixes found for a charger are shared like the inverters' (confirmed by three installations), and a fix your own test found is now used in daily control
+- Grid tariff: when three neighbours with the same grid company typed in the same tariff, a new user gets it by itself
+- All of it under the one share switch, with a short text saying what is shared
+
 ## 0.95.4 – 2026-11-20
 
 - No prices at all (the market's data is late, as in NL on 20 November): the battery now runs as normal - the house first - instead of staying in its last order, and the home page says so. When the prices are back the plan takes over by itself
