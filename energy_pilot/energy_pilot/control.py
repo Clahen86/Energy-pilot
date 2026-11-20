@@ -329,6 +329,12 @@ class Controller:
         out: dict[str, dict[str, Any]] = {}
         f = self.ov.flow()
         b = res.get("battery")
+        if not (b and b.get("steps")) and self.engine and (getattr(self.ov, "price_info", None) or {}).get("none") \
+                and f.get("soc") is not None:
+            # No prices anywhere, so no plan: the battery isn't left in its last order (a grid charge would run on
+            # without a price) - it runs as normal, the house first, until the prices are back and the plan takes over.
+            b = {"steps": [{"t": datetime.now(ZoneInfo(self.ha.config.get("time_zone") or "UTC")).isoformat(), "action": "normal",
+                            "soc": f["soc"], "grid": 0.0}], "slot_min": 60, "target": f["soc"]}
         if b and b.get("steps"):
             step = b["steps"][0]
             bat = self.engine.settings()

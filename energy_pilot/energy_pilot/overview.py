@@ -659,6 +659,8 @@ class Overview:
                                           (self.engine.own_prices if self.engine else []) or [], tz,
                                           (self.engine.service_prices if self.engine else []) or [], self.price_scale())
         self.fine_prices = prices  # quarter/half-hour prices as they come - the engine plans in those slots
+        if not prices and not self.settings.get("offgrid"):
+            self.price_info["none"] = True  # no prices at all (the market's data is late): the battery runs as normal
         if prices:
             buckets: dict[str, list[float]] = {}
             for dt, value in sorted(prices.items()):

@@ -44,3 +44,13 @@ def test_hold_only_for_the_sun_runs_normal():
     assert _ctl(sell_sun=False, grid=0.6).intents()["battery"]["intent"] == "hold"
     # selling the sun instead of storing it stays a hold
     assert _ctl(sell_sun=True, grid=-0.8).intents()["battery"]["intent"] == "hold"
+
+
+def test_no_prices_means_the_battery_runs_as_normal():
+    # NL tester, 2026-11-20: no prices anywhere, so no plan - the battery mustn't stay in its last order (a grid charge).
+    c = _ctl()
+    c.engine.result = None
+    c.ov.price_info = {"none": True}
+    assert c.intents()["battery"]["intent"] == "normal"
+    c.ov.price_info = {}
+    assert "battery" not in c.intents()  # no plan yet for another reason (just started): nothing is sent

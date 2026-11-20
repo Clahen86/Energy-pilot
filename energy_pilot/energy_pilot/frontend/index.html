@@ -1521,6 +1521,10 @@ function evSocHtml(ev, compact = false) {
 function priceNote() {
   const i = data?.price_info || {};
   if (i.estimated) return `<p class="pnote">${T.priceEstimated}</p>`;
+  if (i.none) return `<p class="pnote warn">${({ da: "Ingen priser lige nu – batteriet kører normalt, til de kommer.", en: "No prices right now – the battery runs as normal until they're back.",
+    de: "Gerade keine Preise – die Batterie läuft normal, bis sie wieder da sind.", fr: "Pas de prix pour l'instant – la batterie fonctionne normalement jusqu'à leur retour.",
+    nl: "Nu geen prijzen – de batterij draait normaal tot ze terug zijn.", sv: "Inga priser just nu – batteriet går som vanligt tills de är tillbaka.",
+    nb: "Ingen priser akkurat nå – batteriet går som vanlig til de er tilbake." })[L] || "No prices right now – the battery runs as normal until they're back."}</p>`;
   if (i.tomorrow_missing) return `<p class="pnote warn">${T.priceMissing}</p>`;
   if (i.filled) return `<p class="pnote">${T.priceFilled}</p>`;
   return "";

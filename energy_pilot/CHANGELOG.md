@@ -2,6 +2,10 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.95.4 – 2026-11-20
+
+- No prices at all (the market's data is late, as in NL on 20 November): the battery now runs as normal - the house first - instead of staying in its last order, and the home page says so. When the prices are back the plan takes over by itself
+
 ## 0.95.3 – 2026-11-20
 
 - Fixed: a battery power sensor in watts could be taken for kW while the battery sat idle (a few watts). The house then looked like hundreds of kW and nothing was sold from the battery. Sensors that say W are now taken at their word, and a wrong guess is put back by itself as soon as the sensor reads hundreds
