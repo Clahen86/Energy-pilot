@@ -49,14 +49,14 @@ PROFILES: dict[str, dict[str, Any]] = {
                    (r"switch\..*grid_first_slot_1_enabled$", "off", None)],  # selling's all-day time slot off again
         "optional": [r"number\..*free_mode_discharge_rate$", r"number\..*free_mode_charge_rate$", r"number\..*load_first_stop_charge$",
                      r"switch\..*grid_first_slot_1_enabled$"],
-        "charge": [(r"switch\..*battery_first_slot_1_enabled$", "on", None), (r"select\..*battery_first_slot_1_start$", "select", "00:00"),
-                   (r"select\..*battery_first_slot_1_end$", "select", "23:59"), (r"number\..*battery_first_charge_rate$", "number", "{rate}"),
+        "charge": [(r"switch\..*battery_first_slot_1_enabled$", "on", None), (r"select\..*battery_first_slot_1_start$", "select", "{lease_from}"),
+                   (r"select\..*battery_first_slot_1_end$", "select", "{lease_to}"), (r"number\..*battery_first_charge_rate$", "number", "{rate}"),
                    (r"number\..*battery_first_stop_charge$", "number", "{target}"), (r"select\..*battery_first_grid_charge$", "select", "Enabled"),
                    (r"select\..*work_mode_priority$", "select", "Battery first")],
         # Selling from the battery (only when the user turns it on).
         "export": [(r"switch\..*grid_first_slot_1_enabled$", "on", None),
-                   (r"select\..*grid_first_slot_1_start$", "select", "00:00"),
-                   (r"select\..*grid_first_slot_1_end$", "select", "23:59"),
+                   (r"select\..*grid_first_slot_1_start$", "select", "{lease_from}"),
+                   (r"select\..*grid_first_slot_1_end$", "select", "{lease_to}"),
                    (r"number\..*grid_first_discharge_rate$", "number", "{rate}"),
                    (r"number\..*grid_first_stop_discharge$", "number", "{target}"),
                    (r"select\..*work_mode_priority$", "select", "Grid first")],
@@ -394,10 +394,10 @@ PROFILES: dict[str, dict[str, Any]] = {
         "charge": [(r"select\..*battery_pause_mode$", "select", "Not Paused"),
                    (r"number\..*battery_charge_power_limit$", "number", "{power_w}"),
                    ("givenergy_local.enable_timed_charge", "service",
-                    {"device_id": "{device_id}", "start_time": "00:00", "end_time": "23:59", "charge_target": "{target}"})],
+                    {"device_id": "{device_id}", "start_time": "{lease_from}", "end_time": "{lease_to}", "charge_target": "{target}"})],
         # Selling from the battery (only when the user turns it on): checked in the integration's source.
         "export": [(r"select\..*battery_pause_mode$", "select", "Not Paused"),
-                   ("givenergy_local.activate_mode_timed_export", "service", {"device_id": "{device_id}", "start_time": "00:00", "end_time": "23:59"})],
+                   ("givenergy_local.activate_mode_timed_export", "service", {"device_id": "{device_id}", "start_time": "{lease_from}", "end_time": "{lease_to}"})],
         "optional": [r"number\..*battery_charge_power_limit$", r"number\..*battery_discharge_power_limit$"],
     },
     # Solis (Pho3niX90/solis_modbus): remote-control force charge with its power and timeout (1-30 min, so it is
@@ -532,7 +532,12 @@ def alpha_windows(now: Any) -> dict[str, str]:
         win = {"now_from": "00:00", "now_to": hm(end), "now2_from": "00:00", "now2_to": "00:00"}
     else:  # over midnight: until 23:45, and from 00:00 on (AlphaESS takes periods within one day only)
         win = {"now_from": hm(q), "now_to": "23:45", "now2_from": "00:00", "now2_to": hm(end)}
-    return {**win,
+    # A lease: the inverter's own time slot runs from this quarter to 60-75 minutes ahead (never past midnight) and is
+    # moved on every quarter. Should Energy Pilot, Home Assistant or the network stop, the slot runs out and the inverter
+    # goes back to its normal running by itself - an order is never left standing all day (Growatt, GivEnergy).
+    lease_end = q + timedelta(minutes=75)
+    lease = {"lease_from": hm(q), "lease_to": hm(lease_end) if lease_end.date() == q.date() else "23:59"}
+    return {**win, **lease,
             "park_c_from": hm(q + timedelta(hours=12)), "park_c_to": hm(q + timedelta(hours=12, minutes=15)),
             "park_d_from": hm(q + timedelta(hours=12, minutes=30)), "park_d_to": hm(q + timedelta(hours=12, minutes=45))}
 

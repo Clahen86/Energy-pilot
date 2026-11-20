@@ -272,7 +272,22 @@ async def main() -> None:
     await web_runner.setup()
     await web.TCPSite(web_runner, "0.0.0.0", int(os.environ.get("PORT", 8099))).start()
     await runner.start()
-    await asyncio.Event().wait()
+    # Stopped by the Supervisor (SIGTERM): let go of the battery first, so nothing is left standing while away.
+    import signal
+
+    stop = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            loop.add_signal_handler(sig, stop.set)
+        except (NotImplementedError, RuntimeError):
+            pass
+    await stop.wait()
+    if overview.controller:
+        try:
+            await overview.controller.let_go()
+        except Exception:  # noqa: BLE001
+            logging.getLogger("energy_pilot").warning("Stopping: could not let go of the battery", exc_info=True)
 
 
 if __name__ == "__main__":

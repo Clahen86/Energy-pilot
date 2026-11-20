@@ -68,3 +68,14 @@ def test_grid_voltage():
     states[e]["state"] = "0"
     assert skynet.grid_down(states, e) is True
     assert skynet.grid_down(states, None) is None
+
+
+def test_outage_needs_two_rounds():
+    sky = skynet.Sky()
+    down = [{"lat": HOME[0] + 0.1, "lon": HOME[1], "down": 3, "reporting": 3}]
+    sky.update(down)
+    assert sky.outage(HOME) is None  # one report: not yet
+    sky.update(down)
+    assert sky.outage(HOME) == {"houses": 3, "km": 11}
+    sky.update([])
+    assert sky.outage(HOME) is None

@@ -242,7 +242,8 @@ async function sharedKnowledge(env) {
   const old = row ? safe(row.v) : null;
   if (old && Date.now() - old.t < 864e5) return old.c;
   const since = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
-  const rows = (await env.DB.prepare("SELECT data, last_seen FROM installs WHERE last_seen >= ?1").bind(since).all()).results || [];
+  const week = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10); // a week old at least (see sky())
+  const rows = (await env.DB.prepare("SELECT data, last_seen FROM installs WHERE last_seen >= ?1 AND first_seen <= ?2").bind(since, week).all()).results || [];
   const sun = {}, eff = {}, taper = {}, peers = {}, health = {}, tariffs = {};
   const recent = new Date(Date.now() - 2 * 864e5).toISOString().slice(0, 10);
   const add = (map, key, v) => { if (key && Number.isFinite(v)) (map[key] = map[key] || []).push(v); };
@@ -343,9 +344,13 @@ async function sky(request, env) {
   const now = Date.now();
   await env.DB.prepare("INSERT OR REPLACE INTO sky (install, cell, lat, lon, t, ratio, down) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)")
     .bind(install, cell, lat, lon, now, ratio, down).run();
+  // Only installations that have sent their daily line for at least a week count - a made-up one can't raise a
+  // false power cut (which would have batteries charge at a dear hour) or fake clouds.
+  const week = new Date(now - 7 * 864e5).toISOString().slice(0, 10);
   const rows = (await env.DB.prepare(
-    "SELECT cell, lat, lon, ratio, down FROM sky WHERE t > ?1 AND install != ?2 AND lat BETWEEN ?3 AND ?4 AND lon BETWEEN ?5 AND ?6")
-    .bind(now - SKY_FRESH_MS, install, lat - 0.8, lat + 0.8, lon - 1.4, lon + 1.4).all()).results || [];
+    "SELECT s.cell, s.lat, s.lon, s.ratio, s.down FROM sky s JOIN installs i ON i.id = s.install AND i.first_seen <= ?7 " +
+    "WHERE s.t > ?1 AND s.install != ?2 AND s.lat BETWEEN ?3 AND ?4 AND s.lon BETWEEN ?5 AND ?6")
+    .bind(now - SKY_FRESH_MS, install, lat - 0.8, lat + 0.8, lon - 1.4, lon + 1.4, week).all()).results || [];
   const cells = {};
   for (const r of rows) {
     const c = (cells[r.cell] = cells[r.cell] || { cell: r.cell, lat: r.lat, lon: r.lon, ratios: [], down: 0, reporting: 0 });

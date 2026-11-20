@@ -1124,7 +1124,7 @@ class Engine:
         from . import skynet as _sky
 
         if self.ov.settings.get("storm") and not self.storm:  # grid failing at houses nearby: kept full as for a storm
-            self.storm = _sky.storm(_sky.outage_near(self.sky.fresh(), self.home()), now)
+            self.storm = _sky.storm(self.sky.outage(self.home()), now)
         start = now.replace(minute=0, second=0, microsecond=0)
         offgrid = bool(self.ov.settings.get("offgrid"))
         if offgrid:

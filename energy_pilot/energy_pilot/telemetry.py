@@ -486,7 +486,7 @@ class Telemetry:
                         d = await self._sky_post({"install": self.ov.settings.get("install_id"), "cell": skynet.cell(*home),
                                                   "ratio": ratio, "down": down})
                         if isinstance(d, dict) and isinstance(d.get("near"), list):
-                            eng.sky.near, eng.sky.t = d["near"][:400], time.time()
+                            eng.sky.update(d["near"][:400])
             except Exception:  # noqa: BLE001 - never in the way
                 _LOGGER.debug("Sky round failed", exc_info=True)
             await asyncio.sleep(skynet.EVERY_S)

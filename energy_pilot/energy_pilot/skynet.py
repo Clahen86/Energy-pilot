@@ -116,6 +116,19 @@ class Sky:
         self.near: list[dict[str, Any]] = []
         self.t = 0.0
         self.sent = 0.0
+        self.prev: list[dict[str, Any]] = []
+        self.prev_t = 0.0
+
+    def update(self, near: list[dict[str, Any]]) -> None:
+        self.prev, self.prev_t = self.near, self.t
+        self.near, self.t = near, time.time()
+
+    def outage(self, home: tuple[float, float] | None) -> dict[str, Any] | None:
+        """A power cut nearby - only when seen in two rounds in a row (a quarter apart), not on one report."""
+        now_out = outage_near(self.fresh(), home)
+        if not now_out or time.time() - self.prev_t > 2400 or not outage_near(self.prev, home):
+            return None
+        return now_out
 
     def fresh(self) -> list[dict[str, Any]]:
         return self.near if time.time() - self.t < 1800 else []
@@ -123,7 +136,7 @@ class Sky:
     def info(self, home: tuple[float, float] | None) -> dict[str, Any]:
         near = self.fresh()
         houses = sum(int(c.get("n") or 0) for c in near)
-        return {"houses": houses, "cells": len(near), "outage": outage_near(near, home)}
+        return {"houses": houses, "cells": len(near), "outage": self.outage(home)}
 
 
 GRID_V_KNOWN = ("sensor.growatt_sph_grid_voltage", "sensor.growatt_sph_ac_voltage")

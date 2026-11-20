@@ -8,6 +8,7 @@ arch:
   - amd64
   - aarch64
 init: false
+timeout: 30  # seconds to let go of the battery when stopped (main.py)
 ingress: true
 ingress_port: 8099
 panel_icon: mdi:lightning-bolt-circle

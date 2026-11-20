@@ -935,6 +935,28 @@ class Controller:
         """Did the controls take the values? (Selects and numbers that can be read back.)"""
         return all(self._matches(c) is not False for c in calls)
 
+    async def let_go(self, budget_s: float = 12.0) -> None:
+        """Energy Pilot is stopping (an update, a restart, the app turned off): every battery it controls is put back
+        to normal, so no order is left standing while it's away. The modes are kept - it takes over again when it's
+        back. Quick: no read-back, at most `budget_s` seconds (the Supervisor kills the app soon after asking)."""
+        wants = self.intents()
+        calls = []
+        for part in ["battery", *self.bat_parts()]:
+            if self.mode(part) == "control" and not self.blocked(part) and (want := wants.get(part)):
+                calls += self.calls(part, {**want, "intent": "normal"}) + self._restore(part, "normal")
+        todo = [c for c in calls if not self._matches(c)]
+        end = time.time() + budget_s
+        for c in todo:
+            if time.time() > end:
+                _LOGGER.warning("Stopping: not every control was put back to normal in time")
+                return
+            try:
+                await asyncio.wait_for(self.ha.call_service(c["domain"], c["service"], dict(c["data"])), timeout=max(0.5, end - time.time()))
+            except Exception as err:  # noqa: BLE001 - try the rest
+                _LOGGER.info("Stopping: %s.%s not sent: %s", c["domain"], c["service"], err)
+        if todo:
+            _LOGGER.info("Stopping: the battery is back to normal (%d changes)", len(todo))
+
     async def release(self) -> None:
         """Back to shadow: the battery is put back to normal first, the charger is left as it is."""
         wants = self.intents()

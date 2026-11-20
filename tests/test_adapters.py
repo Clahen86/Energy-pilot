@@ -5,7 +5,8 @@ from energy_pilot import adapters
 GROWATT = ["select.growatt_sph_work_mode_priority", "number.growatt_sph_load_first_stop_discharge", "select.growatt_sph_battery_first_grid_charge",
            "switch.growatt_sph_battery_first_slot_1_enabled", "select.growatt_sph_battery_first_slot_1_start", "select.growatt_sph_battery_first_slot_1_end",
            "number.growatt_sph_battery_first_charge_rate", "number.growatt_sph_battery_first_stop_charge", "select.growatt_blaeser_adfaerd_ved_taending"]
-CTX = {"min_soc": 10, "soc": 62, "target": 90, "rate": 80, "power_w": 2400, "max_power_w": 3000, "max_charge_w": 3000, "max_charge_kw": 3.0, "max_power_kw": 3.0}
+CTX = {"min_soc": 10, "soc": 62, "target": 90, "rate": 80, "power_w": 2400, "max_power_w": 3000, "max_charge_w": 3000, "max_charge_kw": 3.0, "max_power_kw": 3.0,
+       "lease_from": "11:15", "lease_to": "12:30"}
 
 
 def test_growatt_from_your_entities():
@@ -173,7 +174,7 @@ def test_givenergy_solis_alphaess_from_their_code():
     p = adapters.PROFILES["givenergy_local"]
     charge = adapters.resolve(p["charge"], ge, ctx)
     svc = [c for c in charge if c["domain"] == "givenergy_local"][0]
-    assert svc["service"] == "enable_timed_charge" and svc["data"] == {"device_id": "dev9", "start_time": "00:00", "end_time": "23:59", "charge_target": 90}
+    assert svc["service"] == "enable_timed_charge" and svc["data"] == {"device_id": "dev9", "start_time": "11:15", "end_time": "12:30", "charge_target": 90}
     hold = adapters.resolve(p["hold"], ge, ctx)
     assert {"entity_id": "select.givenergy_ce123_battery_pause_mode", "option": "Pause Discharge"} in [c["data"] for c in hold]
 
@@ -365,7 +366,7 @@ def test_alphaess_windows_never_overlap_and_carry_power():
 
     w = adapters.alpha_windows(datetime(2026, 11, 14, 11, 22))
     assert w == {"now_from": "11:15", "now_to": "15:15", "now2_from": "00:00", "now2_to": "00:00", "park_c_from": "23:15", "park_c_to": "23:30",
-                 "park_d_from": "23:45", "park_d_to": "00:00"}
+                 "park_d_from": "23:45", "park_d_to": "00:00", "lease_from": "11:15", "lease_to": "12:30"}
     ctx = {"serial": "ALD1", "min_soc": 10, "soc": 43, "target": 80, "power_w": 2500, "max_charge_w": 3000, "max_power_w": 3000, **w}
     prof = adapters.PROFILES["alphaess"]
     for intent in ("normal", "hold", "charge"):
