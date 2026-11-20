@@ -54,3 +54,18 @@ def test_taper_by_profile_and_model():
     assert common.taper(ov, "growatt", "other") == ()
     assert common.taper(ov, None, "ARK") == ()
     assert common.taper(_ov({"taper": {"growatt|ARK": {"taper": [["x", 1]]}}}), "growatt", "ARK") == ()
+
+
+def test_peer_key_matches_the_worker():
+    assert common.peer_key("DK", 11.5, True) == "DK|10|car"
+    assert common.peer_key("DK", 12.5, False) == "DK|15|nocar"  # rounds half up, like JavaScript
+    assert common.peer_key("DK", None, True) is None
+
+
+def test_peers_and_health_in_info():
+    shared = {"peers": {"DK|10|car": {"saved": 210, "n": 5, "features": {"export": {"on": 260, "off": 190, "n": 5}}}},
+              "health": {"ARK": {"ratio": 0.9, "n": 4}}}
+    info = common.info(_ov(shared), 3, 11.5, True, "ARK", 10.8, 12.8)
+    assert info["peers"]["saved"] == 210
+    assert info["health"] == {"mine": 0.84, "others": {"ratio": 0.9, "n": 4}}
+    assert common.info(_ov({}), 3)["peers"] is None

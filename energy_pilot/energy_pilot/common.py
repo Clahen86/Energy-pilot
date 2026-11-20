@@ -73,7 +73,34 @@ def blend(own: float, shared: float | None, days: int) -> float:
     return w * own + (1 - w) * shared
 
 
-def info(ov: Any, days: int) -> dict[str, Any]:
-    """For the panel: is shared knowledge in use, and from how many houses."""
+def info(ov: Any, days: int, battery_kwh: float | None = None, car: bool = False, model: str | None = None,
+         learned_kwh: float | None = None, nominal_kwh: float | None = None) -> dict[str, Any]:
+    """For the panel: shared knowledge in use, houses like this one, and the battery's health against others."""
     sb = sun_bias(ov)
-    return {"sun": sb, "days": days, "in_use": bool(sb) and days < OWN_DAYS, "own_days": OWN_DAYS}
+    hl = health(ov, model)
+    mine = round(learned_kwh / nominal_kwh, 2) if learned_kwh and nominal_kwh else None
+    return {"sun": sb, "days": days, "in_use": bool(sb) and days < OWN_DAYS, "own_days": OWN_DAYS,
+            "peers": peers(ov, battery_kwh, car), "health": {"mine": mine, "others": hl} if hl or mine else None}
+
+
+def peer_key(country: str | None, battery_kwh: float | None, car: bool) -> str | None:
+    """The group "houses like this one" - the same as the worker's peerKey."""
+    if not country or not battery_kwh or battery_kwh <= 0:
+        return None
+    import math
+
+    sent = math.floor(battery_kwh * 2 + 0.5) / 2  # as the daily line sends it (half kWh)
+    return f"{country}|{math.floor(sent / 5 + 0.5) * 5}|{'car' if car else 'nocar'}"  # JavaScript's Math.round
+
+
+def peers(ov: Any, battery_kwh: float | None, car: bool) -> dict[str, Any] | None:
+    """What houses like this one saved this month (median), and with or without a feature: {"saved", "n", "features"}."""
+    country = (getattr(getattr(ov, "ha", None), "config", None) or {}).get("country")
+    got = (_common(ov).get("peers") or {}).get(peer_key(country, battery_kwh, car) or "")
+    return got if isinstance(got, dict) and isinstance(got.get("saved"), (int, float)) else None
+
+
+def health(ov: Any, model: str | None) -> dict[str, Any] | None:
+    """Usable kWh against the label for this battery model: {"ratio", "n"}."""
+    got = (_common(ov).get("health") or {}).get(str(model or ""))
+    return got if isinstance(got, dict) and isinstance(got.get("ratio"), (int, float)) else None

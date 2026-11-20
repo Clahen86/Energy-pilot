@@ -231,13 +231,17 @@ async function fixes(env) {
 // within 25 % of the median) - a spread-out group says nothing about the next house.
 const TAPER_BANDS = [98, 95, 90, 85]; // the levels Energy Pilot watches charging at (blend.py)
 const OWN_DAYS = 14; // an installation's own learning counts from this many days
+// The group "houses like this one" (the same in Energy Pilot's common.peer_key)
+const peerKey = (d) => d.country && Number(d.battery_kwh) > 0
+  ? `${d.country}|${Math.round(Number(d.battery_kwh) / 5) * 5}|${(d.has || {}).car ? "car" : "nocar"}` : null;
 async function sharedKnowledge(env) {
   const row = await env.DB.prepare("SELECT v FROM meta WHERE k = 'common'").first();
   const old = row ? safe(row.v) : null;
   if (old && Date.now() - old.t < 864e5) return old.c;
   const since = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
-  const rows = (await env.DB.prepare("SELECT data FROM installs WHERE last_seen >= ?1").bind(since).all()).results || [];
-  const sun = {}, eff = {}, taper = {};
+  const rows = (await env.DB.prepare("SELECT data, last_seen FROM installs WHERE last_seen >= ?1").bind(since).all()).results || [];
+  const sun = {}, eff = {}, taper = {}, peers = {}, health = {};
+  const recent = new Date(Date.now() - 2 * 864e5).toISOString().slice(0, 10);
   const add = (map, key, v) => { if (key && Number.isFinite(v)) (map[key] = map[key] || []).push(v); };
   for (const r of rows) {
     const d = safe(r.data) || {}, l = d.learned || {};
@@ -246,6 +250,19 @@ async function sharedKnowledge(env) {
       add(sun, `${d.country}|${d.sun_source}|clear`, Number(l.sun.clear));
     }
     if (d.profile && l.battery_type) add(eff, `${d.profile}|${l.battery_type}`, Number(l.eff));
+    // Houses like this one: same country, battery size (5 kWh steps), car or not - what they saved this month so far
+    // (only lines from the last two days, so the month has run as long for all), with and without a feature.
+    const pk = peerKey(d);
+    if (pk && r.last_seen >= recent && Number.isFinite(Number(d.saved_month))) {
+      const g = (peers[pk] = peers[pk] || { all: [], f: {} }), v = Number(d.saved_month);
+      g.all.push(v);
+      for (const f of ["export", "targets"]) {
+        const side = (d.features || {})[f] ? "on" : "off";
+        ((g.f[f] = g.f[f] || { on: [], off: [] })[side]).push(v);
+      }
+    }
+    // The battery's health: usable kWh learned against the label, per model
+    if (d.model && Number(l.cap) > 0 && Number(l.nominal) > 0) add(health, String(d.model), Number(l.cap) / Number(l.nominal));
     if (d.profile && d.model && Array.isArray(l.taper)) {
       // a level missing from an installation's curve means it charged at full speed there
       const seen = Object.fromEntries(l.taper.map(([lvl, sh]) => [String(lvl), Number(sh)]));
@@ -258,7 +275,7 @@ async function sharedKnowledge(env) {
     const q = (p) => v[Math.min(v.length - 1, Math.floor(p * (v.length - 1) + 0.5))], med = q(0.5);
     return (q(0.75) - q(0.25)) / med <= 0.25 ? { med: Math.round(med * 100) / 100, n: v.length } : null;
   };
-  const c = { sun: {}, eff: {}, taper: {} };
+  const c = { sun: {}, eff: {}, taper: {}, peers: {}, health: {} };
   for (const key of new Set(Object.keys(sun).map((k) => k.replace(/\|(cloudy|clear)$/, "")))) {
     const cl = agreed(sun[`${key}|cloudy`] || [], 0.3, 2), cr = agreed(sun[`${key}|clear`] || [], 0.3, 2);
     if (cl && cr) c.sun[key] = { cloudy: cl.med, clear: cr.med, n: Math.min(cl.n, cr.n) };
@@ -272,6 +289,19 @@ async function sharedKnowledge(env) {
     if (bands.some(([, a]) => !a)) continue; // the curve only when every level agrees
     const curve = bands.filter(([, a]) => a.med < 0.95).map(([b, a]) => [b, a.med]).sort((x, y) => x[0] - y[0]);
     if (curve.length) c.taper[key] = { taper: curve, n: Math.min(...bands.map(([, a]) => a.n)) };
+  }
+  const med = (v) => { const s = [...v].sort((a, b) => a - b), n = s.length; return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2; };
+  for (const [key, g] of Object.entries(peers)) {
+    if (g.all.length < CONFIRM) continue;
+    const out = { saved: Math.round(med(g.all)), n: g.all.length, features: {} };
+    for (const [f, s] of Object.entries(g.f)) {
+      if (s.on.length >= CONFIRM && s.off.length >= CONFIRM) out.features[f] = { on: Math.round(med(s.on)), off: Math.round(med(s.off)), n: s.on.length + s.off.length };
+    }
+    c.peers[key] = out;
+  }
+  for (const [key, vals] of Object.entries(health)) {
+    const v = vals.filter((x) => x >= 0.5 && x <= 1.1);
+    if (v.length >= CONFIRM) c.health[key] = { ratio: Math.round(med(v) * 100) / 100, n: v.length };
   }
   await env.DB.prepare("INSERT OR REPLACE INTO meta (k, v) VALUES ('common', ?1)").bind(JSON.stringify({ t: Date.now(), c })).run();
   return c;

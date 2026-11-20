@@ -590,6 +590,17 @@ class Engine:
         except Exception:  # noqa: BLE001 - never in the way of a plan
             return None
 
+    def _common_info(self, common: Any) -> dict[str, Any]:
+        s, c = self.ov.settings, getattr(self.ov, "controller", None)
+        try:
+            cap = self.settings().capacity_kwh
+        except Exception:  # noqa: BLE001
+            cap = None
+        has = ((self.ov.flow() or {}).get("has") or {}) if hasattr(self.ov, "flow") else {}
+        return common.info(self.ov, len(self.learning.state.get("reports") or []), cap, bool(has.get("ev")),
+                           getattr(c, "model", None) if c else None, self.batt_learn.capacity(),
+                           float(s["battery_kwh"]) if s.get("battery_kwh") else None)
+
     def home(self) -> tuple[float, float] | None:
         """The house's position - only used here; the sky network gets the ~10 km cell (skynet.cell)."""
         try:
@@ -1086,7 +1097,7 @@ class Engine:
 
         return {"house": self.mixer.info("house"), "sun": self.mixer.info("sun"), "price": self.mixer.info("price"),
                 "battery": self.batt_learn.info(0.92), "car": self.habits.info(),
-                "common": common.info(self.ov, len(self.learning.state.get("reports") or [])),
+                "common": self._common_info(common),
                 "sky": self.sky.info(self.home()),
                 "trained": {"house": self.house_model.samples // 24, "sun": self.solar_model.days, "price": self.price_days}}
 
