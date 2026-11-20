@@ -53,9 +53,11 @@ export default {
     if (url.pathname === "/t") return telemetry(request, env, app);
     if (url.pathname === "/replies") return replies(request, env, app);
     if (url.pathname === "/reply") return userReply(request, env, app);
+    if (url.pathname === "/sky" && app === "energy-pilot") return sky(request, env);
     return report(request, env, app);
   },
   async scheduled(_event, env) {
+    try { await env.DB.prepare("DELETE FROM sky WHERE t < ?1").bind(Date.now() - 2 * 3600e3).run(); } catch { /* not there yet */ }
     try { await env.DB.prepare("DELETE FROM seen WHERE day < ?1").bind(new Date(Date.now() - 120 * 864e5).toISOString().slice(0, 10)).run(); } catch { /* not there yet */ }
     await weekly(env);
   },
@@ -140,6 +142,7 @@ async function schema(env) {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS error_issues (hash TEXT PRIMARY KEY, issue INTEGER)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS seen (app TEXT, install TEXT, day TEXT, country TEXT, PRIMARY KEY (app, install, day))"),
     // how each installation is set up (the daily question; names cleaned unless the user shares them): the newest only
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS sky (install TEXT PRIMARY KEY, cell TEXT, lat REAL, lon REAL, t INTEGER, ratio REAL, down INTEGER)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS setups (app TEXT, install TEXT, day TEXT, data TEXT, PRIMARY KEY (app, install))"),
   ]);
   try { await env.DB.prepare("ALTER TABLE seen ADD COLUMN version TEXT").run(); } catch { /* there already */ }
@@ -272,6 +275,46 @@ async function sharedKnowledge(env) {
   }
   await env.DB.prepare("INSERT OR REPLACE INTO meta (k, v) VALUES ('common', ?1)").bind(JSON.stringify({ t: Date.now(), c })).run();
   return c;
+}
+
+// The sky network: every quarter of an hour an installation tells how its sun compares with its own forecast right now
+// (and whether its grid is down), for a cell of about 10 x 10 km - never its position. It gets back the same for the
+// cells around it from the last 20 minutes: clouds seen by houses upwind reach it later, and a grid that fails at
+// several houses nearby may fail here too. Only cells with at least two installations are handed out.
+const SKY_FRESH_MS = 20 * 60e3;
+async function sky(request, env) {
+  if (!env.DB) return json({ near: [] });
+  let b;
+  try { b = await request.json(); } catch { return json({ error: "json" }, 400); }
+  const install = String(b.install || "").slice(0, 40), cell = String(b.cell || "");
+  if (!/^[a-f0-9-]{16,40}$/.test(install)) return json({ error: "install" }, 400);
+  const m = /^(-?\d{1,2}\.\d)\|(-?\d{1,3}\.\d{2})$/.exec(cell);
+  if (!m) return json({ error: "cell" }, 400);
+  const lat = Number(m[1]) + 0.05, lon = Number(m[2]) + 0.075; // the cell's middle
+  if (Math.abs(lat) > 90 || Math.abs(lon) > 180) return json({ error: "cell" }, 400);
+  const ratio = Number.isFinite(Number(b.ratio)) && b.ratio !== null ? Math.min(3, Math.max(0, Number(b.ratio))) : null;
+  const down = b.down === true ? 1 : b.down === false ? 0 : null;
+  await schema(env);
+  const now = Date.now();
+  await env.DB.prepare("INSERT OR REPLACE INTO sky (install, cell, lat, lon, t, ratio, down) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)")
+    .bind(install, cell, lat, lon, now, ratio, down).run();
+  const rows = (await env.DB.prepare(
+    "SELECT cell, lat, lon, ratio, down FROM sky WHERE t > ?1 AND install != ?2 AND lat BETWEEN ?3 AND ?4 AND lon BETWEEN ?5 AND ?6")
+    .bind(now - SKY_FRESH_MS, install, lat - 0.8, lat + 0.8, lon - 1.4, lon + 1.4).all()).results || [];
+  const cells = {};
+  for (const r of rows) {
+    const c = (cells[r.cell] = cells[r.cell] || { cell: r.cell, lat: r.lat, lon: r.lon, ratios: [], down: 0, reporting: 0 });
+    if (r.ratio !== null) c.ratios.push(r.ratio);
+    if (r.down !== null) { c.reporting += 1; c.down += r.down; }
+  }
+  const near = [];
+  for (const c of Object.values(cells)) {
+    const v = c.ratios.sort((x, y) => x - y), n = v.length;
+    const out = { cell: c.cell, lat: c.lat, lon: c.lon, n, down: c.reporting >= 2 ? c.down : 0, reporting: c.reporting };
+    if (n >= 2) out.ratio = Math.round((n % 2 ? v[(n - 1) / 2] : (v[n / 2 - 1] + v[n / 2]) / 2) * 100) / 100;
+    if (out.ratio !== undefined || out.down) near.push(out);
+  }
+  return json({ near, t: now });
 }
 
 // ---------- 3. The week's overview ----------

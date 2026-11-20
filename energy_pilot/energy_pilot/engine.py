@@ -422,6 +422,10 @@ class Engine:
         from . import common as _common
 
         self.learning.shared_sun = lambda: _common.sun_bias(self.ov)
+        from .skynet import Sky
+
+        self.sky = Sky()
+        self.sun_now: tuple | None = None
         from .ledger import Ledger
 
         self.ledger = Ledger(overview.file.parent)
@@ -584,6 +588,13 @@ class Engine:
         try:
             return common.efficiency(self.ov, c.profile_key("battery") if c else None, kind)
         except Exception:  # noqa: BLE001 - never in the way of a plan
+            return None
+
+    def home(self) -> tuple[float, float] | None:
+        """The house's position - only used here; the sky network gets the ~10 km cell (skynet.cell)."""
+        try:
+            return float(self.ha.config["latitude"]), float(self.ha.config["longitude"])
+        except (KeyError, TypeError, ValueError):
             return None
 
     def _shared_taper(self) -> tuple[tuple[float, float], ...]:
@@ -1076,6 +1087,7 @@ class Engine:
         return {"house": self.mixer.info("house"), "sun": self.mixer.info("sun"), "price": self.mixer.info("price"),
                 "battery": self.batt_learn.info(0.92), "car": self.habits.info(),
                 "common": common.info(self.ov, len(self.learning.state.get("reports") or [])),
+                "sky": self.sky.info(self.home()),
                 "trained": {"house": self.house_model.samples // 24, "sun": self.solar_model.days, "price": self.price_days}}
 
     def sources_used(self) -> dict[str, Any]:
@@ -1093,6 +1105,10 @@ class Engine:
         from . import storm as _storm
 
         self.storm = _storm.find(self.weather, now, self.ov.settings, self.ha.states, getattr(getattr(self.ov, "controller", None), "_ent_reg", None)) if self.ov.settings.get("storm") else None
+        from . import skynet as _sky
+
+        if self.ov.settings.get("storm") and not self.storm:  # grid failing at houses nearby: kept full as for a storm
+            self.storm = _sky.storm(_sky.outage_near(self.sky.fresh(), self.home()), now)
         start = now.replace(minute=0, second=0, microsecond=0)
         offgrid = bool(self.ov.settings.get("offgrid"))
         if offgrid:
@@ -1120,6 +1136,10 @@ class Engine:
         sun_ml = self.solar_model.predict(times, w) if w else {}
         sw = self.mixer.share("sun")
         sun = [Mixer.mix(s, sun_ml.get(t), sw) for s, t in zip(sun_simple, times)]
+        # The sky network (skynet.py): this hour's own forecast is what the house compares its sun with; the next
+        # hours are pulled towards what the houses upwind see now.
+        self.sun_now = (times[0], sun[0]) if times else None
+        sun = _sky.adjust(self.sky.fresh(), self.home(), times, sun, now, self.weather)
         hours = [Hour(t, r["price"], self.sell_at(sells, t, sell), house[i] + (L.margin if dear is not None and r["price"] >= dear else 0.0), sun[i])
                  for i, (t, r) in enumerate(zip(times, rows))]
         L.expect([{"t": times[0].isoformat(), "house": house[0], "sun": hours[0].sun, "price": rows[0]["price"], "cloud": clouds[0],

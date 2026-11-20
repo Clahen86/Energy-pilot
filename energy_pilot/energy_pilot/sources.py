@@ -79,7 +79,7 @@ class Weather:
         if time.time() - self._at < 3600 and self.hours:
             return
         params = {"latitude": f"{self.lat:.3f}", "longitude": f"{self.lon:.3f}", "timezone": str(self.tz),
-                  "hourly": "temperature_2m,cloud_cover,shortwave_radiation,wind_speed_100m,wind_gusts_10m,weather_code", "past_days": str(past_days), "forecast_days": "2"}
+                  "hourly": "temperature_2m,cloud_cover,shortwave_radiation,wind_speed_100m,wind_direction_100m,wind_gusts_10m,weather_code", "past_days": str(past_days), "forecast_days": "2"}
         async with self.session.get(OPEN_METEO, params=params, timeout=30) as resp:
             resp.raise_for_status()
             data = await resp.json()
@@ -90,6 +90,7 @@ class Weather:
             out[when] = {"temp": h["temperature_2m"][i], "cloud": h["cloud_cover"][i], "sun": h["shortwave_radiation"][i],
                          "wind": (h.get("wind_speed_100m") or [None] * (i + 1))[i],  # much wind: cheap power
                          "gust": (h.get("wind_gusts_10m") or [None] * (i + 1))[i],  # km/h - a storm (storm.py)
+                         "wind_dir": (h.get("wind_direction_100m") or [None] * (i + 1))[i],  # where clouds come from (skynet.py)
                          "code": (h.get("weather_code") or [None] * (i + 1))[i]}  # 95-99: thunderstorm
         self.hours, self._at = out, time.time()
 

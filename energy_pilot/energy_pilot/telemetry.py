@@ -435,6 +435,7 @@ class Telemetry:
     # ---------- the daily round ----------
     async def run(self) -> None:
         """Every 10 minutes: the daily line when a day has gone, and the shared fixes once a day."""
+        asyncio.get_running_loop().create_task(self.sky_loop())
         while True:
             try:
                 now = time.time()
@@ -450,6 +451,47 @@ class Telemetry:
             except Exception:  # noqa: BLE001
                 _LOGGER.debug("Telemetry round failed", exc_info=True)
             await asyncio.sleep(600)
+
+    async def sky_loop(self) -> None:
+        """The sky network (skynet.py), every quarter of an hour: this house's sun against its forecast and its grid,
+        for its ~10 km cell - and back what the houses around see."""
+        from . import skynet
+
+        volt = None
+        while True:
+            try:
+                eng = getattr(self.ov, "engine", None)
+                home = eng.home() if eng else None
+                if self.on and home:
+                    states = self.ov.ha.states
+                    volt = volt or skynet.grid_voltage_entity(states)
+                    ratio, sn = None, getattr(eng, "sun_now", None)
+                    pv = (self.ov.flow() or {}).get("pv") if hasattr(self.ov, "flow") else None
+                    if pv is not None and sn and sn[1] >= 0.2:
+                        from datetime import datetime
+
+                        if 0 <= (datetime.now(sn[0].tzinfo) - sn[0]).total_seconds() < 3600:
+                            ratio = round(max(0.0, float(pv)) / 1000 / sn[1], 2)
+                    down = skynet.grid_down(states, volt)
+                    if ratio is not None or down is not None:
+                        d = await self._sky_post({"install": self.ov.settings.get("install_id"), "cell": skynet.cell(*home),
+                                                  "ratio": ratio, "down": down})
+                        if isinstance(d, dict) and isinstance(d.get("near"), list):
+                            eng.sky.near, eng.sky.t = d["near"][:400], time.time()
+            except Exception:  # noqa: BLE001 - never in the way
+                _LOGGER.debug("Sky round failed", exc_info=True)
+            await asyncio.sleep(skynet.EVERY_S)
+
+    async def _sky_post(self, body: dict[str, Any]) -> dict[str, Any] | None:
+        import aiohttp
+
+        try:
+            async with aiohttp.ClientSession() as s:
+                async with s.post(f"{self.url}/sky", json=body, headers={"x-ep-client": "energy-pilot"},
+                                  timeout=aiohttp.ClientTimeout(total=20)) as r:
+                    return await r.json(content_type=None) if r.status == 200 else None
+        except Exception:  # noqa: BLE001
+            return None
 
     async def fetch_fixes(self) -> None:
         import aiohttp
