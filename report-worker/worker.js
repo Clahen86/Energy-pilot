@@ -181,8 +181,11 @@ async function telemetry(request, env, app = "energy-pilot") {
       await db.prepare("INSERT OR REPLACE INTO tests (install, part, profile, model, day, ok, failed) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)")
         .bind(install, part, s(part === "car" ? b.charger : b.profile), s(b.model), day, failed ? 0 : 1, failed || null).run();
     }
-    for (const r of (b.results || []).filter((x) => x.result === "fixed" && x.part === "battery")) {
-      const key = [s(b.profile), s(r.step, 20), s(r.option_from), s(r.option_to)];
+    for (const r of (b.results || []).filter((x) => x.result === "fixed" && (x.part === "battery" || x.part === "car"))) {
+      // a charger's fixes are kept under "car:<integration>" (Energy Pilot's control.py looks them up so)
+      const prof = r.part === "car" ? (b.charger ? `car:${s(b.charger, 60)}` : null) : s(b.profile);
+      if (!prof) continue;
+      const key = [prof, s(r.step, 20), s(r.option_from), s(r.option_to)];
       await db.prepare("INSERT OR IGNORE INTO fixes (profile, intent, opt_from, opt_to, install, day) VALUES (?1, ?2, ?3, ?4, ?5, ?6)")
         .bind(...key, install, day).run();
       const n = (await db.prepare("SELECT COUNT(*) AS n FROM fixes WHERE profile = ?1 AND intent = ?2 AND opt_from = ?3 AND opt_to = ?4").bind(...key).first()).n;
@@ -240,7 +243,7 @@ async function sharedKnowledge(env) {
   if (old && Date.now() - old.t < 864e5) return old.c;
   const since = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
   const rows = (await env.DB.prepare("SELECT data, last_seen FROM installs WHERE last_seen >= ?1").bind(since).all()).results || [];
-  const sun = {}, eff = {}, taper = {}, peers = {}, health = {};
+  const sun = {}, eff = {}, taper = {}, peers = {}, health = {}, tariffs = {};
   const recent = new Date(Date.now() - 2 * 864e5).toISOString().slice(0, 10);
   const add = (map, key, v) => { if (key && Number.isFinite(v)) (map[key] = map[key] || []).push(v); };
   for (const r of rows) {
@@ -261,6 +264,12 @@ async function sharedKnowledge(env) {
         ((g.f[f] = g.f[f] || { on: [], off: [] })[side]).push(v);
       }
     }
+    // The grid tariff typed in, per ~10 km cell (the same grid company, most likely)
+    if (l.tariff && /^-?\d{1,2}\.\d\|-?\d{1,3}\.\d{2}$/.test(String(l.cell || ""))) {
+      const tk = ["low", "high", "peak"].map((k) => Number(l.tariff[k]).toFixed(3)).join("|");
+      const cellT = (tariffs[l.cell] = tariffs[l.cell] || {});
+      cellT[tk] = (cellT[tk] || 0) + 1;
+    }
     // The battery's health: usable kWh learned against the label, per model
     if (d.model && Number(l.cap) > 0 && Number(l.nominal) > 0) add(health, String(d.model), Number(l.cap) / Number(l.nominal));
     if (d.profile && d.model && Array.isArray(l.taper)) {
@@ -275,7 +284,7 @@ async function sharedKnowledge(env) {
     const q = (p) => v[Math.min(v.length - 1, Math.floor(p * (v.length - 1) + 0.5))], med = q(0.5);
     return (q(0.75) - q(0.25)) / med <= 0.25 ? { med: Math.round(med * 100) / 100, n: v.length } : null;
   };
-  const c = { sun: {}, eff: {}, taper: {}, peers: {}, health: {} };
+  const c = { sun: {}, eff: {}, taper: {}, peers: {}, health: {}, tariff: {} };
   for (const key of new Set(Object.keys(sun).map((k) => k.replace(/\|(cloudy|clear)$/, "")))) {
     const cl = agreed(sun[`${key}|cloudy`] || [], 0.3, 2), cr = agreed(sun[`${key}|clear`] || [], 0.3, 2);
     if (cl && cr) c.sun[key] = { cloudy: cl.med, clear: cr.med, n: Math.min(cl.n, cr.n) };
@@ -298,6 +307,12 @@ async function sharedKnowledge(env) {
       if (s.on.length >= CONFIRM && s.off.length >= CONFIRM) out.features[f] = { on: Math.round(med(s.on)), off: Math.round(med(s.off)), n: s.on.length + s.off.length };
     }
     c.peers[key] = out;
+  }
+  for (const [cell, counts] of Object.entries(tariffs)) {
+    const [tk, n] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+    if (n < CONFIRM) continue; // at least three neighbours typed exactly the same
+    const [low, high, peak] = tk.split("|").map(Number);
+    c.tariff[cell] = { low, high, peak, n };
   }
   for (const [key, vals] of Object.entries(health)) {
     const v = vals.filter((x) => x >= 0.5 && x <= 1.1);

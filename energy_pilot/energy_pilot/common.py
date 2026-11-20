@@ -104,3 +104,17 @@ def health(ov: Any, model: str | None) -> dict[str, Any] | None:
     """Usable kWh against the label for this battery model: {"ratio", "n"}."""
     got = (_common(ov).get("health") or {}).get(str(model or ""))
     return got if isinstance(got, dict) and isinstance(got.get("ratio"), (int, float)) else None
+
+
+def tariff(ov: Any, home: tuple[float, float] | None) -> dict[str, float] | None:
+    """The grid tariff (low/high/peak) neighbours in this ~10 km cell typed in - the same grid company, most likely."""
+    if not home:
+        return None
+    from .skynet import cell
+
+    got = (_common(ov).get("tariff") or {}).get(cell(*home))
+    try:
+        out = {k: float(got[k]) for k in ("low", "high", "peak")}
+    except (KeyError, TypeError, ValueError):
+        return None
+    return out if all(0 <= v <= 5 for v in out.values()) else None

@@ -904,7 +904,12 @@ class Engine:
             area = st.get("price_area") or price_area(float(self.ha.config.get("latitude") or 56), float(self.ha.config.get("longitude") or 10),
                                                       self.ha.config.get("country"))
             try:
-                self.own_prices = await fetch_prices(self.ha.session, area, self.tz, st, self.ha.config.get("currency") or "EUR")
+                from . import common as _common
+
+                # No grid tariff typed in: the one neighbours in the same ~10 km cell typed (shared knowledge).
+                shared_tariff = None if st.get("tariff") else _common.tariff(self.ov, self.home())
+                self.own_prices = await fetch_prices(self.ha.session, area, self.tz, {**st, "tariff": shared_tariff} if shared_tariff else st,
+                                                     self.ha.config.get("currency") or "EUR")
                 self._prices_at = time.time()
             except Exception:  # noqa: BLE001
                 _LOGGER.info("No prices from Energi Data Service right now")

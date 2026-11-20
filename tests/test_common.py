@@ -69,3 +69,11 @@ def test_peers_and_health_in_info():
     assert info["peers"]["saved"] == 210
     assert info["health"] == {"mine": 0.84, "others": {"ratio": 0.9, "n": 4}}
     assert common.info(_ov({}), 3)["peers"] is None
+
+
+def test_tariff_from_neighbours_in_the_same_cell():
+    home = (55.64, 12.08)
+    ov = _ov({"tariff": {"55.6|12.00": {"low": 0.12, "high": 0.35, "peak": 1.04, "n": 3}}})
+    assert common.tariff(ov, home) == {"low": 0.12, "high": 0.35, "peak": 1.04}
+    assert common.tariff(ov, (56.2, 10.2)) is None
+    assert common.tariff(ov, None) is None

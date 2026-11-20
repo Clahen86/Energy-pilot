@@ -546,9 +546,12 @@ class Controller:
             return self._phase_call(part, want) + self._clamp(adapters.charger_calls(
                 want["intent"], self.entities.get(part, []), self.platforms.get(part), want["ctx"]["current"],
                 self.car_devices.get(part), self.ha.states, switch=self.auto_switch(part)))
-        return self._phase_call("car", want) + self._clamp(adapters.charger_calls(
+        calls = self._clamp(adapters.charger_calls(
             want["intent"], self.entities["car"], self.platforms["car"], want["ctx"]["current"],
             getattr(self, "car_device", None), self.ha.states, switch=self.auto_switch("car")))
+        # The charger test's steps are "start"/"stop" (selftest.py): an option it - or 3 other installations with the
+        # same charger - found works is used instead.
+        return self._phase_call("car", want) + self._fixed("car", "start" if want["intent"] == "charge" else "stop", calls)
 
     def _clamp(self, calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Numbers within the control's own min/max - Home Assistant refuses a value outside them. A select value
@@ -729,8 +732,9 @@ class Controller:
         else one that 3 other installations with the same profile found (telemetry.py) - only when this inverter
         offers it, and never one the user undid."""
         fx = (((self.ov.settings.get("profile_fixes") or {}).get(part) or {}).get(intent)) or {}
+        key = self.profile_key(part) if self.is_battery(part) else f"car:{self.platforms.get(part) or ''}"
         shared = [f for f in ((self.ov.settings.get("community") or {}).get("fixes") or [])
-                  if f.get("profile") == self.profile_key(part) and f.get("intent") == intent
+                  if f.get("profile") == key and f.get("intent") == intent
                   and f"{intent}|{f.get('from')}|{f.get('to')}" not in (self.ov.settings.get("community_ignore") or [])]
         if not fx and not shared:
             return calls

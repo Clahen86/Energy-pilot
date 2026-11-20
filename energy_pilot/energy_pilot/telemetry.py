@@ -150,6 +150,13 @@ class Telemetry:
                     learned["battery_type"] = eng.battery_type()["type"]
                 if (lc := eng.batt_learn.capacity()) and s.get("battery_kwh"):  # the battery's health (common.py)
                     learned["cap"], learned["nominal"] = round(float(lc), 1), round(float(s["battery_kwh"]), 1)
+                tf, home = s.get("tariff"), eng.home()
+                if isinstance(tf, dict) and home and all(isinstance(tf.get(k), (int, float)) for k in ("low", "high", "peak")):
+                    from . import skynet
+
+                    # the grid tariff the user typed in, for neighbours with the same grid company (public prices)
+                    learned["tariff"] = {k: round(float(tf[k]), 3) for k in ("low", "high", "peak")}
+                    learned["cell"] = skynet.cell(*home)
                 if tp := eng.batt_learn.taper():
                     learned["taper"] = [[float(lvl), float(sh)] for lvl, sh in tp]
                 out["learned"] = learned
@@ -508,7 +515,7 @@ class Telemetry:
             return
         common = d.get("common") if isinstance(d.get("common"), dict) else {}
         self.ov.save({"community": {"fixes": (d.get("fixes") or [])[:500], "tested": d.get("tested") or {},
-                                    "common": {k: v for k, v in common.items() if k in ("sun", "eff", "taper", "peers", "health") and isinstance(v, dict)},
+                                    "common": {k: v for k, v in common.items() if k in ("sun", "eff", "taper", "peers", "health", "tariff") and isinstance(v, dict)},
                                     "t": time.time()}})
 
 
