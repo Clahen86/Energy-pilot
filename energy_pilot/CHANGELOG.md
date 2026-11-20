@@ -2,6 +2,10 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.95.1 – 2026-11-20
+
+- Ready-made app images are now built on GitHub for amd64 and aarch64 (no change to the app itself)
+
 ## 0.95.0 – 2026-11-20
 
 - Charging power can now be a kWh counter (e.g. Monta's "Charged total") for chargers without a live power sensor - the power is worked out from how fast the counter rises
