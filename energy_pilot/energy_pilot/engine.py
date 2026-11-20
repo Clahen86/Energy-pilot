@@ -419,6 +419,9 @@ class Engine:
 
         self.ha, self.ov = ha, overview
         self.learning = Learning(overview.file.parent)
+        from . import common as _common
+
+        self.learning.shared_sun = lambda: _common.sun_bias(self.ov)
         from .ledger import Ledger
 
         self.ledger = Ledger(overview.file.parent)
@@ -515,7 +518,8 @@ class Engine:
             max_discharge_kw=discharge,
             min_soc=min_soc, grid_charge=grid, import_limit_kw=float(s["import_limit_kw"]) if s.get("import_limit_kw") else None,
             quiet=frozenset(self.quiet_hours("battery")),
-            efficiency=self.batt_learn.efficiency(TYPES[kind]["eff"]),  # the type's, until it has seen the real one
+            # the type's (or what other batteries like it on this inverter give), until it has seen the real one
+            efficiency=self.batt_learn.efficiency(self._shared_eff(kind) or TYPES[kind]["eff"]),
             export=self.can_export(),
             wear=self.wear(cap),
             export_limit_kw=float(s["export_limit_kw"]) if s.get("export_limit_kw") else None,
@@ -571,6 +575,16 @@ class Engine:
             return not ctl.check().get("export", {}).get("missing")  # its controls are there
         except Exception:  # noqa: BLE001
             return True
+
+    def _shared_eff(self, kind: str) -> float | None:
+        """The round trip other batteries of this kind on this inverter profile give (shared knowledge), or None."""
+        from . import common
+
+        c = getattr(self.ov, "controller", None)
+        try:
+            return common.efficiency(self.ov, c.profile_key("battery") if c else None, kind)
+        except Exception:  # noqa: BLE001 - never in the way of a plan
+            return None
 
     def battery_type(self) -> dict[str, Any]:
         """The battery's kind - chosen, or found (the inverter's setting, the model, the learned efficiency)."""
@@ -1047,8 +1061,11 @@ class Engine:
 
     def blend_info(self) -> dict[str, Any]:
         """Who decides now, and how well each one hits."""
+        from . import common
+
         return {"house": self.mixer.info("house"), "sun": self.mixer.info("sun"), "price": self.mixer.info("price"),
                 "battery": self.batt_learn.info(0.92), "car": self.habits.info(),
+                "common": common.info(self.ov, len(self.learning.state.get("reports") or [])),
                 "trained": {"house": self.house_model.samples // 24, "sun": self.solar_model.days, "price": self.price_days}}
 
     def sources_used(self) -> dict[str, Any]:

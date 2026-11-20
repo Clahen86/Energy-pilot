@@ -139,6 +139,18 @@ class Telemetry:
         }
         if bat_int:
             out["battery_integration"] = str(bat_int)[:40]
+        if eng:  # what it has learned itself, for the shared knowledge (common.py) - two ratios, rounded
+            try:
+                ls = eng.learning.state
+                learned: dict[str, Any] = {"days": len(ls.get("reports") or []),
+                                           "sun": {k: round(float(v), 2) for k, v in (ls.get("solar_bias") or {}).items() if k in ("cloudy", "clear")}}
+                m = eng.batt_learn._medians()
+                if m and m[2] >= 5:
+                    learned["eff"] = round(min(0.95, max(0.7, m[1] / m[0])), 2)
+                    learned["battery_type"] = eng.battery_type()["type"]
+                out["learned"] = learned
+            except Exception:  # noqa: BLE001
+                pass
         return out
 
     def test_result(self, results: list[dict[str, Any]]) -> None:
@@ -448,7 +460,10 @@ class Telemetry:
                     d = await r.json(content_type=None)
         except Exception:  # noqa: BLE001
             return
-        self.ov.save({"community": {"fixes": (d.get("fixes") or [])[:500], "tested": d.get("tested") or {}, "t": time.time()}})
+        common = d.get("common") if isinstance(d.get("common"), dict) else {}
+        self.ov.save({"community": {"fixes": (d.get("fixes") or [])[:500], "tested": d.get("tested") or {},
+                                    "common": {k: v for k, v in common.items() if k in ("sun", "eff") and isinstance(v, dict)},
+                                    "t": time.time()}})
 
 
 class ErrorHandler(logging.Handler):

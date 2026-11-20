@@ -38,6 +38,9 @@ class Learning:
             self.state.update(json.loads(self.file.read_text()))
         except (OSError, ValueError):
             pass
+        # Shared knowledge (common.py): the sun's bias other installations like this one have learned. Set by the
+        # engine; leaned on while this one has few days of its own.
+        self.shared_sun: Any = None
 
     def save(self) -> None:
         self.file.write_text(json.dumps(self.state, indent=1, default=str))
@@ -45,7 +48,13 @@ class Learning:
     # ---------- what the engine uses ----------
 
     def sun(self, kwh: float, cloud: float | None) -> float:
-        bias = self.state["solar_bias"]["cloudy" if (cloud or 0) >= 60 else "clear"]
+        kind = "cloudy" if (cloud or 0) >= 60 else "clear"
+        bias = self.state["solar_bias"][kind]
+        shared = self.shared_sun() if callable(self.shared_sun) else None
+        if shared:
+            from .common import blend
+
+            bias = blend(bias, shared.get(kind), len(self.state.get("reports") or []))
         return kwh * bias
 
     @property

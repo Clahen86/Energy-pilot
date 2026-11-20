@@ -217,8 +217,49 @@ async function fixes(env) {
   const f = await env.DB.prepare("SELECT profile, intent, opt_from AS 'from', opt_to AS 'to' FROM confirmed").all();
   const t = await env.DB.prepare("SELECT profile, SUM(ok) AS ok, COUNT(*) AS n FROM tests GROUP BY profile").all();
   const tested = Object.fromEntries((t.results || []).map((r) => [r.profile, { ok: r.ok, n: r.n }]));
-  return new Response(JSON.stringify({ fixes: f.results || [], tested }), {
+  let common = {};
+  try { common = await sharedKnowledge(env); } catch { /* never in the way of the fixes */ }
+  return new Response(JSON.stringify({ fixes: f.results || [], tested, common }), {
     headers: { "content-type": "application/json", "cache-control": "public, max-age=3600" } });
+}
+
+// Shared knowledge: what installations have learned themselves (the daily line's "learned"), added up once a day so a
+// new installation can start from it. Only groups of at least CONFIRM installations that agree (the middle half
+// within 25 % of the median) - a spread-out group says nothing about the next house.
+const OWN_DAYS = 14; // an installation's own learning counts from this many days
+async function sharedKnowledge(env) {
+  const row = await env.DB.prepare("SELECT v FROM meta WHERE k = 'common'").first();
+  const old = row ? safe(row.v) : null;
+  if (old && Date.now() - old.t < 864e5) return old.c;
+  const since = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+  const rows = (await env.DB.prepare("SELECT data FROM installs WHERE last_seen >= ?1").bind(since).all()).results || [];
+  const sun = {}, eff = {};
+  const add = (map, key, v) => { if (key && Number.isFinite(v)) (map[key] = map[key] || []).push(v); };
+  for (const r of rows) {
+    const d = safe(r.data) || {}, l = d.learned || {};
+    if (d.country && d.sun_source && l.days >= OWN_DAYS && l.sun) {
+      add(sun, `${d.country}|${d.sun_source}|cloudy`, Number(l.sun.cloudy));
+      add(sun, `${d.country}|${d.sun_source}|clear`, Number(l.sun.clear));
+    }
+    if (d.profile && l.battery_type) add(eff, `${d.profile}|${l.battery_type}`, Number(l.eff));
+  }
+  const agreed = (vals, lo, hi) => {
+    const v = vals.filter((x) => x >= lo && x <= hi).sort((a, b) => a - b);
+    if (v.length < CONFIRM) return null;
+    const q = (p) => v[Math.min(v.length - 1, Math.floor(p * (v.length - 1) + 0.5))], med = q(0.5);
+    return (q(0.75) - q(0.25)) / med <= 0.25 ? { med: Math.round(med * 100) / 100, n: v.length } : null;
+  };
+  const c = { sun: {}, eff: {} };
+  for (const key of new Set(Object.keys(sun).map((k) => k.replace(/\|(cloudy|clear)$/, "")))) {
+    const cl = agreed(sun[`${key}|cloudy`] || [], 0.3, 2), cr = agreed(sun[`${key}|clear`] || [], 0.3, 2);
+    if (cl && cr) c.sun[key] = { cloudy: cl.med, clear: cr.med, n: Math.min(cl.n, cr.n) };
+  }
+  for (const [key, vals] of Object.entries(eff)) {
+    const a = agreed(vals, 0.7, 0.95);
+    if (a) c.eff[key] = { eff: a.med, n: a.n };
+  }
+  await env.DB.prepare("INSERT OR REPLACE INTO meta (k, v) VALUES ('common', ?1)").bind(JSON.stringify({ t: Date.now(), c })).run();
+  return c;
 }
 
 // ---------- 3. The week's overview ----------
