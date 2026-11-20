@@ -177,7 +177,7 @@ class Overview:
                          # the self-test and what was mended by itself (selftest.py, autofix.py)
                          "selftest", "profile_fixes", "test_skipped", "autofix_log", "autofix_ignore", "role_scale", "price_scale", "last_report",
                          # learning together (telemetry.py)
-                         "install_id", "first_seen", "first_control", "share_anonymous", "telemetry_sent", "community", "community_ignore", "replies", "replies_seen", "last_error", "replies_hidden", "replies_shown",
+                         "install_id", "first_seen", "first_control", "share_anonymous", "telemetry_sent", "hours_sent_day", "community", "community_ignore", "replies", "replies_seen", "last_error", "replies_hidden", "replies_shown",
                          # the update card (telemetry.py)
                          "latest", "behind", "update_snooze", "update_told", "whatsnew_seen", "changelog_for", "changelog_remote",
                          # stop selling at negative prices (curtail.py)

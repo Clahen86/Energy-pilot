@@ -7,6 +7,8 @@ Newest first. Each version lists what changed since the one before.
 - Safer: an order to the inverter (charge from the grid, sell) now runs out by itself after about an hour and is moved on every quarter. Should Energy Pilot, Home Assistant or the network stop, the inverter goes back to normal on its own instead of charging or selling all day (Growatt, GivEnergy)
 - Safer: when Energy Pilot is stopped or updated, it puts the battery back to normal first
 - The sky network only counts installations that have shared for at least a week, and a power cut nearby must be seen twice in a row before the battery is kept full
+- Sharing now also sends yesterday's use, sun, battery and price hour by hour (when sharing is on), so the models can be trained on all houses. The share text says so
+- No AppDaemon folders as default options any more
 
 ## 0.96.0 – 2026-11-21
 

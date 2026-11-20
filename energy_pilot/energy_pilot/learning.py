@@ -139,7 +139,7 @@ class Learning:
         for h in sorted(set(exp) | set(house)):
             e = exp.get(h) or {}
             rows.append({"h": int(h[11:13]), "house": [_r(e.get("house")), _r(house.get(h))], "sun": [_r(e.get("sun")), _r(pv.get(h)) if pv else None],
-                         "soc": [_r(e.get("soc_plan"), 0), _r((soc or {}).get(h), 0)]})
+                         "soc": [_r(e.get("soc_plan"), 0), _r((soc or {}).get(h), 0)], "price": _r(prices.get(h), 3)})
         report["hours"] = rows
         report["accuracy"] = accuracy(rows)
         old = [{k: v for k, v in r.items() if k != "hours"} for r in (self.state.get("reports") or [])[-29:]]

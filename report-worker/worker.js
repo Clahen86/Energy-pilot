@@ -46,6 +46,7 @@ export default {
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname === "/fixes") return fixes(env);
     if (request.method === "GET" && url.pathname === "/stats") return stats(url, env);
+    if (request.method === "GET" && url.pathname === "/export") return exportHours(url, env);
     if (request.method === "GET") return json({ ok: true, service: "energy-pilot-reports" });
     if (request.method !== "POST") return json({ error: "method" }, 405);
     const app = request.headers.get("x-ep-client");
@@ -57,6 +58,7 @@ export default {
     return report(request, env, app);
   },
   async scheduled(_event, env) {
+    try { await env.DB.prepare("DELETE FROM hours WHERE day < ?1").bind(new Date(Date.now() - 400 * 864e5).toISOString().slice(0, 10)).run(); } catch { /* not there yet */ }
     try { await env.DB.prepare("DELETE FROM sky WHERE t < ?1").bind(Date.now() - 2 * 3600e3).run(); } catch { /* not there yet */ }
     try { await env.DB.prepare("DELETE FROM seen WHERE day < ?1").bind(new Date(Date.now() - 120 * 864e5).toISOString().slice(0, 10)).run(); } catch { /* not there yet */ }
     await weekly(env);
@@ -142,6 +144,7 @@ async function schema(env) {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS error_issues (hash TEXT PRIMARY KEY, issue INTEGER)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS seen (app TEXT, install TEXT, day TEXT, country TEXT, PRIMARY KEY (app, install, day))"),
     // how each installation is set up (the daily question; names cleaned unless the user shares them): the newest only
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS hours (install TEXT, day TEXT, data TEXT, PRIMARY KEY (install, day))"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS sky (install TEXT PRIMARY KEY, cell TEXT, lat REAL, lon REAL, t INTEGER, ratio REAL, down INTEGER)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS setups (app TEXT, install TEXT, day TEXT, data TEXT, PRIMARY KEY (app, install))"),
   ]);
@@ -209,6 +212,14 @@ async function telemetry(request, env, app = "energy-pilot") {
         body: `First seen ${day} in version ${s(b.version, 20)}.\n\n\`\`\`\n${text}\n\`\`\`\n\n_Comments here reach every installation that had this error._` });
       await rememberIssue(db, hash, r);
     }
+  } else if (b.kind === "hours") {
+    // Yesterday hour by hour (Energy Pilot's telemetry.hours_line) - kept for the models trained on all houses
+    const d = String(b.day || "").slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !Array.isArray(b.hours)) return json({ error: "hours" }, 400);
+    const n = (v) => (Number.isFinite(Number(v)) && v !== null ? Math.round(Number(v) * 1000) / 1000 : null);
+    const pair = (v) => (Array.isArray(v) ? [n(v[0]), n(v[1])] : [null, null]);
+    const rows = b.hours.slice(0, 25).map((r) => ({ h: n(r.h), house: pair(r.house), sun: pair(r.sun), soc: pair(r.soc), price: n(r.price) }));
+    await db.prepare("INSERT OR REPLACE INTO hours (install, day, data) VALUES (?1, ?2, ?3)").bind(install, d, JSON.stringify(rows)).run();
   } else if (b.kind === "autofix") {
     await db.prepare("INSERT OR IGNORE INTO autofix (key, install, day) VALUES (?1, ?2, ?3)").bind(s(b.key, 40), install, day).run();
   } else {
@@ -365,6 +376,31 @@ async function sky(request, env) {
     if (out.ratio !== undefined || out.down) near.push(out);
   }
   return json({ near, t: now });
+}
+
+// The hourly lines for training (a GitHub Action with the secret EXPORT_KEY): a page of days from `since`, each with
+// the installation's kind of home (country, inverter, battery size, car …) - never its install id, only a stable alias.
+async function exportHours(url, env) {
+  if (!env.EXPORT_KEY || url.searchParams.get("key") !== env.EXPORT_KEY) return new Response("Not found", { status: 404 });
+  if (!env.DB) return json({ rows: [] });
+  await schema(env);
+  const since = (url.searchParams.get("since") || "2000-01-01").slice(0, 10);
+  const offset = Math.max(0, parseInt(url.searchParams.get("offset") || "0", 10) || 0);
+  const rows = (await env.DB.prepare(
+    "SELECT h.install, h.day, h.data, i.data AS meta FROM hours h LEFT JOIN installs i ON i.id = h.install " +
+    "WHERE h.day >= ?1 ORDER BY h.day, h.install LIMIT 500 OFFSET ?2").bind(since, offset).all()).results || [];
+  const alias = async (id) => {
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${env.EXPORT_KEY}|${id}`));
+    return [...new Uint8Array(buf)].slice(0, 8).map((x) => x.toString(16).padStart(2, "0")).join("");
+  };
+  const out = [];
+  for (const r of rows) {
+    const m = safe(r.meta);
+    out.push({ home: await alias(r.install), day: r.day, hours: safe(r.data),
+      kind: { country: m.country, profile: m.profile, model: m.model, battery_kwh: m.battery_kwh, has: m.has, charger: m.charger,
+              price: m.price, sun_source: m.sun_source } });
+  }
+  return json({ rows: out, next: rows.length === 500 ? offset + 500 : null });
 }
 
 // ---------- 3. The week's overview ----------

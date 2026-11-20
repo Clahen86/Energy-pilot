@@ -451,6 +451,8 @@ class Telemetry:
                 if self.on and now - float(self.ov.settings.get("telemetry_sent") or 0) >= DAY_S:
                     if await self._post("daily", {"data": self.daily()}):
                         self.ov.save({"telemetry_sent": now})
+                if self.on:
+                    await self.send_hours()
                 if self.url and now - float((self.ov.settings.get("community") or {}).get("t") or 0) >= DAY_S:
                     await self.fetch_fixes()
                 # every 10 minutes the first week after a report or an error, hourly until 60 days, then once a day
@@ -460,6 +462,26 @@ class Telemetry:
             except Exception:  # noqa: BLE001
                 _LOGGER.debug("Telemetry round failed", exc_info=True)
             await asyncio.sleep(600)
+
+    def hours_line(self) -> dict[str, Any] | None:
+        """Yesterday hour by hour, as the nightly review saw it: the house's use and the sun (forecast and real), the
+        battery's level (planned and real) and the price - for the models trained on all houses. No clock times
+        beyond the day, no names, no entities."""
+        eng = getattr(self.ov, "engine", None)
+        reports = (getattr(getattr(eng, "learning", None), "state", None) or {}).get("reports") or []
+        last = reports[-1] if reports else None
+        if not last or not last.get("hours") or last.get("day") == self.ov.settings.get("hours_sent_day"):
+            return None
+        rows = []
+        for r in last["hours"][:25]:
+            pair = lambda k: (list(r.get(k) or [None, None]) + [None, None])[:2]  # noqa: E731
+            rows.append({"h": r.get("h"), "house": pair("house"), "sun": pair("sun"), "soc": pair("soc"), "price": r.get("price")})
+        return {"day": last["day"], "hours": rows}
+
+    async def send_hours(self) -> None:
+        line = self.hours_line()
+        if line and await self._post("hours", line):
+            self.ov.save({"hours_sent_day": line["day"]})
 
     async def sky_loop(self) -> None:
         """The sky network (skynet.py), every quarter of an hour: this house's sun against its forecast and its grid,
