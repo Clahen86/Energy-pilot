@@ -117,6 +117,13 @@ class AutoFix:
     def kw_scale(self, roles: dict[str, Any]) -> None:
         """A power sensor whose numbers are kW-sized while the others are in watts, and that doesn't say kW."""
         scale = self.ov.settings.get("role_scale") or {}
+        # Taken for kW, but now it reads hundreds: it was watts all along (an idle battery's few watts looked like kW).
+        # Put back at once, and never again for that sensor.
+        for r, k in list(scale.items()):
+            s = self.samples.get(r) or []
+            if r in POWER_ROLES and k == 1000 and s and max(abs(x) for x in s) > 300:
+                self.undo(f"kw:{r}")
+                scale = self.ov.settings.get("role_scale") or {}
         big = [r for r in POWER_ROLES if (s := self.samples.get(r)) and len(s) >= 30 and max(abs(x) for x in s) > 300]
         if not big:
             return
@@ -125,7 +132,8 @@ class AutoFix:
             s = self.samples.get(r) or []
             e = roles.get(r)
             unit = str(((self.ov.ha.states.get(e or "") or {}).get("attributes") or {}).get("unit_of_measurement") or "").lower()
-            if len(s) < 60 or r in big or scale.get(r) or self._ignored(key) or unit in ("kw", "kwh", "wh"):
+            # Only a sensor that gives no unit: one that says W is taken at its word (an idle battery shows a few watts).
+            if len(s) < 60 or r in big or scale.get(r) or self._ignored(key) or unit in ("w", "kw", "kwh", "wh"):
                 continue
             moving = [x for x in s if abs(x) >= 0.2]
             if len(moving) >= 20 and max(abs(x) for x in s) <= 30 and any(abs(x - round(x)) > 0.01 for x in moving):

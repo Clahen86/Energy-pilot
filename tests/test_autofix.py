@@ -63,6 +63,30 @@ def test_power_in_kw_without_saying_so():
     assert store["role_scale"] == {"battery_power": 1000}
 
 
+def test_an_idle_battery_in_watts_is_not_taken_for_kw():
+    # The UK Victron tester: "Total Battery Net Power" in W sat at a few watts overnight and was multiplied by 1000 -
+    # the house then looked like 858 kW and nothing was sold.
+    states = {"sensor.grid": {"state": "1500"}, "sensor.batt": {"state": "5.3", "attributes": {"unit_of_measurement": "W"}}}
+    o, store = ov(states=states, roles={"grid_power": "sensor.grid", "battery_power": "sensor.batt"})
+    a = A.AutoFix(o)
+    for i in range(60):
+        states["sensor.grid"]["state"] = str(1500 + i * 10)
+        states["sensor.batt"]["state"] = str(5.3 + i / 37)
+        a.run()
+    assert not store.get("role_scale")
+
+
+def test_a_wrong_kw_guess_is_put_back_when_the_sensor_reads_hundreds():
+    states = {"sensor.grid": {"state": "15"}, "sensor.batt": {"state": "-858", "attributes": {"unit_of_measurement": "W"}}}
+    o, store = ov({"role_scale": {"battery_power": 1000},
+                   "autofix_log": [{"key": "kw:battery_power", "what": "kw_scale", "from": 1, "to": 1000, "t": 0}]},
+                  states=states, roles={"grid_power": "sensor.grid", "battery_power": "sensor.batt"})
+    a = A.AutoFix(o)
+    a.run()
+    assert store["role_scale"] == {} and store["autofix_log"] == []
+    assert "kw:battery_power" in store["autofix_ignore"]  # never guessed again for this sensor
+
+
 def test_price_in_ore():
     o, store = ov()
     o.fine_prices = {i: 250.0 + i for i in range(24)}

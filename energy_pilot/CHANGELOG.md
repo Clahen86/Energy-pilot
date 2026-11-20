@@ -2,6 +2,10 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.95.3 – 2026-11-20
+
+- Fixed: a battery power sensor in watts could be taken for kW while the battery sat idle (a few watts). The house then looked like hundreds of kW and nothing was sold from the battery. Sensors that say W are now taken at their word, and a wrong guess is put back by itself as soon as the sensor reads hundreds
+
 ## 0.95.2 – 2026-11-20
 
 - Home Assistant now downloads the ready-made app instead of building it on your machine: faster updates and no build leftovers on the disk
