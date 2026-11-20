@@ -2,6 +2,10 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.95.2 – 2026-11-20
+
+- Home Assistant now downloads the ready-made app instead of building it on your machine: faster updates and no build leftovers on the disk
+
 ## 0.95.1 – 2026-11-20
 
 - Ready-made app images are now built on GitHub for amd64 and aarch64 (no change to the app itself)
