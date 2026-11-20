@@ -21,9 +21,7 @@ map:
   - addon_config:rw
   - all_addon_configs:ro
   - homeassistant_config:rw
-options:
-  apps_dir: /addon_configs/a0d7b954_appdaemon/apps
-  seed_from: /addon_configs/a0d7b954_appdaemon
+options: {}
 schema:
-  apps_dir: str
+  apps_dir: str?
   seed_from: str?
