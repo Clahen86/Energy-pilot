@@ -637,17 +637,20 @@ class Engine:
         """Hourly mean power (kW) from the recorder's statistics."""
         tz = self.tz
         now = datetime.now(tz)
+        unit = str(((self.ha.states.get(entity_id) or {}).get("attributes") or {}).get("unit_of_measurement") or "W").lower()
+        energy = unit in ("kwh", "wh")  # a kWh counter (Monta's charged total): what it rose in an hour is the hour's mean kW
         try:
             res = await self.ha.call_service("recorder", "get_statistics", {
-                "statistic_ids": [entity_id], "period": "hour", "types": ["mean"],
+                "statistic_ids": [entity_id], "period": "hour", "types": ["change" if energy else "mean"],
                 "start_time": (now - timedelta(days=days)).isoformat(), "end_time": now.isoformat()}, response=True)
         except Exception:  # noqa: BLE001
             _LOGGER.debug("No statistics for %s", entity_id, exc_info=True)
             return []
-        unit = str(((self.ha.states.get(entity_id) or {}).get("attributes") or {}).get("unit_of_measurement") or "W").lower()
         rows = []
         for r in ((res or {}).get("response") or {}).get("statistics", {}).get(entity_id, []):
-            start, mean = r.get("start"), r.get("mean")
+            start, mean = r.get("start"), r.get("change" if energy else "mean")
+            if energy and mean is not None:
+                mean = max(0.0, float(mean)) * (1000 if unit == "kwh" else 1)  # -> W, like a power sensor's mean
             if mean is None:
                 continue
             when = datetime.fromtimestamp(start / 1000, tz) if isinstance(start, (int, float)) else datetime.fromisoformat(str(start)).astimezone(tz)

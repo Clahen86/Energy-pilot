@@ -71,8 +71,12 @@ def session(states: dict[str, Any], session_e: str | None, plug_e: str | None, m
 
 def read(states: dict[str, Any], c: dict[str, Any], marks: dict[str, float] | None = None) -> dict[str, Any]:
     """One extra charger now: power (W), plugged in, charged this session (kWh)."""
+    from . import energyrate
+
     w = _num(states.get(c["power"])) if c.get("power") else None
-    if w is not None and str(((states.get(c["power"]) or {}).get("attributes") or {}).get("unit_of_measurement") or "").lower() == "kw":
+    if w is not None and energyrate.is_energy(states.get(c["power"])):
+        w = energyrate.watts(c["power"], states.get(c["power"]))  # a kWh counter (Monta): power from how fast it rises
+    elif w is not None and str(((states.get(c["power"]) or {}).get("attributes") or {}).get("unit_of_measurement") or "").lower() == "kw":
         w *= 1000
     # No plug sensor: power tells - but a plain switch (a smart plug) draws nothing while off, so it is taken as plugged in.
     plug = is_plugged((states.get(c["plug"]) or {}).get("state")) if c.get("plug") else bool(c.get("switch")) or (w or 0) > 100

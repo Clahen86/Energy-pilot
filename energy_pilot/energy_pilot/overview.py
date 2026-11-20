@@ -115,6 +115,10 @@ def _num(state: dict | None) -> float | None:
 
 
 def _watts(state: dict | None) -> float | None:
+    from . import energyrate
+
+    if energyrate.is_energy(state):  # a kWh counter chosen as charging power (Monta): worked out from how fast it rises
+        return energyrate.watts(str((state or {}).get("entity_id") or ""), state)
     v = _num(state)
     if v is None:
         return None
@@ -425,7 +429,10 @@ class Overview:
                 # The right kind by device class, or by unit when a template or integration doesn't set one
                 # (Victron, templates that add two solar arrays together …).
                 if cls == "power" and not (dc == "power" or (domain == "sensor" and not dc and unit in ("w", "kw"))):
-                    continue
+                    # A charger without live power (Monta): its kWh counter can be picked - the power is worked out.
+                    if not (name == "ev_power" and domain == "sensor" and unit in ("kwh", "wh")
+                            and a.get("state_class") in ("total_increasing", "total")):
+                        continue
                 if cls == "battery" and not (dc == "battery" or (domain == "sensor" and not dc and unit == "%")):
                     continue
                 # A binary plug sensor, or a charger's status list (VEVOR, OCPP …) that says when the car is in.

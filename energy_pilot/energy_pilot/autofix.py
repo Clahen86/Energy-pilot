@@ -125,7 +125,7 @@ class AutoFix:
             s = self.samples.get(r) or []
             e = roles.get(r)
             unit = str(((self.ov.ha.states.get(e or "") or {}).get("attributes") or {}).get("unit_of_measurement") or "").lower()
-            if len(s) < 60 or r in big or scale.get(r) or self._ignored(key) or unit == "kw":
+            if len(s) < 60 or r in big or scale.get(r) or self._ignored(key) or unit in ("kw", "kwh", "wh"):
                 continue
             moving = [x for x in s if abs(x) >= 0.2]
             if len(moving) >= 20 and max(abs(x) for x in s) <= 30 and any(abs(x - round(x)) > 0.01 for x in moving):

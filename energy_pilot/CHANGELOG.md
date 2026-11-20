@@ -2,6 +2,11 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.95.0 – 2026-11-20
+
+- Charging power can now be a kWh counter (e.g. Monta's "Charged total") for chargers without a live power sensor - the power is worked out from how fast the counter rises
+- The counter's history is used too, so the car is taken out of the house's use when learning
+
 ## 0.94.3 – 2026-11-19
 
 - Fox ESS: the work mode is found as "Self Use" or "Self-Use", so other Fox integrations than foxess_modbus can hold and go back to normal too
