@@ -317,8 +317,13 @@ class SelfTest:
                 self._result(part, intent, "fixed", entity=e, option_from=c["data"]["option"], option_to=opt)
                 return
         why = "rejected" if sent != "ok" else ("no_reaction" if ok is False else "no_data")
-        if any(self._offline(c["data"].get("entity_id")) for c in calls if isinstance(c["data"].get("entity_id"), str)):
+        gone = [c["data"]["entity_id"] for c in calls if isinstance(c["data"].get("entity_id"), str) and self._offline(c["data"]["entity_id"])]
+        offline_kind = None
+        if gone:
             why = "offline"  # the device's integration went away in Home Assistant (e.g. evcc unreachable), not a refusal
+            # which kind of control (for the developer): its domain and the integration's own key - never the user's name
+            reg = (getattr(self.ctl, "_ent_reg", None) or {}).get(gone[0]) or {}
+            offline_kind = f"{gone[0].split('.')[0]}:{reg.get('translation_key') or '?'}"
         err = getattr(self.ctl, "last_send_error", None) if sent != "ok" else None
         from .checks import ALPHA_PERIOD
         if err and ALPHA_PERIOD.search(err):
@@ -329,7 +334,7 @@ class SelfTest:
         rejected = [{"entity": c["data"].get("entity_id"), "value": c["data"].get("option", c["data"].get("value"))}
                     for c in calls if self.ctl._matches(c) is False]
         self._result(part, intent, "failed", why=why, rejected=rejected, error=err,
-                     seen={k: f.get(k) for k in ("battery", "grid", "ev") if f})
+                     seen={k: f.get(k) for k in ("battery", "grid", "ev") if f}, **({"offline": offline_kind} if offline_kind else {}))
 
     def _alternatives(self, calls: list[dict[str, Any]]) -> list[tuple[dict[str, Any], str]]:
         """Other safe options for the selects in a step, the most alike first; at most a handful in all."""

@@ -166,8 +166,9 @@ class Telemetry:
 
     def test_result(self, results: list[dict[str, Any]]) -> None:
         c = getattr(self.ov, "controller", None)
-        keep = ("part", "step", "result", "why", "option_from", "option_to")
+        keep = ("part", "step", "result", "why", "option_from", "option_to", "offline")
         self.event("test", {"profile": c.profile_key("battery") if c else None, "model": getattr(c, "model", None) if c else None,
+                            "version": os.environ.get("BUILD_VERSION", "dev"),
                             "charger": c.platforms.get("car") if c else None,
                             "results": [{k: r.get(k) for k in keep if r.get(k) is not None} for r in results]})
 

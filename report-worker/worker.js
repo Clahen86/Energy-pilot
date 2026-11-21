@@ -151,6 +151,7 @@ async function schema(env) {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS setups (app TEXT, install TEXT, day TEXT, data TEXT, PRIMARY KEY (app, install))"),
   ]);
   try { await env.DB.prepare("ALTER TABLE seen ADD COLUMN version TEXT").run(); } catch { /* there already */ }
+  try { await env.DB.prepare("ALTER TABLE tests ADD COLUMN version TEXT").run(); } catch { /* there already */ }
   schemaReady = true;
 }
 
@@ -182,9 +183,10 @@ async function telemetry(request, env, app = "energy-pilot") {
     for (const part of ["battery", "car"]) {
       const res = (b.results || []).filter((r) => r.part === part);
       if (!res.length) continue;
-      const failed = res.filter((r) => r.result === "failed").map((r) => `${r.step}:${s(r.why, 30)}`).join(",");
-      await db.prepare("INSERT OR REPLACE INTO tests (install, part, profile, model, day, ok, failed) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)")
-        .bind(install, part, s(part === "car" ? b.charger : b.profile), s(b.model), day, failed ? 0 : 1, failed || null).run();
+      const failed = res.filter((r) => r.result === "failed")
+        .map((r) => `${r.step}:${s(r.why, 30)}${r.offline ? "@" + s(r.offline, 50) : ""}`).join(",");
+      await db.prepare("INSERT OR REPLACE INTO tests (install, part, profile, model, day, ok, failed, version) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)")
+        .bind(install, part, s(part === "car" ? b.charger : b.profile), s(b.model), day, failed ? 0 : 1, failed || null, s(b.version, 20)).run();
     }
     for (const r of (b.results || []).filter((x) => x.result === "fixed" && (x.part === "battery" || x.part === "car"))) {
       // a charger's fixes are kept under "car:<integration>" (Energy Pilot's control.py looks them up so)
@@ -412,7 +414,7 @@ async function exportHours(url, env) {
   if (url.searchParams.get("what") === "tests") {
     // the self-test per profile (last 60 days): how many passed, and what failed - for the nightly failure report
     const since = new Date(Date.now() - 60 * 864e5).toISOString().slice(0, 10);
-    const rows = (await env.DB.prepare("SELECT part, profile, model, ok, failed FROM tests WHERE day >= ?1").bind(since).all()).results || [];
+    const rows = (await env.DB.prepare("SELECT part, profile, model, ok, failed, version FROM tests WHERE day >= ?1").bind(since).all()).results || [];
     return json({ rows });
   }
   const since = (url.searchParams.get("since") || "2000-01-01").slice(0, 10);
