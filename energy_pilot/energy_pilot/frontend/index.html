@@ -773,6 +773,26 @@ const T_PH = {
   sv: { t: "Växla mellan 1 och 3 faser", h: "Vid lite sol laddar bilen på 1 fas (från ca 1,4 kW i stället för 4,1), vid mycket sol på 3. Högst ett byte per 10 minuter – bilen pausar kort vid varje byte" },
   nb: { t: "Bytt mellom 1 og 3 faser", h: "Ved lite sol lader bilen på 1 fase (fra ca. 1,4 kW i stedet for 4,1), ved mye sol på 3. Høyst ett bytte per 10 minutter – bilen tar en kort pause ved hvert bytte" },
 };
+const T_PANEL = {
+  da: { t: "Solpaneler", h: "Det Energipilot har lært af jeres egen produktion på klare dage", face: "Vender mod", ew: "øst og vest", shade: "Skygge", noShade: "ingen fundet", sure: "Sikker: {n} klare dage", learning: "Lærer stadig", learningH: "{n} af {need} klare dage", tilt: "hældning ca. {t}°", mismatch: "Solprognosen er sat op til {f}, men panelerne ser ud til at vende mod {r}. Ret det i prognosen, hvis det passer.", dirs: ["nord", "nordøst", "øst", "sydøst", "syd", "sydvest", "vest", "nordvest"], clock: "kl." },
+  en: { t: "Solar panels", h: "What Energy Pilot has learned from your own production on clear days", face: "Facing", ew: "east and west", shade: "Shade", noShade: "none found", sure: "Sure: {n} clear days", learning: "Still learning", learningH: "{n} of {need} clear days", tilt: "tilt about {t}°", mismatch: "The solar forecast is set up for {f}, but the panels seem to face {r}. Fix it in the forecast if that's right.", dirs: ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"], clock: "" },
+  de: { t: "Solarmodule", h: "Was Energy Pilot an klaren Tagen aus eurer eigenen Erzeugung gelernt hat", face: "Ausrichtung", ew: "Ost und West", shade: "Schatten", noShade: "keiner gefunden", sure: "Sicher: {n} klare Tage", learning: "Lernt noch", learningH: "{n} von {need} klaren Tagen", tilt: "Neigung ca. {t}°", mismatch: "Die Solarprognose ist auf {f} eingestellt, aber die Module scheinen nach {r} zu zeigen. Korrigiere es in der Prognose, falls das stimmt.", dirs: ["Norden", "Nordosten", "Osten", "Südosten", "Süden", "Südwesten", "Westen", "Nordwesten"], clock: "" },
+  fr: { t: "Panneaux solaires", h: "Ce qu'Energy Pilot a appris de votre production par temps clair", face: "Orientés", ew: "est et ouest", shade: "Ombre", noShade: "aucune trouvée", sure: "Sûr : {n} jours clairs", learning: "Apprend encore", learningH: "{n} sur {need} jours clairs", tilt: "inclinaison env. {t}°", mismatch: "La prévision solaire est réglée sur {f}, mais les panneaux semblent orientés {r}. Corrigez-la si c'est juste.", dirs: ["nord", "nord-est", "est", "sud-est", "sud", "sud-ouest", "ouest", "nord-ouest"], clock: "" },
+  nl: { t: "Zonnepanelen", h: "Wat Energy Pilot op heldere dagen van jullie eigen opbrengst heeft geleerd", face: "Gericht op", ew: "oost en west", shade: "Schaduw", noShade: "niets gevonden", sure: "Zeker: {n} heldere dagen", learning: "Leert nog", learningH: "{n} van {need} heldere dagen", tilt: "helling ca. {t}°", mismatch: "De zonneprognose staat ingesteld op {f}, maar de panelen lijken op {r} gericht. Pas het aan in de prognose als dat klopt.", dirs: ["noord", "noordoost", "oost", "zuidoost", "zuid", "zuidwest", "west", "noordwest"], clock: "" },
+  sv: { t: "Solpaneler", h: "Det Energy Pilot har lärt sig av er egen produktion under klara dagar", face: "Riktade mot", ew: "öst och väst", shade: "Skugga", noShade: "ingen hittad", sure: "Säker: {n} klara dagar", learning: "Lär sig fortfarande", learningH: "{n} av {need} klara dagar", tilt: "lutning ca {t}°", mismatch: "Solprognosen är inställd på {f}, men panelerna verkar vara riktade mot {r}. Rätta det i prognosen om det stämmer.", dirs: ["norr", "nordost", "öst", "sydost", "söder", "sydväst", "väst", "nordväst"], clock: "kl." },
+  nb: { t: "Solcellepaneler", h: "Det Energy Pilot har lært av deres egen produksjon på klare dager", face: "Vender mot", ew: "øst og vest", shade: "Skygge", noShade: "ingen funnet", sure: "Sikker: {n} klare dager", learning: "Lærer fortsatt", learningH: "{n} av {need} klare dager", tilt: "helning ca. {t}°", mismatch: "Solprognosen er satt opp for {f}, men panelene ser ut til å vende mot {r}. Rett det i prognosen hvis det stemmer.", dirs: ["nord", "nordøst", "øst", "sørøst", "sør", "sørvest", "vest", "nordvest"], clock: "kl." },
+};
+function panelsBody() {
+  const p = data.engine?.learning?.panels || { days: 0, need: 5, sure: false }, k = T_PANEL[L] || T_PANEL.en;
+  const dir = (az, ew) => ew ? k.ew : `${k.dirs[Math.round(az / 45) % 8]} (${Math.round(az)}°)`;
+  const lrow = (a, b, c = "") => `<div class="lrow"><span>${a}</span><b>${b}</b><em>${c}</em></div>`;
+  if (!p.sure) return lrow(k.face, k.learning, k.learningH.replace("{n}", p.days || 0).replace("{need}", p.need || 5));
+  const hh = (h) => `${k.clock ? k.clock + " " : ""}${String(h).padStart(2, "0")}`;
+  const shade = (p.shade || []).length ? p.shade.map(([a, b]) => `${hh(a)}–${String(b).padStart(2, "0")}`).join(", ") : k.noShade;
+  return lrow(k.face, dir(p.az, p.ew), p.ew ? "" : k.tilt.replace("{t}", Math.round(p.tilt))) + lrow(k.shade, shade) +
+    `<div class="muted" style="font-size:12.5px;margin-top:4px">${k.sure.replace("{n}", p.days)}</div>` +
+    (p.mismatch && p.forecast ? `<div class="muted" style="font-size:12.5px;margin-top:8px;color:var(--sun)">${k.mismatch.replace("{f}", dir(p.forecast.az, p.forecast.ew)).replace("{r}", dir(p.az, p.ew))}</div>` : "");
+}
 const T_PAL = {
   da: { t: "Farvetema", h: "Gælder på denne enhed", n: { standard: "Standard", neon: "Neon", nordic: "Nordisk", forest: "Skov", contrast: "Høj kontrast" } },
   en: { t: "Colour theme", h: "On this device", n: { standard: "Standard", neon: "Neon", nordic: "Nordic", forest: "Forest", contrast: "High contrast" } },
@@ -2355,6 +2375,7 @@ function styleView() {
         `<div class="seg mini">${[["auto", null], ["yes", true], ["no", false]].map(([k, val]) => `<button class="${(v.ev_in_house ?? null) === val ? "on" : ""}" data-evhouse="${k}">${y.evHouse[k]}</button>`).join("")}</div>`)}`)}
       ${chargerList(v, row)}` : "")}
     ${thingsSection(v, row)}
+    ${settings.roles.pv_power ? section("bolt", (T_PANEL[L] || T_PANEL.en).t, (T_PANEL[L] || T_PANEL.en).h, panelsBody(), "panels") : ""}
     ${section("bolt", y.secPrice, y.secPriceH, `${row(y.source, y.sourceH, `<div class="seg mini wide">${["auto", "spot", "tou"].map((m) => `<button class="${(v.price_source || "auto") === m ? "on" : ""}" data-psrc="${m}">${y.sources[m]}</button>`).join("")}</div>`)}
       ${v.price_source === "tou" ? touEditor(v) : ""}
       ${!settings.roles.price && v.price_source !== "tou" && (settings.zones || []).length ? `${row(y.area, settings.country === "DK" ? y.areaH : "", `<div class="seg mini">${(settings.zones || ["DK1", "DK2"]).map((a) => `<button class="${(v.price_area || settings.area_guess) === a ? "on" : ""}" data-area="${a}">${a}</button>`).join("")}</div>`)}

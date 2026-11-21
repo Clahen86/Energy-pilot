@@ -422,6 +422,7 @@ class Engine:
         from . import common as _common
 
         self.learning.shared_sun = lambda: _common.sun_bias(self.ov)
+        self.learning.where = lambda: self.home()  # for the panels' direction (sunshape.py)
         from .skynet import Sky
 
         self.sky = Sky()
@@ -1148,7 +1149,9 @@ class Engine:
         L = self.learning
         clouds = [((self.weather.at(t) or {}).get("cloud") if self.weather else None) for t in times]
         dear = sorted(r["price"] for r in rows)[int(len(rows) * 0.75)] if len(rows) > 3 else None
-        sun_simple = [L.sun(r.get("sun", 0.0), clouds[i]) for i, r in enumerate(rows)]
+        # The panels' own shape over the day (sunshape.py) - not on top of the own forecast, which learns it per hour itself.
+        bend = getattr(self.ov, "sun_source", None) != "own"
+        sun_simple = [L.sun(r.get("sun", 0.0), clouds[i], times[i].hour if bend else None) for i, r in enumerate(rows)]
         sun_ml = self.solar_model.predict(times, w) if w else {}
         sw = self.mixer.share("sun")
         sun = [Mixer.mix(s, sun_ml.get(t), sw) for s, t in zip(sun_simple, times)]
@@ -1159,7 +1162,8 @@ class Engine:
         hours = [Hour(t, r["price"], self.sell_at(sells, t, sell), house[i] + (L.margin if dear is not None and r["price"] >= dear else 0.0), sun[i])
                  for i, (t, r) in enumerate(zip(times, rows))]
         L.expect([{"t": times[0].isoformat(), "house": house[0], "sun": hours[0].sun, "price": rows[0]["price"], "cloud": clouds[0],
-                   "house_s": simple[0], "house_m": ml[0], "sun_s": sun_simple[0], "sun_m": sun_ml.get(times[0])}])
+                   "house_s": simple[0], "house_m": ml[0], "sun_s": sun_simple[0], "sun_m": sun_ml.get(times[0]),
+                   "sun_raw": rows[0].get("sun")}])
         # Prices per quarter (or half) hour where the market has them: plan in those slots, so the battery and
         # the car use the cheapest quarters inside an hour too. House and sun are spread evenly over the hour.
         hours = split_slots(hours, getattr(self.ov, "fine_prices", None) or {}, now, sells)

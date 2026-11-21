@@ -41,13 +41,15 @@ class Learning:
         # Shared knowledge (common.py): the sun's bias other installations like this one have learned. Set by the
         # engine; leaned on while this one has few days of its own.
         self.shared_sun: Any = None
+        self.where: Any = None  # () -> (lat, lon) of the house, for the panels' direction (sunshape.py)
 
     def save(self) -> None:
         self.file.write_text(json.dumps(self.state, indent=1, default=str))
 
     # ---------- what the engine uses ----------
 
-    def sun(self, kwh: float, cloud: float | None) -> float:
+    def sun(self, kwh: float, cloud: float | None, hour: int | None = None) -> float:
+        """The forecast with its usual error taken out - and, given the hour, bent to the panels' own shape over the day."""
         kind = "cloudy" if (cloud or 0) >= 60 else "clear"
         bias = self.state["solar_bias"][kind]
         shared = self.shared_sun() if callable(self.shared_sun) else None
@@ -55,6 +57,10 @@ class Learning:
             from .common import blend
 
             bias = blend(bias, shared.get(kind), len(self.state.get("reports") or []))
+        if hour is not None:
+            from . import sunshape
+
+            bias *= sunshape.factor(self.state, hour, cloud)
         return kwh * bias
 
     @property
@@ -115,6 +121,9 @@ class Learning:
                 b = self.state["solar_bias"]
                 b[kind] = round(0.8 * b[kind] * 1 + 0.2 * b[kind] * ratio, 3)  # moves a fifth of the way
                 report[f"sun_{kind}"] = round(ratio, 2)
+        # The panels' shape: the spread over clear hours, and the clear days for which way they face. Never stops the review.
+        if pv:
+            self._panels(exp, pv, key, day)
         # What would each end value have cost, planning yesterday with the real numbers?
         hours = [Hour(datetime.fromisoformat(h + ":00:00").replace(tzinfo=day.tzinfo), prices[h], 0.0, house[h], pv.get(h, 0.0))
                  for h in sorted(house) if h in prices]
@@ -149,6 +158,18 @@ class Learning:
         self._trim(day)
         return report
 
+    def _panels(self, exp: dict[str, dict[str, Any]], pv: dict[str, float], key: str, day: datetime) -> None:
+        from . import sunshape
+
+        try:
+            sunshape.learn_hours(self.state, exp, pv, key)
+            where = self.where() if callable(self.where) else None
+            if where and day.tzinfo is not None:
+                sunshape.add_day(self.state, sunshape.clear_day(exp, pv, key, day.tzinfo, *where))
+                self.state["panels"] = sunshape.panels(self.state, day.tzinfo, *where)
+        except Exception:  # noqa: BLE001 - a learning extra, never worth losing the night's review over
+            _LOGGER.debug("panel shape skipped", exc_info=True)
+
     def _trim(self, day: datetime) -> None:
         """Keep two weeks of expectations."""
         cut = (day - timedelta(days=14)).strftime("%Y-%m-%d")
@@ -165,7 +186,7 @@ class Learning:
             "yesterday": reports[-1] if reports else None,
             "week_saving": round(sum(r.get("saving", 0) for r in week), 2) if any("saving" in r for r in week) else None,
             "solar_bias": self.state["solar_bias"], "house_margin": self.margin, "end_factor": self.end_factor,
-            "days": len(reports),
+            "days": len(reports), "panels": self.state.get("panels"),
         }
 
 
