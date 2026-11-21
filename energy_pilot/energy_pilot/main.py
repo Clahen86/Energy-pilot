@@ -176,7 +176,7 @@ async def main() -> None:
         await ha.connected.wait()
         await asyncio.sleep(90)
         while True:
-            for job in (controller.keep, controller.guard):
+            for job in (controller.keep, controller.guard, controller.recheck):
                 try:
                     await job()
                 except Exception:  # noqa: BLE001

@@ -49,17 +49,20 @@ PROFILES: dict[str, dict[str, Any]] = {
                    (r"switch\..*grid_first_slot_1_enabled$", "off", None)],  # selling's all-day time slot off again
         "optional": [r"number\..*free_mode_discharge_rate$", r"number\..*free_mode_charge_rate$", r"number\..*load_first_stop_charge$",
                      r"switch\..*grid_first_slot_1_enabled$"],
-        "charge": [(r"switch\..*battery_first_slot_1_enabled$", "on", None), (r"select\..*battery_first_slot_1_start$", "select", "{lease_from}"),
-                   (r"select\..*battery_first_slot_1_end$", "select", "{lease_to}"), (r"number\..*battery_first_charge_rate$", "number", "{rate}"),
+        # The mode first and the time slot last: SolarAssistant writes "Battery first" as an all-day slot (00:00-23:59),
+        # which then put over the slot just written (21 November).
+        "charge": [(r"select\..*work_mode_priority$", "select", "Battery first"),
+                   (r"number\..*battery_first_charge_rate$", "number", "{rate}"),
                    (r"number\..*battery_first_stop_charge$", "number", "{target}"), (r"select\..*battery_first_grid_charge$", "select", "Enabled"),
-                   (r"select\..*work_mode_priority$", "select", "Battery first")],
+                   (r"switch\..*battery_first_slot_1_enabled$", "on", None), (r"select\..*battery_first_slot_1_start$", "select", "{lease_from}"),
+                   (r"select\..*battery_first_slot_1_end$", "select", "{lease_to}")],
         # Selling from the battery (only when the user turns it on).
-        "export": [(r"switch\..*grid_first_slot_1_enabled$", "on", None),
-                   (r"select\..*grid_first_slot_1_start$", "select", "{lease_from}"),
-                   (r"select\..*grid_first_slot_1_end$", "select", "{lease_to}"),
+        "export": [(r"select\..*work_mode_priority$", "select", "Grid first"),
                    (r"number\..*grid_first_discharge_rate$", "number", "{rate}"),
                    (r"number\..*grid_first_stop_discharge$", "number", "{target}"),
-                   (r"select\..*work_mode_priority$", "select", "Grid first")],
+                   (r"switch\..*grid_first_slot_1_enabled$", "on", None),
+                   (r"select\..*grid_first_slot_1_start$", "select", "{lease_from}"),
+                   (r"select\..*grid_first_slot_1_end$", "select", "{lease_to}")],
     },
     "growatt_tlxh": {
         "name": "Growatt (MIN/MOD TL-XH)",
@@ -521,6 +524,8 @@ CHARGER_SERVICES = {
 
 LEAD_MIN = 30  # a new window starts this long before the quarter now: the inverter is well inside it at once
 CAP_H = 3  # a window never runs further ahead than this (in whole hours, so it isn't moved every quarter)
+PAD_H = 2  # the inverter's slot ends this long after the plan's block: a clock that runs fast (21 November: a Growatt
+# 70 minutes ahead, never moved to winter time) ended the slot early. Energy Pilot ends the block itself on time.
 
 
 def quarter(now: Any) -> Any:
@@ -547,8 +552,8 @@ def alpha_windows(now: Any, start: Any = None, end: Any = None) -> dict[str, str
     s = start if start is not None and start <= now and start.date() == q.date() else window_start(now)
     cap = q.replace(minute=0) + timedelta(hours=CAP_H + 1)  # 3-4 h ahead, moved once an hour at most
     if end is not None:
-        e = max(min(end, cap), q + timedelta(minutes=30))
-        alpha_end = e
+        alpha_end = max(min(end, cap), q + timedelta(minutes=30))
+        e = max(min(end + timedelta(hours=PAD_H), cap + timedelta(hours=PAD_H)), q + timedelta(minutes=30))
     else:
         e, alpha_end = q + timedelta(minutes=75), q + timedelta(hours=4)
     if alpha_end.date() == q.date():

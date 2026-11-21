@@ -999,6 +999,34 @@ class Controller:
         else:
             self.car_stuck["car"] = True  # shown as a note: the car may be full or wait for its own timer
 
+    async def recheck(self) -> None:
+        """Every minute: a battery value that held and then changed by itself (the inverter left its slot) is found
+        within a minute, not at the next round - the round then sets it again (see tick)."""
+        prev = self.last.get("battery")
+        if (not prev or prev.get("result") != "ok" or self.mode("battery") != "control" or self.blocked("battery")
+                or "battery" in getattr(self, "testing", set()) or time.time() - prev["t"] < 60 or self._lock().locked()):
+            return
+        if any(self._matches(c) is False for c in prev.get("calls") or []):
+            await self.tick(("battery",))
+
+    def _dst_note(self) -> dict[str, Any] | None:
+        """A week after the clocks change, where they do: an inverter steered by time slots keeps its own clock, and
+        many don't move it by themselves - the slots are then an hour off. Only shown where summer time exists."""
+        prof = adapters.PROFILES.get(self.profile_key("battery") or "") or {}
+        if not any("{lease_" in str(v) or "{now_from}" in str(v) for i in ("charge", "export") for v in prof.get(i, [])):
+            return None
+        try:
+            tz = ZoneInfo(self.ha.config.get("time_zone") or "UTC")
+        except Exception:  # noqa: BLE001
+            return None
+        now = datetime.now(tz)
+        for days in range(0, 8):
+            d = now - timedelta(days=days)
+            before = (d - timedelta(days=1)).utcoffset()
+            if before is not None and d.utcoffset() != before:
+                return {"key": "clock_dst", "level": "info", "vals": {"date": d.date().isoformat()}, "goto": "battery"}
+        return None
+
     def watch_checks(self) -> list[dict[str, Any]]:
         """Warnings for the self-check: another system steers the battery too (Predbat, an automation, the inverter's
         own schedule) - they work against each other."""
@@ -1016,6 +1044,8 @@ class Controller:
         pm = str((self.ha.states.get("select.predbat_mode") or {}).get("state") or "")
         if self.mode("battery") == "control" and pm and pm.lower() not in ("monitor", "unavailable", "unknown"):
             out.append({"key": "predbat_on", "level": "warn", "vals": {"mode": pm}, "goto": "battery"})
+        if self.mode("battery") == "control" and (note := self._dst_note()):
+            out.append(note)
         return out
 
     def _took(self, calls: list[dict[str, Any]]) -> bool:

@@ -2,6 +2,13 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.99.4 – 2026-11-21
+
+- An inverter clock that runs wrong no longer stops the charging early: the inverter's time slot now ends 2 hours after the plan's block (Energy Pilot still ends the block itself on time). A Growatt whose clock was 70 minutes ahead - never moved to winter time - left its slot early and covered the house from the battery instead
+- Growatt: the work mode is written first and the time slot last, so SolarAssistant's all-day "Battery first" slot can't put itself over Energy Pilot's
+- When the inverter leaves what it was told by itself, Energy Pilot notices within a minute instead of up to five
+- In countries with summer time: for a week after the clocks change, a note asks you to check the inverter's own clock (only for inverters steered by time slots - Growatt, GivEnergy, Alpha ESS)
+
 ## 0.99.3 – 2026-11-21
 
 - Charge windows follow the plan's whole block: the inverter's time slot runs from a little before the block began to where it ends, and is written once instead of being moved every quarter. A Growatt went back to Load first for minutes each time its slot was moved to start at the current quarter, so the battery stopped charging and covered the house instead. Also for GivEnergy and Alpha ESS. A window still never runs more than 3-4 hours ahead, so an order can't be left standing if Energy Pilot stops

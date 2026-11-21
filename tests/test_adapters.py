@@ -15,7 +15,9 @@ def test_growatt_from_your_entities():
     hold = adapters.resolve(p["hold"], GROWATT, CTX)
     assert {"domain": "number", "service": "set_value", "data": {"entity_id": "number.growatt_sph_load_first_stop_discharge", "value": 62}} in hold
     charge = adapters.resolve(p["charge"], GROWATT, CTX)
-    assert charge[-1]["data"] == {"entity_id": "select.growatt_sph_work_mode_priority", "option": "Battery first"}
+    assert charge[0]["data"] == {"entity_id": "select.growatt_sph_work_mode_priority", "option": "Battery first"}
+    assert charge[-1]["data"]["entity_id"].endswith("battery_first_slot_1_end")  # the slot last: SolarAssistant's
+    # "Battery first" is an all-day slot that would put itself over it
     assert {"entity_id": "number.growatt_sph_battery_first_stop_charge", "value": 90} in [c["data"] for c in charge]
     normal = adapters.resolve(p["normal"], GROWATT, CTX)
     assert normal[0]["data"]["option"] == "Load first" and normal[1]["data"]["value"] == 10
