@@ -50,6 +50,8 @@ def replay(day: dict) -> dict | None:
     real = [(r["house"][1], r["sun"][1]) for r in rows]
     if len(rows) < 20 or any(h is None for h, _ in real) or rows[0]["soc"][1] is None:
         return None
+    if any(h < 0 or h > 30 for h, _ in real) or len({round(h, 3) for h, _ in real}) <= 2:
+        return None  # the sensor guard (train.plausible_day): numbers that can't be right stay out
     b = battery_for(day.get("kind") or {})
     exp = [((r["house"][0] if r["house"][0] is not None else r["house"][1]), (r["sun"][0] if r["sun"][0] is not None else (r["sun"][1] or 0.0)))
            for r in rows]

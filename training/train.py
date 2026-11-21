@@ -26,11 +26,32 @@ TEST_DAYS = 7
 MIN_ROWS = 500  # below this a shared model says nothing
 
 
+def plausible_day(d: dict) -> bool:
+    """The sensor guard: a day whose numbers can't be right (W read as kW, a stuck sensor, sun at night, a sign the
+    wrong way round) is kept out - one broken home must not teach every other home something wrong."""
+    hours = d.get("hours") or []
+    house = [r["house"][1] for r in hours if r.get("house") and r["house"][1] is not None]
+    sun = [(int(r["h"]), r["sun"][1]) for r in hours if r.get("sun") and r["sun"][1] is not None]
+    if len(house) < 12:
+        return False
+    if any(v < 0 or v > 30 for v in house):  # an hour above 30 kWh in a home: a unit gone wrong
+        return False
+    if len(set(round(v, 3) for v in house)) <= 2:  # the same number all day: a stuck sensor
+        return False
+    if any(v < -0.05 or v > 50 for _h, v in sun):
+        return False
+    night = [v for h, v in sun if h <= 2 or h >= 23]
+    if night and max(night) > 0.3:  # sun at night: not a sun sensor
+        return False
+    return True
+
+
 def rows_from(data: list[dict]) -> list[dict]:
     """One row per house and hour, with what is known the day before."""
     by_home: dict[str, dict[str, dict]] = defaultdict(dict)
     for d in data:
-        by_home[d["home"]][d["day"]] = d
+        if plausible_day(d):
+            by_home[d["home"]][d["day"]] = d
     countries = sorted({(d.get("kind") or {}).get("country") or "?" for d in data})
     out = []
     for home, days in by_home.items():
@@ -81,8 +102,11 @@ def main() -> None:
     model_dir = sys.argv[2]
     os.makedirs(model_dir, exist_ok=True)
     rows = rows_from(data)
+    bad = [d for d in data if not plausible_day(d)]
     print("## Træning af fællesmodeller\n")
     print(f"{len({d['home'] for d in data})} huse, {len(data)} dage, {len(rows)} timer med det, der skal til.\n")
+    if bad:
+        print(f"Sensor-vagten holdt {len(bad)} dage fra {len({d['home'] for d in bad})} huse ude (tal, der ikke kan passe).\n")
     if len(rows) < MIN_ROWS:
         print(f"For lidt data endnu (mindst {MIN_ROWS} timer). Modellen trænes, når der er mere.")
         return
