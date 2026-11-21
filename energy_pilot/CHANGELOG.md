@@ -2,11 +2,14 @@
 
 Newest first. Each version lists what changed since the one before.
 
-## Unreleased
+## 0.99.0 – 2026-11-21
 
 - Today's savings count the power in the battery at what it cost: charging overnight for the evening no longer looks like a loss in the morning (asked for by a tester)
 - A car's battery level through Tibber, GWM Ora, MG (SAIC) or VW Connect is no longer taken for the house battery (found by the shared setups)
 - Sensor finder: when Energy Pilot can't find a sensor by itself, it uses what other installations with the same integration use - learned every night from the shared setups, sent out without an app update. A home that works today isn't changed
+- Daily control counts as a test: when the battery has done what it was told for a few minutes, that order counts as working for its profile - so profiles get confirmed without anyone pressing a button
+- Test by itself at night (in the test card, off unless you turn it on): a new or mended profile is tested between 2 and 5 am while Energy Pilot isn't controlling the battery - the same test as the button, at most 1 kW
+- When a test step fails because a control went offline, the report says which kind of control it was
 
 ## 0.98.0 – 2026-11-21
 
