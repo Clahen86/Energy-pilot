@@ -202,6 +202,11 @@ async def main() -> None:
             try:
                 tz = _Z(ha.config.get("time_zone") or "UTC")
                 now = _dt.now(tz)
+                if getattr(overview, "selftest", None):
+                    try:
+                        overview.selftest.night_check(now)  # only if the user said yes to testing by itself
+                    except Exception:  # noqa: BLE001
+                        logging.getLogger("energy_pilot.selftest").debug("Night check failed", exc_info=True)
                 prices, _ = collect(ha.states, overview.role("price"), engine.own_prices or [], tz, engine.service_prices or [], overview.price_scale())
                 past = [k for k in prices if k <= now]
                 price = prices[max(past)] if past else None

@@ -125,6 +125,30 @@ class SelfTest:
     def stop(self) -> None:
         self._stop = True
 
+    def night_check(self, now: Any) -> bool:
+        """The test by itself (only when the user said yes once - "auto_test"): at night, 2-5, while Energy Pilot
+        doesn't control the battery (in control, daily control tests it - control._observe), when this profile hasn't
+        passed yet - new, mended, or failed more than a week ago. The same test as the button, nothing more."""
+        s = self.ov.settings
+        prof = self.ctl.profile_key("battery")
+        done = s.get("auto_tested") or {}
+        if done.get("pending") and not self.status()["running"]:  # the night's test has ended: what it found
+            res = [r for r in (s.get("selftest") or {}).get("results") or [] if r.get("part") == "battery"]
+            ok = bool(res) and all(r.get("result") in ("ok", "fixed", "skipped") for r in res)
+            self.ov.save({"auto_tested": {"profile": done.get("profile"), "t": time.time(), "ok": ok}})
+            return False
+        if not s.get("auto_test") or not prof or not (2 <= now.hour < 5):
+            return False
+        if self.ctl.mode("battery") == "control" or self.status()["running"] or self.can().get("battery") is not None:
+            return False
+        if done.get("profile") == prof and (done.get("ok") or time.time() - float(done.get("t") or 0) < 7 * 86400):
+            return False
+        if self.start(["battery"]):
+            self.ov.save({"auto_tested": {"profile": prof, "t": time.time(), "pending": True}})
+            _LOGGER.info("Testing the battery by itself tonight (profile %s)", prof)
+            return True
+        return False
+
     def undo(self, part: str, intent: str, entity: str) -> None:
         fx = dict(self.ov.settings.get("profile_fixes") or {})
         fx.get(part, {}).get(intent, {}).pop(entity, None)
