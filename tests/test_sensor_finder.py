@@ -41,3 +41,25 @@ def test_detect_uses_the_finder_only_for_what_is_missing():
     assert found["pv_power"] == {"entity_id": "sensor.myinv_x", "source": "shared:newinv"}
     assert found["battery_soc"] == {"entity_id": "sensor.myinv_bat_level", "source": "shared:newinv"}
     assert "pv_power" not in asyncio.run(detect(HA(ents, states)))
+
+
+def test_finder_never_hands_out_a_sensor_that_makes_no_sense():
+    from energy_pilot.detect import plausible
+    assert plausible("battery_soc", {"state": "55", "attributes": {"unit_of_measurement": "%"}})
+    assert not plausible("battery_soc", {"state": "230", "attributes": {"unit_of_measurement": "V"}})
+    assert not plausible("battery_soc", {"state": "140", "attributes": {"unit_of_measurement": "%"}})
+    assert plausible("pv_power", {"state": "1200", "attributes": {"unit_of_measurement": "W"}})
+    assert not plausible("pv_power", {"state": "21.5", "attributes": {"unit_of_measurement": "°C"}})
+    ents = [{"entity_id": "sensor.myinv_temp", "platform": "newinv", "translation_key": "pvk"}]
+    states = {"sensor.myinv_temp": {"state": "21", "attributes": {"unit_of_measurement": "°C"}}}
+    found = asyncio.run(detect(HA(ents, states), {"keys": {"newinv|pvk": {"role": "pv_power", "n": 3}}}))
+    assert "pv_power" not in found  # a wrong rule: ignored
+
+
+def test_training_holds_back_a_model_that_changed_too_much():
+    old = {"keys": {f"p|k{i}": {"role": "pv_power", "n": 2} for i in range(8)}, "names": {}}
+    assert sensors_train.safe_change(old, {"keys": dict(list(old["keys"].items())[:3]), "names": {}})
+    flipped = {k: {"role": "grid_power", "n": 2} for k in old["keys"]}
+    assert sensors_train.safe_change(old, {"keys": flipped, "names": {}})
+    assert sensors_train.safe_change(old, {"keys": old["keys"], "names": {}}) is None
+    assert sensors_train.safe_change(None, {"keys": {}, "names": {}}) is None

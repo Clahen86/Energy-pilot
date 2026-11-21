@@ -48,9 +48,34 @@ def build(rows: list[dict]) -> dict:
     return {"version": 1, "keys": keep(keys), "names": keep(names)}
 
 
+def safe_change(old: dict | None, new: dict) -> str | None:
+    """Why the new model must not go out, or None. A night that loses half the rules (or turns many around) is
+    more likely a fault in the training or the data than a real change - it waits for a person to look."""
+    if not old:
+        return None
+    o = {**(old.get("keys") or {}), **(old.get("names") or {})}
+    n = {**new["keys"], **new["names"]}
+    if len(o) >= 6 and len(n) < len(o) / 2:
+        return f"the rules fell from {len(o)} to {len(n)}"
+    flipped = [k for k in o if k in n and o[k]["role"] != n[k]["role"]]
+    if len(flipped) >= 3 and len(flipped) > len(o) * 0.2:
+        return f"{len(flipped)} rules changed role"
+    return None
+
+
 def main() -> None:
     rows = json.load(open(sys.argv[1]))
     model = build(rows)
+    old = None
+    if len(sys.argv) > 3:
+        try:
+            old = (json.load(open(sys.argv[3])).get("common") or {}).get("sensors")
+        except (OSError, ValueError):
+            old = None
+    why = safe_change(old, model)
+    if why:
+        print(f"## Sensorfinder\n\n❌ Ikke sendt ud: {why}. Gårsdagens model bruges stadig - kig på det, før den sendes.")
+        sys.exit(1)
     json.dump(model, open(sys.argv[2], "w"))
     plats = sorted({k.split("|")[0] for k in list(model["keys"]) + list(model["names"])})
     print("## Sensorfinder\n")

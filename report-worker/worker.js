@@ -231,16 +231,19 @@ async function telemetry(request, env, app = "energy-pilot") {
 
 async function fixes(env) {
   if (!env.DB) return json({ fixes: [], tested: {} });
+  // Emergency stop: the variable COMMON_OFF = 1 (Cloudflare: Settings > Variables) hands out no shared knowledge at
+  // all - every Energy Pilot drops what it had at its next daily fetch and runs on its own learning.
+  const off = String(env.COMMON_OFF || "") === "1";
   await schema(env);
   const f = await env.DB.prepare("SELECT profile, intent, opt_from AS 'from', opt_to AS 'to' FROM confirmed").all();
   const t = await env.DB.prepare("SELECT profile, SUM(ok) AS ok, COUNT(*) AS n FROM tests GROUP BY profile").all();
   const tested = Object.fromEntries((t.results || []).map((r) => [r.profile, { ok: r.ok, n: r.n }]));
   let common = {};
-  try { common = await sharedKnowledge(env); } catch { /* never in the way of the fixes */ }
+  if (!off) try { common = await sharedKnowledge(env); } catch { /* never in the way of the fixes */ }
   try {
     const row = await env.DB.prepare("SELECT v FROM meta WHERE k = 'models'").first();
     const models = row ? safe(row.v).m : null;
-    if (models && models.sensors) common = { ...common, sensors: models.sensors };
+    if (models && models.sensors && !off) common = { ...common, sensors: models.sensors };
   } catch { /* none yet */ }
   return new Response(JSON.stringify({ fixes: f.results || [], tested, common }), {
     headers: { "content-type": "application/json", "cache-control": "public, max-age=3600" } });
@@ -346,7 +349,7 @@ async function sharedKnowledge(env) {
 // several houses nearby may fail here too. Only cells with at least two installations are handed out.
 const SKY_FRESH_MS = 20 * 60e3;
 async function sky(request, env) {
-  if (!env.DB) return json({ near: [] });
+  if (!env.DB || String(env.COMMON_OFF || "") === "1") return json({ near: [] });
   // 4 an hour per installation; room for a few behind one address (a shared connection)
   if (!(await allowed(request, "s", 30))) return json({ error: "rate" }, 429);
   let b;

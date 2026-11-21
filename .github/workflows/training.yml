@@ -36,7 +36,8 @@ jobs:
         env:
           EP_EXPORT_KEY: ${{ secrets.EP_EXPORT_KEY }}
         run: |
-          python training/sensors.py "$RUNNER_TEMP/setups.json" "$RUNNER_TEMP/sensors.json" >> "$GITHUB_STEP_SUMMARY"
+          curl -sf https://ep-reports.clahen86.workers.dev/fixes -o "$RUNNER_TEMP/now.json" || echo '{}' > "$RUNNER_TEMP/now.json"
+          python training/sensors.py "$RUNNER_TEMP/setups.json" "$RUNNER_TEMP/sensors.json" "$RUNNER_TEMP/now.json" >> "$GITHUB_STEP_SUMMARY"
           python -c "import json; print(json.dumps({'sensors': json.load(open('$RUNNER_TEMP/sensors.json'))}))" > "$RUNNER_TEMP/models.json"
           curl -sf -X POST -H "content-type: application/json" --data-binary @"$RUNNER_TEMP/models.json" \
             "https://ep-reports.clahen86.workers.dev/models?key=$EP_EXPORT_KEY" > /dev/null && echo "Sendt ud til Energipilot." >> "$GITHUB_STEP_SUMMARY" \

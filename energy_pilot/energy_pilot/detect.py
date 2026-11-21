@@ -272,9 +272,30 @@ async def detect(ha: Any, shared: dict[str, Any] | None = None) -> dict[str, dic
                         hits.append((1, int(n.get("n") or 0), str(n.get("role")), eid, platform))
                         break
         for _how, _n, role, eid, platform in sorted(hits, reverse=True):
-            if role in ROLES_FOUND_BY_FINDER:
+            if role in ROLES_FOUND_BY_FINDER and plausible(role, states.get(eid) or {}):
                 put(role, eid, f"shared:{platform}")
     return found
+
+
+def plausible(role: str, st: dict[str, Any]) -> bool:
+    """A sensor the finder points at is only used when it looks like what the role needs (unit and value) - a wrong
+    rule sent out by mistake can't hand a home a sensor that makes no sense."""
+    a = st.get("attributes") or {}
+    unit = str(a.get("unit_of_measurement") or "")
+    try:
+        val = float(st.get("state"))
+    except (TypeError, ValueError):
+        val = None
+    if role in ("battery_soc", "ev_soc"):
+        return unit == "%" and val is not None and 0 <= val <= 100
+    if role in ("battery_power", "pv_power", "grid_power", "house_power", "ev_power"):
+        lim = {"W": 100_000, "kW": 100}.get(unit)
+        return lim is not None and val is not None and abs(val) <= lim and (role not in ("pv_power", "ev_power", "house_power") or val >= -lim * 0.01)
+    if role == "solar_today":
+        return unit in ("kWh", "Wh") and val is not None and val >= 0
+    if role == "ev_plug":
+        return st.get("state") in ("on", "off")
+    return False
 
 
 ROLES_FOUND_BY_FINDER = {"battery_power", "battery_soc", "pv_power", "grid_power", "house_power", "solar_today",
