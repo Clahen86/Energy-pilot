@@ -42,6 +42,7 @@ class Learning:
         # engine; leaned on while this one has few days of its own.
         self.shared_sun: Any = None
         self.where: Any = None  # () -> (lat, lon) of the house, for the panels' direction (sunshape.py)
+        self.tune_on: Any = None  # () -> bool: the nightly test of its own settings (tune.py) is switched on
 
     def save(self) -> None:
         self.file.write_text(json.dumps(self.state, indent=1, default=str))
@@ -62,6 +63,16 @@ class Learning:
 
             bias *= sunshape.factor(self.state, hour, cloud)
         return kwh * bias
+
+    def tuned(self) -> bool:
+        return bool(self.tune_on()) if callable(self.tune_on) else False
+
+    def plan_settings(self) -> tuple[float, float]:
+        """(end factor, margin) for the plan: what was learned, with the nightly test's small adjustment when it's on."""
+        if not self.tuned():
+            return self.end_factor, self.margin
+        t = self.state.get("tune") or {}
+        return self.end_factor * float(t.get("f", 1.0)), max(0.0, self.margin + float(t.get("m", 0.0)))
 
     @property
     def end_factor(self) -> float:
@@ -150,6 +161,9 @@ class Learning:
             rows.append({"h": int(h[11:13]), "house": [_r(e.get("house")), _r(house.get(h))], "sun": [_r(e.get("sun")), _r(pv.get(h)) if pv else None],
                          "soc": [_r(e.get("soc_plan"), 0), _r((soc or {}).get(h), 0)], "price": _r(prices.get(h), 3)})
         report["hours"] = rows
+        from . import tune
+
+        tune.keep(self.state, key, rows)
         report["accuracy"] = accuracy(rows)
         old = [{k: v for k, v in r.items() if k != "hours"} for r in (self.state.get("reports") or [])[-29:]]
         self.state["reports"] = old + [report]
@@ -170,6 +184,11 @@ class Learning:
         except Exception:  # noqa: BLE001 - a learning extra, never worth losing the night's review over
             _LOGGER.debug("panel shape skipped", exc_info=True)
 
+    def _tune_info(self) -> dict[str, Any]:
+        from . import tune
+
+        return tune.info(self.state, self.tuned())
+
     def _trim(self, day: datetime) -> None:
         """Keep two weeks of expectations."""
         cut = (day - timedelta(days=14)).strftime("%Y-%m-%d")
@@ -186,7 +205,7 @@ class Learning:
             "yesterday": reports[-1] if reports else None,
             "week_saving": round(sum(r.get("saving", 0) for r in week), 2) if any("saving" in r for r in week) else None,
             "solar_bias": self.state["solar_bias"], "house_margin": self.margin, "end_factor": self.end_factor,
-            "days": len(reports), "panels": self.state.get("panels"),
+            "days": len(reports), "panels": self.state.get("panels"), "tune": self._tune_info(),
         }
 
 

@@ -793,6 +793,26 @@ function panelsBody() {
     `<div class="muted" style="font-size:12.5px;margin-top:4px">${k.sure.replace("{n}", p.days)}</div>` +
     (p.mismatch && p.forecast ? `<div class="muted" style="font-size:12.5px;margin-top:8px;color:var(--sun)">${k.mismatch.replace("{f}", dir(p.forecast.az, p.forecast.ew)).replace("{r}", dir(p.az, p.ew))}</div>` : "");
 }
+const T_TUNE = {
+  da: { t: "Tester sine egne indstillinger", h: "Hver nat regner den de seneste 14 dage igen med lidt ændrede indstillinger og flytter sig et lille skridt, hvis det beviseligt havde været billigere", row: "Egne indstillinger", start: "Standard", wait: "tester fra {need} dage ({n} nu)", same: "uændret · testet på {n} dage", moved: "ændret {d}: {p} % billigere på {n} dage", off: "slået fra", end: "slutværdi", margin: "margin" },
+  en: { t: "Tests its own settings", h: "Every night it replays the last 14 days with slightly changed settings and moves a small step if that would clearly have cost less", row: "Own settings", start: "Standard", wait: "tests from {need} days ({n} now)", same: "unchanged · tested on {n} days", moved: "changed {d}: {p} % cheaper over {n} days", off: "switched off", end: "end value", margin: "margin" },
+  de: { t: "Testet die eigenen Einstellungen", h: "Jede Nacht rechnet es die letzten 14 Tage mit leicht geänderten Einstellungen nach und geht einen kleinen Schritt, wenn das nachweislich günstiger gewesen wäre", row: "Eigene Einstellungen", start: "Standard", wait: "testet ab {need} Tagen ({n} jetzt)", same: "unverändert · an {n} Tagen getestet", moved: "geändert {d}: {p} % günstiger über {n} Tage", off: "ausgeschaltet", end: "Endwert", margin: "Reserve" },
+  fr: { t: "Teste ses propres réglages", h: "Chaque nuit, il rejoue les 14 derniers jours avec des réglages un peu modifiés et avance d'un petit pas si cela aurait clairement coûté moins", row: "Réglages propres", start: "Standard", wait: "teste à partir de {need} jours ({n} maintenant)", same: "inchangé · testé sur {n} jours", moved: "modifié {d} : {p} % moins cher sur {n} jours", off: "désactivé", end: "valeur finale", margin: "marge" },
+  nl: { t: "Test de eigen instellingen", h: "Elke nacht rekent het de laatste 14 dagen opnieuw door met iets andere instellingen en zet een kleine stap als dat aantoonbaar goedkoper was geweest", row: "Eigen instellingen", start: "Standaard", wait: "test vanaf {need} dagen ({n} nu)", same: "ongewijzigd · getest op {n} dagen", moved: "gewijzigd {d}: {p} % goedkoper over {n} dagen", off: "uitgeschakeld", end: "eindwaarde", margin: "marge" },
+  sv: { t: "Testar sina egna inställningar", h: "Varje natt räknar den om de senaste 14 dagarna med lite ändrade inställningar och tar ett litet steg om det bevisligen hade blivit billigare", row: "Egna inställningar", start: "Standard", wait: "testar från {need} dagar ({n} nu)", same: "oförändrat · testat på {n} dagar", moved: "ändrat {d}: {p} % billigare på {n} dagar", off: "avstängt", end: "slutvärde", margin: "marginal" },
+  nb: { t: "Tester sine egne innstillinger", h: "Hver natt regner den de siste 14 dagene på nytt med litt endrede innstillinger og flytter seg et lite steg hvis det beviselig hadde vært billigere", row: "Egne innstillinger", start: "Standard", wait: "tester fra {need} dager ({n} nå)", same: "uendret · testet på {n} dager", moved: "endret {d}: {p} % billigere på {n} dager", off: "slått av", end: "sluttverdi", margin: "margin" },
+};
+function tuneRow() {
+  const t = data.engine?.learning?.tune, k = T_TUNE[L] || T_TUNE.en;
+  if (!t) return "";
+  const lrow = (a, b, c = "") => `<div class="lrow"><span>${a}</span><b>${b}</b><em>${c}</em></div>`;
+  if (!t.on) return lrow(k.row, k.off);
+  const adj = t.f === 1 && t.m === 0 ? k.start : [t.f !== 1 ? `${k.end} ×${num(t.f, 2)}` : "", t.m !== 0 ? `${k.margin} ${t.m > 0 ? "+" : ""}${num(t.m, 2)} kWh` : ""].filter(Boolean).join(" · ");
+  const why = t.days < t.need ? k.wait.replace("{need}", t.need).replace("{n}", t.days)
+    : t.last ? k.moved.replace("{d}", t.last.d.slice(5).split("-").reverse().join("/")).replace("{p}", num(t.last.pct, 1)).replace("{n}", t.last.days)
+    : k.same.replace("{n}", t.days);
+  return lrow(k.row, adj, why);
+}
 const T_PAL = {
   da: { t: "Farvetema", h: "Gælder på denne enhed", n: { standard: "Standard", neon: "Neon", nordic: "Nordisk", forest: "Skov", contrast: "Høj kontrast" } },
   en: { t: "Colour theme", h: "On this device", n: { standard: "Standard", neon: "Neon", nordic: "Nordic", forest: "Forest", contrast: "High contrast" } },
@@ -1645,7 +1665,7 @@ function learnCard() {
     <div class="lrow"><span>${k.biasCloudy}</span><b>${pct(l.solar_bias.cloudy)}</b><em></em></div>
     <div class="lrow"><span>${k.biasClear}</span><b>${pct(l.solar_bias.clear)}</b><em></em></div>
     <div class="lrow"><span>${k.margin}</span><b>${num(l.house_margin, 2)} kWh</b><em>${k.marginH}</em></div>
-    <div class="lrow"><span>${k.endValue}</span><b>${pct(l.end_factor)}</b><em>${k.endValueH}</em></div>${blendRows()}</div>`;
+    <div class="lrow"><span>${k.endValue}</span><b>${pct(l.end_factor)}</b><em>${k.endValueH}</em></div>${tuneRow()}${blendRows()}</div>`;
 }
 const T_PVR = {
   da: { title: "Plan mod virkelighed · i går", house: "Hus", sun: "Sol", soc: "Batteri", hit: "præcis", plan: "Planlagt", real: "Faktisk", tap: "Tryk på en time", none: "Kommer i morgen tidlig, når EP har en hel dag at sammenligne.", noSoc: "Batteriet kommer med fra i morgen." },
@@ -2351,7 +2371,7 @@ function styleView() {
       ${row(y.power, y.powerH, numIn("battery_charge_kw", 3, "0.1", "kW"))}
       ${(() => { const c = T_CARE[L] || T_CARE.en, cur = v.battery_care || "spare";
         return row(c.t, c.h, `<div class="seg mini">${["spare", "balanced", "most"].map((k, i) => `<button class="${cur === k ? "on" : ""}" data-care="${k}" ${v.battery_wear != null && v.battery_wear !== "" ? "disabled" : ""}>${c.o[i]}</button>`).join("")}</div>`); })()}
-      ${adv("battery", `${row(y.powerOut, y.powerOutH, numIn("battery_discharge_kw", v.battery_charge_kw ?? 3, "0.1", "kW"))}
+      ${adv("battery", `${row((T_TUNE[L] || T_TUNE.en).t, (T_TUNE[L] || T_TUNE.en).h, tog("self_tune", true))}${row(y.powerOut, y.powerOutH, numIn("battery_discharge_kw", v.battery_charge_kw ?? 3, "0.1", "kW"))}
       ${row(T.gmax.title, T.gmax.hint, numIn("battery_grid_max", settings.battery_type_found?.type === "nmc" ? 90 : 95, "1", "%"))}
       ${row(y.btype, btypeHint(), `<select data-btype><option value="">${T.auto}${!v.battery_type && settings.battery_type_found ? ": " + y.btypes[settings.battery_type_found.type] : ""}</option>${["lfp", "nmc", "sodium", "lead"].map((k) => `<option value="${k}" ${v.battery_type === k ? "selected" : ""}>${y.btypes[k]}</option>`).join("")}</select>`)}
       ${row(y.bprice, y.bpriceH, numIn("battery_price", "", "100", SYM()))}
