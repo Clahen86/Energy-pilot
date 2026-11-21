@@ -2,7 +2,7 @@
 
 Newest first. Each version lists what changed since the one before.
 
-## Unreleased
+## 0.97.0 – 2026-11-21
 
 - Safer: an order to the inverter (charge from the grid, sell) now runs out by itself after about an hour and is moved on every quarter. Should Energy Pilot, Home Assistant or the network stop, the inverter goes back to normal on its own instead of charging or selling all day (Growatt, GivEnergy)
 - Safer: when Energy Pilot is stopped or updated, it puts the battery back to normal first
