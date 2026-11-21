@@ -2,6 +2,10 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.99.3 – 2026-11-21
+
+- Charge windows follow the plan's whole block: the inverter's time slot runs from a little before the block began to where it ends, and is written once instead of being moved every quarter. A Growatt went back to Load first for minutes each time its slot was moved to start at the current quarter, so the battery stopped charging and covered the house instead. Also for GivEnergy and Alpha ESS. A window still never runs more than 3-4 hours ahead, so an order can't be left standing if Energy Pilot stops
+
 ## 0.99.2 – 2026-11-21
 
 - Fewer writes to the inverter while the battery charges from the grid: small changes in the charge power (under 5 %) and the stop level (up to 3 %) are no longer sent, and the same values aren't written again just because the battery's level rises. Changes between charge, hold and normal still go at once, and inverters that forget their settings (Victron, Solis) still get everything written as before

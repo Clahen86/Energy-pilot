@@ -519,24 +519,47 @@ CHARGER_SERVICES = {
 }
 
 
-def alpha_windows(now: Any) -> dict[str, str]:
-    """Alpha ESS: charging from this quarter for 4 h; the parked charge and discharge windows 12 h away, apart."""
+LEAD_MIN = 30  # a new window starts this long before the quarter now: the inverter is well inside it at once
+CAP_H = 3  # a window never runs further ahead than this (in whole hours, so it isn't moved every quarter)
+
+
+def quarter(now: Any) -> Any:
+    return now.replace(minute=now.minute - now.minute % 15, second=0, microsecond=0)
+
+
+def window_start(now: Any) -> Any:
+    """Where a new charge (or sell) window starts: a little before now, never before midnight."""
     from datetime import timedelta
 
-    q = now.replace(minute=now.minute - now.minute % 15, second=0, microsecond=0)
+    q = quarter(now)
+    return max(q - timedelta(minutes=LEAD_MIN), q.replace(hour=0, minute=0))
+
+
+def alpha_windows(now: Any, start: Any = None, end: Any = None) -> dict[str, str]:
+    """The inverter's own time windows. Charging (or selling) runs from where the plan's block began to where it ends:
+    written once and left alone while the block lasts - not moved on every quarter (a Growatt went back to Load first
+    for minutes each time its slot was moved to start at the quarter now). Without a block: from a little before now,
+    75 minutes ahead (Alpha ESS: 4 h). The parked Alpha windows are 12 h away, apart."""
+    from datetime import timedelta
+
+    q = quarter(now)
     hm = lambda d: d.strftime("%H:%M")  # noqa: E731
-    end = q + timedelta(hours=4)
-    if end.date() == q.date():
-        win = {"now_from": hm(q), "now_to": hm(end), "now2_from": "00:00", "now2_to": "00:00"}
+    s = start if start is not None and start <= now and start.date() == q.date() else window_start(now)
+    cap = q.replace(minute=0) + timedelta(hours=CAP_H + 1)  # 3-4 h ahead, moved once an hour at most
+    if end is not None:
+        e = max(min(end, cap), q + timedelta(minutes=30))
+        alpha_end = e
+    else:
+        e, alpha_end = q + timedelta(minutes=75), q + timedelta(hours=4)
+    if alpha_end.date() == q.date():
+        win = {"now_from": hm(s), "now_to": hm(alpha_end), "now2_from": "00:00", "now2_to": "00:00"}
     elif q.hour == 23 and q.minute == 45:  # the last quarter: from midnight (period 2 stays empty)
-        win = {"now_from": "00:00", "now_to": hm(end), "now2_from": "00:00", "now2_to": "00:00"}
+        win = {"now_from": "00:00", "now_to": hm(alpha_end), "now2_from": "00:00", "now2_to": "00:00"}
     else:  # over midnight: until 23:45, and from 00:00 on (AlphaESS takes periods within one day only)
-        win = {"now_from": hm(q), "now_to": "23:45", "now2_from": "00:00", "now2_to": hm(end)}
-    # A lease: the inverter's own time slot runs from this quarter to 60-75 minutes ahead (never past midnight) and is
-    # moved on every quarter. Should Energy Pilot, Home Assistant or the network stop, the slot runs out and the inverter
-    # goes back to its normal running by itself - an order is never left standing all day (Growatt, GivEnergy).
-    lease_end = q + timedelta(minutes=75)
-    lease = {"lease_from": hm(q), "lease_to": hm(lease_end) if lease_end.date() == q.date() else "23:59"}
+        win = {"now_from": hm(s), "now_to": "23:45", "now2_from": "00:00", "now2_to": hm(alpha_end)}
+    # A lease: should Energy Pilot, Home Assistant or the network stop, the slot runs out and the inverter goes back to
+    # its normal running by itself - an order is never left standing all day (Growatt, GivEnergy).
+    lease = {"lease_from": hm(s), "lease_to": hm(e) if e.date() == q.date() else "23:59"}
     return {**win, **lease,
             "park_c_from": hm(q + timedelta(hours=12)), "park_c_to": hm(q + timedelta(hours=12, minutes=15)),
             "park_d_from": hm(q + timedelta(hours=12, minutes=30)), "park_d_to": hm(q + timedelta(hours=12, minutes=45))}

@@ -1,15 +1,29 @@
-"""Orders run out by themselves: the inverter's time slot is a lease of 60-75 minutes, moved on every quarter."""
+"""Orders run out by themselves: the inverter's time slot ends with the plan's block (at most 3-4 h ahead), or after
+60-75 minutes without one. It starts a little before now and stays put while the block lasts."""
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from types import SimpleNamespace
 
 from energy_pilot import adapters
 from energy_pilot.control import Controller
 
 
-def test_lease_from_this_quarter():
+def test_lease_starts_before_this_quarter():
     w = adapters.alpha_windows(datetime(2026, 11, 21, 14, 7))
-    assert w["lease_from"] == "14:00" and w["lease_to"] == "15:15"
+    assert w["lease_from"] == "13:30" and w["lease_to"] == "15:15"
+
+
+def test_a_block_is_written_once_and_left_alone():
+    """21 November: the Growatt went back to Load first each time its slot was moved to start at the quarter now."""
+    start = adapters.window_start(datetime(2026, 11, 21, 12, 15))
+    end = datetime(2026, 11, 21, 14, 45)
+    seen = {(w["lease_from"], w["lease_to"]) for w in (adapters.alpha_windows(datetime(2026, 11, 21, 12, m), start, end)
+                                                         for m in (15, 20, 31, 45, 59))}
+    assert seen == {("11:45", "14:45")}  # the same all the way through: nothing to write again
+    long_end = datetime(2026, 11, 21, 20, 0)  # a long block: never more than 3-4 h ahead
+    assert adapters.alpha_windows(datetime(2026, 11, 21, 12, 15), start, long_end)["lease_to"] == "16:00"
+    assert adapters.alpha_windows(datetime(2026, 11, 21, 12, 15), datetime(2026, 11, 21, 13, 0), end)["lease_from"] == "11:45"
 
 
 def test_lease_never_past_midnight():
@@ -45,3 +59,19 @@ def test_let_go_sends_normal_without_waiting():
     ctl._matches = lambda c: False
     asyncio.run(ctl.let_go(budget_s=2))
     assert sent == [("select", "select_option", "select.x_work_mode_priority")]
+
+
+def test_controller_keeps_the_block_start_and_follows_the_plan_end():
+    ctl = Controller.__new__(Controller)
+    ctl.ha = SimpleNamespace(config={"time_zone": "Europe/Copenhagen"})
+    now = datetime.now(ZoneInfo("Europe/Copenhagen"))
+    q = adapters.quarter(now)
+    steps = [{"t": (q + timedelta(minutes=15 * i)).isoformat(), "action": "charge_grid" if i < 6 else "hold"} for i in range(10)]
+    b = {"steps": steps, "slot_min": 15}
+    w1 = ctl._windows(b, steps[0])
+    w2 = ctl._windows({"steps": steps[1:], "slot_min": 15}, steps[1])  # a quarter on: the same block
+    assert w1["lease_from"] == w2["lease_from"] == adapters.window_start(now).strftime("%H:%M")
+    if (q + timedelta(minutes=90)).date() == q.date():
+        assert w1["lease_to"] == w2["lease_to"] == (q + timedelta(minutes=90)).strftime("%H:%M")
+    ctl._windows(b, {"action": "hold"})  # another action: the next charge block starts afresh
+    assert ctl._block[0] == "hold"

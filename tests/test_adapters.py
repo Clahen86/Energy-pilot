@@ -365,8 +365,8 @@ def test_alphaess_windows_never_overlap_and_carry_power():
     from energy_pilot import adapters
 
     w = adapters.alpha_windows(datetime(2026, 11, 14, 11, 22))
-    assert w == {"now_from": "11:15", "now_to": "15:15", "now2_from": "00:00", "now2_to": "00:00", "park_c_from": "23:15", "park_c_to": "23:30",
-                 "park_d_from": "23:45", "park_d_to": "00:00", "lease_from": "11:15", "lease_to": "12:30"}
+    assert w == {"now_from": "10:45", "now_to": "15:15", "now2_from": "00:00", "now2_to": "00:00", "park_c_from": "23:15", "park_c_to": "23:30",
+                 "park_d_from": "23:45", "park_d_to": "00:00", "lease_from": "10:45", "lease_to": "12:30"}
     ctx = {"serial": "ALD1", "min_soc": 10, "soc": 43, "target": 80, "power_w": 2500, "max_charge_w": 3000, "max_power_w": 3000, **w}
     prof = adapters.PROFILES["alphaess"]
     for intent in ("normal", "hold", "charge"):
@@ -387,11 +387,11 @@ def test_alpha_charge_never_over_midnight():
     from energy_pilot.adapters import alpha_windows
 
     w = alpha_windows(datetime(2026, 11, 14, 22, 33))
-    assert (w["now_from"], w["now_to"], w["now2_from"], w["now2_to"]) == ("22:30", "23:45", "00:00", "02:30")
+    assert (w["now_from"], w["now_to"], w["now2_from"], w["now2_to"]) == ("22:00", "23:45", "00:00", "02:30")
     w = alpha_windows(datetime(2026, 11, 14, 20, 0))
-    assert (w["now_from"], w["now_to"]) == ("20:00", "23:45")
+    assert (w["now_from"], w["now_to"]) == ("19:30", "23:45")
     w = alpha_windows(datetime(2026, 11, 14, 12, 10))
-    assert (w["now_from"], w["now_to"], w["now2_from"], w["now2_to"]) == ("12:00", "16:00", "00:00", "00:00")
+    assert (w["now_from"], w["now_to"], w["now2_from"], w["now2_to"]) == ("11:30", "16:00", "00:00", "00:00")
 
 
 def test_goodwe_profile():

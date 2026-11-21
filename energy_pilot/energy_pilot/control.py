@@ -344,6 +344,28 @@ class Controller:
 
     # ---------- deciding and acting ----------
 
+    def _windows(self, b: dict[str, Any], step: dict[str, Any]) -> dict[str, str]:
+        """The inverter's time windows for the plan's block now: from where the block began (remembered, or a little
+        before now) to where the same action ends in the plan. The same while the block lasts - nothing to rewrite."""
+        now = datetime.now(ZoneInfo(self.ha.config.get("time_zone") or "UTC"))
+        act = step.get("action")
+        end = None
+        try:
+            run = 0
+            for s in b.get("steps") or []:
+                if s.get("action") != act:
+                    break
+                run += 1
+            if run:
+                last = datetime.fromisoformat(b["steps"][run - 1]["t"]).astimezone(now.tzinfo)
+                end = last + timedelta(minutes=b.get("slot_min") or 60)
+        except (KeyError, TypeError, ValueError):
+            end = None
+        blk = getattr(self, "_block", None)
+        if not (blk and blk[0] == act and blk[1] <= now and blk[1].date() == now.date()):
+            blk = self._block = (act, adapters.window_start(now))
+        return adapters.alpha_windows(now, blk[1], end if act in ("charge_grid", "export") else None)
+
     def intents(self) -> dict[str, dict[str, Any]]:
         res = (self.engine.result or {}) if self.engine else {}
         out: dict[str, dict[str, Any]] = {}
@@ -388,7 +410,7 @@ class Controller:
                 "max_power_w": round(bat.max_discharge_kw * 1000), "max_charge_w": round(bat.max_charge_kw * 1000),
                 "power_kw": round(charge_kw, 2), "max_charge_kw": round(bat.max_charge_kw, 2), "max_power_kw": round(bat.max_discharge_kw, 2), "export_w": export_w,
                 "device_id": getattr(self, "battery_device", None) or "", "serial": getattr(self, "battery_serial", "") or "",
-                **adapters.alpha_windows(datetime.now(ZoneInfo(self.ha.config.get("time_zone") or "UTC")))}}
+                **self._windows(b, step)}}
             if any("{charge_a}" in str(self.profile_steps(p) or {}) for p in ["battery", *self.bat_parts()]):
                 # Deye limits charging from the grid by a current: the planned power over the battery's voltage.
                 out["battery"]["ctx"]["charge_a"] = max(1, round(charge_kw * 1000 / self._battery_volt()))
