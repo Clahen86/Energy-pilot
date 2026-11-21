@@ -370,6 +370,9 @@ class SelfTest:
         for intent in plan:
             if self._stop:
                 return
+            if intent == "charge" and _adapters().PROFILES.get(key, {}).get("grid_charge") is False:
+                self._result("battery", intent, "skipped", why="no_grid_charge")  # the profile can't charge from the grid
+                continue
             if intent == "charge" and soc is not None and soc >= 97:
                 self._result("battery", intent, "skipped", why="full")
                 continue
@@ -428,6 +431,11 @@ class SelfTest:
         body = "\n".join(lines)[:6000]
         title = f"Test result: {prof or 'battery'}"
         return f"{REPO}?title={quote(title)}&labels=test-result&body={quote(body)}"
+
+
+def _adapters() -> Any:
+    from . import adapters  # imported late, like the rest of this file
+    return adapters
 
 
 def _ctx_defaults() -> dict[str, Any]:

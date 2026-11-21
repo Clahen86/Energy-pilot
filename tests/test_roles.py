@@ -83,3 +83,14 @@ def test_a_chosen_sensor_outside_the_filters_does_not_break_the_list(tmp_path):
     o = make(tmp_path, {"battery_power": "sensor.humidity"})  # chosen, but not a power sensor
     c = o.candidates()
     assert c["battery_power"][0]["entity_id"] == "sensor.humidity"
+
+
+def test_a_phone_is_never_the_house_battery(tmp_path):
+    from types import SimpleNamespace
+    o = make(tmp_path, {"battery_soc": "sensor.cph2465_battery_level"})
+    o.ha.states["sensor.cph2465_battery_level"] = st("39", device_class="battery", unit_of_measurement="%")
+    o.detected = {"battery_soc": {"entity_id": "sensor.victron_battery", "source": "integration:victron"}}
+    assert o.role("battery_soc") == "sensor.cph2465_battery_level"  # before the registry is read: as picked
+    o.controller = SimpleNamespace(phones={"sensor.cph2465_battery_level"})
+    assert o.role("battery_soc") == "sensor.victron_battery" and o.source("battery_soc") != "chosen"
+    assert "sensor.cph2465_battery_level" not in [r["entity_id"] for r in o.candidates()["battery_soc"]]

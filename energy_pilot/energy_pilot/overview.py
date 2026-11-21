@@ -385,6 +385,8 @@ class Overview:
             chosen = next((e for e in chosen if e in states), None)
         if chosen == "":
             return None  # switched off by the user
+        if name == "battery_soc" and chosen in self._phones():
+            chosen = None  # a phone's battery is never the house battery (one was picked, and nothing was controlled)
         if chosen and chosen in states and not (name in ("price", "sell_price") and chosen.split(".")[0] not in PRICE_DOMAINS):
             return chosen  # (a price is never an update, a button or a switch - such a pick is passed over)
         spec = ROLES[name]
@@ -397,7 +399,7 @@ class Overview:
     def source(self, name: str) -> str | None:
         """Where a part was found: "chosen", "known", "energy", "integration:<platform>", "name" or "computed"."""
         chosen = (self.settings.get("roles") or {}).get(name)
-        if chosen:
+        if chosen and not (name == "battery_soc" and chosen in self._phones()):
             return "chosen"
         e = self.role(name)
         if e is None:
@@ -414,6 +416,10 @@ class Overview:
 
     def roles(self) -> dict[str, str | None]:
         return {name: self.role(name) for name in ROLES}
+
+    def _phones(self) -> set[str]:
+        """Phones' and tablets' entities (the Companion app), known once the controller has read the registry."""
+        return getattr(getattr(self, "controller", None), "phones", None) or set()
 
     def candidates(self) -> dict[str, list[dict[str, str]]]:
         """For the settings: entities that could fill each part."""
@@ -435,6 +441,8 @@ class Overview:
                         continue
                 if cls == "battery" and not (dc == "battery" or (domain == "sensor" and not dc and unit == "%")):
                     continue
+                if name == "battery_soc" and e in self._phones():
+                    continue  # a phone is not the house battery
                 # A binary plug sensor, or a charger's status list (VEVOR, OCPP …) that says when the car is in.
                 if cls == "plug" and not ((domain == "binary_sensor" and dc in ("plug", "power", None))
                                           or (domain == "sensor" and dc == "enum")):

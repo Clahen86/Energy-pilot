@@ -117,3 +117,12 @@ def test_the_real_settings_keep_the_test_and_the_fixes(tmp_path):
     o.save(keys)
     again = Overview(SimpleNamespace(states={}, config={}), tmp_path)
     assert {k: again.settings.get(k) for k in keys} == keys
+
+
+def test_a_profile_that_cant_charge_from_the_grid_skips_that_step():
+    t, inv, store = make({"Self Use": 0, "Battery Hold": 0, "Force Charge": 0, "Force Discharge": -800}, OPTS, STEPS)
+    t.ctl.profile_key = lambda *a: "ecoflow"  # PowerStream: the station's own AC charging fills the battery
+    run(t)
+    res = {r["step"]: (r["result"], r.get("why")) for r in store["selftest"]["results"]}
+    assert res["charge"] == ("skipped", "no_grid_charge") and res["hold"][0] == "ok" and res["normal"][0] == "ok"
+    assert not any(d.get("option") == "Force Charge" for d in inv.sent)

@@ -2,6 +2,11 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.99.6 – 2026-11-21
+
+- A phone's battery is never taken for the house battery, not even when it was picked by hand: Energy Pilot then finds the real battery by itself, and phones are no longer in the list. A picked phone had left the battery without a profile, so nothing was controlled (found in a tester's report)
+- The test no longer fails "Charge from the grid" on a battery that can't charge from the grid (EcoFlow PowerStream, Megarevo): the step is skipped and says why - the station charges through its own AC charging, for example a smart plug under Things
+
 ## 0.99.5 – 2026-11-21
 
 - The inverter's own time slot (Growatt, GivEnergy) now also starts 2 hours back, so a clock that runs slow - not only fast - can't keep the charging from starting. With a right clock nothing changes: the slot is only turned on when the plan's block begins and off again when it ends
