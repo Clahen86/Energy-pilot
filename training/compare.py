@@ -8,7 +8,8 @@ base, cand = (json.load(open(p)) for p in sys.argv[1:3])
 bn, cn = sys.argv[3], sys.argv[4]
 print(f"## Prøvekørsel: {cn} mod {bn}\n")
 if not cand.get("days"):
-    print("Ingen data endnu - time-tallene samles fra 0.97.0.")
+    homes = cand.get("homes") or 0
+    print(f"{homes} huse har sendt time-tal, men ingen hele dage endnu." if homes else "Ingen data endnu - time-tallene samles fra 0.97.0.")
     sys.exit(0)
 print(f"{cand['days']} dage fra {cand['homes']} huse.\n")
 print("| | " + bn + " | " + cn + " |\n|---|---|---|")
