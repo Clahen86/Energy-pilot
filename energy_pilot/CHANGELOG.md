@@ -2,6 +2,10 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.99.2 – 2026-11-21
+
+- Fewer writes to the inverter while the battery charges from the grid: small changes in the charge power (under 5 %) and the stop level (up to 3 %) are no longer sent, and the same values aren't written again just because the battery's level rises. Changes between charge, hold and normal still go at once, and inverters that forget their settings (Victron, Solis) still get everything written as before
+
 ## 0.99.1 – 2026-11-21
 
 - Learns your panels: on clear days Energy Pilot sees how your production spreads over the day and bends the solar forecast hour by hour to match - which way the panels face, the tilt, and shade at certain hours are all included. Settings now show what it found (for example "facing south-west, shade 15–16"), and point it out if the solar forecast seems set up for another direction. Nothing is changed in your setup

@@ -31,6 +31,26 @@ GENERIC_PLATFORMS = ("mqtt", "template", "group", "min_max", "integration", "uti
 
 _LOGGER = logging.getLogger(__name__)
 REASSERT_S = 1800
+RATE_BAND = 5  # % of the charge power: a smaller change while charging isn't written (fewer writes to the inverter)
+TARGET_BAND = 3  # % on the stop level, likewise - as long as the battery isn't close to the old one
+
+
+def steady(prev: dict | None, want: dict) -> dict:
+    """While the battery charges from the grid, small changes in the power and the stop level are left out: the old
+    values are kept, so nothing new is written. A change of intent, or a bigger step, goes through as always."""
+    if not prev or prev.get("intent") != "charge" or want.get("intent") != "charge":
+        return want
+    old, new = prev.get("ctx") or {}, dict(want.get("ctx") or {})
+    try:
+        if abs(float(new["rate"]) - float(old["rate"])) < RATE_BAND:
+            for k in ("rate", "power_w", "power_kw", "charge_a"):
+                if k in old:
+                    new[k] = old[k]
+        if abs(float(new["target"]) - float(old["target"])) <= TARGET_BAND and float(old["target"]) >= float(new.get("soc") or 0) + 2:
+            new["target"] = old["target"]
+    except (KeyError, TypeError, ValueError):
+        return want
+    return {**want, "ctx": new}
 
 
 class Controller:
@@ -600,10 +620,16 @@ class Controller:
             mode = self.mode(part)
             if mode == "off":
                 continue
-            calls = self.calls(part, want)
             prev = self.last.get(part)
-            changed = prev is None or prev["intent"] != want["intent"] or prev["ctx"] != want["ctx"]
+            if self.is_battery(part):
+                want = steady(prev, want)
+            calls = self.calls(part, want)
             prof = self._prof(part)
+            # Changed when something else would be written: the level or a clock in the context that no call uses
+            # (the battery's level while it charges) is no reason to write the same values again. An inverter that
+            # forgets (Victron) gets everything again on any change, as before.
+            changed = prev is None or prev["intent"] != want["intent"] or (prev["ctx"] != want["ctx"] and (
+                (self._forced(prof) and self.is_battery(part)) or self.calls(part, prev) != calls))
             again = prof.get("reassert_s", REASSERT_S) if self.is_battery(part) else REASSERT_S
             due = prev is None or time.time() - prev["t"] > again  # Solis' remote control times out after 30 min
             # A value that held and then changed by itself is set again at once (at most once a minute) - the
