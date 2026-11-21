@@ -1,0 +1,39 @@
+# Prøvekørsel: every night (and by hand) the planner on main and the last release are replayed on real days from the
+# houses that share (the hourly lines). Only totals reach the summary - the data never enters this public repository.
+name: Prøvekørsel
+on:
+  schedule:
+    - cron: "40 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: cand
+          fetch-depth: 0
+      - name: Seneste udgivelse
+        run: echo "BASE=$(git -C cand describe --tags --abbrev=0)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+        with:
+          path: base
+          ref: ${{ env.BASE }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install aiohttp holidays
+      - name: Hent time-tal
+        env:
+          EP_EXPORT_KEY: ${{ secrets.EP_EXPORT_KEY }}
+        run: python cand/training/fetch.py "$RUNNER_TEMP/data.json" "$(date -d '-60 days' +%F)"
+      - name: Kør begge versioner
+        run: |
+          PYTHONPATH=base/energy_pilot python cand/training/backtest.py "$RUNNER_TEMP/data.json" > "$RUNNER_TEMP/base.json"
+          PYTHONPATH=cand/energy_pilot python cand/training/backtest.py "$RUNNER_TEMP/data.json" > "$RUNNER_TEMP/cand.json"
+      - name: Sammenlign
+        run: python cand/training/compare.py "$RUNNER_TEMP/base.json" "$RUNNER_TEMP/cand.json" "$BASE" main >> "$GITHUB_STEP_SUMMARY"
