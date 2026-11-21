@@ -14,7 +14,8 @@ import sys
 
 DRAFT_HOMES = 2  # an issue to the developer only - two homes are enough to start a profile from
 FAIL_HOMES = 2
-HOMEMADE = {"template", "mqtt", "modbus", "rest", "command_line"}  # built by the user: no brand to make a profile for
+# Built by the user, or firmware for many kinds of devices: no one brand to make a profile for
+HOMEMADE = {"template", "mqtt", "modbus", "rest", "command_line", "esphome"}
 
 
 def drafts(setups: list[dict]) -> list[dict]:
@@ -28,7 +29,8 @@ def drafts(setups: list[dict]) -> list[dict]:
             plat = d["platform"]
             homes[plat].add(r["home"])
             for e in d.get("entities") or []:
-                ents[plat][(str(e.get("name")), str(e.get("use")), str(e.get("unit") or ""))] += 1
+                if e.get("platform") == plat:  # its own entities only - not a solar forecast or a price beside it
+                    ents[plat][(str(e.get("name")), str(e.get("use")), str(e.get("unit") or ""))] += 1
     out = []
     # One overview of every brand without a profile (a single issue, made once) - which ones are worth a profile next
     brands = sorted(((len(hs), p) for p, hs in homes.items() if p not in HOMEMADE), reverse=True)

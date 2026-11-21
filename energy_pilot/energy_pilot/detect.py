@@ -35,7 +35,9 @@ NOT_HOME_BATTERY = ("mobile_app", "zha", "matter", "mqtt_room", "ble_monitor", "
                     "bmw_connected_drive", "renault", "kia_uvo", "hyundai_kia_connect", "mercedes_me", "mbapi2020",
                     "polestar_api", "myskoda", "skodaconnect", "audiconnect", "nissan_leaf", "fordpass", "toyota",
                     "volvo", "volvooncall", "stellantis_vehicles", "smartcar", "seatconnect", "cupra_we_connect",
-                    "jlrincontrol", "porscheconnect", "zoe", "leaf", "evcc_intg",
+                    "jlrincontrol", "porscheconnect", "zoe", "leaf", "evcc_intg", "gwm_ora", "mg_saic", "vag_connect", "byd",
+                    # Tibber's own integration: a car's level through Tibber, not a house battery (the shared setups showed it)
+                    "tibber",
                     # Octopus Intelligent: the car's level and charge target (a Tesla was taken for the house battery)
                     "octopus_energy")
 

@@ -63,3 +63,8 @@ def test_training_holds_back_a_model_that_changed_too_much():
     assert sensors_train.safe_change(old, {"keys": flipped, "names": {}})
     assert sensors_train.safe_change(old, {"keys": old["keys"], "names": {}}) is None
     assert sensors_train.safe_change(None, {"keys": {}, "names": {}}) is None
+
+
+def test_a_car_through_tibber_or_ora_is_no_house_battery():
+    from energy_pilot.detect import NOT_HOME_BATTERY
+    assert {"gwm_ora", "tibber", "mg_saic", "vag_connect"} <= set(NOT_HOME_BATTERY)
