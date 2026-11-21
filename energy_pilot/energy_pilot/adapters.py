@@ -523,6 +523,9 @@ CHARGER_SERVICES = {
 
 
 LEAD_MIN = 30  # a new window starts this long before the quarter now: the inverter is well inside it at once
+LEASE_LEAD_MIN = 90  # the inverter's own slot (Growatt, GivEnergy) starts this much earlier still: inside it also with
+# a clock up to 2 hours slow. A start in the past changes nothing with a right clock - the slot is only turned on when
+# the plan's block begins, and off again when it ends. (Alpha ESS runs on the cloud's clock: not needed there.)
 CAP_H = 3  # a window never runs further ahead than this (in whole hours, so it isn't moved every quarter)
 PAD_H = 2  # the inverter's slot ends this long after the plan's block: a clock that runs fast (21 November: a Growatt
 # 70 minutes ahead, never moved to winter time) ended the slot early. Energy Pilot ends the block itself on time.
@@ -564,7 +567,8 @@ def alpha_windows(now: Any, start: Any = None, end: Any = None) -> dict[str, str
         win = {"now_from": hm(s), "now_to": "23:45", "now2_from": "00:00", "now2_to": hm(alpha_end)}
     # A lease: should Energy Pilot, Home Assistant or the network stop, the slot runs out and the inverter goes back to
     # its normal running by itself - an order is never left standing all day (Growatt, GivEnergy).
-    lease = {"lease_from": hm(s), "lease_to": hm(e) if e.date() == q.date() else "23:59"}
+    ls = max(s - timedelta(minutes=LEASE_LEAD_MIN), q.replace(hour=0, minute=0))
+    lease = {"lease_from": hm(ls), "lease_to": hm(e) if e.date() == q.date() else "23:59"}
     return {**win, **lease,
             "park_c_from": hm(q + timedelta(hours=12)), "park_c_to": hm(q + timedelta(hours=12, minutes=15)),
             "park_d_from": hm(q + timedelta(hours=12, minutes=30)), "park_d_to": hm(q + timedelta(hours=12, minutes=45))}

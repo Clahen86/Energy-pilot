@@ -11,7 +11,7 @@ from energy_pilot.control import Controller
 
 def test_lease_starts_before_this_quarter():
     w = adapters.alpha_windows(datetime(2026, 11, 21, 14, 7))
-    assert w["lease_from"] == "13:30" and w["lease_to"] == "15:15"
+    assert w["lease_from"] == "12:00" and w["lease_to"] == "15:15"  # 2 h back: a slow clock is inside it too
 
 
 def test_a_block_is_written_once_and_left_alone():
@@ -20,12 +20,12 @@ def test_a_block_is_written_once_and_left_alone():
     end = datetime(2026, 11, 21, 14, 45)
     seen = {(w["lease_from"], w["lease_to"]) for w in (adapters.alpha_windows(datetime(2026, 11, 21, 12, m), start, end)
                                                          for m in (15, 20, 31, 45, 59))}
-    assert seen == {("11:45", "16:45")}  # the same all the way through, 2 h past the block for a fast clock
+    assert seen == {("10:15", "16:45")}  # the same all the way through, 2 h past the block for a fast clock
     long_end = datetime(2026, 11, 21, 20, 0)  # a long block: never more than 3-4 h ahead
     assert adapters.alpha_windows(datetime(2026, 11, 21, 12, 15), start, long_end)["lease_to"] == "18:00"
     w = adapters.alpha_windows(datetime(2026, 11, 21, 12, 15), start, end)
     assert w["now_to"] == "14:45"  # Alpha's cloud window: the block itself
-    assert adapters.alpha_windows(datetime(2026, 11, 21, 12, 15), datetime(2026, 11, 21, 13, 0), end)["lease_from"] == "11:45"
+    assert adapters.alpha_windows(datetime(2026, 11, 21, 12, 15), datetime(2026, 11, 21, 13, 0), end)["lease_from"] == "10:15"
 
 
 def test_lease_never_past_midnight():
@@ -72,7 +72,8 @@ def test_controller_keeps_the_block_start_and_follows_the_plan_end():
     b = {"steps": steps, "slot_min": 15}
     w1 = ctl._windows(b, steps[0])
     w2 = ctl._windows({"steps": steps[1:], "slot_min": 15}, steps[1])  # a quarter on: the same block
-    assert w1["lease_from"] == w2["lease_from"] == adapters.window_start(now).strftime("%H:%M")
+    lead = max(adapters.window_start(now) - timedelta(minutes=adapters.LEASE_LEAD_MIN), q.replace(hour=0, minute=0))
+    assert w1["lease_from"] == w2["lease_from"] == lead.strftime("%H:%M")
     if (q + timedelta(minutes=210)).date() == q.date():
         assert w1["lease_to"] == w2["lease_to"] == (q + timedelta(minutes=210)).strftime("%H:%M")
     ctl._windows(b, {"action": "hold"})  # another action: the next charge block starts afresh

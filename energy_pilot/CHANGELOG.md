@@ -2,6 +2,10 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.99.5 – 2026-11-21
+
+- The inverter's own time slot (Growatt, GivEnergy) now also starts 2 hours back, so a clock that runs slow - not only fast - can't keep the charging from starting. With a right clock nothing changes: the slot is only turned on when the plan's block begins and off again when it ends
+
 ## 0.99.4 – 2026-11-21
 
 - An inverter clock that runs wrong no longer stops the charging early: the inverter's time slot now ends 2 hours after the plan's block (Energy Pilot still ends the block itself on time). A Growatt whose clock was 70 minutes ahead - never moved to winter time - left its slot early and covered the house from the battery instead
