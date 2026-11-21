@@ -409,6 +409,12 @@ async function exportHours(url, env) {
   if (!env.DB) return json({ rows: [] });
   await schema(env);
   if (url.searchParams.get("what") === "setups") return exportSetups(env);
+  if (url.searchParams.get("what") === "tests") {
+    // the self-test per profile (last 60 days): how many passed, and what failed - for the nightly failure report
+    const since = new Date(Date.now() - 60 * 864e5).toISOString().slice(0, 10);
+    const rows = (await env.DB.prepare("SELECT part, profile, model, ok, failed FROM tests WHERE day >= ?1").bind(since).all()).results || [];
+    return json({ rows });
+  }
   const since = (url.searchParams.get("since") || "2000-01-01").slice(0, 10);
   const offset = Math.max(0, parseInt(url.searchParams.get("offset") || "0", 10) || 0);
   const rows = (await env.DB.prepare(

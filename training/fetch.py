@@ -26,6 +26,12 @@ if key and os.environ.get("EP_FETCH_SETUPS"):
     with urllib.request.urlopen(req, timeout=60) as r:
         with open(os.environ["EP_FETCH_SETUPS"], "w") as f:
             json.dump(json.load(r).get("rows") or [], f)
+if key and os.environ.get("EP_FETCH_TESTS"):
+    req = urllib.request.Request(f"{url}/export?key={key}&what=tests", headers={"user-agent": "energy-pilot-training"})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        got = json.load(r)
+    with open(os.environ["EP_FETCH_TESTS"], "w") as f:
+        json.dump(got.get("rows") if isinstance(got.get("rows"), list) and (not got["rows"] or "failed" in got["rows"][0]) else [], f)
 with open(out, "w") as f:
     json.dump(rows, f)
 print(f"{len(rows)} days from {len({r['home'] for r in rows})} homes")

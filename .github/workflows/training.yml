@@ -8,10 +8,11 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ["training/train.py", "training/sensors.py", ".github/workflows/training.yml"]
+    paths: ["training/train.py", "training/sensors.py", "training/reports.py", ".github/workflows/training.yml"]
 
 permissions:
   contents: read
+  issues: write  # the nightly reports (profile drafts, failure patterns) - to the developer only
 
 jobs:
   train:
@@ -31,6 +32,7 @@ jobs:
         env:
           EP_EXPORT_KEY: ${{ secrets.EP_EXPORT_KEY }}
           EP_FETCH_SETUPS: ${{ runner.temp }}/setups.json
+          EP_FETCH_TESTS: ${{ runner.temp }}/tests.json
         run: python training/fetch.py "$RUNNER_TEMP/data.json" "$(date -d '-120 days' +%F)"
       - name: Sensorfinder
         env:
@@ -42,6 +44,20 @@ jobs:
           curl -sf -X POST -H "content-type: application/json" --data-binary @"$RUNNER_TEMP/models.json" \
             "https://ep-reports.clahen86.workers.dev/models?key=$EP_EXPORT_KEY" > /dev/null && echo "Sendt ud til Energipilot." >> "$GITHUB_STEP_SUMMARY" \
             || echo "⚠️ Kunne ikke sendes til workeren." >> "$GITHUB_STEP_SUMMARY"
+      - name: Rapporter til udvikleren
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python training/reports.py "$RUNNER_TEMP/setups.json" "$RUNNER_TEMP/tests.json" "$RUNNER_TEMP/issues.json" >> "$GITHUB_STEP_SUMMARY"
+          gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 300 --json title --jq '.[].title' > "$RUNNER_TEMP/open.txt" || true
+          python - <<'PY'
+          import json, os, subprocess
+          t = os.environ["RUNNER_TEMP"]
+          open_titles = set(open(f"{t}/open.txt").read().splitlines())
+          for i in json.load(open(f"{t}/issues.json"))[:10]:
+              if i["title"] not in open_titles:
+                  subprocess.run(["gh", "issue", "create", "--repo", os.environ["GITHUB_REPOSITORY"], "--title", i["title"], "--body", i["body"]], check=False)
+          PY
       - name: Træn og mål
         run: python training/train.py "$RUNNER_TEMP/data.json" "$RUNNER_TEMP/models" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
