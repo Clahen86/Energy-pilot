@@ -12,8 +12,9 @@ from collections import Counter, defaultdict
 import json
 import sys
 
-DRAFT_HOMES = 3
+DRAFT_HOMES = 2  # an issue to the developer only - two homes are enough to start a profile from
 FAIL_HOMES = 2
+HOMEMADE = {"template", "mqtt", "modbus", "rest", "command_line"}  # built by the user: no brand to make a profile for
 
 
 def drafts(setups: list[dict]) -> list[dict]:
@@ -29,8 +30,16 @@ def drafts(setups: list[dict]) -> list[dict]:
             for e in d.get("entities") or []:
                 ents[plat][(str(e.get("name")), str(e.get("use")), str(e.get("unit") or ""))] += 1
     out = []
+    # One overview of every brand without a profile (a single issue, made once) - which ones are worth a profile next
+    brands = sorted(((len(hs), p) for p, hs in homes.items() if p not in HOMEMADE), reverse=True)
+    if brands:
+        table = "\n".join(f"| `{p}` | {n} |" for n, p in brands)
+        out.append({"title": "⚡ Integrations without a profile (overview)",
+                    "body": "Battery integrations Energy Pilot has no profile for, by homes (last 30 days):\n\n"
+                            f"| Integration | Homes |\n|---|---|\n{table}\n\nA draft issue follows by itself when two homes use one.\n\n"
+                            "_Made by the nightly training (training/reports.py). Close it to get a fresh one._"})
     for plat, hs in homes.items():
-        if len(hs) < DRAFT_HOMES:
+        if len(hs) < DRAFT_HOMES or plat in HOMEMADE:
             continue
         common = [(n, u, unit, c) for (n, u, unit), c in ents[plat].most_common() if c >= 2][:40]
         lines = "\n".join(f"| `{n}` | {u} | {unit} | {c} |" for n, u, unit, c in common)
