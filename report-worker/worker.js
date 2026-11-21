@@ -145,6 +145,7 @@ async function schema(env) {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS error_issues (hash TEXT PRIMARY KEY, issue INTEGER)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS seen (app TEXT, install TEXT, day TEXT, country TEXT, PRIMARY KEY (app, install, day))"),
     // how each installation is set up (the daily question; names cleaned unless the user shares them): the newest only
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS observed (install TEXT, profile TEXT, model TEXT, intent TEXT, day TEXT, PRIMARY KEY (install, profile, intent))"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS hours (install TEXT, day TEXT, data TEXT, PRIMARY KEY (install, day))"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS sky (install TEXT PRIMARY KEY, cell TEXT, lat REAL, lon REAL, t INTEGER, ratio REAL, down INTEGER)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS setups (app TEXT, install TEXT, day TEXT, data TEXT, PRIMARY KEY (app, install))"),
@@ -213,6 +214,12 @@ async function telemetry(request, env, app = "energy-pilot") {
         body: `First seen ${day} in version ${s(b.version, 20)}.\n\n\`\`\`\n${text}\n\`\`\`\n\n_Comments here reach every installation that had this error._` });
       await rememberIssue(db, hash, r);
     }
+  } else if (b.kind === "observed") {
+    // An order that worked in daily control (Energy Pilot's control._observe) - counts like a passed test step
+    const prof = s(b.profile, 60), intent = s(b.intent, 20);
+    if (!prof || !["charge", "hold", "normal", "export"].includes(intent)) return json({ error: "observed" }, 400);
+    await db.prepare("INSERT OR REPLACE INTO observed (install, profile, model, intent, day) VALUES (?1, ?2, ?3, ?4, ?5)")
+      .bind(install, prof, s(b.model), intent, day).run();
   } else if (b.kind === "hours") {
     // Yesterday hour by hour (Energy Pilot's telemetry.hours_line) - kept for the models trained on all houses
     const d = String(b.day || "").slice(0, 10);
@@ -238,6 +245,12 @@ async function fixes(env) {
   const f = await env.DB.prepare("SELECT profile, intent, opt_from AS 'from', opt_to AS 'to' FROM confirmed").all();
   const t = await env.DB.prepare("SELECT profile, SUM(ok) AS ok, COUNT(*) AS n FROM tests GROUP BY profile").all();
   const tested = Object.fromEntries((t.results || []).map((r) => [r.profile, { ok: r.ok, n: r.n }]));
+  // orders that worked in daily control, per profile: how many installations saw each (last 60 days)
+  try {
+    const o = await env.DB.prepare("SELECT profile, intent, COUNT(DISTINCT install) AS n FROM observed WHERE day >= ?1 GROUP BY profile, intent")
+      .bind(new Date(Date.now() - 60 * 864e5).toISOString().slice(0, 10)).all();
+    for (const r of o.results || []) ((tested[r.profile] = tested[r.profile] || { ok: 0, n: 0 }).seen = tested[r.profile].seen || {})[r.intent] = r.n;
+  } catch { /* none yet */ }
   let common = {};
   if (!off) try { common = await sharedKnowledge(env); } catch { /* never in the way of the fixes */ }
   try {

@@ -653,6 +653,45 @@ class Controller:
             self.last[part] = entry
             if changed:
                 self.log.setdefault(part, deque(maxlen=60)).appendleft(entry)
+        try:
+            self._observe()
+        except Exception:  # noqa: BLE001 - only watching, never in the way
+            _LOGGER.debug("Observing failed", exc_info=True)
+
+    def _observe(self) -> None:
+        """Daily control as a test: when the battery has done what it was told for a while (the same checks as the
+        self-test), that order counts as working for this profile - once a day each. Only watches; sends nothing."""
+        from .selftest import _expect
+
+        part = "battery"
+        entry = self.last.get(part) or {}
+        if self.mode(part) != "control" or self.blocked(part) or entry.get("result") != "ok" or part in getattr(self, "testing", set()):
+            self._obs = {}
+            return
+        intent, f = entry.get("intent"), self.ov.flow() or {}
+        ctx = entry.get("ctx") or {}
+        if intent == "charge" and (f.get("soc") or 0) >= float(ctx.get("target") or 100) - 2:
+            return  # full enough: charging can't be seen
+        obs = getattr(self, "_obs", {}) or {}
+        if obs.get("intent") != intent:
+            obs = {"intent": intent, "since": time.time(), "ok": 0}
+        if time.time() - obs["since"] < 180:
+            self._obs = obs
+            return  # give it time to react
+        good = _expect(intent, f, {})
+        obs["ok"] = obs["ok"] + 1 if good else 0 if good is False else obs["ok"]
+        self._obs = obs
+        if obs["ok"] < 3:
+            return
+        today = time.strftime("%Y-%m-%d")
+        seen = dict(self.ov.settings.get("observed") or {})
+        if seen.get(intent) == today:
+            return
+        seen[intent] = today
+        self.ov.save({"observed": seen})
+        tel = getattr(self.ov, "telemetry", None)
+        if tel:
+            tel.event("observed", {"profile": self.profile_key(part), "model": getattr(self, "model", None), "intent": intent})
 
     def _battery_volt(self) -> float:
         """The battery's voltage: the BMS voltage on the battery level sensor, a battery voltage sensor, else 52 V."""
