@@ -2,6 +2,10 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## Unreleased
+
+- Today's savings count the power in the battery at what it cost: charging overnight for the evening no longer looks like a loss in the morning (asked for by a tester)
+
 ## 0.98.0 – 2026-11-21
 
 - Honest savings: the savings card now also shows Energy Pilot's own part - measured against the same battery left to the inverter's own control (the house first, charged by the sun only), with the same house and sun. Any battery saves something on its own; this is what the planning adds on top

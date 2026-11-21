@@ -123,6 +123,8 @@ class Ledger:
             return kwh * price if kwh > 0 else kwh * sell
 
         day = s["days"].setdefault(now.date().isoformat(), {"saved": 0.0, "cost": 0.0, "without": 0.0, "bought": 0.0, "sold": 0.0})
+        # What the power in the battery cost when the day began - so power bought for later isn't a loss today
+        day.setdefault("stored_start", round(s["stored_cost"], 4))
         c, w = cost(grid), cost(without)
         day["cost"] += c
         day["without"] += w
@@ -178,7 +180,10 @@ class Ledger:
         return {
             "stored_kwh": round(s["stored_kwh"], 2), "avg_cost": round(other_avg if other_avg is not None else avg, 3) if (other_avg or avg) is not None else None,
             "avg_source": "other" if other_avg is not None else "own",
-            "today": total(d), "month": total(m), "year": total(y), "total": round(total("") + s.get("older", 0.0), 2),
+            "today": total(d), "month": total(m),
+            # Today with the power still in the battery counted at what it cost: charging for the evening isn't a loss
+            # in the morning, and power bought yesterday that is used today counts at its price.
+            "today_stored": round(total(d) + s["stored_cost"] - days[d]["stored_start"], 2) if "stored_start" in (days.get(d) or {}) else None, "year": total(y), "total": round(total("") + s.get("older", 0.0), 2),
             # sun vs grid only once most of what's in it was charged while this was kept
             "sun_share": round(min(1.0, s.get("stored_sun", 0.0) / s["stored_kwh"]), 2)
             if s["stored_kwh"] > 0.2 and s.get("sun_seen", 0.0) >= s["stored_kwh"] * 0.6 else None,

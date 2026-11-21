@@ -27,3 +27,10 @@ def test_same_as_self_use_shows_about_nothing(tmp_path):
     step = (2.0, {"battery": -500, "pv": 0, "house": 500, "ev": 0, "soc": 60, "grid": 0})
     s = _run(tmp_path, [step] * 24)
     assert abs(s["pilot"]["today"]) < 0.01
+
+
+def test_charging_for_the_evening_is_not_a_loss_today(tmp_path):
+    cheap = (1.0, {"battery": 3000, "pv": 0, "house": 500, "ev": 0, "soc": 50, "grid": 3500})
+    s = _run(tmp_path, [cheap] * 12)
+    assert s["today"] < -2  # bought 3 kWh for later: the plain day looks like a loss
+    assert abs(s["today_stored"]) < 0.5  # with what's in the battery counted at its cost: about even
