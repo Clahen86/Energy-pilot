@@ -2,6 +2,11 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.99.1 – 2026-11-21
+
+- Learns your panels: on clear days Energy Pilot sees how your production spreads over the day and bends the solar forecast hour by hour to match - which way the panels face, the tilt, and shade at certain hours are all included. Settings now show what it found (for example "facing south-west, shade 15–16"), and point it out if the solar forecast seems set up for another direction. Nothing is changed in your setup
+- Tests its own settings every night: the last 14 days are replayed with slightly changed settings, and it moves one small step only when that would clearly have cost less - within fixed limits, and back to standard if that turns out best. Shown in the learning card; can be switched off under Battery → Advanced
+
 ## 0.99.0 – 2026-11-21
 
 - Today's savings count the power in the battery at what it cost: charging overnight for the evening no longer looks like a loss in the morning (asked for by a tester)
