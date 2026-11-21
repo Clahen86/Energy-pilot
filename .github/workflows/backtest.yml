@@ -40,3 +40,5 @@ jobs:
           PYTHONPATH=cand/energy_pilot python cand/training/backtest.py "$RUNNER_TEMP/data.json" > "$RUNNER_TEMP/cand.json"
       - name: Sammenlign
         run: python cand/training/compare.py "$RUNNER_TEMP/base.json" "$RUNNER_TEMP/cand.json" "$BASE" main >> "$GITHUB_STEP_SUMMARY"
+      - name: Bedste indstillinger
+        run: PYTHONPATH=cand/energy_pilot python cand/training/backtest.py "$RUNNER_TEMP/data.json" --tune >> "$GITHUB_STEP_SUMMARY"

@@ -45,7 +45,7 @@ def selfuse(soc: float, house: float, sun: float, b: Battery) -> tuple[float, fl
     return step("discharge", soc, 0, house, sun, b)
 
 
-def replay(day: dict) -> dict | None:
+def replay(day: dict, end_factor: float = 1.0, margin: float = 0.0) -> dict | None:
     rows = sorted((r for r in day.get("hours") or [] if r.get("price") is not None), key=lambda r: r["h"])
     real = [(r["house"][1], r["sun"][1]) for r in rows]
     if len(rows) < 20 or any(h is None for h, _ in real) or rows[0]["soc"][1] is None:
@@ -59,9 +59,11 @@ def replay(day: dict) -> dict | None:
     soc = soc_s = float(rows[0]["soc"][1])
     cost = cost_s = cost_n = 0.0
     for i, r in enumerate(rows):
-        hours = [Hour(T0 + timedelta(hours=r2["h"]), price[j], 0.0, exp[j][0], exp[j][1]) for j, r2 in enumerate(rows) if j >= i]
+        dear = sorted(price[i:])[int(len(price[i:]) * 0.75)] if len(price[i:]) > 3 else None
+        hours = [Hour(T0 + timedelta(hours=r2["h"]), price[j], 0.0, exp[j][0] + (margin if dear is not None and price[j] >= dear else 0.0), exp[j][1])
+                 for j, r2 in enumerate(rows) if j >= i]
         hours[0].house, hours[0].sun = real[i][0], real[i][1] or 0.0  # the hour now is seen as it goes
-        plan = plan_battery(hours, soc, b, end_value=end_price(hours, b))
+        plan = plan_battery(hours, soc, b, end_value=end_price(hours, b) * end_factor)
         first = plan.steps[0] if plan.steps else None
         house, sun = real[i][0], real[i][1] or 0.0
         soc, grid = step(first.action if first else "discharge", soc, first.soc_end if first else 0, house, sun, b)
@@ -72,7 +74,36 @@ def replay(day: dict) -> dict | None:
     return {"cost": cost, "selfuse": cost_s, "none": cost_n, "country": (day.get("kind") or {}).get("country")}
 
 
+def tune(data: list[dict]) -> None:
+    """The best settings: the same days replayed with Energy Pilot's two inner knobs turned - how much the battery's
+    rest is worth at the end of the plan (end factor) and the margin kept for the dear hours. Markdown, totals only;
+    nothing is changed by it - a person decides whether a default should move."""
+    import random
+
+    random.seed(7)
+    days = data if len(data) <= 120 else random.sample(data, 120)
+    results = []
+    for f in (0.75, 0.9, 1.0, 1.1, 1.25):
+        for m in (0.0, 0.1, 0.2):
+            out = [x for x in (replay(d, f, m) for d in days) if x]
+            if out:
+                results.append((sum(x["selfuse"] - x["cost"] for x in out), f, m, len(out)))
+    print("## Bedste indstillinger\n")
+    if not results:
+        print("Ingen hele dage endnu.")
+        return
+    results.sort(reverse=True)
+    base = next((r for r in results if r[1] == 1.0 and r[2] == 0.0), results[-1])
+    print("| Slutværdi | Margin | Energipilots egen andel | Mod standard |\n|---|---|---|---|")
+    for g, f, m, n in results[:6]:
+        print(f"| {f} | {m} kWh | {g:.0f} | {g - base[0]:+.0f} |")
+    print(f"\n{results[0][3]} dage. Standard i dag er slutværdi 1.0 og margin 0 (den lærte margin pr. hus kommer oveni).")
+
+
 def main() -> None:
+    if len(sys.argv) > 2 and sys.argv[2] == "--tune":
+        tune(json.load(open(sys.argv[1])))
+        return
     data = json.load(open(sys.argv[1]))
     out = [x for x in (replay(d) for d in data) if x]
     json.dump({"days": len(out), "homes": len({d["home"] for d in data}),
