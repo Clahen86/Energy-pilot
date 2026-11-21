@@ -2,6 +2,10 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## Unreleased
+
+- Honest savings: the savings card now also shows Energy Pilot's own part - measured against the same battery left to the inverter's own control (the house first, charged by the sun only), with the same house and sun. Any battery saves something on its own; this is what the planning adds on top
+
 ## 0.97.0 – 2026-11-21
 
 - Safer: an order to the inverter (charge from the grid, sell) now runs out by itself after about an hour and is moved on every quarter. Should Energy Pilot, Home Assistant or the network stop, the inverter goes back to normal on its own instead of charging or selling all day (Growatt, GivEnergy)

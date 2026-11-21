@@ -216,7 +216,7 @@ async def main() -> None:
                     engine.watch_sign(raw, overview.flow().get("soc"))
                 f = overview.flow()
                 engine.ledger.tick(now, f, price, sell, b.capacity_kwh, b.min_soc, b.efficiency,
-                                   st.get("solar_value") or "free")
+                                   st.get("solar_value") or "free", b.max_charge_kw, b.max_discharge_kw)
                 engine.battstats.tick(now, f, b.min_soc)
                 engine.price_model.remember(prices, now)
                 ev = overview.ev() or {}
