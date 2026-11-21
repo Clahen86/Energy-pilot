@@ -1,0 +1,123 @@
+"""Train shared models on all houses' hourly lines, and measure whether they beat each house's own forecast.
+
+The house's use: one model for all houses, told each house's kind (country, battery size, car) and its own recent
+level (its use at this hour the day before and over the last week). The sun: a correction of each house's own sun
+forecast, learned from all of them (hour, month, country).
+
+The last 7 days are kept out of the training and used as the test: for each of those hours the shared model's guess
+and the house's own forecast (what its Energy Pilot said the day before) are set against what really happened.
+Prints Markdown for the job summary - totals only, never a single house.
+
+    python training/train.py data.json model_dir
+"""
+from __future__ import annotations
+
+from collections import defaultdict
+from datetime import date, timedelta
+import json
+import os
+import pickle
+import sys
+
+import numpy as np
+from sklearn.ensemble import HistGradientBoostingRegressor
+
+TEST_DAYS = 7
+MIN_ROWS = 500  # below this a shared model says nothing
+
+
+def rows_from(data: list[dict]) -> list[dict]:
+    """One row per house and hour, with what is known the day before."""
+    by_home: dict[str, dict[str, dict]] = defaultdict(dict)
+    for d in data:
+        by_home[d["home"]][d["day"]] = d
+    countries = sorted({(d.get("kind") or {}).get("country") or "?" for d in data})
+    out = []
+    for home, days in by_home.items():
+        real: dict[tuple[str, int], float] = {}
+        for day, d in days.items():
+            for r in d.get("hours") or []:
+                if r.get("house") and r["house"][1] is not None:
+                    real[(day, int(r["h"]))] = float(r["house"][1])
+        for day, d in days.items():
+            k = d.get("kind") or {}
+            dd = date.fromisoformat(day)
+            for r in d.get("hours") or []:
+                h = int(r["h"])
+                if not r.get("house") or r["house"][1] is None:
+                    continue
+                prev = real.get(((dd - timedelta(days=1)).isoformat(), h))
+                week = [real.get(((dd - timedelta(days=i)).isoformat(), h)) for i in range(1, 8)]
+                week = [w for w in week if w is not None]
+                if prev is None or not week:
+                    continue  # the house's own recent level is needed
+                sun = r.get("sun") or [None, None]
+                out.append({
+                    "home": home, "day": day, "h": h,
+                    "x": [h, dd.weekday(), dd.month, countries.index(k.get("country") or "?"), float(k.get("battery_kwh") or 0),
+                          1.0 if (k.get("has") or {}).get("car") else 0.0, prev, sum(week) / len(week)],
+                    "y": float(r["house"][1]), "own": r["house"][0],
+                    "sx": [h, dd.month, countries.index(k.get("country") or "?"), float(sun[0])] if sun[0] is not None else None,
+                    "sy": float(sun[1]) if sun[1] is not None else None,
+                })
+    return out
+
+
+def score(name: str, rows: list[dict], pred: np.ndarray, own_key: str, y_key: str) -> list[str]:
+    own = np.array([r[own_key] for r in rows], dtype=float)
+    y = np.array([r[y_key] for r in rows], dtype=float)
+    mae_m, mae_o = float(np.mean(np.abs(pred - y))), float(np.mean(np.abs(own - y)))
+    homes = defaultdict(lambda: [0.0, 0.0])
+    for r, p, o, t in zip(rows, pred, own, y):
+        homes[r["home"]][0] += abs(p - t)
+        homes[r["home"]][1] += abs(o - t)
+    wins = sum(1 for m, o in homes.values() if m < o)
+    better = (mae_o - mae_m) / mae_o * 100 if mae_o else 0.0
+    return [f"| {name} | {mae_o:.3f} kWh | {mae_m:.3f} kWh | {better:+.0f} % | {wins} af {len(homes)} |"], better, wins, len(homes)
+
+
+def main() -> None:
+    data = json.load(open(sys.argv[1]))
+    model_dir = sys.argv[2]
+    os.makedirs(model_dir, exist_ok=True)
+    rows = rows_from(data)
+    print("## Træning af fællesmodeller\n")
+    print(f"{len({d['home'] for d in data})} huse, {len(data)} dage, {len(rows)} timer med det, der skal til.\n")
+    if len(rows) < MIN_ROWS:
+        print(f"For lidt data endnu (mindst {MIN_ROWS} timer). Modellen trænes, når der er mere.")
+        return
+    last = max(r["day"] for r in rows)
+    cut = (date.fromisoformat(last) - timedelta(days=TEST_DAYS)).isoformat()
+    train = [r for r in rows if r["day"] <= cut]
+    test = [r for r in rows if r["day"] > cut and r["own"] is not None]
+    if len(train) < MIN_ROWS or len(test) < 50:
+        print("For lidt data til både træning og test endnu.")
+        return
+    table = ["| | Husenes egne | Fællesmodel | Forskel | Bedre i |", "|---|---|---|---|---|"]
+    house = HistGradientBoostingRegressor(max_iter=300, learning_rate=0.05).fit([r["x"] for r in train], [r["y"] for r in train])
+    lines, better, wins, n = score("Forbrug", test, house.predict([r["x"] for r in test]), "own", "y")
+    table += lines
+    result = {"house": {"better_pct": round(better, 1), "wins": wins, "homes": n}}
+    s_train = [r for r in train if r["sx"] and r["sy"] is not None]
+    s_test = [r for r in test if r["sx"] and r["sy"] is not None and (r["sx"][3] > 0.05 or r["sy"] > 0.05)]
+    if len(s_train) >= MIN_ROWS and len(s_test) >= 50:
+        sun = HistGradientBoostingRegressor(max_iter=200, learning_rate=0.05).fit([r["sx"] for r in s_train], [r["sy"] for r in s_train])
+        for r in s_test:
+            r["sown"] = r["sx"][3]
+        lines, sb, sw, sn = score("Sol", s_test, np.clip(sun.predict([r["sx"] for r in s_test]), 0, None), "sown", "sy")
+        table += lines
+        result["sun"] = {"better_pct": round(sb, 1), "wins": sw, "homes": sn}
+        with open(os.path.join(model_dir, "sun.pkl"), "wb") as f:
+            pickle.dump(sun, f)
+    print("\n".join(table) + "\n")
+    ready = better > 0 and wins > n / 2
+    print("✅ Fællesmodellen for forbrug rammer bedre i de fleste huse." if ready else
+          "⏳ Fællesmodellen slår endnu ikke husenes egne prognoser - den bliver ikke udgivet.")
+    with open(os.path.join(model_dir, "house.pkl"), "wb") as f:
+        pickle.dump(house, f)
+    with open(os.path.join(model_dir, "result.json"), "w") as f:
+        json.dump({**result, "ready": ready, "rows": len(rows)}, f)
+
+
+if __name__ == "__main__":
+    main()

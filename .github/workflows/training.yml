@@ -1,0 +1,41 @@
+# Træning: every night shared models are trained on all houses' hourly lines and measured against each house's own
+# forecast. Only totals reach the summary; the data never enters this public repository. The models are kept as a
+# workflow artifact (30 days) - they're handed to Energy Pilot only once they beat the houses' own forecasts.
+name: Træning
+on:
+  schedule:
+    - cron: "10 5 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["training/train.py", ".github/workflows/training.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install numpy scikit-learn
+      - name: Selvtest (opdigtede data)
+        run: |
+          python training/synth.py "$RUNNER_TEMP/synth.json"
+          python training/train.py "$RUNNER_TEMP/synth.json" "$RUNNER_TEMP/synth_models" | tee "$RUNNER_TEMP/synth.md"
+          grep -q "| Forbrug |" "$RUNNER_TEMP/synth.md"
+      - name: Hent time-tal
+        env:
+          EP_EXPORT_KEY: ${{ secrets.EP_EXPORT_KEY }}
+        run: python training/fetch.py "$RUNNER_TEMP/data.json" "$(date -d '-120 days' +%F)"
+      - name: Træn og mål
+        run: python training/train.py "$RUNNER_TEMP/data.json" "$RUNNER_TEMP/models" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: models
+          path: ${{ runner.temp }}/models
+          retention-days: 30
+          if-no-files-found: ignore
