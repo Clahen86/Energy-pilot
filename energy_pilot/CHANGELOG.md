@@ -2,6 +2,10 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.100.0 – 2026-11-22
+
+- Update automatically: a card on the front page offers to turn on Home Assistant's own "Auto update" for Energy Pilot, so fixes come by themselves. Only when you press "Turn on" - "No thanks" keeps it away, and it can be turned off again under Settings → Add-ons
+
 ## 0.99.6 – 2026-11-21
 
 - A phone's battery is never taken for the house battery, not even when it was picked by hand: Energy Pilot then finds the real battery by itself, and phones are no longer in the list. A picked phone had left the battery without a profile, so nothing was controlled (found in a tester's report)

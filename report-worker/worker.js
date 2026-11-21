@@ -851,6 +851,25 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#c9d6ff;word-
   return new Response(html, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
 }
 
+// One message to installations on an old version: they can't be updated from here, but every version since 0.71 asks
+// for answers each day and shows a note with a notification. Fixed text and time, so it comes once and "Close" keeps it away.
+const UPDATE_NOTE = {
+  "energy-pilot": {
+    below: [0, 95, 0], t: "2026-11-22T08:00:00Z", error: "Update available",
+    text: "You're on an old version of Energy Pilot. Since then: safer control, fixed inverter profiles and better savings. " +
+      "Update under Settings → Add-ons → Energy Pilot, and turn on Auto update there so you get fixes by yourself.",
+  },
+};
+
+function oldVersionNote(app, version) {
+  const n = UPDATE_NOTE[app];
+  const v = String(version || "").match(/^(\d+)\.(\d+)\.(\d+)/);
+  if (!n || !v) return null; // "dev" and unknown builds: nothing
+  const mine = v.slice(1, 4).map(Number);
+  const older = mine[0] !== n.below[0] ? mine[0] < n.below[0] : mine[1] !== n.below[1] ? mine[1] < n.below[1] : mine[2] < n.below[2];
+  return older ? { error: n.error, hash: "update-note", state: "open", closed_at: null, msgs: [{ from: "dev", text: n.text, t: n.t }] } : null;
+}
+
 async function replies(request, env, app) {
   if (!env.DB) return json({ reports: [] });
   if (!(await allowed(request, "q", 30))) return json({ error: "rate" }, 429);
@@ -888,6 +907,8 @@ async function replies(request, env, app) {
     const msgs = (d?.list || []).filter((x) => !x.body.startsWith(USER_MARK)).map((x) => ({ from: "dev", text: x.body.slice(0, 4000), t: x.t }));
     if (msgs.length) notes.push({ error: String(e.text).slice(0, 120), hash: e.hash, state: d.state, closed_at: d.closed_at, msgs });
   }
+  const old = oldVersionNote(app, b?.version);
+  if (old) notes.unshift(old);
   let latest = null;
   try { latest = await latestOf(env, app); } catch { /* answers come first */ }
   return json({ reports: out, notes, latest });

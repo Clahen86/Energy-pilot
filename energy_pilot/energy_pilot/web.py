@@ -481,7 +481,11 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
         got = overview.settings.get("replies") or {}
         if tel.answer_every() and __import__("time").time() - float(got.get("t") or 0) > 300:
             await tel.fetch_answers()
-        return web.json_response({**tel.visible(mark_seen=True), "update": tel.update(), "whatsnew": tel.whatsnew()})
+        from . import autoupdate
+
+        auto = await autoupdate.state()
+        return web.json_response({**tel.visible(mark_seen=True), "update": tel.update(), "whatsnew": tel.whatsnew(),
+                                  "auto_update": None if overview.settings.get("autoupdate_no") else auto})
 
     async def replies_post(req: web.Request) -> web.Response:
         tel = getattr(overview, "telemetry", None)
@@ -489,6 +493,13 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
         if tel and b.get("whatsnew_seen"):  # "OK" on "What's new"
             tel.whatsnew_seen()
             return web.json_response({"ok": True, "whatsnew": None})
+        if b.get("auto_update") is True:  # "Update automatically" - Home Assistant's own switch for this app
+            from . import autoupdate
+
+            return web.json_response({"ok": await autoupdate.turn_on()})
+        if b.get("auto_update") is False:  # "No thanks": the card doesn't come back
+            overview.save({"autoupdate_no": True})
+            return web.json_response({"ok": True})
         if tel and b.get("snooze"):  # "Later" on the update card: hidden for 7 days
             tel.snooze()
             return web.json_response({"ok": True, "update": tel.update()})

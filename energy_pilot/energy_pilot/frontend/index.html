@@ -1389,7 +1389,7 @@ function home() {
     d.house_today != null ? metric("house", T.houseToday, num(d.house_today, 1), "kWh",
       d.house_other != null ? `${d.house_other_appdaemon ? (T.xYourAD) : (T.xOtherForecast)}: ${num(d.house_other, 1)}` : (T.xExpected)) : "",
   ].join("");
-  return `${whatsNewCard()}${updateCard()}${testNudge()}<div class="card flow fade" id="flowcard">${sceneSvg()}<div id="flow">${flowSvg(f)}</div></div>
+  return `${whatsNewCard()}${updateCard()}${autoUpdCard()}${testNudge()}<div class="card flow fade" id="flowcard">${sceneSvg()}<div id="flow">${flowSvg(f)}</div></div>
     ${dec ? `<div class="card status fade" style="--c:${DECCOL[dec.kind]}"><div class="dotc">${icon(DECICON[dec.kind])}</div>
       <div><h2>${blk ? esc(blk.p) + ": " + esc(dec.text.charAt(0).toLowerCase() + dec.text.slice(1)) : esc(dec.text)}</h2><p>${esc(reason)}</p>${dec.engine && dec.saving > 0 ? `<p class="save">${T.saves.replace("{x}", kr(dec.saving))}</p>` : ""}
       ${dec.other ? `<p class="muted">${esc(T.otherSays.replace("{x}", dec.other.text.toLowerCase()))}</p>` : ""}
@@ -2009,6 +2009,21 @@ document.addEventListener("click", async (e) => {
   if (!e.target.closest("[data-wnok]")) return;
   if (answers) { answers.whatsnew = null; lastHtml = ""; render(); }
   fetch("api/replies", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ whatsnew_seen: true }) }).catch(() => {});
+});
+const AUTO_UPD = {da: { t: "Opdatér automatisk fremover", h: "Så får du rettelser af dig selv, uden at du skal huske det. Det er Home Assistants egen indstilling for appen – du kan slå den fra igen under Indstillinger → Tilføjelser.", on: "Slå til", no: "Nej tak", done: "Automatisk opdatering er slået til." }, en: { t: "Update automatically from now on", h: "Then you get fixes by yourself, without having to remember. It's Home Assistant's own setting for the app – you can turn it off again under Settings → Add-ons.", on: "Turn on", no: "No thanks", done: "Automatic updates are on." }, de: { t: "Ab jetzt automatisch aktualisieren", h: "Dann bekommst du Korrekturen von selbst, ohne daran zu denken. Es ist die eigene Einstellung von Home Assistant für die App – unter Einstellungen → Add-ons wieder ausschaltbar.", on: "Einschalten", no: "Nein danke", done: "Automatische Updates sind an." }, fr: { t: "Mettre à jour automatiquement", h: "Vous recevez les corrections sans y penser. C'est le réglage de Home Assistant pour l'application – désactivable dans Paramètres → Modules complémentaires.", on: "Activer", no: "Non merci", done: "Les mises à jour automatiques sont activées." }, nl: { t: "Voortaan automatisch bijwerken", h: "Dan krijg je oplossingen vanzelf, zonder eraan te denken. Het is de eigen instelling van Home Assistant voor de app – weer uit te zetten onder Instellingen → Add-ons.", on: "Aanzetten", no: "Nee bedankt", done: "Automatisch bijwerken staat aan." }, sv: { t: "Uppdatera automatiskt framöver", h: "Då får du rättningar av sig självt utan att behöva komma ihåg. Det är Home Assistants egen inställning för appen – kan stängas av under Inställningar → Tillägg.", on: "Slå på", no: "Nej tack", done: "Automatiska uppdateringar är på." }, nb: { t: "Oppdater automatisk fremover", h: "Da får du rettelser av seg selv uten å måtte huske det. Det er Home Assistants egen innstilling for appen – kan slås av under Innstillinger → Tillegg.", on: "Slå på", no: "Nei takk", done: "Automatisk oppdatering er slått på." }};
+function autoUpdCard() {
+  if (answers?.auto_update !== false) return "";
+  const k = AUTO_UPD[L] || AUTO_UPD.en;
+  return `<div class="card fade" style="display:flex;gap:12px;align-items:flex-start"><div style="font-size:22px;line-height:1">🔄</div>
+    <div style="flex:1;min-width:0"><b>${k.t}</b><div class="muted" style="font-size:13px;margin-top:2px">${k.h}</div></div>
+    <div style="display:flex;flex-direction:column;gap:6px"><button data-autoupd="1" style="font-size:13px;font-weight:700;color:#fff;background:var(--accent);border:0;border-radius:99px;padding:7px 14px;cursor:pointer">${k.on}</button>
+    <button class="link" data-autoupd="0" style="font-size:12px">${k.no}</button></div></div>`;
+}
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-autoupd]"); if (!b) return;
+  const on = b.dataset.autoupd === "1";
+  const r = await fetch("api/replies", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ auto_update: on }) }).then((x) => x.json()).catch(() => null);
+  if (r?.ok && answers) { answers.auto_update = on ? true : null; lastHtml = ""; render(); }
 });
 function updateCard() {
   const u = answers?.update; if (!u || !u.due) return "";
