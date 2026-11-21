@@ -108,8 +108,11 @@ WORDS = {
 EXCLUDE = re.compile(r"forecast|prognose|today|daily|total|max|min|limit|setpoint|target|estimate|_rate$|cost|price")
 
 
-async def detect(ha: Any) -> dict[str, dict[str, str]]:
-    """{role: {"entity_id": …, "source": "energy" | "integration:<platform>" | "name"}}"""
+async def detect(ha: Any, shared: dict[str, Any] | None = None) -> dict[str, dict[str, str]]:
+    """{role: {"entity_id": …, "source": "energy" | "integration:<platform>" | "name" | "shared:<platform>"}}
+
+    shared: the sensor finder other installations taught (training/sensors.py) - used only for what the rules here
+    didn't find, so a home that works today is never changed by it."""
     found: dict[str, dict[str, str]] = {}
     try:
         entities = await ha.command({"type": "config/entity_registry/list"})
@@ -248,4 +251,31 @@ async def detect(ha: Any) -> dict[str, dict[str, str]]:
                 best = (score, eid)
         if best and best[0] > 0:
             put(role, best[1], "name")
+
+    # 4. What other installations with the same integration use (the sensor finder) - for what is still missing.
+    if shared:
+        keys, names = shared.get("keys") or {}, shared.get("names") or {}
+        hits: list[tuple[int, int, str, str, str]] = []
+        for e in entities:
+            eid, platform = e["entity_id"], e.get("platform")
+            if e.get("disabled_by") or not platform or not alive(eid):
+                continue
+            k = keys.get(f"{platform}|{e.get('translation_key')}") if e.get("translation_key") else None
+            if k:
+                hits.append((2, int(k.get("n") or 0), str(k.get("role")), eid, platform))
+                continue
+            dom, obj = eid.split(".", 1)
+            for cut in range(len(obj)):
+                if cut == 0 or obj[cut - 1] == "_":
+                    n = names.get(f"{platform}|{dom}|{obj[cut:]}")
+                    if n:
+                        hits.append((1, int(n.get("n") or 0), str(n.get("role")), eid, platform))
+                        break
+        for _how, _n, role, eid, platform in sorted(hits, reverse=True):
+            if role in ROLES_FOUND_BY_FINDER:
+                put(role, eid, f"shared:{platform}")
     return found
+
+
+ROLES_FOUND_BY_FINDER = {"battery_power", "battery_soc", "pv_power", "grid_power", "house_power", "solar_today",
+                         "ev_power", "ev_plug", "ev_soc"}

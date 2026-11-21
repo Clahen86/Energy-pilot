@@ -141,7 +141,7 @@ class Overview:
         from .detect import detect
 
         try:
-            self.detected = await detect(self.ha)
+            self.detected = await detect(self.ha, ((self.settings.get("community") or {}).get("common") or {}).get("sensors"))
         except Exception:  # noqa: BLE001 - keep what was found before
             import logging
 

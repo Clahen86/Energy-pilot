@@ -49,6 +49,7 @@ export default {
     if (request.method === "GET" && url.pathname === "/export") return exportHours(url, env);
     if (request.method === "GET") return json({ ok: true, service: "energy-pilot-reports" });
     if (request.method !== "POST") return json({ error: "method" }, 405);
+    if (url.pathname === "/models") return putModels(request, env);
     const app = request.headers.get("x-ep-client");
     if (!APPS[app]) return json({ error: "client" }, 403);
     if (url.pathname === "/t") return telemetry(request, env, app);
@@ -236,6 +237,11 @@ async function fixes(env) {
   const tested = Object.fromEntries((t.results || []).map((r) => [r.profile, { ok: r.ok, n: r.n }]));
   let common = {};
   try { common = await sharedKnowledge(env); } catch { /* never in the way of the fixes */ }
+  try {
+    const row = await env.DB.prepare("SELECT v FROM meta WHERE k = 'models'").first();
+    const models = row ? safe(row.v).m : null;
+    if (models && models.sensors) common = { ...common, sensors: models.sensors };
+  } catch { /* none yet */ }
   return new Response(JSON.stringify({ fixes: f.results || [], tested, common }), {
     headers: { "content-type": "application/json", "cache-control": "public, max-age=3600" } });
 }
@@ -386,6 +392,7 @@ async function exportHours(url, env) {
   if (!env.EXPORT_KEY || url.searchParams.get("key") !== env.EXPORT_KEY) return new Response("Not found", { status: 404 });
   if (!env.DB) return json({ rows: [] });
   await schema(env);
+  if (url.searchParams.get("what") === "setups") return exportSetups(env);
   const since = (url.searchParams.get("since") || "2000-01-01").slice(0, 10);
   const offset = Math.max(0, parseInt(url.searchParams.get("offset") || "0", 10) || 0);
   const rows = (await env.DB.prepare(
@@ -403,6 +410,36 @@ async function exportHours(url, env) {
               price: m.price, sun_source: m.sun_source } });
   }
   return json({ rows: out, next: rows.length === 500 ? offset + 500 : null });
+}
+
+// Energy Pilot's setups (last 30 days) for training the sensor finder: what each sensor is used for, its integration,
+// translation key, unit and kind - the names already have the user's own words taken out. A stable alias per home.
+async function exportSetups(env) {
+  const since = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+  const rows = (await env.DB.prepare("SELECT install, data FROM setups WHERE app = 'energy-pilot' AND day >= ?1").bind(since).all()).results || [];
+  const out = [];
+  for (const r of rows) {
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${env.EXPORT_KEY}|${r.install}`));
+    const home = [...new Uint8Array(buf)].slice(0, 8).map((x) => x.toString(16).padStart(2, "0")).join("");
+    const d = safe(r.data);
+    out.push({ home, devices: (d.devices || []).map((v) => ({ kind: v.kind, platform: v.platform, profile: v.profile, ok: v.ok,
+      entities: (v.entities || []).map((e) => ({ name: e.name, use: e.use, platform: e.platform, key: e.key,
+        unit: e.unit_of_measurement, device_class: e.device_class })) })) });
+  }
+  return json({ rows: out });
+}
+
+// The models the nightly training made (a GitHub Action with EXPORT_KEY): kept here and handed out with the fixes.
+async function putModels(request, env) {
+  const url = new URL(request.url);
+  if (!env.EXPORT_KEY || url.searchParams.get("key") !== env.EXPORT_KEY) return new Response("Not found", { status: 404 });
+  const text = await request.text();
+  if (text.length > 400_000) return json({ error: "size" }, 413);
+  const m = safe(text);
+  if (!m || typeof m !== "object") return json({ error: "json" }, 400);
+  await schema(env);
+  await env.DB.prepare("INSERT OR REPLACE INTO meta (k, v) VALUES ('models', ?1)").bind(JSON.stringify({ t: Date.now(), m })).run();
+  return json({ ok: true });
 }
 
 // ---------- 3. The week's overview ----------

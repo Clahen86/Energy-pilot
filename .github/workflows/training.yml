@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ["training/train.py", ".github/workflows/training.yml"]
+    paths: ["training/train.py", "training/sensors.py", ".github/workflows/training.yml"]
 
 permissions:
   contents: read
@@ -27,10 +27,20 @@ jobs:
           python training/synth.py "$RUNNER_TEMP/synth.json"
           python training/train.py "$RUNNER_TEMP/synth.json" "$RUNNER_TEMP/synth_models" | tee "$RUNNER_TEMP/synth.md"
           grep -q "| Forbrug |" "$RUNNER_TEMP/synth.md"
-      - name: Hent time-tal
+      - name: Hent time-tal og opsætninger
         env:
           EP_EXPORT_KEY: ${{ secrets.EP_EXPORT_KEY }}
+          EP_FETCH_SETUPS: ${{ runner.temp }}/setups.json
         run: python training/fetch.py "$RUNNER_TEMP/data.json" "$(date -d '-120 days' +%F)"
+      - name: Sensorfinder
+        env:
+          EP_EXPORT_KEY: ${{ secrets.EP_EXPORT_KEY }}
+        run: |
+          python training/sensors.py "$RUNNER_TEMP/setups.json" "$RUNNER_TEMP/sensors.json" >> "$GITHUB_STEP_SUMMARY"
+          python -c "import json; print(json.dumps({'sensors': json.load(open('$RUNNER_TEMP/sensors.json'))}))" > "$RUNNER_TEMP/models.json"
+          curl -sf -X POST -H "content-type: application/json" --data-binary @"$RUNNER_TEMP/models.json" \
+            "https://ep-reports.clahen86.workers.dev/models?key=$EP_EXPORT_KEY" > /dev/null && echo "Sendt ud til Energipilot." >> "$GITHUB_STEP_SUMMARY" \
+            || echo "⚠️ Kunne ikke sendes til workeren." >> "$GITHUB_STEP_SUMMARY"
       - name: Træn og mål
         run: python training/train.py "$RUNNER_TEMP/data.json" "$RUNNER_TEMP/models" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4

@@ -21,6 +21,11 @@ if key:
             d = json.load(r)
         rows += d.get("rows") or []
         offset = d.get("next")
+if key and os.environ.get("EP_FETCH_SETUPS"):
+    req = urllib.request.Request(f"{url}/export?key={key}&what=setups", headers={"user-agent": "energy-pilot-training"})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        with open(os.environ["EP_FETCH_SETUPS"], "w") as f:
+            json.dump(json.load(r).get("rows") or [], f)
 with open(out, "w") as f:
     json.dump(rows, f)
 print(f"{len(rows)} days from {len({r['home'] for r in rows})} homes")

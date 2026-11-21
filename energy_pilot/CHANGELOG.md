@@ -5,6 +5,7 @@ Newest first. Each version lists what changed since the one before.
 ## Unreleased
 
 - Today's savings count the power in the battery at what it cost: charging overnight for the evening no longer looks like a loss in the morning (asked for by a tester)
+- Sensor finder: when Energy Pilot can't find a sensor by itself, it uses what other installations with the same integration use - learned every night from the shared setups, sent out without an app update. A home that works today isn't changed
 
 ## 0.98.0 – 2026-11-21
 

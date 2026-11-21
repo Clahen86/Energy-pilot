@@ -537,7 +537,7 @@ class Telemetry:
             return
         common = d.get("common") if isinstance(d.get("common"), dict) else {}
         self.ov.save({"community": {"fixes": (d.get("fixes") or [])[:500], "tested": d.get("tested") or {},
-                                    "common": {k: v for k, v in common.items() if k in ("sun", "eff", "taper", "peers", "health", "tariff") and isinstance(v, dict)},
+                                    "common": {k: v for k, v in common.items() if k in ("sun", "eff", "taper", "peers", "health", "tariff", "sensors") and isinstance(v, dict)},
                                     "t": time.time()}})
 
 
