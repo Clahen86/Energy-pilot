@@ -341,6 +341,8 @@ async function sharedKnowledge(env) {
 const SKY_FRESH_MS = 20 * 60e3;
 async function sky(request, env) {
   if (!env.DB) return json({ near: [] });
+  // 4 an hour per installation; room for a few behind one address (a shared connection)
+  if (!(await allowed(request, "s", 30))) return json({ error: "rate" }, 429);
   let b;
   try { b = await request.json(); } catch { return json({ error: "json" }, 400); }
   const install = String(b.install || "").slice(0, 40), cell = String(b.cell || "");
