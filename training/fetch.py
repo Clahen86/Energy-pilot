@@ -12,6 +12,8 @@ url = os.environ.get("EP_REPORT_URL", "https://ep-reports.clahen86.workers.dev")
 key = os.environ.get("EP_EXPORT_KEY", "")
 out, since = sys.argv[1], (sys.argv[2] if len(sys.argv) > 2 else "2000-01-01")
 rows, offset = [], 0
+if not key and os.environ.get("GITHUB_ACTIONS"):
+    sys.exit("EP_EXPORT_KEY is missing - set it under Settings > Secrets and variables > Actions")
 if key:
     while offset is not None:
         req = urllib.request.Request(f"{url}/export?key={key}&since={since}&offset={offset}", headers={"user-agent": "energy-pilot-training"})
