@@ -65,6 +65,19 @@ Home Assistant address and a long-lived access token, and open `http://<host>:80
 - **Says why** – "For tomorrow 17–21 at up to 3.30 · now 2.15" when it holds the battery (with the efficiency it counts
   with), and "Storing the sun: worth up to 0.27 today 16–19 · selling now 0.19" when it keeps the sun instead of selling it.
 - **Learns the battery** – its real usable capacity, efficiency and how it slows down near full.
+- **Plans for an unsure sun** – when the forecast's poor day is far below what it expects (Solcast), it counts on a
+  little less sun, so a cloudier day doesn't leave the battery short.
+- **Charges gently** – when hours cost about the same, it spreads the charge at a calm power instead of full power in one.
+- **Knows when nobody's home** – everyone away for a day (the people in Home Assistant): it plans for the house's
+  standby use until someone is back.
+- **A cold battery charges slower** – learned from its own temperature, and shown as a curve under *Plan*.
+- **Keeps room for the sun** – it finds a limit on selling by itself and doesn't fill the battery with bought power
+  before a sunny day the sun would otherwise be lost on.
+- **Your own hours** – tap an hour in the plan and choose *Charge here*, *Sell here* or *Keep the power*. The plan
+  plans the rest around it; *Automatic* gives the hour back.
+- **Octopus Power Down sessions** (UK) are joined by themselves, and the battery keeps power for them.
+
+<p align="center"><img src="docs/hours_en.png" width="380" alt="Your own hours in the plan"> <img src="docs/curve_en.png" width="380" alt="The battery's charging curve"></p>
 - **Never half a command** – if a control is missing, it doesn't control and tells you what's missing.
 - **Keeps its settings in place** – and tells you if Predbat or an automation keeps changing the battery too.
 - **How long the battery lasts** – "until 06:40" without the grid, worked out hour by hour from your house's expected
@@ -93,6 +106,9 @@ Home Assistant address and a long-lived access token, and open `http://<host>:80
 - **The car's own battery %** from its integration (Tesla, Kia/Hyundai, VW group, BMW, Polestar, Volvo …).
 - **"100 % for the next trip"** – turns itself off when the car leaves.
 - **Never counted twice** – if your house sensor includes the car, it takes it out.
+- **The house battery and the car** – the car's charging is part of the battery plan: the battery only helps the car
+  with power the house won't need before the sun or cheap power fills it again, and never on a dear evening. If the
+  battery may not charge from the grid, a charger that can be turned down gives the battery the sun first.
 
 ### 🔌 Runs cheaply
 Small batteries and machines on the sun or in the cheapest hours – **after** the house battery and the car.
@@ -104,8 +120,20 @@ Small batteries and machines on the sun or in the cheapest hours – **after** t
 - **One choice:** *Sun, else cheap*, *Sun only* or *Cheapest time* – plus an optional "done by".
 - **Learns** how much and how long each thing takes, and **finds them by itself** – never phones, lights or the car.
 - Only the sun that would otherwise be sold, and always within the main fuse.
+- **Water heater** on a switch: found by itself, stays on and only rests in up to 4 dear hours a day – the water
+  stays hot. Turn it on yourself and it stays on.
 
 <p align="center"><img src="docs/things_en.png" width="640" alt="Runs cheaply"></p>
+
+### 💡 What if, and which electricity deal
+- **What if** – what a bigger battery, more panels or no battery would have meant, worked out on your own last 30 days
+  with the same plan.
+- **Electricity deals** – which deal would have been cheapest for *your* use, each with its own battery plan:
+  every private deal in Denmark (elpris.dk), Octopus in the UK, every retailer at your postcode in Australia, Italy's
+  open offers and your US utility's tariffs. Elsewhere: hourly price against fixed. Pick your own deal (under
+  *Settings → Electricity price*) to see what you'd save. Hide it with ✕.
+
+<p align="center"><img src="docs/deals_en.png" width="380" alt="What if and electricity deals"></p>
 
 ### 🧠 It learns your home
 
@@ -197,7 +225,7 @@ Everything goes through the device's own Home Assistant integration.<br>
 | | |
 |---|---|
 | **Inverter / battery** | ✅ Growatt SPH (SPA) · ✅ Victron (ESS) · ✅ Deye (Solarman) · ✅ GoodWe (ET/EH/BT/BH) · ✅ Alpha ESS · 🧪 GoodWe EMS · 🧪 Deye (ESPHome) · 🧪 Growatt MIN/MOD TL-XH · 🧪 Growatt (cloud) · 🧪 Sofar (Solarman or SolaX Modbus) · 🧪 Sigenergy · 🧪 Tesla Powerwall · 🧪 Enphase IQ Battery · 🧪 EcoFlow PowerStream · 🧪 Megarevo · 🧪 Huawei SUN2000/LUNA2000 · 🧪 SolaX · 🧪 Sungrow · 🧪 SolarEdge · 🧪 Fox ESS · 🧪 GivEnergy · 🧪 Solis · any other with a guide: search its controls and pick an option with one tap |
-| **EV charger** | ✅ KEBA · 🧪 Easee · 🧪 Zaptec · 🧪 go-e · 🧪 Wallbox · 🧪 Peblar · 🧪 OCPP · 🧪 Alfen · 🧪 Ohme · 🧪 myenergi zappi · 🧪 evcc · any with a switch and a current setting |
+| **EV charger** | ✅ KEBA · 🧪 Easee · 🧪 Zaptec · 🧪 go-e · 🧪 Wallbox · 🧪 Peblar · 🧪 OCPP · 🧪 Alfen · 🧪 Ohme · 🧪 myenergi zappi · 🧪 Hypervolt · 🧪 evcc · any with a switch and a current setting |
 | **Prices** | ✅ Strømligning · ✅ built-in spot prices · ✅ Octopus Energy (Intelligent Go, Agile Outgoing) · 🧪 Octopus Agile import · 🧪 Nord Pool · 🧪 Tibber · 🧪 Energi Data Service · 🧪 ENTSO-E · 🧪 Amber · 🧪 EDF Tempo · 🧪 EnergyZero · 🧪 easyEnergy · 🧪 Frank Energie · 🧪 Zonneplan · tariff plans |
 
 **Alpha ESS:** in the AlphaESS app, add one short charge and one short discharge period (e.g. 00:00–00:15) on all weekdays and turn on time-based control. Its integration can only change periods that already exist – Energy Pilot then takes them over and sets the times itself.

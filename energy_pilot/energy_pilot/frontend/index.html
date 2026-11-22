@@ -146,6 +146,8 @@
   .wrow:last-of-type { border-bottom:0; }
   .wrow b.good { color:var(--ok); }
   .wrow small { font-size:12px; font-weight:400; }
+  .wrow small a, .tarhead a { color:var(--accent); text-decoration:none; }
+  .tarhead { margin:10px 0 4px; color:var(--ok); font-weight:600; font-size:14px; }
   .cleg-row { display:flex; flex-wrap:wrap; gap:12px; margin-top:4px; font-size:12px; color:var(--muted); }
   .cleg { display:inline-flex; align-items:center; gap:6px; }
   .cleg i { display:inline-block; width:18px; }
@@ -668,6 +670,7 @@ const kw = (w) => w == null ? "–" : Math.abs(w) >= 1000 ? `${num(Math.abs(w) /
 const CUR = () => (data && data.currency) || "DKK";
 const SYM = () => ({ DKK: "kr", SEK: "kr", NOK: "kr", EUR: "€", GBP: "£", CHF: "CHF", PLN: "zł", CZK: "Kč", HUF: "Ft" }[CUR()] || CUR());
 const kr = (v) => v == null ? "–" : ["€", "£"].includes(SYM()) ? `${SYM()}${num(v, 2)}` : `${num(v, 2)} ${SYM()}`;
+const krR = (v) => v == null ? "–" : ["€", "£"].includes(SYM()) ? `${SYM()}${num(Math.round(v), 0)}` : `${num(Math.round(v), 0)} ${SYM()}`;  // whole money: a month's cost
 const api = (p, body) => fetch(p.replace(/^\//, ""), body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}).then((r) => r.json());
 const clock = (iso) => { const d = new Date(iso); return `${String(d.getHours()).padStart(2, "0")}:00`; };
 
@@ -1509,9 +1512,9 @@ function tariffCard() {
   if (t.mode === "flat") {
     const d = t.fixed - t.hourly;
     return `<div class="card fade"><div class="eyebrow"><span>${k.flatT}</span>${hide}</div>
-      <div class="wrow"><span>${k.hourly}</span><b>${kr(t.hourly)}${k.month}</b></div>
-      <div class="wrow"><span>${k.fixed.replace("{p}", kr(t.flat_price))}</span><b>${kr(t.fixed)}${k.month}</b></div>
-      <p class="save" style="margin-top:8px;color:${d >= 0 ? "var(--ok)" : "var(--muted)"}">${(d >= 0 ? k.hourlyWins : k.fixedWins).replace("{d}", kr(Math.abs(d)))}</p>
+      <div class="wrow"><span>${k.hourly}</span><b>${krR(t.hourly)}${k.month}</b></div>
+      <div class="wrow"><span>${k.fixed.replace("{p}", kr(t.flat_price))}</span><b>${krR(t.fixed)}${k.month}</b></div>
+      <p class="tarhead" style="color:${d >= 0 ? "var(--ok)" : "var(--muted)"}">${(d >= 0 ? k.hourlyWins : k.fixedWins).replace("{d}", krR(Math.abs(d)))}</p>
       <div class="muted" style="margin-top:6px;font-size:12px">${esc(k.flatHint.replace("{n}", t.days))}</div></div>`;
   }
   const pickBtn = (cur) => tarChoices ? `<select class="tarsel" data-tarpick="1"><option value="">${k.choose}</option>${tarChoices.map((c) =>
@@ -1525,12 +1528,12 @@ function tariffCard() {
       <div style="margin-top:8px">${pickBtn(t.current)}</div></div>`;
   }
   const cur = t.current, top = t.best[0], pre = (t.best[0]?.id || "").split(":")[0], uk = ["dk", "au", "it", "us"].includes(pre) ? pre : "uk";
-  const deal = (x) => `<div class="wrow"><span>${esc(x.name)}<br><small class="muted">${esc(x.supplier)}${x.url ? ` · <a href="${esc(x.url)}" target="_blank" rel="noopener">${k.see}</a>` : ""}</small></span><b>${kr(x.cost)}${k.month}</b></div>`;
-  const head = cur ? (top.id === cur.id ? `<p class="save">${k.already}</p>`
-    : `<p class="save">${k.best}: ${esc(top.name)} – ${k.save.replace("{d}", kr(cur.cost - top.cost))}</p>`) : "";
+  const deal = (x) => `<div class="wrow"><span>${esc(x.name)}<br><small class="muted">${esc(x.supplier)}${x.url ? ` · <a href="${esc(x.url)}" target="_blank" rel="noopener">${k.see}</a>` : ""}</small></span><b>${krR(x.cost)}${k.month}</b></div>`;
+  const head = cur ? (top.id === cur.id ? `<p class="tarhead">${k.already}</p>`
+    : `<p class="tarhead">${k.best}: <b>${esc(top.name)}</b> – ${k.save.replace("{d}", krR(cur.cost - top.cost))}</p>`) : "";
   const pick = pickBtn(cur);
   return `<div class="card fade"><div class="eyebrow"><span>${k.title}</span>${hide}</div>
-    ${cur ? `<div class="wrow"><span><b>${k.yours}</b><br><small class="muted">${esc(cur.supplier)} – ${esc(cur.name)}</small></span><b>${kr(cur.cost)}${k.month}</b></div>` : ""}
+    ${cur ? `<div class="wrow"><span><b>${k.yours}</b><br><small class="muted">${esc(cur.supplier)} – ${esc(cur.name)}</small></span><b>${krR(cur.cost)}${k.month}</b></div>` : ""}
     ${head}${t.best.filter((x) => !cur || x.id !== cur.id).map(deal).join("")}
     <div style="margin-top:8px">${pick}</div>
     <div class="muted" style="margin-top:8px;font-size:12px">${esc(k.hint.replace("{n}", t.days).replace("{src}", k.src[uk]))} · ${esc(k.of.replace("{n}", t.count))}</div></div>`;
@@ -1544,7 +1547,7 @@ function wireTariffs() {
 function whatIfCard() {
   const w = data.whatif, k = T_WHATIF[L] || T_WHATIF.en;
   if (!w || !data.flow?.has?.battery) return "";
-  const diff = (v) => { const d = w.now - v; return Math.abs(d) < 5 ? k.same : (d > 0 ? k.less : k.more).replace("{d}", kr(Math.abs(d))); };
+  const diff = (v) => { const d = w.now - v; return Math.abs(d) < 5 ? k.same : (d > 0 ? k.less : k.more).replace("{d}", krR(Math.abs(d))); };
   const line = (label, v, good) => `<div class="wrow"><span>${esc(label)}</span><b class="${good ? "good" : ""}">${esc(diff(v))}</b></div>`;
   return `<div class="card fade"><div class="eyebrow"><span>${k.title}</span></div>
     ${line(k.bigger.replace("{x}", num(w.more_kwh, 0)), w.bigger, true)}
@@ -1799,7 +1802,7 @@ function curveCard(c) {
   return `<div class="eyebrow" style="margin:16px 0 6px"><span>${k.title}</span></div>
     <svg viewBox="0 0 300 118" width="100%" role="img" aria-label="${esc(k.title)}" style="display:block">
       <line x1="34" y1="96" x2="290" y2="96" stroke="var(--faint)"/><line x1="34" y1="14" x2="34" y2="96" stroke="var(--faint)"/>
-      ${[0, 50, 100].map((l) => `<text x="${X(l)}" y="110" font-size="9" fill="var(--muted)" text-anchor="middle">${l} %</text>`).join("")}
+      ${[0, 50, 100].map((l) => `<text x="${X(l)}" y="110" font-size="9" fill="var(--muted)" text-anchor="${l === 100 ? "end" : l ? "middle" : "start"}">${l} %</text>`).join("")}
       ${[0, 50, 100].map((v) => `<text x="29" y="${Y(v / 100) + 3}" font-size="9" fill="var(--muted)" text-anchor="end">${v} %</text>`).join("")}
       ${c.cool < 1 ? line(c.cool, "var(--grid)", true) : ""}${c.cold < 1 ? line(c.cold, "var(--batt)", true) : ""}${line(1, "var(--ok)", false)}
     </svg>

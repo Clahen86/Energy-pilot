@@ -62,6 +62,19 @@ Home Assistant-adresse og et langtidsadgangstoken, og åbn `http://<vært>:8099`
 - **Mål for batteriet** – "mindst 80 % kl. 7", hver dag.
 - **Regner sliddet med** – finder batteritypen (LFP, NMC, natrium, bly) og bruger aldrig batteriet for få øres gevinst.
 - **Lærer batteriet at kende** – den rigtige brugbare kapacitet, virkningsgraden og hvordan det lader langsommere tæt på fuldt.
+- **Regner med usikker sol** – når prognosens dårlige dag ligger langt under det forventede (Solcast), regner den med
+  lidt mindre sol, så en mere overskyet dag ikke efterlader batteriet for tomt.
+- **Lader skånsomt** – når timerne koster næsten det samme, fordeler den opladningen roligt i stedet for fuld kraft i én.
+- **Ved når ingen er hjemme** – alle væk i et døgn (personerne i Home Assistant): den regner med husets standby-forbrug,
+  til nogen kommer hjem.
+- **Et koldt batteri lader langsommere** – lært af dets egen temperatur og vist som en kurve under *Plan*.
+- **Holder plads til solen** – den finder selv en grænse for salg og fylder ikke batteriet med købt strøm før en solrig
+  dag, hvor solen ellers ville gå tabt.
+- **Dine egne timer** – tryk på en time i planen og vælg *Lad her*, *Sælg her* eller *Gem strømmen*. Planen planlægger
+  resten omkring den; *Automatisk* giver timen tilbage.
+- **Octopus Power Down-sessioner** (UK) meldes til af sig selv, og batteriet gemmer strøm til dem.
+
+<p align="center"><img src="docs/hours_da.png" width="380" alt="Dine egne timer i planen"> <img src="docs/curve_da.png" width="380" alt="Batteriets ladekurve"></p>
 - **Aldrig en halv kommando** – mangler en kontrol, styrer den ikke og siger, hvad der mangler.
 - **Holder sine indstillinger på plads** – og siger til, hvis Predbat eller en automation også ændrer batteriet.
 - **Hvor længe batteriet rækker** – "til kl. 06:40" uden strøm fra nettet, regnet time for time ud fra husets forventede
@@ -91,6 +104,9 @@ Home Assistant-adresse og et langtidsadgangstoken, og åbn `http://<vært>:8099`
 - **Bilens eget batteri i %** fra bilens integration (Tesla, Kia/Hyundai, VW-gruppen, BMW, Polestar, Volvo …).
 - **"100 % til næste tur"** – slår selv fra, når bilen kører.
 - **Tælles aldrig to gange** – er bilen med i husets sensor, trækker den bilen fra.
+- **Husbatteriet og bilen** – bilens opladning er en del af batteriplanen: batteriet hjælper kun bilen med strøm, huset
+  ikke får brug for, før solen eller billig strøm fylder det igen – aldrig en dyr aften. Må batteriet ikke lade fra
+  nettet, giver en lader, der kan skrues ned, batteriet solen først.
 
 ### 🔌 Kører billigt
 Små batterier og maskiner på sol eller i de billigste timer – **efter** husbatteriet og bilen.
@@ -102,8 +118,20 @@ Små batterier og maskiner på sol eller i de billigste timer – **efter** husb
 - **Ét valg:** *Sol, ellers billigt*, *Kun sol* eller *Billigste tid* – og et "færdig senest", hvis du vil.
 - **Lærer** hvor meget og hvor længe hver ting tager, og **finder dem selv** – aldrig telefoner, lys eller bilen.
 - Kun den sol, der ellers ville blive solgt, og altid inden for hovedsikringen.
+- **Varmtvandsbeholder** på en kontakt: findes af sig selv, står tændt og holder kun pause i op til 4 dyre timer om
+  dagen – vandet er altid varmt. Tænder du den selv, bliver den tændt.
 
 <p align="center"><img src="docs/things_da.png" width="640" alt="Kører billigt"></p>
+
+### 💡 Hvad hvis – og hvilken elaftale
+- **Hvad hvis** – hvad et større batteri, flere paneler eller intet batteri ville have betydet, regnet på dine egne
+  sidste 30 dage med den samme plan.
+- **Elaftaler** – hvilken aftale der ville have været billigst for *dit* forbrug, hver med sin egen batteriplan: alle
+  private aftaler i Danmark (elpris.dk), Octopus i UK, alle elselskaber ved dit postnummer i Australien, Italiens
+  åbne tilbud og dit forsyningsselskabs takster i USA. Andre steder: timepris mod fast pris. Vælg din egen aftale
+  (under *Indstillinger → Elpris*) for at se, hvad du kan spare. Skjul den med ✕.
+
+<p align="center"><img src="docs/deals_da.png" width="380" alt="Hvad hvis og elaftaler"></p>
 
 ### 🧠 Den lærer dit hjem
 
@@ -190,7 +218,7 @@ Alt går gennem enhedens egen Home Assistant-integration.<br>
 | | |
 |---|---|
 | **Inverter / batteri** | ✅ Growatt SPH (SPA) · ✅ Victron (ESS) · ✅ Deye (Solarman) · ✅ GoodWe (ET/EH/BT/BH) · ✅ Alpha ESS · 🧪 GoodWe EMS · 🧪 Deye (ESPHome) · 🧪 Growatt MIN/MOD TL-XH · 🧪 Growatt (cloud) · 🧪 Sofar · 🧪 Sigenergy · 🧪 Tesla Powerwall · 🧪 Enphase IQ Battery · 🧪 EcoFlow PowerStream · 🧪 Megarevo · 🧪 Huawei · 🧪 SolaX · 🧪 Sungrow · 🧪 SolarEdge · 🧪 Fox ESS · 🧪 GivEnergy · 🧪 Solis · alle andre ved at vælge kontrollerne selv |
-| **Elbil-lader** | ✅ KEBA · 🧪 Easee · 🧪 Zaptec · 🧪 go-e · 🧪 Wallbox · 🧪 Peblar · 🧪 OCPP · 🧪 Alfen · 🧪 Ohme · 🧪 myenergi zappi · alle med en kontakt og en strømindstilling |
+| **Elbil-lader** | ✅ KEBA · 🧪 Easee · 🧪 Zaptec · 🧪 go-e · 🧪 Wallbox · 🧪 Peblar · 🧪 OCPP · 🧪 Alfen · 🧪 Ohme · 🧪 myenergi zappi · 🧪 Hypervolt · alle med en kontakt og en strømindstilling |
 | **Priser** | ✅ Strømligning · ✅ indbyggede spotpriser · ✅ Octopus · 🧪 Nord Pool · 🧪 Tibber · 🧪 Energi Data Service · 🧪 ENTSO-E · 🧪 Amber · 🧪 EDF Tempo · 🧪 EnergyZero · 🧪 easyEnergy · 🧪 Frank Energie · 🧪 Zonneplan · tarifplaner |
 
 **Alpha ESS:** Opret i AlphaESS-appen én kort lade- og én kort afladeperiode (fx 00:00–00:15) på alle ugedage, og slå tidsstyring til. Integrationen kan kun ændre perioder, der allerede findes – Energipilot overtager dem og sætter selv tiderne.
