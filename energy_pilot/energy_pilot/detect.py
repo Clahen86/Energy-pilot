@@ -53,6 +53,31 @@ CAR_BRANDS = re.compile(r"\b(tesla|volkswagen|vw|audi|skoda|škoda|seat|cupra|po
                         r"nissan|polestar|volvo|ford|toyota|lexus|peugeot|citro[eë]n|opel|vauxhall|ds automobiles|fiat|jeep|saic motor|"
                         r"byd|zeekr|xpeng|rivian|lucid|jaguar|land rover|honda|mazda|subaru|genesis|lynk)\b", re.I)
 # Another appliance's power is not the car charger's (a user's "aircon power" was taken for it).
+# Small things with a battery of their own - never the house battery (found in users' setups: a door lock, a tablet).
+GADGET_NAMES = re.compile(r"lock|door|d(?:ø|oe|o)r_|tablet|ipad|kindle|fire_\d|phone|iphone|pixel|galaxy|watch|remote|"
+                          r"button|motion|smoke|thermostat|trv|doorbell|camera|keypad|vacuum|mower|toothbrush|scale|tracker|"
+                          r"airtag|earbud|headphone|mouse|keyboard|sensor_battery", re.I)
+POWER_UNITS = ("W", "kW", "MW")
+POWER_ROLES = ("battery_power", "pv_power", "grid_power", "house_power", "ev_power")
+ENERGY_OR_POWER = ("W", "kW", "MW", "Wh", "kWh", "MWh")
+
+
+def fits_role(role: str, entity_id: str, a: dict, platform: str | None) -> bool:
+    """Can this entity be this role at all? A power role needs a power unit, a price can't be a power or an energy,
+    the house battery is no gadget's battery and the car's power no solar sensor."""
+    unit = str(a.get("unit_of_measurement") or "")
+    text = f"{entity_id} {a.get('friendly_name') or ''}"
+    if role in POWER_ROLES and unit and unit not in POWER_UNITS:
+        return False  # "opladningsenergi" in kWh is an energy, not the charger's power
+    if role in ("price", "sell_price") and unit in ENERGY_OR_POWER:
+        return False  # "grid_power_export" in W is no feed-in price
+    if role in ("battery_soc", "battery_power") and (platform in NOT_HOME_BATTERY or GADGET_NAMES.search(text)):
+        return False
+    if role == "ev_power" and platform not in CHARGERS and re.search(r"solar|photovolt|inverter|(^|_)pv(_|$|\d)|_scb_", text, re.I):
+        return False  # Kostal's solar power ("scb") was taken for the car charger's
+    return True
+
+
 NOT_EV_POWER = re.compile(r"air_?con|klima|heat_?pump|varmepumpe|warmtepomp|w(?:ä|ae)rmepumpe|dryer|t(?:ø|oe)rretumbler|washer|"
                           r"washing|vaskemaskine|dishwasher|opvask|\boven\b|fridge|freezer|fryser|k(?:ø|oe)leskab|boiler|pool|sauna|"
                           r"dehumid|affugter", re.I)
@@ -161,6 +186,8 @@ async def detect(ha: Any, shared: dict[str, Any] | None = None) -> dict[str, dic
     def put(role: str, entity_id: str | None, source: str) -> None:
         if role in ("battery_soc", "battery_power") and entity_id and on_car(entity_id):
             return  # a car's battery is not the house battery
+        if entity_id and not fits_role(role, entity_id, attrs(entity_id), (by_id.get(entity_id) or {}).get("platform")):
+            return  # a door lock's battery, a solar sensor for the car, a power sensor as the price ...
         if role == "ev_power" and entity_id and (by_id.get(entity_id) or {}).get("platform") not in CHARGERS and \
                 NOT_EV_POWER.search(f"{entity_id} {attrs(entity_id).get('friendly_name', '')}"):
             return

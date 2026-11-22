@@ -2,6 +2,15 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.103.0 – 2026-11-22
+
+Learned from what users' setups look like:
+- Controls are also found by the integration's own key, so entity names in Swedish, Italian or any language work (a Swedish Wallbox wouldn't start)
+- Sungrow with mkaiser's Modbus package: its battery controls have no device and were never found - now they are
+- New profiles (being tested): Sungrow (sungrow-hass), myenergi libbi, Marstek Venus, Luxpower (lxp_modbus), E3DC
+- Finding your setup: a door lock's or a tablet's battery is never taken for the house battery, a solar sensor (Kostal) or an energy sensor (kWh) never for the car charger's power, and a power sensor never for the feed-in price
+- A battery integration that can only read says so - with the one that can control it (Powerwall → Teslemetry, Solis cloud → Solis Modbus, GoodWe SEMS → GoodWe local) - and a battery another system already runs (Zendure with omnibattery) is left to it
+
 ## 0.102.3 – 2026-11-22
 
 - What if and Electricity deals: amounts in whole money ("61 kr" instead of "61,00 kr"), the cheapest deal stands out, and the deal links are easier to see

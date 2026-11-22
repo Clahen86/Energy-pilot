@@ -66,6 +66,12 @@ class ExportCap:
         return round(top / 1000, 2) if sum(1 for v in vals if v >= top * 0.97) >= 4 else None
 
 
+# Battery integrations that can only read (or where another system already runs the battery): the integration that
+# can control it instead, and which message.
+READ_ONLY = {"powerwall": ("Teslemetry", "readonly"), "solis": ("Solis Modbus", "readonly"), "sems": ("GoodWe (local)", "readonly"),
+             "hanchuess": (None, "readonly"), "omnibattery": (None, "other_ems")}
+
+
 # The most common main fuse for a house, by country: (kW, as people know it). Only where one size is common.
 USUAL_FUSE = {"DK": (17, "3 × 25 A"), "SE": (17, "3 × 25 A"), "FI": (17, "3 × 25 A"), "DE": (24, "3 × 35 A"),
               "AT": (24, "3 × 35 A"), "NL": (17, "3 × 25 A"), "GB": (23, "100 A"), "IE": (14, "63 A")}
@@ -147,6 +153,13 @@ def run(engine: Any, hours: list, b: Any, plan: Any, end_value: float) -> list[d
     reg = {r.get("entity_id"): r for r in getattr(getattr(engine.ov, "controller", None), "registry", None) or []}
     if (se := engine.ov.role("battery_soc")) and (reg.get(se) or {}).get("platform") in NOT_HOME_BATTERY:
         out.append({"key": "soc_not_house", "level": "warn", "vals": {"e": name(se)}, "goto": "roles"})
+    # 3e. The battery comes from an integration that can only read it (found in users' setups): said plainly, with the
+    #     integration that can control it - or, for a battery another system already runs, that one controls it.
+    plat = (reg.get(se) or {}).get("platform") if se else None
+    if plat in READ_ONLY:
+        alt, why = READ_ONLY[plat]
+        key = "battery_" + why + ("_alt" if alt else "")
+        out.append({"key": key, "level": "info", "vals": {"i": plat, **({"alt": alt} if alt else {})}, "goto": "battery"})
 
     # 3c. Victron's persistent ESS limit "Max inverter power" (/Settings/CGwacs/MaxDischargePower) at 0: the battery can't
     #     discharge whatever Energy Pilot allows through the Hub4 override. Told, never changed.

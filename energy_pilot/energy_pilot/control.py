@@ -53,6 +53,10 @@ def steady(prev: dict | None, want: dict) -> dict:
     return {**want, "ctx": new}
 
 
+YAML_CONTROLS = re.compile(r"^(select\.(ems_mode|battery_forced_charge_discharge)|number\.battery_(forced_charge_discharge_power|"
+                           r"max_charge_power|max_discharge_power|min_soc|max_soc))$")
+
+
 class Controller:
     def __init__(self, ha: Any, overview: Any, engine: Any) -> None:
         self.ha, self.ov, self.engine = ha, overview, engine
@@ -154,6 +158,8 @@ class Controller:
             return
         by_id = {e["entity_id"]: e for e in entities}
         self._ent_reg = by_id  # (the setup for the developer: setupinfo.py)
+        # Entity ids in the user's language: the integration's own key as a second name the profiles match too.
+        adapters.ALIASES = {e["entity_id"]: a for e in entities if (a := adapters.alias_for(e["entity_id"], e.get("translation_key")))}
         self.phones = {e["entity_id"] for e in entities if e.get("platform") == "mobile_app"}  # phones and tablets
         try:
             devices = {d["id"]: d for d in await self.ha.command({"type": "config/device_registry/list"})}
@@ -192,6 +198,11 @@ class Controller:
             if not found and anchor and part == "battery":  # MQTT inverters: same name prefix (never for a charger)
                 prefix = anchor.split(".", 1)[1].split("_")[0]
                 found = [e for e in self.ha.states if e.split(".")[0] in ("select", "number", "switch") and e.split(".", 1)[1].startswith(prefix + "_")]
+            if part == "battery" and (not dev or plat in ("modbus", "template")):
+                # mkaiser's Sungrow package (and YAML inverters like it): its battery controls are template selects
+                # and numbers without a device - picked up by their fixed names.
+                found += [e["entity_id"] for e in entities if not e.get("disabled_by") and e["entity_id"] not in found
+                          and YAML_CONTROLS.match(e["entity_id"])]
             self.entities[part], self.platforms[part] = sorted(found), plat
             if part == "car":
                 self.car_device = dev  # Easee's actions want the charger's device
@@ -338,7 +349,7 @@ class Controller:
         if prof.get("anywhere"):
             pats = [st[0] for i in ("normal", "hold", "charge", "export") for st in prof.get(i, []) if isinstance(st[0], str)]
             extra = [e for e in self.ha.states if e not in own and e.split(".")[0] in ("select", "number", "switch", "button")
-                     and any(re.search(p, e) for p in pats)]
+                     and any(adapters.hit(p, e) for p in pats)]
             return own + sorted(extra)
         return own
 

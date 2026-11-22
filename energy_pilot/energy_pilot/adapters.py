@@ -318,7 +318,8 @@ PROFILES: dict[str, dict[str, Any]] = {
     },
     "sungrow": {
         "name": "Sungrow (Modbus)",
-        "match": r"sungrow|sh\d+rt",
+        # mkaiser's YAML package: template selects/numbers without a device - picked up by name (control.discover).
+        "match": r"sungrow|sh\d+rt|ems_mode",
         "normal": [(r"select\..*ems_mode.*$", "select", "Self-consumption mode (default)"),
                    (r"number\..*battery_max_discharge_power$", "number", "{max_power_w}"),
                    (r"number\..*battery_max_charge_power$", "number", "{max_charge_w}")],
@@ -330,6 +331,70 @@ PROFILES: dict[str, dict[str, Any]] = {
                    (r"number\..*forced_charge_discharge_power.*$", "number", "{power_w}"),
                    (r"select\..*battery_forced_charge_discharge.*$", "select", "Forced discharge")],
         "optional": [r"number\..*battery_max_discharge_power$", r"number\..*battery_max_charge_power$"],
+    },
+    # KRoperUK/sungrow-hass (domain "sungrow", iSolarCloud or local): the battery mode select only shows once the
+    # integration has seen a battery. Its "Stop" is self-consumption - no real hold, so hold is a forced charge at 0 W.
+    "sungrow_hass": {
+        "name": "Sungrow (sungrow-hass)",
+        "match": r"battery_mode|forced_dispatch_duration",
+        "normal": [(r"select\..*battery_mode$", "select", "re:self.?consumption")],
+        "hold": [(r"number\..*charge_discharge_power$", "number", "0"), (r"number\..*forced_dispatch_duration$", "number", "30"),
+                 (r"select\..*battery_mode$", "select", "re:force.?charge")],
+        "charge": [(r"number\..*charge_discharge_power$", "number", "{power_w}"), (r"number\..*forced_dispatch_duration$", "number", "30"),
+                   (r"select\..*battery_mode$", "select", "re:force.?charge")],
+        "export": [(r"number\..*charge_discharge_power$", "number", "{power_w}"), (r"number\..*forced_dispatch_duration$", "number", "30"),
+                   (r"select\..*battery_mode$", "select", "re:force.?discharge")],
+        "optional": [r"number\..*forced_dispatch_duration$"],
+    },
+    # myenergi libbi (CJNE/ha-myenergi): Normal / Stopped / Export; grid charging by the app's switch up to a target.
+    "myenergi_libbi": {
+        "name": "myenergi libbi",
+        "match": r"libbi",
+        "normal": [(r"switch\..*libbi.*charge_from_grid$", "off", None), (r"select\..*libbi.*operating_mode$", "select", "Normal")],
+        "hold": [(r"switch\..*libbi.*charge_from_grid$", "off", None), (r"select\..*libbi.*operating_mode$", "select", "Stopped")],
+        "charge": [(r"number\..*libbi.*charge_target$", "number", "{target}"), (r"switch\..*libbi.*charge_from_grid$", "on", None),
+                   (r"select\..*libbi.*operating_mode$", "select", "Normal")],
+        "export": [(r"switch\..*libbi.*charge_from_grid$", "off", None), (r"select\..*libbi.*operating_mode$", "select", "Export")],
+        "optional": [r"number\..*libbi.*charge_target$"],
+    },
+    # Marstek Venus (ffunes/Marstek-Venus-Energy-Manager): its own loop off (manual mode), RS485 control on, then the
+    # force mode ("None"/"stop", "Charge"/"charge" by version) with a power. Normal gives the battery back to it.
+    "marstek_venus": {
+        "name": "Marstek Venus",
+        "match": r"marstek|rs485_control_mode|force_mode",
+        "normal": [(r"select\..*force_mode$", "select", "re:^(none|stop)$"), (r"switch\..*rs485_control_mode$", "off", None),
+                   (r"switch\..*manual_mode$", "off", None)],
+        "hold": [(r"switch\..*manual_mode$", "on", None), (r"switch\..*rs485_control_mode$", "on", None),
+                 (r"select\..*force_mode$", "select", "re:^(none|stop)$")],
+        "charge": [(r"switch\..*manual_mode$", "on", None), (r"switch\..*rs485_control_mode$", "on", None),
+                   (r"number\..*set_charge_power$", "number", "{power_w}"), (r"select\..*force_mode$", "select", "re:^charge$")],
+        "export": [(r"switch\..*manual_mode$", "on", None), (r"switch\..*rs485_control_mode$", "on", None),
+                   (r"number\..*set_discharge_power$", "number", "{power_w}"), (r"select\..*force_mode$", "select", "re:^discharge$")],
+        "optional": [r"switch\..*manual_mode$"],
+    },
+    # Luxpower (ant0nkr/luxpower-ha-integration, lxp_modbus): AC charging to an end level; hold = the on-grid cut-off at
+    # the level now; selling = forced discharge. Its time windows are the user's (set them to the whole day).
+    "luxpower": {
+        "name": "Luxpower (lxp_modbus)",
+        "match": r"lxp|luxpower|ac_charge_end_soc|forced_discharge",
+        "normal": [(r"switch\..*ac_charging$", "off", None), (r"switch\..*forced_discharge$", "off", None),
+                   (r"number\..*on_grid_cut_off_soc$", "number", "{min_soc}")],
+        "hold": [(r"switch\..*ac_charging$", "off", None), (r"switch\..*forced_discharge$", "off", None),
+                 (r"number\..*on_grid_cut_off_soc$", "number", "{soc}")],
+        "charge": [(r"switch\..*forced_discharge$", "off", None), (r"number\..*ac_charge_power$", "number", "{rate}"),
+                   (r"number\..*ac_charge_end_soc$", "number", "{target}"), (r"switch\..*ac_charging$", "on", None)],
+        "export": [(r"switch\..*ac_charging$", "off", None), (r"number\..*forced_discharge_power$", "number", "{rate}"),
+                   (r"number\..*forced_discharge_soc_limit$", "number", "{min_soc}"), (r"switch\..*forced_discharge$", "on", None)],
+    },
+    # E3DC (torbennehmer/hacs-e3dc): one action with the mode - 0 normal, 1 idle, 4 charge from the grid, 2 discharge.
+    # The integration repeats it every 10 s until normal is set again.
+    "e3dc_rscp": {
+        "name": "E3DC (RSCP)",
+        "match": r"e3dc",
+        "normal": [("e3dc_rscp.set_power_mode", "service", {"device_id": "{device_id}", "power_mode": "0"})],
+        "hold": [("e3dc_rscp.set_power_mode", "service", {"device_id": "{device_id}", "power_mode": "1"})],
+        "charge": [("e3dc_rscp.set_power_mode", "service", {"device_id": "{device_id}", "power_mode": "4", "power_value": "{power_w}"})],
+        "export": [("e3dc_rscp.set_power_mode", "service", {"device_id": "{device_id}", "power_mode": "2", "power_value": "{power_w}"})],
     },
     "solaredge_modbus_multi": {
         "name": "SolarEdge (Modbus Multi)",
@@ -597,10 +662,25 @@ def fill(value: Any, ctx: dict[str, Any]) -> Any:
     return value
 
 
+# An entity's id is in the user's language ("number.wallbox_maximal_laddningsstrom" in Swedish); the integration's own
+# key for it is not ("maximum_charging_current"). The controller fills this from the entity registry: entity -> a
+# second name built from that key, which the patterns are matched against as well.
+ALIASES: dict[str, str] = {}
+
+
+def alias_for(entity_id: str, translation_key: str | None) -> str | None:
+    return f"{entity_id.split('.')[0]}.tk_{translation_key}" if translation_key else None
+
+
+def hit(pattern: str, entity: str) -> bool:
+    """The pattern matches the entity's id, or its name in the integration's own words (any language)."""
+    return bool(re.search(pattern, entity) or ((a := ALIASES.get(entity)) and re.search(pattern, a)))
+
+
 def _find(pattern: str, entities: list[str]) -> str | None:
     if "." in pattern and not any(c in pattern for c in "\\*^$[(+"):
         return pattern if pattern in entities else None  # an exact entity (custom profiles)
-    return next((e for e in entities if re.search(pattern, e)), None)
+    return next((e for e in entities if re.search(pattern, e)), None) or next((e for e in entities if hit(pattern, e)), None)
 
 
 def check(steps: dict[str, list], entities: list[str], optional: list[str] | None = None,
@@ -672,7 +752,7 @@ def guess_profile(entities: list[str], platforms: set[str], model: str | None = 
         hits = [s for steps in (p["normal"], p["hold"], p["charge"]) for s in steps if s[1] != "service"]
         if not hits:
             return True  # all by services (Alpha ESS): the integration's name is all there is
-        return sum(1 for pat, _k, _v in hits if any(re.search(pat, e) for e in entities)) >= max(1, len(hits) // 2)
+        return sum(1 for pat, _k, _v in hits if any(hit(pat, e) for e in entities)) >= max(1, len(hits) // 2)
 
     for key, p in PROFILES.items():
         # The integration's name only counts when its controls are there too: Solarman serves Deye and Sofar alike.
@@ -680,8 +760,8 @@ def guess_profile(entities: list[str], platforms: set[str], model: str | None = 
             return key
     for key, p in PROFILES.items():
         hits = [s for steps in (p["normal"], p["hold"], p["charge"]) for s in steps if s[1] != "service"]
-        if any(re.search(p["match"], e) for e in entities) and \
-                sum(1 for pat, _k, _v in hits if any(re.search(pat, e) for e in entities)) >= max(1, len(hits) // 2):
+        if any(hit(p["match"], e) for e in entities) and \
+                sum(1 for pat, _k, _v in hits if any(hit(pat, e) for e in entities)) >= max(1, len(hits) // 2):
             return key
     return None
 
@@ -732,11 +812,11 @@ def lowest_amps(entities: list[str], states: dict[str, Any] | None) -> int | Non
     """The charger's lowest current when it only takes fixed steps (a select: 8/10/13/16 A) or has a minimum."""
     for e in entities or []:
         a = ((states or {}).get(e) or {}).get("attributes") or {}
-        if re.search(CHARGER_CURRENT_SELECT, e):
+        if hit(CHARGER_CURRENT_SELECT, e):
             vals = [int(m.group()) for o in a.get("options") or [] if (m := re.search(r"\d+", str(o)))]
             if vals:
                 return min(vals)
-        elif re.search(CHARGER_CURRENT, e) and a.get("min") not in (None, ""):
+        elif hit(CHARGER_CURRENT, e) and a.get("min") not in (None, ""):
             try:
                 return int(float(a["min"]) + 0.999)
             except (TypeError, ValueError):
@@ -747,7 +827,7 @@ def lowest_amps(entities: list[str], states: dict[str, Any] | None) -> int | Non
 def charger_switch(entities: list[str], lone_ok: bool = False) -> str | None:
     """The switch that starts and stops the charger: one named for it - or, on the charger's (or its power meter's)
     own device, its only switch (a Shelly or a smart plug the charger is plugged into)."""
-    named = next((e for e in entities if re.search(CHARGER_SWITCH, e)), None)
+    named = next((e for e in entities if hit(CHARGER_SWITCH, e)), None)
     if named or not lone_ok:
         return named
     switches = [e for e in entities if e.startswith("switch.")]
@@ -762,13 +842,13 @@ def charger_calls(intent: str, entities: list[str], platform: str | None, curren
     if platform in CHARGER_SERVICES:
         return resolve(CHARGER_SERVICES[platform][intent], entities, ctx)
     switch = switch or charger_switch(entities)
-    number = next((e for e in entities if re.search(CHARGER_CURRENT, e)), None)
+    number = next((e for e in entities if hit(CHARGER_CURRENT, e)), None)
     calls = []
-    paused = switch is not None and re.search(r"pause", switch)
+    paused = switch is not None and hit(r"pause", switch)
     if intent == "charge":
         if number:
             calls.append({"domain": "number", "service": "set_value", "data": {"entity_id": number, "value": round(current)}})
-        elif (sel := next((e for e in entities if re.search(CHARGER_CURRENT_SELECT, e)), None)) and states is not None:
+        elif (sel := next((e for e in entities if hit(CHARGER_CURRENT_SELECT, e)), None)) and states is not None:
             opts = ((states.get(sel) or {}).get("attributes") or {}).get("options") or []
             if (opt := _amp_option(opts, current)) is not None:
                 calls.append({"domain": "select", "service": "select_option", "data": {"entity_id": sel, "option": opt}})
