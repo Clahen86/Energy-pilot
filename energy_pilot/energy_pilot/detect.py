@@ -52,6 +52,10 @@ CAR_PLATFORMS = ("tesla", "tesla_custom", "tesla_fleet", "teslemetry", "tessie",
 CAR_BRANDS = re.compile(r"\b(tesla|volkswagen|vw|audi|skoda|škoda|seat|cupra|porsche|bmw|mercedes|kia|hyundai|renault|dacia|"
                         r"nissan|polestar|volvo|ford|toyota|lexus|peugeot|citro[eë]n|opel|vauxhall|ds automobiles|fiat|jeep|saic motor|"
                         r"byd|zeekr|xpeng|rivian|lucid|jaguar|land rover|honda|mazda|subaru|genesis|lynk)\b", re.I)
+# Another appliance's power is not the car charger's (a user's "aircon power" was taken for it).
+NOT_EV_POWER = re.compile(r"air_?con|klima|heat_?pump|varmepumpe|warmtepomp|w(?:ä|ae)rmepumpe|dryer|t(?:ø|oe)rretumbler|washer|"
+                          r"washing|vaskemaskine|dishwasher|opvask|\boven\b|fridge|freezer|fryser|k(?:ø|oe)leskab|boiler|pool|sauna|"
+                          r"dehumid|affugter", re.I)
 EV_SOC_WORDS = re.compile(r"state_of_charge|battery_level|\bsoc\b|_soc$|charge_level|battery_percent|ev_battery|hv_battery|"
                           r"battery_charge|ladestand|ladezustand|niveau_de_charge|batteriniveau|laddniva", re.I)
 EV_SOC_NOT = re.compile(r"12v|12_v|car_battery|aux|auxiliary|lv_battery|low_voltage|starter|key|fob|phone|watch|tyre|tire|fuel|range|"
@@ -127,7 +131,14 @@ async def detect(ha: Any, shared: dict[str, Any] | None = None) -> dict[str, dic
         if e.get("device_id") and not e.get("disabled_by"):
             on_device.setdefault(e["device_id"], []).append(e)
     dev_names = {d["id"]: (d.get("name_by_user") or d.get("name") or "") for d in devices}
+    makers = {d["id"]: f"{d.get('manufacturer') or ''} {d.get('model') or ''}" for d in devices}
     states = ha.states
+
+    def on_car(entity_id: str) -> bool:
+        """On a device a car maker made - a car through MQTT (TeslaMate) or a data service, not only a car integration.
+        Tesla's Powerwall and BYD's Battery-Box are house batteries."""
+        maker = makers.get((by_id.get(entity_id) or {}).get("device_id"), "")
+        return bool(CAR_BRANDS.search(maker)) and not re.search(r"powerwall|energy|gateway|battery.?box|\bhv[sm]\b|\blv[sl]\b", maker, re.I)
 
     def attrs(entity_id: str) -> dict[str, Any]:
         return (states.get(entity_id) or {}).get("attributes") or {}
@@ -148,6 +159,11 @@ async def detect(ha: Any, shared: dict[str, Any] | None = None) -> dict[str, dic
         return best
 
     def put(role: str, entity_id: str | None, source: str) -> None:
+        if role in ("battery_soc", "battery_power") and entity_id and on_car(entity_id):
+            return  # a car's battery is not the house battery
+        if role == "ev_power" and entity_id and (by_id.get(entity_id) or {}).get("platform") not in CHARGERS and \
+                NOT_EV_POWER.search(f"{entity_id} {attrs(entity_id).get('friendly_name', '')}"):
+            return
         if entity_id and role not in found and entity_id in states:
             found[role] = {"entity_id": entity_id, "source": source}
 

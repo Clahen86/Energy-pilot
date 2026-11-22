@@ -104,6 +104,19 @@ def run(engine: Any, hours: list, b: Any, plan: Any, end_value: float) -> list[d
     if pe and pe.split(".")[0] in ("select", "input_select"):
         out.append({"key": "price_text", "level": "warn", "vals": {"e": pe}, "goto": "grid"})
 
+    # 3d. The car charger's power is another appliance's (a user's "aircon power"), or the house battery's level is a
+    #     car's or a phone's (an old version took a HAVAL's) - the plan would be wrong. Told, never changed.
+    from .detect import NOT_EV_POWER, NOT_HOME_BATTERY
+
+    states = getattr(getattr(engine.ov, "ha", None), "states", None) or {}
+    def name(e: str) -> str:
+        return ((states.get(e) or {}).get("attributes") or {}).get("friendly_name") or e
+    if (ee := engine.ov.role("ev_power")) and NOT_EV_POWER.search(f"{ee} {name(ee)}"):
+        out.append({"key": "ev_power_other", "level": "warn", "vals": {"e": name(ee)}, "goto": "roles"})
+    reg = {r.get("entity_id"): r for r in getattr(getattr(engine.ov, "controller", None), "registry", None) or []}
+    if (se := engine.ov.role("battery_soc")) and (reg.get(se) or {}).get("platform") in NOT_HOME_BATTERY:
+        out.append({"key": "soc_not_house", "level": "warn", "vals": {"e": name(se)}, "goto": "roles"})
+
     # 3c. Victron's persistent ESS limit "Max inverter power" (/Settings/CGwacs/MaxDischargePower) at 0: the battery can't
     #     discharge whatever Energy Pilot allows through the Hub4 override. Told, never changed.
     if (e := victron_limit(getattr(getattr(engine.ov, "ha", None), "states", None) or {})):

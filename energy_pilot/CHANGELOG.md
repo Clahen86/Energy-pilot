@@ -2,6 +2,13 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## Unreleased
+
+- Fox ESS (Modbus): selling from the battery could do nothing - the hold step had set the on-grid minimum to the battery's level, and selling didn't put it back. Selling now sets your own minimum first
+- A car's battery is no longer taken for the house battery when the car comes in through MQTT (TeslaMate) or a data service - any device a car maker made. Tesla Powerwall and BYD Battery-Box still count
+- Another appliance's power (an aircon, a heat pump, a dryer …) is no longer taken for the car charger's
+- Settings tell you when the car charger's power looks like another appliance, or when the house battery's level comes from a car or a phone - picked earlier, now pointed out (never changed by itself)
+
 ## 0.101.0 – 2026-11-22
 
 - A better start for new homes: until its own nightly test has run on 5 of its own days, a new home starts from the settings that similar homes found for themselves - only homes with the same inverter brand, country, battery size and car or not, and only when at least three of them agree. Brands are never mixed. From then on the home's own test takes over as before, and homes that already found their own settings are left alone. The panel shows "starting from X similar homes" while it's in use

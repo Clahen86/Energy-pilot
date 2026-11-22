@@ -24,7 +24,9 @@ def test_foxess_hold_keeps_self_use():
 def test_foxess_force_power_in_kw():
     ents = ["select.fox_ess_h1_work_mode", "number.fox_ess_h1_force_discharge_power", "number.fox_ess_h1_force_charge_power",
             "number.fox_ess_h1_min_soc_on_grid"]
-    out = resolve(PROFILES["foxess_modbus"]["export"], ents, {"power_w": 1000, "power_kw": 1.0})
+    out = resolve(PROFILES["foxess_modbus"]["export"], ents, {"power_w": 1000, "power_kw": 1.0, "min_soc": 10})
     assert {"entity_id": "number.fox_ess_h1_force_discharge_power", "value": 1.0} in [c["data"] for c in out]
+    # hold left the on-grid minimum at the level now: selling puts the user's own back first, or the Fox won't discharge
+    assert out[0]["data"] == {"entity_id": "number.fox_ess_h1_min_soc_on_grid", "value": 10}
     out = resolve(PROFILES["foxess_modbus"]["charge"], ents, {"power_w": 2500, "power_kw": 2.5, "target": 90})
     assert {"entity_id": "number.fox_ess_h1_force_charge_power", "value": 2.5} in [c["data"] for c in out]

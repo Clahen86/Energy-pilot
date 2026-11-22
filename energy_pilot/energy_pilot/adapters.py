@@ -363,7 +363,8 @@ PROFILES: dict[str, dict[str, Any]] = {
         "charge": [(r"number\..*force_charge_power$", "number", "{power_kw}"), (r"number\..*force_charge_max_soc$", "number", "{target}"),
                    (r"select\..*work_mode$", "select", "Force Charge")],
         # Selling from the battery (only when the user turns it on): checked in the integration's source.
-        "export": [(r"number\..*force_discharge_power$", "number", "{power_kw}"),
+        # The on-grid minimum back to the user's own first - hold leaves it at the level now, and the Fox won't go below it.
+        "export": [(r"number\..*min_soc_on_grid$", "number", "{min_soc}"), (r"number\..*force_discharge_power$", "number", "{power_kw}"),
                    (r"select\..*work_mode$", "select", "Force Discharge")],
         "optional": [r"number\..*force_charge_power$", r"number\..*force_charge_max_soc$"],
         "source": "integration",
