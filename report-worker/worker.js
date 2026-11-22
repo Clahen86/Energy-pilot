@@ -691,8 +691,11 @@ async function saveSetup(env, app, install, su) {
       .bind(app, install, new Date().toISOString().slice(0, 10), JSON.stringify(cleanSetup(su))).run();
   } catch { /* never in the way of the answers */ }
 }
-async function setupSection(env, ago) {
+async function setupSection(env, ago, only = null, nv = null) {
   const rows = (await env.DB.prepare("SELECT app, install, data FROM setups WHERE day >= ?1").bind(ago(30)).all()).results || [];
+  // Each home's newest version (from its daily call) - shown on each setup, or only that version's homes (&new=1).
+  const verOf = {};
+  for (const r of (await env.DB.prepare("SELECT app, install, version FROM seen WHERE day >= ?1 AND version IS NOT NULL ORDER BY day").bind(ago(30)).all()).results || []) verOf[r.app + "|" + r.install] = r.version;
   const esc = (t) => String(t ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
   const byApp = {};
   for (const r of rows) { const d = safe(r.data); if (d) { d._install = r.install; (byApp[r.app] = byApp[r.app] || []).push(d); } }
@@ -704,7 +707,10 @@ async function setupSection(env, ago) {
     const list = byApp[app]; if (!list?.length) continue;
     const groups = {};
     for (const s of list) for (const d of s.devices || []) {
-      const key = `${d.kind}|${d.platform || "?"}`, g = groups[key] = groups[key] || { kind: d.kind, platform: d.platform || "?", n: 0, inst: new Set(), fullInst: new Set(), profiles: {}, models: {}, ok: 0, bad: 0, errors: {}, ents: {}, full: 0 };
+      const ver = verOf[app + "|" + s._install] || "?";
+      if (only && app === "energy-pilot" && ver !== only) continue;
+      const key = `${d.kind}|${d.platform || "?"}`, g = groups[key] = groups[key] || { kind: d.kind, platform: d.platform || "?", n: 0, inst: new Set(), fullInst: new Set(), profiles: {}, models: {}, ok: 0, bad: 0, errors: {}, ents: {}, full: 0, vers: {} };
+      if (!g.inst.has(s._install)) g.vers[ver] = (g.vers[ver] || 0) + 1;
       g.n++; g.inst.add(s._install); if (s.full) g.fullInst.add(s._install); g.full = g.fullInst.size;
       if (d.profile) g.profiles[d.profile] = (g.profiles[d.profile] || 0) + 1;
       const m = [d.manufacturer, d.model].filter(Boolean).join(" "); if (m) g.models[m] = (g.models[m] || 0) + 1;
@@ -726,7 +732,7 @@ async function setupSection(env, ago) {
       const known = Object.keys(g.profiles).length > 0 || !["inverter", "battery", "charger"].includes(g.kind);
       const ents = Object.values(g.ents).sort((a, b) => b.n - a.n).slice(0, 30);
       const open = !known || g.bad > 0 || Object.keys(g.errors).length > 0;
-      return `<div class="card dv"><details ${open ? "open" : ""}><summary>${kindTag(g.kind, known)}<span class="nm">${esc(g.platform)}</span><span class="cnt">${g.inst.size} install${g.inst.size === 1 ? "" : "s"}${g.n > g.inst.size ? ` · ${g.n} devices` : ""}${Object.keys(g.profiles).length ? ` · profile ${esc(Object.keys(g.profiles).join(", "))}` : ["inverter", "battery", "charger"].includes(g.kind) ? " · no profile" : ""}${g.full ? ` ⭐${g.full}` : ""}</span></summary>
+      return `<div class="card dv"><details ${open ? "open" : ""}><summary>${kindTag(g.kind, known)}<span class="nm">${esc(g.platform)}</span><span class="cnt">${g.inst.size} install${g.inst.size === 1 ? "" : "s"}${g.n > g.inst.size ? ` · ${g.n} devices` : ""}${Object.keys(g.profiles).length ? ` · profile ${esc(Object.keys(g.profiles).join(", "))}` : ["inverter", "battery", "charger"].includes(g.kind) ? " · no profile" : ""}${g.full ? ` ⭐${g.full}` : ""}</span><span class="vers">${Object.entries(g.vers).sort((a, b) => b[1] - a[1]).map(([v, n]) => `<span class="vtag${app === "energy-pilot" && v === nv ? " ok" : ""}">${esc(v)}${n > 1 ? " ×" + n : ""}</span>`).join("")}</span></summary>
 <div class="sum">${g.ok + g.bad ? `<span>Control <b class="${g.bad ? "bad" : "ok"}">${g.ok}/${g.ok + g.bad} ok</b></span>` : ""}${Object.keys(g.models).length ? `<span>${chips(g.models)}</span>` : ""}</div>
 ${ents.length ? `<table class="et"><tr><th>Name</th><th>Used for</th><th>Values</th><th class="n">Seen</th></tr>${ents.map((e) => `<tr><td><code>${esc(e.name)}</code>${e.key ? `<div class="sm">${esc(e.key)}</div>` : ""}</td><td>${e.use ? `<span class="role">${esc(e.use)}</span>` : ""}</td><td class="vals">${esc(vals(e))}</td><td class="n">${e.n}</td></tr>`).join("")}</table>` : ""}
 ${Object.entries(g.errors).map(([e, n]) => `<div class="err">❌ <b>${esc(e)}</b> · ${n}</div>`).join("")}</details></div>`;
@@ -813,7 +819,13 @@ async function stats(url, env) {
   const avg = (rows, f) => { const v = rows.map((r) => f(r.d)).filter((x) => typeof x === "number"); return v.length ? (v.reduce((a, b) => a + b, 0) / v.length).toFixed(1) : "–"; };
   const ep = (await q("SELECT first_seen, data FROM installs WHERE last_seen >= ?1", ago(30))).map((r) => ({ ...r, d: safe(r.data) || {} }));
   const mp = (await q("SELECT first_seen, data FROM m_installs WHERE last_seen >= ?1", ago(30))).map((r) => ({ ...r, d: safe(r.data) || {} }));
-  const tests = await q("SELECT profile, part, SUM(ok) AS ok, COUNT(*) AS n, GROUP_CONCAT(failed, ' / ') AS failed FROM tests GROUP BY profile, part ORDER BY n DESC LIMIT 30");
+  // "Newest only" (&new=1): just the homes on Energy Pilot's newest version - is a fault still there?
+  const onlyNew = url.searchParams.get("new") === "1" && newest["energy-pilot"];
+  const tests = onlyNew
+    ? await q("SELECT profile, part, SUM(ok) AS ok, COUNT(*) AS n, GROUP_CONCAT(failed, ' / ') AS failed, GROUP_CONCAT(COALESCE(version, '?')) AS vers FROM tests WHERE version = ?1 GROUP BY profile, part ORDER BY n DESC LIMIT 30", newest["energy-pilot"])
+    : await q("SELECT profile, part, SUM(ok) AS ok, COUNT(*) AS n, GROUP_CONCAT(failed, ' / ') AS failed, GROUP_CONCAT(COALESCE(version, '?')) AS vers FROM tests GROUP BY profile, part ORDER BY n DESC LIMIT 30");
+  const verChips = (list, nv) => { const c = {}; for (const v of list) c[v] = (c[v] || 0) + 1;
+    return Object.entries(c).sort((a, b) => b[1] - a[1]).map(([v, n]) => `<span class="vtag${v === nv ? " ok" : ""}">${esc(v)}${n > 1 ? " ×" + n : ""}</span>`).join(""); };
   const fixesN = (await q("SELECT COUNT(*) AS n FROM confirmed"))[0]?.n || 0;
   const mended = await q("SELECT key, COUNT(*) AS n FROM autofix GROUP BY key ORDER BY n DESC LIMIT 12");
   const errs = await q("SELECT e.hash, e.text, e.count, e.version, e.last_seen, (SELECT COUNT(*) FROM error_installs i WHERE i.hash = e.hash) AS installs, (SELECT issue FROM error_issues x WHERE x.hash = e.hash) AS issue FROM errors e WHERE e.last_seen >= ?1 ORDER BY installs DESC, e.count DESC LIMIT 25", ago(30));
@@ -823,14 +835,14 @@ async function stats(url, env) {
   const gh = (n) => n && env.REPORT_REPO ? `<a href="https://github.com/${esc(env.REPORT_REPO)}/issues/${n}">#${n}</a>` : "";
   const has = (k) => ep.filter((r) => r.d.has?.[k]).length;
   const sections = `
-<h2>⚡ Energy Pilot · ${ep.length} active</h2><div class="card">
+<h2>⚡ Energy Pilot · ${ep.length} active</h2><p class="vtoggle">${onlyNew ? `Showing self-tests and setups from <b>${esc(newest["energy-pilot"])}</b> only · <a href="?key=${encodeURIComponent(url.searchParams.get("key"))}">show all versions</a>` : `<a href="?key=${encodeURIComponent(url.searchParams.get("key"))}&new=1">Newest version only${newest["energy-pilot"] ? " (" + esc(newest["energy-pilot"]) + ")" : ""}</a>`}</p><div class="card">
 <div class="row"><i>Inverters</i>${tally(ep, (d) => d.profile)}</div><div class="row"><i>Chargers</i>${tally(ep, (d) => d.charger)}</div>
 <div class="row"><i>Prices</i>${tally(ep, (d) => d.price)}</div><div class="row"><i>Versions</i>${tally(ep, (d) => d.version)}</div>
 <div class="row"><i>Home Assistant</i>${tally(ep, (d) => d.ha)}</div><div class="row"><i>Countries</i>${tally(ep, (d) => d.country)}</div><div class="row"><i>Languages</i>${tally(ep, (d) => d.lang)}</div>
 <div class="row"><i>Has</i><span class="ch">battery <b>${has("battery")}</b></span><span class="ch">car <b>${has("car")}</b></span><span class="ch">solar <b>${has("pv")}</b></span><span class="ch">controlling <b>${ep.filter((r) => Object.values(r.d.modes || {}).includes("control")).length}</b></span></div>
 <div class="row"><i>Saved / month (avg)</i><span class="ch"><b>${avg(ep, (d) => d.saved_month)}</b></span><i style="margin-left:12px">Battery kWh (avg)</i><span class="ch"><b>${avg(ep, (d) => d.battery_kwh)}</b></span></div>
 <div class="row"><i>Fixes confirmed</i><span class="ch"><b>${fixesN}</b></span><i style="margin-left:12px">Mended by itself</i>${mended.map((m) => `<span class="ch">${esc(m.key)} <b>${m.n}</b></span>`).join("") || "–"}</div></div>
-<h3>Self-test</h3><table><tr><th>Inverter</th><th>Part</th><th class="n">Passed</th><th>What failed</th></tr>${tests.map((t) => `<tr><td>${esc(t.profile)}</td><td>${esc(t.part)}</td><td class="n">${t.ok} / ${t.n}</td><td class="sm">${esc((t.failed || "").slice(0, 140))}</td></tr>`).join("") || `<tr><td colspan="4">–</td></tr>`}</table>
+<h3>Self-test</h3><table><tr><th>Inverter</th><th>Part</th><th class="n">Passed</th><th>What failed</th><th>Versions</th></tr>${tests.map((t) => `<tr><td>${esc(t.profile)}</td><td>${esc(t.part)}</td><td class="n">${t.ok} / ${t.n}</td><td class="sm">${esc((t.failed || "").slice(0, 140))}</td><td class="sm">${verChips(String(t.vers || "").split(","), newest["energy-pilot"])}</td></tr>`).join("") || `<tr><td colspan="5">–</td></tr>`}</table>
 <h2>🍽️ Madplan · ${mp.length} active</h2><div class="card">
 <div class="row"><i>Main chain</i>${tally(mp, (d) => d.chain)}</div><div class="row"><i>Also shops at</i>${tally(mp, (d) => d.extra || [])}</div>
 <div class="row"><i>Versions</i>${tally(mp, (d) => d.version)}</div><div class="row"><i>AI</i>${tally(mp, (d) => d.ai)}</div></div>
@@ -838,7 +850,7 @@ async function stats(url, env) {
 ${errs.map((e) => `<tr><td>${APPS[appOf(e.hash)].mark}</td><td class="n">${e.installs}</td><td class="n">${e.count}</td><td>${esc(e.version || "")}</td><td class="sm">${esc(String(e.text).slice(0, 140))} ${gh(e.issue)}</td></tr>`).join("") || `<tr><td colspan="5">No errors 🎉</td></tr>`}</table>
 <h2>🛟 Help messages · last 30 days</h2><div class="card"><div class="row">${help.map((h) => `<span class="ch">${APPS[h.app]?.mark || ""} ${esc(APPS[h.app]?.name || h.app)} <b>${h.n}</b></span>`).join("") || "–"}</div>
 <div class="row"><i>Latest</i>${helpLast.map((h) => `<span class="ch">${APPS[h.app]?.mark || ""} ${esc(h.day)} ${gh(h.issue)}</span>`).join("") || "–"}</div></div>
-${await setupSection(env, ago)}`;
+${await setupSection(env, ago, onlyNew ? newest["energy-pilot"] : null, newest["energy-pilot"])}`;
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>App users</title>
 <style>body{margin:0;font-family:-apple-system,Inter,Segoe UI,Roboto,sans-serif;background:#0f1220;color:#eef0f7}main{max-width:900px;margin:0 auto;padding:22px 16px}
 h1{font-size:24px;margin:0 0 4px}p{color:#9aa3b8;margin:0 0 18px;font-size:14px}.big{font-size:44px;font-weight:800;margin:6px 0 18px}
@@ -846,7 +858,7 @@ table{width:100%;border-collapse:collapse;background:#171b2e;border-radius:16px;
 th{color:#9aa3b8;font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em}.n{text-align:right;font-variant-numeric:tabular-nums}.c span{display:inline-block;margin:2px 10px 2px 0;white-space:nowrap}
 h2{font-size:18px;margin:30px 0 10px}h3{font-size:14px;color:#9aa3b8;margin:16px 0 8px;text-transform:uppercase;letter-spacing:.04em}
 .card{background:#171b2e;border-radius:16px;padding:12px 14px}.row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid #232945}.row:last-child{border-bottom:0}
-.row i{font-style:normal;color:#9aa3b8;font-size:12px;min-width:120px}.ch{background:#232945;border-radius:99px;padding:4px 10px;font-size:13px}.ch b{color:#ffd34d}
+.row i{font-style:normal;color:#9aa3b8;font-size:12px;min-width:120px}.ch{background:#232945;border-radius:99px;padding:4px 10px;font-size:13px}.vtag{display:inline-block;background:#232945;color:#9aa3b8;border-radius:6px;padding:1px 6px;margin:1px 3px 1px 0;font-size:11px}.vtag.ok{background:#1f3a2c;color:#5be39a}.vers{margin-left:8px}.vtoggle{margin:-4px 0 10px;font-size:13px}.vtoggle a{color:#8ab4ff}.ch b{color:#ffd34d}
 .sm{font-size:12.5px;color:#c9cfe0}a{color:#8fb8ff}
 .cm{display:none;margin-top:4px;font-size:12.5px}
 .vs{margin-top:4px;font-size:12px;color:#9aa3b8}.vs span{display:inline-block;margin-right:8px}.vs span.ok{color:#5be3a0}.vs em{font-style:normal}
