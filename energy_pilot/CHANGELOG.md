@@ -2,6 +2,12 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.102.3 – 2026-11-22
+
+- What if and Electricity deals: amounts in whole money ("61 kr" instead of "61,00 kr"), the cheapest deal stands out, and the deal links are easier to see
+- The charging curve's "100 %" is no longer cut off
+- README: the new features, with new pictures
+
 ## 0.102.2 – 2026-11-22
 
 - Pick your own electricity deal right away: under Settings → Electricity price ("Your deal"), and on the deals card, which now shows from the start ("collecting data – the comparison comes in X days") instead of only after 7 days
