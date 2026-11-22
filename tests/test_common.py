@@ -77,3 +77,22 @@ def test_tariff_from_neighbours_in_the_same_cell():
     assert common.tariff(ov, home) == {"low": 0.12, "high": 0.35, "peak": 1.04}
     assert common.tariff(ov, (56.2, 10.2)) is None
     assert common.tariff(ov, None) is None
+
+
+TUNE = {"tune": {"growatt|DK|10|nocar": {"f": 1.1, "m": 0.05, "n": 4}}}
+
+
+def test_tune_start_only_for_the_same_brand_and_group():
+    ov = _ov(TUNE)
+    assert common.tune_start(ov, "growatt", 10, False) == {"f": 1.1, "m": 0.05, "n": 4}
+    assert common.tune_start(ov, "growatt", 11.5, False) == {"f": 1.1, "m": 0.05, "n": 4}  # the same 5 kWh step
+    assert common.tune_start(ov, "deye", 10, False) is None  # another brand: never mixed
+    assert common.tune_start(ov, "growatt", 10, True) is None  # with a car: another group
+    assert common.tune_start(ov, "growatt", 20, False) is None
+    assert common.tune_start(_ov(TUNE, country="SE"), "growatt", 10, False) is None
+    assert common.tune_start(ov, None, 10, False) is None
+
+
+def test_tune_start_out_of_bounds_or_too_few_is_ignored():
+    for bad in ({"f": 2.0, "m": 0.0, "n": 5}, {"f": 1.0, "m": 0.9, "n": 5}, {"f": 1.0, "m": 0.0, "n": 2}, {"f": "x"}):
+        assert common.tune_start(_ov({"tune": {"growatt|DK|10|nocar": bad}}), "growatt", 10, False) is None

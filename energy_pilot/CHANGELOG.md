@@ -2,6 +2,10 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.101.0 – 2026-11-22
+
+- A better start for new homes: until its own nightly test has run on 5 of its own days, a new home starts from the settings that similar homes found for themselves - only homes with the same inverter brand, country, battery size and car or not, and only when at least three of them agree. Brands are never mixed. From then on the home's own test takes over as before, and homes that already found their own settings are left alone. The panel shows "starting from X similar homes" while it's in use
+
 ## 0.100.0 – 2026-11-22
 
 - Update automatically: a card on the front page offers to turn on Home Assistant's own "Auto update" for Energy Pilot, so fixes come by themselves. Only when you press "Turn on" - "No thanks" keeps it away, and it can be turned off again under Settings → Add-ons

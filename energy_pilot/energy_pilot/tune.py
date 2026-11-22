@@ -113,6 +113,18 @@ def nightly(state: dict[str, Any], b: Battery, sell: float, base_end: float, bas
     return t
 
 
+def seed(t: dict[str, Any], start: dict[str, Any] | None) -> dict[str, Any]:
+    """Before its own test has run: start from houses like this one (common.tune_start) - or back to the standard if
+    that start is gone (switched off, or the houses no longer agree). Once tested on its own days, it's left alone."""
+    if t.get("log") or int(t.get("days") or 0) >= MIN_DAYS:
+        return t
+    if start:
+        t.update(f=start["f"], m=start["m"], start=start["n"])
+    elif t.pop("start", None):
+        t.update(f=1.0, m=0.0)
+    return t
+
+
 def keep(state: dict[str, Any], day: str, rows: list[dict[str, Any]]) -> None:
     """The day's hours (plan and real) for the nightly test - two weeks kept."""
     recent = dict(state.get("recent") or {})
@@ -124,4 +136,4 @@ def info(state: dict[str, Any], on: bool) -> dict[str, Any]:
     t = state.get("tune") or {}
     log = t.get("log") or []
     return {"on": on, "f": t.get("f", 1.0), "m": t.get("m", 0.0), "days": t.get("days", 0), "need": MIN_DAYS,
-            "last": log[-1] if log else None}
+            "last": log[-1] if log else None, "start": t.get("start")}

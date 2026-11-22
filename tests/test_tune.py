@@ -79,3 +79,29 @@ def test_plan_uses_it_only_when_on(tmp_path):
     L.tune_on = lambda: False
     assert L.plan_settings() == (1.0, 0.1)
     assert L.summary()["tune"]["on"] is False
+
+
+def test_a_new_house_starts_from_similar_houses():
+    t = tune.seed({"f": 1.0, "m": 0.0, "log": [], "days": 2}, {"f": 1.1, "m": 0.05, "n": 4})
+    assert (t["f"], t["m"], t["start"]) == (1.1, 0.05, 4)
+
+
+def test_its_own_tested_settings_are_never_overwritten():
+    t = tune.seed({"f": 0.95, "m": 0.0, "log": [], "days": 5}, {"f": 1.1, "m": 0.05, "n": 4})
+    assert (t["f"], t["m"]) == (0.95, 0.0) and "start" not in t
+    t = tune.seed({"f": 1.05, "m": 0.0, "log": [{"d": "x"}], "days": 1}, {"f": 1.1, "m": 0.05, "n": 4})
+    assert t["f"] == 1.05
+
+
+def test_the_start_goes_back_to_standard_when_it_is_gone():
+    t = tune.seed({"f": 1.1, "m": 0.05, "log": [], "days": 3, "start": 4}, None)
+    assert (t["f"], t["m"]) == (1.0, 0.0) and "start" not in t
+    t = tune.seed({"f": 1.0, "m": 0.0, "log": [], "days": 3}, None)  # never had one: untouched
+    assert (t["f"], t["m"]) == (1.0, 0.0)
+
+
+def test_the_seeded_start_is_then_tested_like_its_own():
+    st = _state(5)
+    tune.seed(st.setdefault("tune", {"f": 1.0, "m": 0.0, "log": []}), {"f": 1.1, "m": 0.0, "n": 3})
+    t = tune.nightly(st, B, 0.0, 1.0, 0.0, "2026-11-08")
+    assert t["f"] in (1.0, 1.05)  # a too high start is moved away by the house's own test

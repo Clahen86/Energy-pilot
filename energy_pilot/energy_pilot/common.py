@@ -100,6 +100,25 @@ def peers(ov: Any, battery_kwh: float | None, car: bool) -> dict[str, Any] | Non
     return got if isinstance(got, dict) and isinstance(got.get("saved"), (int, float)) else None
 
 
+def tune_start(ov: Any, profile: str | None, battery_kwh: float | None, car: bool) -> dict[str, Any] | None:
+    """Start values for the nightly test of its own settings (tune.py), from houses with the same inverter profile,
+    country, battery size and car or not that agree: {"f", "m", "n"}. Brands are never mixed - none, when unsure."""
+    from .tune import F_MAX, F_MIN, M_MAX, M_MIN
+
+    country = (getattr(getattr(ov, "ha", None), "config", None) or {}).get("country")
+    pk = peer_key(country, battery_kwh, car)
+    if not profile or not pk:
+        return None
+    got = (_common(ov).get("tune") or {}).get(f"{profile}|{pk}")
+    try:
+        f, m, n = float(got["f"]), float(got["m"]), int(got["n"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if n < 3 or not F_MIN <= f <= F_MAX or not M_MIN <= m <= M_MAX:
+        return None
+    return {"f": round(f, 2), "m": round(m, 2), "n": n}
+
+
 def health(ov: Any, model: str | None) -> dict[str, Any] | None:
     """Usable kWh against the label for this battery model: {"ratio", "n"}."""
     got = (_common(ov).get("health") or {}).get(str(model or ""))

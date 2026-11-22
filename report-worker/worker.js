@@ -279,7 +279,7 @@ async function sharedKnowledge(env) {
   const since = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
   const week = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10); // a week old at least (see sky())
   const rows = (await env.DB.prepare("SELECT data, last_seen FROM installs WHERE last_seen >= ?1 AND first_seen <= ?2").bind(since, week).all()).results || [];
-  const sun = {}, eff = {}, taper = {}, peers = {}, health = {}, tariffs = {};
+  const sun = {}, eff = {}, taper = {}, peers = {}, health = {}, tariffs = {}, tunes = {};
   const recent = new Date(Date.now() - 2 * 864e5).toISOString().slice(0, 10);
   const add = (map, key, v) => { if (key && Number.isFinite(v)) (map[key] = map[key] || []).push(v); };
   for (const r of rows) {
@@ -299,6 +299,11 @@ async function sharedKnowledge(env) {
         const side = (d.features || {})[f] ? "on" : "off";
         ((g.f[f] = g.f[f] || { on: [], off: [] })[side]).push(v);
       }
+    }
+    // Its own settings, tested on its own days (tune.py) - per inverter profile and houses like this one: brands are never mixed
+    if (d.profile && pk && l.tune) {
+      const f = Number(l.tune.f), m = Number(l.tune.m);
+      if (f >= 0.8 && f <= 1.25 && m >= -0.15 && m <= 0.3) (tunes[`${d.profile}|${pk}`] = tunes[`${d.profile}|${pk}`] || []).push([f, m]);
     }
     // The grid tariff typed in, per ~10 km cell (the same grid company, most likely)
     if (l.tariff && /^-?\d{1,2}\.\d\|-?\d{1,3}\.\d{2}$/.test(String(l.cell || ""))) {
@@ -320,7 +325,7 @@ async function sharedKnowledge(env) {
     const q = (p) => v[Math.min(v.length - 1, Math.floor(p * (v.length - 1) + 0.5))], med = q(0.5);
     return (q(0.75) - q(0.25)) / med <= 0.25 ? { med: Math.round(med * 100) / 100, n: v.length } : null;
   };
-  const c = { sun: {}, eff: {}, taper: {}, peers: {}, health: {}, tariff: {} };
+  const c = { sun: {}, eff: {}, taper: {}, peers: {}, health: {}, tariff: {}, tune: {} };
   for (const key of new Set(Object.keys(sun).map((k) => k.replace(/\|(cloudy|clear)$/, "")))) {
     const cl = agreed(sun[`${key}|cloudy`] || [], 0.3, 2), cr = agreed(sun[`${key}|clear`] || [], 0.3, 2);
     if (cl && cr) c.sun[key] = { cloudy: cl.med, clear: cr.med, n: Math.min(cl.n, cr.n) };
@@ -353,6 +358,14 @@ async function sharedKnowledge(env) {
   for (const [key, vals] of Object.entries(health)) {
     const v = vals.filter((x) => x >= 0.5 && x <= 1.1);
     if (v.length >= CONFIRM) c.health[key] = { ratio: Math.round(med(v) * 100) / 100, n: v.length };
+  }
+  // A start for new houses only where at least three agree: within one step (0.05) of the middle on both knobs, and
+  // three in four of the group - a spread-out group hands out nothing.
+  for (const [key, v] of Object.entries(tunes)) {
+    if (v.length < CONFIRM) continue;
+    const mf = med(v.map((x) => x[0])), mm = med(v.map((x) => x[1]));
+    const near = v.filter(([f, m]) => Math.abs(f - mf) <= 0.051 && Math.abs(m - mm) <= 0.051).length;
+    if (near >= CONFIRM && near * 4 >= v.length * 3) c.tune[key] = { f: Math.round(mf * 100) / 100, m: Math.round(mm * 100) / 100, n: near };
   }
   await env.DB.prepare("INSERT OR REPLACE INTO meta (k, v) VALUES ('common', ?1)").bind(JSON.stringify({ t: Date.now(), c })).run();
   return c;

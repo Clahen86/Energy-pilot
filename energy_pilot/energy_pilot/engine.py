@@ -1095,6 +1095,7 @@ class Engine:
         L = self.learning
         try:
             work = {"recent": L.state.get("recent") or {}, "tune": copy.deepcopy(L.state.get("tune") or {"f": 1.0, "m": 0.0, "log": []})}
+            tune.seed(work["tune"], self._tune_start())
             t = await asyncio.get_running_loop().run_in_executor(
                 None, tune.nightly, work, self.settings(), sell, L.end_factor, L.margin, day)
             L.state["tune"] = t  # handed back in the loop: the panel never reads it half-written
@@ -1102,6 +1103,17 @@ class Engine:
                 _LOGGER.info("Own settings moved after testing %s days: %s", t.get("days"), t["log"][-1])
         except Exception:  # noqa: BLE001 - an extra on top of what was learned: the plan goes on without it
             _LOGGER.warning("The nightly test of the settings was skipped", exc_info=True)
+
+    def _tune_start(self) -> dict[str, Any] | None:
+        """Start values from houses like this one with the same inverter profile (common.tune_start), or None."""
+        from . import common
+
+        try:
+            c = getattr(self.ov, "controller", None)
+            has = ((self.ov.flow() or {}).get("has") or {}) if hasattr(self.ov, "flow") else {}
+            return common.tune_start(self.ov, c.profile_key("battery") if c else None, self.settings().capacity_kwh, bool(has.get("ev")))
+        except Exception:  # noqa: BLE001 - a start only: without it, the standard
+            return None
 
     def _generator(self, now: datetime, f: dict[str, Any], hours: list[tuple[datetime, float, float]]) -> dict[str, Any]:
         """Off-grid: should the generator run now? (see generator.py)"""

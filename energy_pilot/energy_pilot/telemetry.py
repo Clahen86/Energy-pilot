@@ -159,6 +159,9 @@ class Telemetry:
                     learned["cell"] = skynet.cell(*home)
                 if tp := eng.batt_learn.taper():
                     learned["taper"] = [[float(lvl), float(sh)] for lvl, sh in tp]
+                t = ls.get("tune") or {}
+                if eng.learning.tuned() and int(t.get("days") or 0) >= 5 and isinstance(t.get("f"), (int, float)):
+                    learned["tune"] = {"f": round(float(t["f"]), 2), "m": round(float(t.get("m") or 0), 2)}  # tested on its own days
                 out["learned"] = learned
             except Exception:  # noqa: BLE001
                 pass
