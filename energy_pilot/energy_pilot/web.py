@@ -106,7 +106,15 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
             data["ledger"]["view"] = overview.settings.get("saved_view") or "bat"
             data["whatif"] = getattr(overview.engine, "whatif", None)
             tf = getattr(overview, "tariffs", None)
-            data["tariffs"] = tf.result if tf and overview.settings.get("tariff_show", True) else None
+            data["tariffs"] = None
+            if tf and overview.settings.get("tariff_show", True):
+                data["tariffs"] = tf.result
+                if not tf.result and (choices := tf.choices()):
+                    # Not 7 days of hours yet: the card says so, and the user can already pick their deal.
+                    hourly = getattr(overview, "hourly", None)
+                    have = len(hourly.days(_dt.now(_Z(runner.ha.config.get("time_zone") or "UTC")).date().isoformat())) if hourly else 0
+                    cur = next((c for c in choices if c["id"] == overview.settings.get("tariff_current")), None)
+                    data["tariffs"] = {"mode": "collecting", "days": have, "need": 7, "current": cur}
             soc = (overview.flow() or {}).get("soc")
             if soc is not None:
                 data["ledger"]["battery_kwh"] = round(soc / 100 * overview.engine.settings().capacity_kwh, 1)

@@ -2,6 +2,10 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.102.2 – 2026-11-22
+
+- Pick your own electricity deal right away: under Settings → Electricity price ("Your deal"), and on the deals card, which now shows from the start ("collecting data – the comparison comes in X days") instead of only after 7 days
+
 ## 0.102.1 – 2026-11-22
 
 - "Plan vs. real" could stay empty: one broken line in the plan log (left by a power cut) stopped the reading, so every plan after it was missing - and the log was never trimmed. Broken lines are now skipped and the log cleans itself up. The chart is back the morning after updating
