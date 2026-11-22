@@ -2,7 +2,7 @@
 
 Newest first. Each version lists what changed since the one before.
 
-## Unreleased
+## 0.101.1 – 2026-11-22
 
 - Fox ESS (Modbus): selling from the battery could do nothing - the hold step had set the on-grid minimum to the battery's level, and selling didn't put it back. Selling now sets your own minimum first
 - A car's battery is no longer taken for the house battery when the car comes in through MQTT (TeslaMate) or a data service - any device a car maker made. Tesla Powerwall and BYD Battery-Box still count
