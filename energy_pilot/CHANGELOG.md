@@ -2,6 +2,24 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.102.0 – 2026-11-22
+
+Ideas many people know from other battery planners, made to work by themselves - no new settings to learn.
+
+- The car and the house battery: the car's charging is now part of the battery plan. The battery only helps the car with what the house won't need before the sun or cheap power fills it again - never on a dear evening, and the morning is always kept for the house. "Right now" says which it does. Without grid charging, a charger that can be turned down (Keba, Easee …) gives the battery the sun first
+- An unsure sun forecast (Solcast's poor day far below the expected) makes the plan count on a little less sun
+- Gentle charging: when hours cost about the same, the battery charges calmly over them instead of at full power in one
+- Nobody home for a day: the plan counts on the house's standby use until someone is back
+- A cold battery charges slower - learned from its own temperature, and shown as a curve with the slowdown near full
+- A limit on selling is found by itself, and the plan keeps room in the battery for sun that would otherwise be lost
+- Your own hours: tap an hour in the plan and choose Charge here, Sell here or Keep the power
+- A water heater on a switch is found by itself and rests in up to 4 dear hours a day - the water stays hot
+- What if: a new card shows what a bigger battery, more panels or no battery would have meant on your last 30 days
+- Electricity deals: which deal would have been cheapest for your use, each worked out with its own battery plan - all deals in Denmark (elpris.dk), Octopus in the UK, every retailer in Australia, Italy's open offers, US utility tariffs; elsewhere hourly against fixed. Pick your own deal to see what you'd save. Hide it with ✕
+- Octopus Power Down (Saving) Sessions are joined by themselves and planned for
+- Hypervolt chargers can be controlled
+- A report now carries the last 48 hours, so a problem can be replayed
+
 ## 0.101.1 – 2026-11-22
 
 - Fox ESS (Modbus): selling from the battery could do nothing - the hold step had set the on-grid minimum to the battery's level, and selling didn't put it back. Selling now sets your own minimum first

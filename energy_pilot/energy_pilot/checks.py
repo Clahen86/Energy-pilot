@@ -35,6 +35,37 @@ class GridPeak:
         return (self.state.get("grid_peak") or {}).get("kw")
 
 
+class ExportCap:
+    """A limit on what may go out to the grid (the grid company's, or set in the inverter), found by itself: on sunny
+    days the most sent out stops at the same level again and again. Kept for 30 days."""
+
+    def __init__(self, state: dict[str, Any]) -> None:
+        self.state = state
+        self._recent: list[float] = []
+
+    def see(self, now: datetime, grid_w: float | None) -> None:
+        if grid_w is None:
+            return
+        self._recent = (self._recent + [max(0.0, -grid_w)])[-4:]  # 4 x 30 s, sent out
+        if len(self._recent) < 4:
+            return
+        w = sum(self._recent) / 4
+        days = self.state.setdefault("export_days", {})
+        day = now.date().isoformat()
+        if w > days.get(day, 0):
+            days[day] = round(w)
+        for d in sorted(days)[:-30]:
+            days.pop(d)
+
+    def kw(self) -> float | None:
+        """The limit in kW - only when at least 4 of the last days stopped within 3 % of the same top."""
+        vals = [v for v in (self.state.get("export_days") or {}).values() if v > 500]
+        if len(vals) < 7:
+            return None
+        top = max(vals)
+        return round(top / 1000, 2) if sum(1 for v in vals if v >= top * 0.97) >= 4 else None
+
+
 # The most common main fuse for a house, by country: (kW, as people know it). Only where one size is common.
 USUAL_FUSE = {"DK": (17, "3 × 25 A"), "SE": (17, "3 × 25 A"), "FI": (17, "3 × 25 A"), "DE": (24, "3 × 35 A"),
               "AT": (24, "3 × 35 A"), "NL": (17, "3 × 25 A"), "GB": (23, "100 A"), "IE": (14, "63 A")}
@@ -185,7 +216,7 @@ def run(engine: Any, hours: list, b: Any, plan: Any, end_value: float) -> list[d
         import uuid
 
         new = {"id": uuid.uuid4().hex[:8], "mode": "sun_cheap"} | {k: v for k, v in cand.items() if k not in ("device", "remote") and v}
-        out.append({"key": "thing_found", "level": "info", "vals": {"name": cand["name"]},
+        out.append({"key": "heater_found" if cand.get("kind") == "heater" else "thing_found", "level": "info", "vals": {"name": cand["name"]},
                     "fix": {"things": list(st.get("things") or []) + [new]},
                     "dismiss": {"things_dismissed": list(st.get("things_dismissed") or []) + [cand["device"]]}, "goto": "things"})
 

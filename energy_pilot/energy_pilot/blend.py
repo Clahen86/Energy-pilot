@@ -293,6 +293,10 @@ class Habits:
 
 # ---------- the battery's real efficiency ----------
 
+def temp_band(temp: float) -> str:
+    return "cold" if temp < 5 else "cool" if temp < 15 else "warm"
+
+
 TAPER_BANDS = (98, 95, 90, 85)  # levels where charging is watched on its own (highest first)
 
 
@@ -336,6 +340,25 @@ class BatteryLearner:
             key = str(band)
             self.s.setdefault("charge_w", {})
             self.s["charge_w"][key] = (self.s["charge_w"].get(key) or [])[-59:] + [round(batt_w)]
+
+    def see_temp(self, batt_w: float | None, soc: float | None, temp: float | None) -> None:
+        """How hard it charges when cold, cool and warm (below the levels where it slows down when nearly full)."""
+        if batt_w is None or soc is None or temp is None or batt_w <= 300 or soc >= 85:
+            return
+        band = temp_band(temp)
+        tw = self.s.setdefault("temp_w", {})
+        tw[band] = (tw.get(band) or [])[-59:] + [round(batt_w)]
+
+    def cold_share(self, temp: float | None) -> float:
+        """The share of its charge power it really takes at this temperature - from the hardest charging seen when
+        warm against when this cold. 1 when warm, unknown, or not seen enough yet. An indoor battery stays at 1."""
+        if temp is None or (band := temp_band(temp)) == "warm":
+            return 1.0
+        tw = self.s.get("temp_w") or {}
+        warm, here = sorted(tw.get("warm") or []), sorted(tw.get(band) or [])
+        if len(warm) < 15 or len(here) < 15:
+            return 1.0
+        return round(max(0.2, min(1.0, here[int(len(here) * 0.9)] / warm[int(len(warm) * 0.9)])), 2)
 
     def days_since_full(self) -> float:
         """Days since the battery was last full - 0 until it has been watched for a while (no full charge at once)."""

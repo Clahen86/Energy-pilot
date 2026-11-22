@@ -141,6 +141,19 @@
   .status h2 { margin:0 0 3px; font-size:18px; font-weight:650; letter-spacing:-.015em; }
   .status p { margin:0; color:var(--muted); font-size:14px; }
   .status .save { margin-top:6px; color:var(--ok); font-weight:600; font-size:13px; }
+  .status .note { margin-top:6px; color:var(--muted); font-size:13px; }
+  .wrow { display:flex; justify-content:space-between; gap:12px; padding:8px 0; border-bottom:1px solid var(--surface2); font-size:14px; }
+  .wrow:last-of-type { border-bottom:0; }
+  .wrow b.good { color:var(--ok); }
+  .wrow small { font-size:12px; font-weight:400; }
+  .cleg-row { display:flex; flex-wrap:wrap; gap:12px; margin-top:4px; font-size:12px; color:var(--muted); }
+  .cleg { display:inline-flex; align-items:center; gap:6px; }
+  .cleg i { display:inline-block; width:18px; }
+  .tarsel { width:100%; padding:10px; border-radius:12px; background:var(--surface2); color:var(--text); border:1px solid var(--faint); font-size:14px; }
+  .man { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; align-items:center; }
+  .man .chip { border:1px solid var(--faint); background:var(--surface2); color:var(--text); border-radius:999px; padding:6px 12px; font-size:13px; }
+  .man .chip.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .man .manset { width:100%; font-size:12px; color:var(--muted); }
   .status details { margin-top:8px; font-size:12px; color:var(--faint); } .status summary { cursor:pointer; }
   /* metrics */
   .metrics { display:grid; grid-template-columns:repeat(4, 1fr); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:22px; overflow:hidden; margin-top:12px; }
@@ -626,6 +639,13 @@ const T_NOEXP = {
   nb: { noExpCheap: "Ikke selg i de billige timene", noExpCheapH: "Når strømmen er billig lader batteriet bare – det selger når prisen er høy" },
 };
 Object.assign(T.y, T_NOEXP[L] || T_NOEXP.en);
+const T_MAN = {  // the user's own hours in the plan
+  da: { charge: "Lad her", sell: "Sælg her", hold: "Gem strømmen", auto: "Automatisk", set: { charge: "Du har valgt: lad", sell: "Du har valgt: sælg", hold: "Du har valgt: gem" } },
+  en: { charge: "Charge here", sell: "Sell here", hold: "Keep the power", auto: "Automatic", set: { charge: "Your choice: charge", sell: "Your choice: sell", hold: "Your choice: keep" } },
+  de: { charge: "Hier laden", sell: "Hier verkaufen", hold: "Strom behalten", auto: "Automatisch", set: { charge: "Deine Wahl: laden", sell: "Deine Wahl: verkaufen", hold: "Deine Wahl: behalten" } },
+  nl: { charge: "Hier laden", sell: "Hier verkopen", hold: "Stroom bewaren", auto: "Automatisch", set: { charge: "Jouw keuze: laden", sell: "Jouw keuze: verkopen", hold: "Jouw keuze: bewaren" } },
+};
+T.man = T_MAN[L] || T_MAN.en;
 const T_SW = {
   da: { t: "Styring", h: "Kontakten der starter og stopper laderen", auto: "Find selv", used: "Bruger: {x}", none: "Ingen fundet – vælg kontakten, der tænder laderen", onoff: "Kun tænd/sluk: lader med fuld effekt – på sol kun når der er nok til det hele" },
   en: { t: "Control", h: "The switch that starts and stops the charger", auto: "Find by itself", used: "Using: {x}", none: "None found – pick the switch that turns the charger on", onoff: "On/off only: charges at full power – on sun only when there's enough for all of it" },
@@ -999,7 +1019,8 @@ const TH_SVG = {
   dryer: `<rect x="9" y="5" width="30" height="38" rx="4"/><path d="M9 13h30"/><circle cx="15" cy="9" r="1"/><circle cx="24" cy="28" r="10"/><path d="M21 24c-2 2 2 4 0 6M27 24c-2 2 2 4 0 6"/>`,
   plug: `<path d="M18 6v10M30 6v10M12 16h24v8a12 12 0 0 1-24 0z"/><path d="M24 36v8"/>`,
 };
-const TH_COL = { mower: "#3ddc97", bike: "#6ea8fe", tool: "#f5b544", battery: "#a78bfa", dish: "#7c6cff", wash: "#38bdf8", dryer: "#fb923c", plug: "#8b93a3" };
+TH_SVG.heater = `<rect x="14" y="5" width="20" height="38" rx="9"/><path d="M20 16c0 3 4 3 4 6s-4 3-4 6M28 16c0 3 4 3 4 6s-4 3-4 6" opacity=".8"/>`;
+const TH_COL = { heater: "#f87171", mower: "#3ddc97", bike: "#6ea8fe", tool: "#f5b544", battery: "#a78bfa", dish: "#7c6cff", wash: "#38bdf8", dryer: "#fb923c", plug: "#8b93a3" };
 const TH_ICONS = Object.keys(TH_SVG);
 const thIcon = (k, size = 26, sw = 2) => { const n = TH_SVG[k] ? k : "plug"; return `<svg viewBox="0 0 48 48" width="${size}" height="${size}" fill="none" stroke="${TH_COL[n]}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${TH_SVG[n]}</svg>`; };
 function thGuess(name) {
@@ -1075,12 +1096,25 @@ const T_TH = {
     found: "Fant: {name}. Skal EP kjøre den på sol eller i billige timer?" },
 };
 const TH = T_TH[L] || T_TH.en;
+const T_HEAT = {  // a water heater: on, rests in the dear hours
+  da: { found: "Fandt din varmtvandsbeholder: {name}. Skal den holde pause i de dyre timer og varme på billig strøm og sol?", kind: "Varmtvand", heat: "tændt", pause: "pause i dyr time", pauseAt: "pause {x}", always: "Står tændt og slukkes kun i op til 4 dyre timer om dagen – så vandet altid er varmt. Tænder du den selv, bliver den tændt." },
+  en: { found: "Found your water heater: {name}. Let it rest in the dear hours and heat on cheap power and sun?", kind: "Hot water", heat: "on", pause: "resting in a dear hour", pauseAt: "rests {x}", always: "Stays on and is only switched off in up to 4 dear hours a day – so the water is always hot. Turn it on yourself and it stays on." },
+  de: { found: "Warmwasserspeicher gefunden: {name}. In teuren Stunden pausieren und mit günstigem Strom und Sonne heizen?", kind: "Warmwasser", heat: "an", pause: "Pause in teurer Stunde", pauseAt: "Pause {x}", always: "Bleibt an und wird nur in bis zu 4 teuren Stunden am Tag ausgeschaltet – das Wasser ist immer warm. Schaltest du ihn selbst ein, bleibt er an." },
+  nl: { found: "Je boiler gevonden: {name}. Laten pauzeren in dure uren en verwarmen met goedkope stroom en zon?", kind: "Warm water", heat: "aan", pause: "pauze in duur uur", pauseAt: "pauze {x}", always: "Blijft aan en gaat alleen uit in maximaal 4 dure uren per dag – zo is het water altijd warm. Zet je hem zelf aan, dan blijft hij aan." },
+  sv: { found: "Hittade din varmvattenberedare: {name}. Pausa de dyra timmarna och värma på billig el och sol?", kind: "Varmvatten", heat: "på", pause: "paus en dyr timme", pauseAt: "paus {x}", always: "Står på och stängs bara av upp till 4 dyra timmar om dagen – så vattnet alltid är varmt." },
+  nb: { found: "Fant varmtvannsberederen: {name}. Pause i de dyre timene og varme på billig strøm og sol?", kind: "Varmtvann", heat: "på", pause: "pause i dyr time", pauseAt: "pause {x}", always: "Står på og slås bare av i opptil 4 dyre timer om dagen – så vannet alltid er varmt." },
+  fr: { found: "Chauffe-eau trouvé : {name}. Le mettre en pause aux heures chères et chauffer au solaire et à bas prix ?", kind: "Eau chaude", heat: "en marche", pause: "pause heure chère", pauseAt: "pause {x}", always: "Reste allumé et n'est coupé que jusqu'à 4 heures chères par jour – l'eau reste toujours chaude." },
+};
+const TH_H = T_HEAT[L] || T_HEAT.en;
+T.chk.heater_found = TH_H.found;
+TH.kinds.heater = TH_H.kind; TH.st.heat = TH_H.heat; TH.st.pause = TH_H.pause;
 T.chk.thing_found = TH.found;
 const thAll = new Set();  // pick lists shown in full
 let thOpen = (() => { try { return localStorage.getItem("ep_things_open") === "1"; } catch { return false; } })();
 const thMin = (m) => m >= 60 ? `${Math.floor(m / 60)} t ${String(Math.round(m % 60)).padStart(2, "0")}`.replace(" t ", L === "en" ? " h " : " t ") : `${Math.round(m)} min`;
 function thStatus(x) {
   const s = TH.st, first = x.hours[0] ? clock(x.hours[0]) : "";
+  if (x.kind === "heater") return x.status === "heat" && x.off?.length ? TH_H.pauseAt.replace("{x}", clock(x.off[0])) : s[x.status] || s.idle;
   if (x.kind === "machine") return x.status === "planned" ? s.plannedM.replace("{x}", clock(x.start)) : s[x.status] || s.idle;
   return x.status === "planned" ? s.planned.replace("{x}", first) : s[x.status] || s.idle;
 }
@@ -1135,13 +1169,13 @@ function thingsSection(v, row) {
     return `<div class="batbox"><h4 class="bathead thhead">${thIcon(ic, 22)} ${esc(x.name || TH.kinds[kind])}</h4>
       ${row(TH.name, "", `<input class="pname" data-tht="${i}:name" value="${esc(x.name || "")}">`)}
       <div class="ctl" style="display:block"><div class="t"><b>${TH.icon}</b></div><div class="thicons">${TH_ICONS.map((k) => `<button class="${ic === k ? "on" : ""}" data-thicon="${i}:${k}">${thIcon(k, 24)}</button>`).join("")}</div></div>
-      ${row(TH.kind, "", `<div class="seg mini">${["battery", "machine"].map((k) => `<button class="${kind === k ? "on" : ""}" data-thkind="${i}:${k}">${TH.kinds[k]}</button>`).join("")}</div>`)}
+      ${row(TH.kind, "", `<div class="seg mini">${["battery", "machine", "heater"].map((k) => `<button class="${kind === k ? "on" : ""}" data-thkind="${i}:${k}">${TH.kinds[k]}</button>`).join("")}</div>`)}
       ${kind === "machine" ? row(TH.start, TH.startH, sel(i, "start", o.starts, o.all_switches, x.start)) : row(TH.sw, TH.swH, sel(i, "switch", o.switches, (o.all_switches || []).filter((s) => !s.entity_id.startsWith("button.")), x.switch))}
       ${row(TH.power, TH.powerH, sel(i, "power", o.power, o.all_power, x.power, devOf(kind === "machine" ? x.start : x.switch)))}
-      <div class="ctl" style="display:block"><div class="t"><b>${TH.mode}</b></div><div class="thmodes">${[["sun_cheap", "☀️"], ["sun", "🌞"], ["cheap", "💸"]].map(([k, e]) =>
-        `<button class="${(x.mode || "sun_cheap") === k ? "on" : ""}" data-thmode="${i}:${k}"><span>${e}</span>${TH.modes[k]}</button>`).join("")}</div></div>
-      ${row(TH.readyBy, TH.readyByH, `<input type="time" data-tht="${i}:ready" value="${esc(x.ready || "")}">`)}
-      ${row(TH.kwh, lr ? TH.learned.replace("{n}", lr.n).replace("{t}", `${num(lr.kwh, 2)} kWh, ${thMin(lr.min)}`) : TH.kwhH, `<span class="unitin"><input class="numin" type="number" inputmode="decimal" step="0.1" data-thn="${i}:kwh" value="${x.kwh ?? ""}" placeholder="${kind === "machine" ? "1.0" : "0.5"}"><i>kWh</i></span>`)}
+      ${kind === "heater" ? `<div class="muted" style="margin-top:6px">${TH_H.always}</div>` : `<div class="ctl" style="display:block"><div class="t"><b>${TH.mode}</b></div><div class="thmodes">${[["sun_cheap", "☀️"], ["sun", "🌞"], ["cheap", "💸"]].map(([k, e]) =>
+        `<button class="${(x.mode || "sun_cheap") === k ? "on" : ""}" data-thmode="${i}:${k}"><span>${e}</span>${TH.modes[k]}</button>`).join("")}</div></div>`}
+      ${kind === "heater" ? "" : row(TH.readyBy, TH.readyByH, `<input type="time" data-tht="${i}:ready" value="${esc(x.ready || "")}">`)}
+      ${kind === "heater" ? "" : row(TH.kwh, lr ? TH.learned.replace("{n}", lr.n).replace("{t}", `${num(lr.kwh, 2)} kWh, ${thMin(lr.min)}`) : TH.kwhH, `<span class="unitin"><input class="numin" type="number" inputmode="decimal" step="0.1" data-thn="${i}:kwh" value="${x.kwh ?? ""}" placeholder="${kind === "machine" ? "1.0" : "0.5"}"><i>kWh</i></span>`)}
       ${kind === "machine" ? row(TH.res, TH.resH, `<div class="seg mini">${[[1, TH.on], [0, TH.off]].map(([k, l]) => `<button class="${!!x.resume === !!k ? "on" : ""}" data-thres="${i}:${k}">${l}</button>`).join("")}</div>`) : ""}
       ${kind === "machine" && x.resume ? row(TH.plug, TH.plugH, sel(i, "switch", o.switches, (o.all_switches || []).filter((s) => !s.entity_id.startsWith("button.")), x.switch)) : ""}
       ${kind === "machine" ? `<div class="muted" style="margin-top:6px">${x.resume ? (x.switch && x.power ? TH.resOn : TH.resNeed) : TH.neverOff}</div>` : ""}
@@ -1378,6 +1412,22 @@ const T_BLK = {
   sv: { p: "Planerat", w: "Men batteriet laddas inte ur – huset köper från nätet. Något annat håller tillbaka batteriet." },
   nb: { p: "Planlagt", w: "Men batteriet lades ikke ut – huset kjøper fra nettet. Noe annet holder batteriet tilbake." }
 };
+// The user's own hour: charge, sell or keep - Automatic gives it back to the plan. Only future hours, only with a battery.
+function manButtons(h) {
+  if (data.flow?.soc == null || new Date(h.t).getTime() + 3600e3 <= Date.now()) return "";
+  const opts = ["charge", ...(data.engine?.can_sell ? ["sell"] : []), "hold"];
+  return `<div class="man">${h.manual ? `<span class="manset">${T.man.set[h.manual]}</span>` : ""}${opts.map((o) =>
+    `<button class="chip${h.manual === o ? " on" : ""}" data-man="${o}">${T.man[o]}</button>`).join("")}${h.manual ? `<button class="chip" data-man="">${T.man.auto}</button>` : ""}</div>`;
+}
+function wireMan(h) {
+  document.querySelectorAll("#tip [data-man]").forEach((b) => b.onclick = async (e) => {
+    e.stopPropagation();
+    const key = h.t.slice(0, 13), today = new Date().toISOString().slice(0, 10), man = {};
+    for (const x of data.plan.hours) if (x.manual && x.t.slice(0, 10) >= today) man[x.t.slice(0, 13)] = x.manual;
+    if (b.dataset.man) man[key] = b.dataset.man; else delete man[key];
+    await api("/api/settings", { manual: man }); await load(); render();
+  });
+}
 function home() {
   const d = data, f = d.flow, dec = d.decision;
   const blk = dec?.blocked ? (T_BLK[L] || T_BLK.en) : null;
@@ -1395,11 +1445,13 @@ function home() {
   ].join("");
   return `${whatsNewCard()}${updateCard()}${autoUpdCard()}${testNudge()}<div class="card flow fade" id="flowcard">${sceneSvg()}<div id="flow">${flowSvg(f)}</div></div>
     ${dec ? `<div class="card status fade" style="--c:${DECCOL[dec.kind]}"><div class="dotc">${icon(DECICON[dec.kind])}</div>
-      <div><h2>${blk ? esc(blk.p) + ": " + esc(dec.text.charAt(0).toLowerCase() + dec.text.slice(1)) : esc(dec.text)}</h2><p>${esc(reason)}</p>${dec.engine && dec.saving > 0 ? `<p class="save">${T.saves.replace("{x}", kr(dec.saving))}</p>` : ""}
+      <div><h2>${blk ? esc(blk.p) + ": " + esc(dec.text.charAt(0).toLowerCase() + dec.text.slice(1)) : esc(dec.text)}</h2><p>${esc(reason)}</p>${(dec.notes || []).map((n) => `<p class="note">${esc(n)}</p>`).join("")}${dec.engine && dec.saving > 0 ? `<p class="save">${T.saves.replace("{x}", kr(dec.saving))}</p>` : ""}
       ${dec.other ? `<p class="muted">${esc(T.otherSays.replace("{x}", dec.other.text.toLowerCase()))}</p>` : ""}
       ${dec.reason ? `<details><summary>${T.why}</summary>${esc(dec.reason)}</details>` : ""}</div></div>` : ""}
     <div class="metrics fade">${metrics}</div>
     ${savedCard()}
+    ${whatIfCard()}
+    ${tariffCard()}
     ${d.ev ? carCard(d.ev, f) : ""}
     ${moreCars()}
     ${runtimeCard()}
@@ -1426,6 +1478,71 @@ const T_SAV = {
   sv: { storedH: "I dag räknas strömmen i batteriet till vad den kostade - den sparar först när den används.", pilot: "Energy Pilots egen del", pilotH: "jämfört med samma batteri med växelriktarens egen styrning · i dag {d} · månad {m}", title: "Besparing", bat: "Batteriet", all: "Sol och batteri", hint: "Vad sol och batteri sparat på elräkningen, jämfört med att köpa all el från nätet." },
   nb: { storedH: "I dag teller strømmen i batteriet med til det den kostet - den sparer først når den brukes.", pilot: "Energy Pilots egen andel", pilotH: "sammenlignet med samme batteri på vekselretterens egen styring · i dag {d} · måned {m}", title: "Besparelse", bat: "Batteriet", all: "Sol og batteri", hint: "Det sol og batteri har spart på strømregningen, sammenlignet med å kjøpe all strøm fra nettet." },
 };
+const T_WHATIF = {
+  da: { title: "Hvad hvis?", bigger: "Med {x} kWh mere batteri", sun: "Med {x} % flere solpaneler", none: "Uden batteri", less: "{d} mindre om måneden", more: "{d} mere om måneden", same: "næsten det samme", hint: "Regnet på dine sidste {n} dage – samme hus, priser og plan" },
+  en: { title: "What if?", bigger: "With {x} kWh more battery", sun: "With {x} % more solar panels", none: "Without a battery", less: "{d} less a month", more: "{d} more a month", same: "about the same", hint: "Worked out on your last {n} days – the same house, prices and plan" },
+  de: { title: "Was wäre, wenn?", bigger: "Mit {x} kWh mehr Batterie", sun: "Mit {x} % mehr Solarmodulen", none: "Ohne Batterie", less: "{d} weniger im Monat", more: "{d} mehr im Monat", same: "etwa gleich", hint: "Berechnet mit deinen letzten {n} Tagen – gleiches Haus, gleiche Preise und Plan" },
+  nl: { title: "Wat als?", bigger: "Met {x} kWh meer batterij", sun: "Met {x} % meer zonnepanelen", none: "Zonder batterij", less: "{d} minder per maand", more: "{d} meer per maand", same: "ongeveer gelijk", hint: "Berekend op je laatste {n} dagen – hetzelfde huis, prijzen en plan" },
+  sv: { title: "Tänk om?", bigger: "Med {x} kWh mer batteri", sun: "Med {x} % fler solpaneler", none: "Utan batteri", less: "{d} mindre i månaden", more: "{d} mer i månaden", same: "ungefär samma", hint: "Räknat på dina senaste {n} dagar – samma hus, priser och plan" },
+  nb: { title: "Hva om?", bigger: "Med {x} kWh mer batteri", sun: "Med {x} % flere solcellepaneler", none: "Uten batteri", less: "{d} mindre i måneden", more: "{d} mer i måneden", same: "omtrent det samme", hint: "Regnet på de siste {n} dagene – samme hus, priser og plan" },
+  fr: { title: "Et si ?", bigger: "Avec {x} kWh de batterie en plus", sun: "Avec {x} % de panneaux en plus", none: "Sans batterie", less: "{d} de moins par mois", more: "{d} de plus par mois", same: "à peu près pareil", hint: "Calculé sur vos {n} derniers jours – même maison, mêmes prix, même plan" },
+};
+const T_TAR = {
+  da: { title: "Elaftaler", yours: "Din aftale", best: "Billigste for dig", save: "spar {d} om måneden", already: "Du har allerede den billigste ✓", pick: "Vælg din aftale", change: "Skift aftale", choose: "Vælg…", see: "Se aftalen", month: "/md", hideT: "Skjul", show: "Sammenlign elaftaler", showH: "Hvilken aftale havde været billigst for dit forbrug – regnet med batteriet",
+        hint: "Regnet på dine sidste {n} dage – batteriet planlagt for hver aftale · {src}", src: { dk: "aftaler fra elpris.dk (Forsyningstilsynet)", uk: "Octopus' priser for din region" , au: "alle elselskabers aftaler fra myndigheden (AER)", it: "alle tilbud fra ARERA's Portale Offerte", us: "forsyningens takster fra OpenEI" }, of: "{n} aftaler sammenlignet",
+        flatT: "Timepris eller fast pris?", hourly: "Med timepris og Energy Pilot", fixed: "Med fast pris ({p}/kWh)", hourlyWins: "Timepris sparer dig {d} om måneden", fixedWins: "En fast pris havde været {d} billigere om måneden", flatHint: "Regnet på dine sidste {n} dage, fast pris på samme gennemsnit" },
+  en: { title: "Electricity deals", yours: "Your deal", best: "Cheapest for you", save: "save {d} a month", already: "You already have the cheapest ✓", pick: "Pick your deal", change: "Change deal", choose: "Choose…", see: "See the deal", month: "/mo", hideT: "Hide", show: "Compare electricity deals", showH: "Which deal would have been cheapest for your use – worked out with the battery",
+        hint: "Worked out on your last {n} days – the battery planned for each deal · {src}", src: { dk: "deals from elpris.dk (Danish Utility Regulator)", uk: "Octopus' prices for your region" , au: "every retailer's plans from the AER", it: "every offer on ARERA's Portale Offerte", us: "your utility's tariffs from OpenEI" }, of: "{n} deals compared",
+        flatT: "Hourly or fixed price?", hourly: "With an hourly price and Energy Pilot", fixed: "With a fixed price ({p}/kWh)", hourlyWins: "The hourly price saves you {d} a month", fixedWins: "A fixed price would have been {d} cheaper a month", flatHint: "Worked out on your last {n} days, a fixed price at the same average" },
+  de: { title: "Stromtarife", yours: "Dein Tarif", best: "Am günstigsten für dich", save: "spare {d} im Monat", already: "Du hast schon den günstigsten ✓", pick: "Deinen Tarif wählen", change: "Tarif ändern", choose: "Wählen…", see: "Zum Tarif", month: "/Monat", hideT: "Ausblenden", show: "Stromtarife vergleichen", showH: "Welcher Tarif für deinen Verbrauch am günstigsten gewesen wäre – mit der Batterie gerechnet",
+        hint: "Berechnet mit deinen letzten {n} Tagen – die Batterie für jeden Tarif geplant · {src}", src: { dk: "Tarife von elpris.dk", uk: "Octopus-Preise für deine Region" , au: "alle Tarife von der AER", it: "alle Angebote im Portale Offerte (ARERA)", us: "Tarife deines Versorgers von OpenEI" }, of: "{n} Tarife verglichen",
+        flatT: "Stundenpreis oder Festpreis?", hourly: "Mit Stundenpreis und Energy Pilot", fixed: "Mit Festpreis ({p}/kWh)", hourlyWins: "Der Stundenpreis spart dir {d} im Monat", fixedWins: "Ein Festpreis wäre {d} im Monat günstiger gewesen", flatHint: "Berechnet mit deinen letzten {n} Tagen, Festpreis zum gleichen Durchschnitt" },
+  nl: { title: "Energiecontracten", yours: "Jouw contract", best: "Goedkoopst voor jou", save: "bespaar {d} per maand", already: "Je hebt al de goedkoopste ✓", pick: "Kies je contract", change: "Contract wijzigen", choose: "Kies…", see: "Bekijk", month: "/mnd", hideT: "Verbergen", show: "Energiecontracten vergelijken", showH: "Welk contract het goedkoopst was geweest voor jouw verbruik – met de batterij berekend",
+        hint: "Berekend op je laatste {n} dagen – de batterij gepland per contract · {src}", src: { dk: "contracten van elpris.dk", uk: "Octopus-prijzen voor je regio" , au: "alle plannen van de AER", it: "alle aanbiedingen op het Portale Offerte (ARERA)", us: "tarieven van je netbedrijf via OpenEI" }, of: "{n} contracten vergeleken",
+        flatT: "Dynamisch of vaste prijs?", hourly: "Met dynamische prijs en Energy Pilot", fixed: "Met vaste prijs ({p}/kWh)", hourlyWins: "Dynamisch bespaart je {d} per maand", fixedWins: "Een vaste prijs was {d} per maand goedkoper geweest", flatHint: "Berekend op je laatste {n} dagen, vaste prijs op hetzelfde gemiddelde" },
+};
+let tarChoices = null;
+function tariffCard() {
+  const t = data.tariffs, k = T_TAR[L] || T_TAR.en;
+  if (!t) return "";
+  const hide = `<button class="link" data-tarhide="1" aria-label="${k.hideT}">✕</button>`;
+  if (t.mode === "flat") {
+    const d = t.fixed - t.hourly;
+    return `<div class="card fade"><div class="eyebrow"><span>${k.flatT}</span>${hide}</div>
+      <div class="wrow"><span>${k.hourly}</span><b>${kr(t.hourly)}${k.month}</b></div>
+      <div class="wrow"><span>${k.fixed.replace("{p}", kr(t.flat_price))}</span><b>${kr(t.fixed)}${k.month}</b></div>
+      <p class="save" style="margin-top:8px;color:${d >= 0 ? "var(--ok)" : "var(--muted)"}">${(d >= 0 ? k.hourlyWins : k.fixedWins).replace("{d}", kr(Math.abs(d)))}</p>
+      <div class="muted" style="margin-top:6px;font-size:12px">${esc(k.flatHint.replace("{n}", t.days))}</div></div>`;
+  }
+  const cur = t.current, top = t.best[0], pre = (t.best[0]?.id || "").split(":")[0], uk = ["dk", "au", "it", "us"].includes(pre) ? pre : "uk";
+  const deal = (x) => `<div class="wrow"><span>${esc(x.name)}<br><small class="muted">${esc(x.supplier)}${x.url ? ` · <a href="${esc(x.url)}" target="_blank" rel="noopener">${k.see}</a>` : ""}</small></span><b>${kr(x.cost)}${k.month}</b></div>`;
+  const head = cur ? (top.id === cur.id ? `<p class="save">${k.already}</p>`
+    : `<p class="save">${k.best}: ${esc(top.name)} – ${k.save.replace("{d}", kr(cur.cost - top.cost))}</p>`) : "";
+  const pick = tarChoices ? `<select class="tarsel" data-tarpick="1"><option value="">${k.choose}</option>${tarChoices.map((c) =>
+      `<option value="${esc(c.id)}" ${cur && cur.id === c.id ? "selected" : ""}>${esc(c.supplier)} – ${esc(c.name)}</option>`).join("")}</select>`
+    : `<button class="link" data-tarload="1">${cur ? k.change : k.pick}</button>`;
+  return `<div class="card fade"><div class="eyebrow"><span>${k.title}</span>${hide}</div>
+    ${cur ? `<div class="wrow"><span><b>${k.yours}</b><br><small class="muted">${esc(cur.supplier)} – ${esc(cur.name)}</small></span><b>${kr(cur.cost)}${k.month}</b></div>` : ""}
+    ${head}${t.best.filter((x) => !cur || x.id !== cur.id).map(deal).join("")}
+    <div style="margin-top:8px">${pick}</div>
+    <div class="muted" style="margin-top:8px;font-size:12px">${esc(k.hint.replace("{n}", t.days).replace("{src}", k.src[uk]))} · ${esc(k.of.replace("{n}", t.count))}</div></div>`;
+}
+function wireTariffs() {
+  $("[data-tarhide]")?.addEventListener("click", async () => { await api("/api/settings", { tariff_show: false }); await load(); render(); });
+  $("[data-tarload]")?.addEventListener("click", async () => { tarChoices = (await api("/api/tariffs")).choices || []; render(); });
+  $("[data-tarpick]")?.addEventListener("change", async (e) => { await api("/api/settings", { tariff_current: e.target.value || null }); await load(); render(); });
+}
+function whatIfCard() {
+  const w = data.whatif, k = T_WHATIF[L] || T_WHATIF.en;
+  if (!w || !data.flow?.has?.battery) return "";
+  const diff = (v) => { const d = w.now - v; return Math.abs(d) < 5 ? k.same : (d > 0 ? k.less : k.more).replace("{d}", kr(Math.abs(d))); };
+  const line = (label, v, good) => `<div class="wrow"><span>${esc(label)}</span><b class="${good ? "good" : ""}">${esc(diff(v))}</b></div>`;
+  return `<div class="card fade"><div class="eyebrow"><span>${k.title}</span></div>
+    ${line(k.bigger.replace("{x}", num(w.more_kwh, 0)), w.bigger, true)}
+    ${data.flow?.has?.pv !== false ? line(k.sun.replace("{x}", w.more_sun_pct), w.sun, true) : ""}
+    ${line(k.none, w.none, false)}
+    <div class="muted" style="margin-top:8px;font-size:12px">${esc(k.hint.replace("{n}", w.days))}</div></div>`;
+}
 function savedCard() {
   const g = data.ledger, k = T.ledger, S = T_SAV[L] || T_SAV.en;
   if (!g || !data.flow?.has?.battery) return "";
@@ -1649,7 +1766,36 @@ function blendRows() {
     ${who(b.house, "house", "kWh/t")}${who(b.sun, "sun", "kWh/t")}${who(b.price, "price", SYM() + "/kWh")}
     ${b.battery.capacity ? `<div class="lrow"><span>${k.cap}</span><b>${num(b.battery.capacity, 1)} kWh</b><em>${k.capH}</em></div>` : ""}
     <div class="lrow"><span>${k.eff}</span><b>${Math.round(b.battery.efficiency * 100)} %</b><em>${b.battery.seen ? k.effSeen.replace("{n}", b.battery.seen) : k.datasheet}</em></div>
+    ${curveCard(b.curve)}
     ${data.ev ? `<div class="lrow"><span>${k.car}</span><b>${days ? k.carDays.replace("{n}", days) : k.carNone}</b><em>${car.need_seen ? k.carNeed.replace("{n}", car.need_seen) : ""}</em></div>` : ""}`;
+}
+const T_CURVE = {
+  da: { title: "Batteriets ladekurve", hint: "Hvor hurtigt det lader ved hvert niveau – lært af dit eget batteri", shared: "Lært af batterier som dit, indtil dit eget er lært", warm: "Varmt", cold: "Koldt (under 5 °C)", cool: "Køligt (5–15 °C)", now: "Batteriet er {t} °C nu", level: "Batteriniveau", speed: "Ladefart" },
+  en: { title: "The battery's charging curve", hint: "How fast it charges at each level – learned from your own battery", shared: "Learned from batteries like yours until your own is learned", warm: "Warm", cold: "Cold (below 5 °C)", cool: "Cool (5–15 °C)", now: "The battery is {t} °C now", level: "Battery level", speed: "Charging speed" },
+  de: { title: "Ladekurve der Batterie", hint: "Wie schnell sie bei jedem Stand lädt – von deiner eigenen Batterie gelernt", shared: "Von Batterien wie deiner gelernt, bis deine eigene gelernt ist", warm: "Warm", cold: "Kalt (unter 5 °C)", cool: "Kühl (5–15 °C)", now: "Die Batterie hat jetzt {t} °C", level: "Ladestand", speed: "Ladeleistung" },
+  nl: { title: "Laadcurve van de batterij", hint: "Hoe snel hij laadt bij elk niveau – geleerd van je eigen batterij", shared: "Geleerd van batterijen zoals de jouwe tot de jouwe geleerd is", warm: "Warm", cold: "Koud (onder 5 °C)", cool: "Koel (5–15 °C)", now: "De batterij is nu {t} °C", level: "Batterijniveau", speed: "Laadsnelheid" },
+};
+// The learned curve as a small graph: full speed until the battery slows down near full, and lower when cold.
+function curveCard(c) {
+  if (!c || (!c.taper?.length && c.cold >= 1 && c.cool >= 1)) return "";
+  const k = T_CURVE[L] || T_CURVE.en, X = (l) => 34 + l * 2.56, Y = (sh) => 96 - sh * 82;
+  const steps = (mult) => {
+    let pts = [[0, mult]], prev = mult;
+    for (const [lvl, sh] of [...c.taper].sort((a, b) => a[0] - b[0])) { const v = Math.min(prev, sh * mult); pts.push([lvl, prev], [lvl, v]); prev = v; }
+    pts.push([100, prev]);
+    return pts.map(([l, v]) => `${X(l).toFixed(1)},${Y(v).toFixed(1)}`).join(" ");
+  };
+  const line = (mult, col, dash) => `<polyline points="${steps(mult)}" fill="none" stroke="${col}" stroke-width="2.5" stroke-linejoin="round" ${dash ? `stroke-dasharray="5 4"` : ""}/>`;
+  const leg = (col, txt, dash) => `<span class="cleg"><i style="border-top:2.5px ${dash ? "dashed" : "solid"} ${col}"></i>${esc(txt)}</span>`;
+  return `<div class="eyebrow" style="margin:16px 0 6px"><span>${k.title}</span></div>
+    <svg viewBox="0 0 300 118" width="100%" role="img" aria-label="${esc(k.title)}" style="display:block">
+      <line x1="34" y1="96" x2="290" y2="96" stroke="var(--faint)"/><line x1="34" y1="14" x2="34" y2="96" stroke="var(--faint)"/>
+      ${[0, 50, 100].map((l) => `<text x="${X(l)}" y="110" font-size="9" fill="var(--muted)" text-anchor="middle">${l} %</text>`).join("")}
+      ${[0, 50, 100].map((v) => `<text x="29" y="${Y(v / 100) + 3}" font-size="9" fill="var(--muted)" text-anchor="end">${v} %</text>`).join("")}
+      ${c.cool < 1 ? line(c.cool, "var(--grid)", true) : ""}${c.cold < 1 ? line(c.cold, "var(--batt)", true) : ""}${line(1, "var(--ok)", false)}
+    </svg>
+    <div class="cleg-row">${leg("var(--ok)", k.warm)}${c.cool < 1 ? leg("var(--grid)", k.cool, true) : ""}${c.cold < 1 ? leg("var(--batt)", k.cold, true) : ""}</div>
+    <div class="muted" style="font-size:12px;margin-top:4px">${esc(c.shared ? k.shared : k.hint)}${c.temp != null ? " · " + esc(k.now.replace("{t}", num(c.temp, 0))) : ""}</div>`;
 }
 function learnCard() {
   const l = data.engine?.learning, k = T.learn;
@@ -2415,7 +2561,7 @@ function styleView() {
       ${chargerList(v, row)}` : "")}
     ${thingsSection(v, row)}
     ${settings.roles.pv_power ? section("bolt", (T_PANEL[L] || T_PANEL.en).t, (T_PANEL[L] || T_PANEL.en).h, panelsBody(), "panels") : ""}
-    ${section("bolt", y.secPrice, y.secPriceH, `${row(y.source, y.sourceH, `<div class="seg mini wide">${["auto", "spot", "tou"].map((m) => `<button class="${(v.price_source || "auto") === m ? "on" : ""}" data-psrc="${m}">${y.sources[m]}</button>`).join("")}</div>`)}
+    ${section("bolt", y.secPrice, y.secPriceH, `${row((T_TAR[L] || T_TAR.en).show, (T_TAR[L] || T_TAR.en).showH, tog("tariff_show", true))}${row(y.source, y.sourceH, `<div class="seg mini wide">${["auto", "spot", "tou"].map((m) => `<button class="${(v.price_source || "auto") === m ? "on" : ""}" data-psrc="${m}">${y.sources[m]}</button>`).join("")}</div>`)}
       ${v.price_source === "tou" ? touEditor(v) : ""}
       ${!settings.roles.price && v.price_source !== "tou" && (settings.zones || []).length ? `${row(y.area, settings.country === "DK" ? y.areaH : "", `<div class="seg mini">${(settings.zones || ["DK1", "DK2"]).map((a) => `<button class="${(v.price_area || settings.area_guess) === a ? "on" : ""}" data-area="${a}">${a}</button>`).join("")}</div>`)}
         ${row(y.tariff, y.tariffH, `<span class="times2">${["low", "high", "peak"].map((k) => `<input class="numin sm" type="number" step="0.01" data-tariff="${k}" value="${(v.tariff || {})[k] ?? ""}" placeholder="${settings.country === "DK" ? { low: 0.115, high: 0.346, peak: 1.038 }[k] : 0}">`).join("")}</span>`)}` : ""}`)}
@@ -2653,6 +2799,7 @@ function wire() {
   wireTest();
   wireFix();
   wireRep();
+  wireTariffs();
   document.querySelectorAll("[data-tab]").forEach((b) => b.onclick = async () => {
     tab = b.dataset.tab; localStorage.setItem("ep_tab", tab);
     if (tab === "shadow") { status = await api("/api/status"); control = await api("/api/control"); selftest = await api("/api/selftest").catch(() => null); }
@@ -2663,7 +2810,8 @@ function wire() {
   document.querySelectorAll("[data-pvr-h]").forEach((b) => b.onclick = () => { const h = Number(b.dataset.pvrH); pvrHour = pvrHour === h ? null : h; render(); });
   document.querySelectorAll("[data-h]").forEach((g) => g.onclick = () => {
     const h = data.plan.hours.filter((x) => x.price != null || x.sun != null)[Number(g.dataset.h)];
-    $("#tip").innerHTML = `<b>${clock(h.t)}</b> · ${kr(h.price)}/kWh${h.sun != null ? ` · ${T.legSun} ${num(h.sun, 1)} kWh` : ""}${h.house != null ? ` · ${T.legHouse} ${num(h.house, 1)} kWh` : ""}${h.soc != null ? ` · ${T.battery} ${num(h.soc, 0)} %${data.engine?.capacity ? ` · ${num(h.soc * data.engine.capacity / 100, 1)} kWh` : ""}` : ""}${h.charge ? ` · ${T.legCharge}` : ""}${h.export ? ` · ${T.legExport}` : ""}${h.car ? ` · ${T.legCar}${h.car_kwh ? ` ${num(h.car_kwh, 1)} kWh` : ""}` : ""}`;
+    $("#tip").innerHTML = `<b>${clock(h.t)}</b> · ${kr(h.price)}/kWh${h.sun != null ? ` · ${T.legSun} ${num(h.sun, 1)} kWh` : ""}${h.house != null ? ` · ${T.legHouse} ${num(h.house, 1)} kWh` : ""}${h.soc != null ? ` · ${T.battery} ${num(h.soc, 0)} %${data.engine?.capacity ? ` · ${num(h.soc * data.engine.capacity / 100, 1)} kWh` : ""}` : ""}${h.charge ? ` · ${T.legCharge}` : ""}${h.export ? ` · ${T.legExport}` : ""}${h.car ? ` · ${T.legCar}${h.car_kwh ? ` ${num(h.car_kwh, 1)} kWh` : ""}` : ""}` + manButtons(h);
+    wireMan(h);
   });
   document.querySelectorAll("[data-cmode]").forEach((b) => b.onclick = async () => {
     if (b.dataset.cmode === "control" && !confirm(T.ctl.confirm)) return;

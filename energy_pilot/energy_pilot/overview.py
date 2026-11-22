@@ -45,6 +45,16 @@ ROLES: dict[str, dict[str, Any]] = {
     "ev_cap": {"known": ["input_number.bil_lad_loft_kwh"], "class": None, "words": []},
 }
 
+NOTES = {  # a short line under "Right now" when something automatic changes the plan
+    "da": {"away": "Ingen hjemme – planen regner med lavt forbrug, til nogen kommer hjem", "cold": "Batteriet er koldt og lader langsommere – planen tager højde for det", "power_down": "Octopus-session meldt til – batteriet gemmer strøm til den"},
+    "en": {"away": "Nobody home – the plan counts on low use until someone is back", "cold": "The battery is cold and charges slower – the plan allows for it", "power_down": "Octopus session joined – the battery keeps power for it"},
+    "de": {"away": "Niemand zu Hause – der Plan rechnet mit wenig Verbrauch, bis jemand zurück ist", "cold": "Die Batterie ist kalt und lädt langsamer – der Plan berücksichtigt das", "power_down": "Octopus-Session angemeldet – die Batterie hält Strom dafür bereit"},
+    "fr": {"away": "Personne à la maison – le plan compte sur une faible consommation jusqu'au retour", "cold": "La batterie est froide et charge plus lentement – le plan en tient compte", "power_down": "Session Octopus rejointe – la batterie garde de l\'énergie pour elle"},
+    "nl": {"away": "Niemand thuis – het plan rekent op weinig verbruik tot er iemand terug is", "cold": "De batterij is koud en laadt langzamer – het plan houdt er rekening mee", "power_down": "Octopus-sessie aangemeld – de batterij houdt stroom ervoor vast"},
+    "sv": {"away": "Ingen hemma – planen räknar med låg förbrukning tills någon är tillbaka", "cold": "Batteriet är kallt och laddar långsammare – planen tar hänsyn till det", "power_down": "Octopus-session anmäld – batteriet sparar el till den"},
+    "nb": {"away": "Ingen hjemme – planen regner med lavt forbruk til noen er tilbake", "cold": "Batteriet er kaldt og lader saktere – planen tar hensyn til det", "power_down": "Octopus-økt påmeldt – batteriet sparer strøm til den"},
+}
+
 DECISIONS = {
     "da": {
         "FREE_DISCHARGE": ("Batteriet forsyner huset", "discharge"), "DISCHARGE": ("Batteriet forsyner huset", "discharge"),
@@ -53,6 +63,7 @@ DECISIONS = {
         "FREE_HOLD": ("Gemmer strømmen til senere", "hold"), "FREE_EXPORT": ("Sælger strøm fra batteriet", "export"), "HOLD": ("Gemmer strømmen til senere", "hold"),
         "SELL_SUN": ("Sælger solen – det giver mere end at gemme den", "export"),
         "NOOP": ("Alt kører som planlagt", "hold"),
+        "CAR_HELP": ("Batteriet hjælper bilen – det fyldes igen, før huset får brug for det", "discharge"), "CAR_GRID": ("Bilen lader fra nettet – batteriet gemmes til huset", "hold"),
     },
     "en": {
         "FREE_DISCHARGE": ("The battery powers the house", "discharge"), "DISCHARGE": ("The battery powers the house", "discharge"),
@@ -61,6 +72,7 @@ DECISIONS = {
         "FREE_HOLD": ("Saving the power for later", "hold"), "FREE_EXPORT": ("Selling power from the battery", "export"), "HOLD": ("Saving the power for later", "hold"),
         "SELL_SUN": ("Selling the sun – it pays more than storing it", "export"),
         "NOOP": ("Everything runs as planned", "hold"),
+        "CAR_HELP": ("The battery helps the car – it fills up again before the house needs it", "discharge"), "CAR_GRID": ("The car charges from the grid – the battery is kept for the house", "hold"),
     },
     "de": {
         "FREE_DISCHARGE": ("Die Batterie versorgt das Haus", "discharge"), "DISCHARGE": ("Die Batterie versorgt das Haus", "discharge"),
@@ -69,6 +81,7 @@ DECISIONS = {
         "FREE_HOLD": ("Hebt den Strom für später auf", "hold"), "FREE_EXPORT": ("Verkauft Strom aus der Batterie", "export"), "HOLD": ("Hebt den Strom für später auf", "hold"),
         "SELL_SUN": ("Verkauft die Sonne – das bringt mehr als speichern", "export"),
         "NOOP": ("Alles läuft nach Plan", "hold"),
+        "CAR_HELP": ("Die Batterie hilft dem Auto – sie wird wieder voll, bevor das Haus sie braucht", "discharge"), "CAR_GRID": ("Das Auto lädt aus dem Netz – die Batterie bleibt fürs Haus", "hold"),
     },
     "fr": {
         "FREE_DISCHARGE": ("La batterie alimente la maison", "discharge"), "DISCHARGE": ("La batterie alimente la maison", "discharge"),
@@ -77,6 +90,7 @@ DECISIONS = {
         "FREE_HOLD": ("Garde l'énergie pour plus tard", "hold"), "FREE_EXPORT": ("Vend l'énergie de la batterie", "export"), "HOLD": ("Garde l'énergie pour plus tard", "hold"),
         "SELL_SUN": ("Vend le soleil – plus rentable que le stocker", "export"),
         "NOOP": ("Tout se déroule comme prévu", "hold"),
+        "CAR_HELP": ("La batterie aide la voiture – elle se remplit avant que la maison en ait besoin", "discharge"), "CAR_GRID": ("La voiture charge sur le réseau – la batterie est gardée pour la maison", "hold"),
     },
     "nl": {
         "FREE_DISCHARGE": ("De batterij voedt het huis", "discharge"), "DISCHARGE": ("De batterij voedt het huis", "discharge"),
@@ -85,6 +99,7 @@ DECISIONS = {
         "FREE_HOLD": ("Bewaart de stroom voor later", "hold"), "FREE_EXPORT": ("Verkoopt stroom uit de batterij", "export"), "HOLD": ("Bewaart de stroom voor later", "hold"),
         "SELL_SUN": ("Verkoopt de zon – dat levert meer op dan opslaan", "export"),
         "NOOP": ("Alles loopt volgens plan", "hold"),
+        "CAR_HELP": ("De batterij helpt de auto – hij is weer vol voordat het huis hem nodig heeft", "discharge"), "CAR_GRID": ("De auto laadt van het net – de batterij blijft voor het huis", "hold"),
     },
     "sv": {
         "FREE_DISCHARGE": ("Batteriet försörjer huset", "discharge"), "DISCHARGE": ("Batteriet försörjer huset", "discharge"),
@@ -93,6 +108,7 @@ DECISIONS = {
         "FREE_HOLD": ("Sparar strömmen till senare", "hold"), "FREE_EXPORT": ("Säljer ström från batteriet", "export"), "HOLD": ("Sparar strömmen till senare", "hold"),
         "SELL_SUN": ("Säljer solen – det ger mer än att spara den", "export"),
         "NOOP": ("Allt går som planerat", "hold"),
+        "CAR_HELP": ("Batteriet hjälper bilen – det fylls igen innan huset behöver det", "discharge"), "CAR_GRID": ("Bilen laddar från nätet – batteriet sparas till huset", "hold"),
     },
     "nb": {
         "FREE_DISCHARGE": ("Batteriet forsyner huset", "discharge"), "DISCHARGE": ("Batteriet forsyner huset", "discharge"),
@@ -101,6 +117,7 @@ DECISIONS = {
         "FREE_HOLD": ("Sparer strømmen til senere", "hold"), "FREE_EXPORT": ("Selger strøm fra batteriet", "export"), "HOLD": ("Sparer strømmen til senere", "hold"),
         "SELL_SUN": ("Selger solen – det gir mer enn å lagre den", "export"),
         "NOOP": ("Alt går som planlagt", "hold"),
+        "CAR_HELP": ("Batteriet hjelper bilen – det fylles igjen før huset trenger det", "discharge"), "CAR_GRID": ("Bilen lader fra nettet – batteriet spares til huset", "hold"),
     },
 }
 
@@ -173,9 +190,9 @@ class Overview:
                          "quiet_from", "quiet_to", "quiet_battery", "quiet_car",
                          "quiet_battery_from", "quiet_battery_to", "quiet_car_from", "quiet_car_to",
                          "control", "inverter_profile", "custom_profile", "battery_takeover", "ev_now", "ev_target", "ev_sun_target", "ev_trip", "ev_battery_kwh", "charger_phases", "ev_ready", "ev_switch", "ev_phase_switch",
-                         "batteries", "battery_dismissed", "chargers", "charger_dismissed", "battery_targets",
+                         "batteries", "battery_dismissed", "chargers", "charger_dismissed", "battery_targets", "manual", "tariff_current", "tariff_show",
                          # the self-test and what was mended by itself (selftest.py, autofix.py)
-                         "selftest", "observed", "auto_test", "auto_tested", "self_tune", "profile_fixes", "test_skipped", "autofix_log", "autofix_ignore", "role_scale", "price_scale", "last_report",
+                         "pd_joined", "selftest", "observed", "auto_test", "auto_tested", "self_tune", "profile_fixes", "test_skipped", "autofix_log", "autofix_ignore", "role_scale", "price_scale", "last_report",
                          # learning together (telemetry.py)
                          "install_id", "first_seen", "first_control", "share_anonymous", "telemetry_sent", "hours_sent_day", "community", "community_ignore", "replies", "replies_seen", "last_error", "replies_hidden", "replies_shown",
                          # the update card (telemetry.py)
@@ -549,9 +566,13 @@ class Overview:
         first = (b.get("steps") or [{}])[0]
         if key == "FREE_HOLD" and (first.get("grid") or 0) < -0.01 and self.sell_sun() and self.controller and self.controller.can_block_sun():
             key = "SELL_SUN"  # the sun's surplus is sold, not stored
+        if ((self.flow() or {}).get("ev") or 0) > 1000 and key in ("FREE_DISCHARGE", "FREE_HOLD"):
+            key = "CAR_HELP" if key == "FREE_DISCHARGE" else "CAR_GRID"  # the car charging: what the battery does for it
         text, kind = DECISIONS.get(lang, DECISIONS["en"]).get(key) or DECISIONS["en"][key]
+        notes = NOTES.get(lang, NOTES["en"])
         return {"key": key, "text": text, "kind": kind, "reason": None, "target": b["target"], "plan": [], "engine": True,
-                "saving": b["saving"], "blocked": self._not_discharging(key)}
+                "saving": b["saving"], "blocked": self._not_discharging(key),
+                "notes": [notes.get(n) or NOTES["en"].get(n, n) for n in getattr(self.engine, "notes", None) or []]}
 
     def _not_discharging(self, key: str) -> bool:
         """The plan says the battery covers the house, but for 5 minutes it has stood still while the house buys from
@@ -715,6 +736,10 @@ class Overview:
                         continue
                     if (h := slot(dt)) is not None:
                         h["sun"] = round(h.get("sun", 0.0) + kwh, 2)  # several forecasts (arrays) add up
+                        try:  # Solcast's poor day (10 % chance of less): how sure the forecast is
+                            h["sun10"] = round(h.get("sun10", 0.0) + min(kwh, float(p.get("pv_estimate10"))), 2)
+                        except (TypeError, ValueError):
+                            pass
         # Not every forecast sensor carries the hours (Solcast does): next the ones that carry them in another
         # shape (Open-Meteo Solar Forecast's wh_period), then Home Assistant's Energy dashboard forecast
         # (Forecast.Solar and the rest), and last its own learned forecast - so the plan always knows the sun.
@@ -760,6 +785,9 @@ class Overview:
                             h["house"] = round(float(kwh), 2)
                     except (TypeError, ValueError):
                         continue
+        for k, v in (self.settings.get("manual") or {}).items():
+            if k in hours:
+                hours[k]["manual"] = v  # the user's own choice for that hour
         # The plan shows Energy Pilot's own charging; another system's plan (AppDaemon) is only compared.
         res = (self.engine.result if self.engine else None) or {}
         for st in (res.get("battery") or {}).get("steps", []):

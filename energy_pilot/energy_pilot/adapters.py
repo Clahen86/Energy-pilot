@@ -518,6 +518,12 @@ CHARGER_SERVICES = {
     "ohme": {"charge": [(r"select\..*charge_mode$", "select", "max_charge")], "stop": [(r"select\..*charge_mode$", "select", "paused")]},
     # evcc (marq24/ha-evcc): the loadpoint's "Mode" - now / off (evcc keeps its own current and phases)
     "evcc_intg": {"charge": [(r"select\..*_mode$", "select", "now")], "stop": [(r"select\..*_mode$", "select", "off")]},
+    # Hypervolt (gndean/home-assistant-hypervolt-charger): "Activation Mode" starts and stops it (Plug and Charge /
+    # Schedule Charge - its own schedule then decides, so keep it empty), "Max Current" the speed, Boost = full power
+    # (its Eco modes would only use the sun the house battery leaves)
+    "hypervolt_charger": {"charge": [(r"select\..*charge_mode$", "select", "Boost"), (r"number\..*max_current$", "number", "{current}"),
+                                     (r"select\..*activation_mode$", "select", "Plug and Charge")],
+                          "stop": [(r"select\..*activation_mode$", "select", "Schedule Charge")]},
     # myenergi zappi (CJNE/ha-myenergi): "Charge Mode" Fast / Stopped (no current control)
     "myenergi": {"charge": [(r"select\..*charge_mode$", "select", "Fast")], "stop": [(r"select\..*charge_mode$", "select", "Stopped")]},
 }

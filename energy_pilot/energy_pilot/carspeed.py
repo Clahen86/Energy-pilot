@@ -8,6 +8,8 @@
   still charges at full speed.
 - 1 or 3 phases (setting, only for a charger with its own phase choice): on a small surplus it charges on 1 phase
   (from about 1.4 kW instead of 4.1), on 3 when the surplus is big - with a margin, and at most every 10 minutes.
+- The house battery may not charge from the grid (and isn't full): it gets the sun first, the car what is left -
+  turned down, never stopped in its planned hours. A charger that can't be turned down (on/off) isn't touched.
 - Mind the main fuse (setting, on when an import limit is set): house + battery + car may not buy more than the
   limit; the car is turned down first, and stopped if even 6 A would be too much.
 """
@@ -37,6 +39,10 @@ def decide(flow: dict[str, Any], s: dict[str, Any], planned: bool, manual: bool,
     batt_in = max(0.0, flow.get("battery") or 0.0)  # the house battery charging takes the sun first
     follow = s.get("ev_follow_sun", True) and pv is not None and house is not None
     surplus = (pv - house - batt_in) if follow else 0.0
+    sun_first = s.get("batt_sun_w") and pv is not None and house is not None
+    if follow and sun_first:
+        # The house battery may not charge from the grid: the sun fills it first, the car gets what is left.
+        surplus = pv - house - max(batt_in, float(s["batt_sun_w"]))
     # 1 or 3 phases: only a 3-phase charger with its own phase choice (s["phase_switch"]); held while locked.
     switch = bool(s.get("phase_switch")) and phases == 3 and not s.get("onoff")
     now_ph = int(s.get("phase_now") or 3)
@@ -58,6 +64,11 @@ def decide(flow: dict[str, Any], s: dict[str, Any], planned: bool, manual: bool,
         charge, amps, why = True, max(lo, min(max_a, int(surplus // per_a))), "sun"
     elif planned and not sun_only:
         charge, amps, why = True, max_a, "planned"
+        if sun_first and pv > house:
+            # ... also in the planned hours while the sun shines: turned down (never stopped - it still gets ready)
+            fit = max(lo, int(max(0.0, pv - house - float(s["batt_sun_w"])) // per_a))
+            if fit < amps:
+                amps, why = fit, "planned+battery"
     else:
         return {"charge": False, "current": max_a, "sun": False, "why": "sun_only" if planned else "waiting", "phases": None}
     if switch and (manual or (planned and not sun)) and not s.get("phase_lock"):

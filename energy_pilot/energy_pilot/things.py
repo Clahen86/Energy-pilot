@@ -9,6 +9,8 @@ charger stops drawing power the battery is full - done for the day. A machine is
 said it is ready, Energy Pilot only starts it (a remote start button or switch), or tells the user when to press start.
 The one exception, chosen by the user for a machine that resumes by itself after a power cut ("resume"): when it
 starts on its plug, Energy Pilot switches the plug off at once and on again at the cheapest time - no Ready needed.
+A water heater on a switch is the other way round: it stays on (its own thermostat keeps the water hot) and is only
+switched off in the dearest hours - at most 4 a day, never in sun - so it heats on cheap power and sun instead.
 How much each thing takes and how long is learned from the runs seen (the median of the last ten, from three runs).
 """
 
@@ -20,6 +22,7 @@ from statistics import median
 from typing import Any
 
 MODES = ("sun_cheap", "sun", "cheap")
+HEATER_OFF_H = 4  # a water heater is off at most this many hours a day - a tank keeps hot far longer
 RUN_W = 15  # a machine above this draws power: it runs
 IDLE_W = 5  # below this it rests
 MACHINE_END_S = 15 * 60  # a machine resting this long has finished (a dishwasher drying can rest a few minutes)
@@ -124,7 +127,9 @@ class Things:
                 return h.sell if mode != "cheap" and sunny(h) else h.price
 
             p: dict[str, Any] = {"id": tid, "hours": [], "start": None, "sun": False}
-            if t.get("kind") == "machine":
+            if t.get("kind") == "heater":
+                p.update(self._heater_off(hours, now, left))
+            elif t.get("kind") == "machine":
                 if s.get("armed") and not s.get("running") and not s.get("start_sent"):
                     p.update(self._machine_start(ok, now, until, minutes, kw, mode, sunny, cost))
             elif not self.full_today(tid, now):
@@ -142,6 +147,23 @@ class Things:
             self.plans[tid] = p
             out.append(p)
         return out
+
+    @staticmethod
+    def _heater_off(hours: list[Any], now: datetime, left: dict[datetime, float]) -> dict[str, Any]:
+        """The dearest hours of the coming day for a water heater to rest in - only where clearly dearer than usual and
+        without sun to spare; at most HEATER_OFF_H hours."""
+        day = [h for h in hours if h.start + timedelta(hours=h.length) > now and h.start < now + timedelta(hours=24)]
+        if len(day) < 4:
+            return {"off": [], "slot_h": None}
+        usual = median(h.price for h in day)
+        dear = [h for h in sorted(day, key=lambda h: -h.price) if h.price >= usual * 1.2 and left.get(h.start, 0.0) < 0.1]
+        off, got = [], 0.0
+        for h in dear:
+            if got + h.length > HEATER_OFF_H + 1e-9:
+                break
+            off.append(h)
+            got += h.length
+        return {"off": sorted(h.start.isoformat() for h in off), "slot_h": off[0].length if off else None}
 
     @staticmethod
     def _machine_start(ok: list[Any], now: datetime, until: datetime, minutes: float, kw: float, mode: str,
@@ -178,7 +200,9 @@ class Things:
         only plan, measure and learn - nothing is switched or started."""
         for t in self.items(settings):
             try:
-                if t.get("kind") == "machine":
+                if t.get("kind") == "heater":
+                    await self._tick_heater(ha, t, now, act)
+                elif t.get("kind") == "machine":
                     await self._tick_machine(ha, t, now, price, sell, grid_w, dt_s, act)
                 else:
                     await self._tick_battery(ha, t, now, price, sell, grid_w, dt_s, act)
@@ -253,6 +277,30 @@ class Things:
             return  # shadow: the plan is shown, nothing is switched
         if await self._switch(ha, sw, want, now) and want:
             s["on_by_us"] = True
+
+    def _in_off(self, tid: str, now: datetime) -> bool:
+        p = self.plans.get(tid) or {}
+        length = timedelta(hours=p.get("slot_h") or 1)
+        return any(datetime.fromisoformat(x) <= now < datetime.fromisoformat(x) + length for x in p.get("off") or [])
+
+    async def _tick_heater(self, ha: Any, t: dict[str, Any], now: datetime, act: bool = True) -> None:
+        """On, except in its dear hours. Turned on by hand in one of them: left on until the next."""
+        tid, s, sw = t["id"], self.st(t["id"]), t.get("switch")
+        if not sw:
+            return
+        rest = self._in_off(tid, now)
+        on = (ha.states.get(sw) or {}).get("state") == "on"
+        if not rest:
+            s["by_hand"] = False
+        elif on and s.get("off_by_us"):
+            s["by_hand"] = True  # someone wanted hot water now
+        if not act:
+            return
+        want = not rest or bool(s.get("by_hand"))
+        if await self._switch(ha, sw, want, now):
+            s["off_by_us"] = not want
+        elif want:
+            s["off_by_us"] = False
 
     async def _tick_machine(self, ha: Any, t: dict[str, Any], now: datetime, price: float | None, sell: float,
                             grid_w: float | None, dt_s: float, act: bool = True) -> None:
@@ -345,7 +393,9 @@ class Things:
             tid, s = t["id"], self.st(t["id"])
             p = self.plans.get(tid) or {}
             kwh, minutes, _ = self.need(t)
-            if t.get("kind") == "machine":
+            if t.get("kind") == "heater":
+                status = "pause" if self._in_off(tid, now) else "heat"
+            elif t.get("kind") == "machine":
                 status = "running" if s.get("running") else "waiting_start" if s.get("start_sent") else \
                     "planned" if s.get("armed") and p.get("start") else "armed" if s.get("armed") else \
                     "done" if s.get("last") and datetime.fromisoformat(s["last"]["end"]).date() == now.date() else "idle"
@@ -357,7 +407,7 @@ class Things:
                         "slot_h": p.get("slot_h"), "kwh_now": round(float(s.get("kwh_now") or 0), 2), "need_kwh": round(kwh, 2),
                         "minutes": round(minutes), "learned": self.learned(tid), "last": s.get("last"),
                         "done_at": s.get("done"), "armed": bool(s.get("armed")), "paused": bool(s.get("paused")),
-                        "resume": bool(t.get("resume") and t.get("switch") and t.get("power"))})
+                        "resume": bool(t.get("resume") and t.get("switch") and t.get("power")), "off": p.get("off") or []})
         return out
 
 
@@ -367,6 +417,8 @@ MACHINE_WORDS = re.compile(r"wash|vaske|vask_|dish|opvask|geschirr|spuel|spül|d
                            r"lave.?vaisselle|seche|sèche|vaatwas|wasmachine|droger|tvatt|tvätt|disk|tork|oppvask", re.I)
 BATTERY_WORDS = re.compile(r"mower|plæne|plaene|automower|rasenm|tondeuse|maaier|grasklipp|gräsklipp|gressklipp|e.?bike|"
                            r"elcykel|cykel|bike|fahrrad|velo|vélo|fiets|sykkel|tool|værktøj|vaerktoej|werkzeug|outil|gereedschap|verktyg", re.I)
+HEATER_WORDS = re.compile(r"water.?heater|boiler|vvb|varmtvand|varmvand|varmvann|varmvatten|elpatron|immersion|warmwasser|"
+                          r"warmwater|chauffe.?eau|ballon|eddi", re.I)
 NOT_THING = re.compile(r"phone|iphone|pixel|galaxy|ipad|tablet|laptop|macbook|watch|_tv|tv_|television|heat.?pump|varmepumpe|"
                        r"light|lys|lamp|inverter|growatt|battery_soc|ev_|charger|wallbox|keba|easee|zappi|car_", re.I)
 
@@ -414,11 +466,13 @@ def find(registry: list[dict[str, Any]], devices: dict[str, dict[str, Any]], sta
             continue  # a robot mower or vacuum runs its own dock: nothing to switch
         power = next((i for i in ids if i.startswith("sensor.") and (states[i].get("attributes") or {}).get("device_class") == "power"), None)
         switch = next((i for i in ids if i.startswith("switch.") and not re.search(r"child|lock|led|light|lys|sound|beep|mode|indicator", i)), None)
-        if switch and not power and not re.search(r"plug|outlet|socket|stik|stikkontakt|relay|relæ|power|strom|steckdose|prise|shelly|tasmota|sonoff|grillplats|tradfri", switch + " " + text):
+        if switch and not power and not HEATER_WORDS.search(switch) and not re.search(r"plug|outlet|socket|stik|stikkontakt|relay|relæ|power|strom|steckdose|prise|shelly|tasmota|sonoff|grillplats|tradfri", switch + " " + text):
             switch = None  # only a switch that powers something: a smart plug or a relay
         start = next((i for i in ids if i.startswith("button.") and START.search(i)), None) or \
             next((i for i in ids if i.startswith("switch.") and re.search(r"remote_start", i)), None)
-        if MACHINE_WORDS.search(dn + " " + str(d.get("model") or "").lower()) and (start or power):
+        if HEATER_WORDS.search(text) and switch:
+            out.append({"device": dev, "kind": "heater", "name": dname or ids[0], "icon": "heater", "switch": switch, "power": power})
+        elif MACHINE_WORDS.search(dn + " " + str(d.get("model") or "").lower()) and (start or power):
             out.append({"device": dev, "kind": "machine", "name": dname or ids[0], "icon": icon_for(text), "start": start, "power": power,
                         "remote": bool(start)})
         elif BATTERY_WORDS.search(text) and switch:

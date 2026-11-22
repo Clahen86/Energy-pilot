@@ -104,6 +104,9 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
                     other = None
             data["ledger"] = overview.engine.ledger.summary(_dt.now(_Z(runner.ha.config.get("time_zone") or "UTC")), other)
             data["ledger"]["view"] = overview.settings.get("saved_view") or "bat"
+            data["whatif"] = getattr(overview.engine, "whatif", None)
+            tf = getattr(overview, "tariffs", None)
+            data["tariffs"] = tf.result if tf and overview.settings.get("tariff_show", True) else None
             soc = (overview.flow() or {}).get("soc")
             if soc is not None:
                 data["ledger"]["battery_kwh"] = round(soc / 100 * overview.engine.settings().capacity_kwh, 1)
@@ -116,6 +119,7 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
                               "profile": bool(eng.profile), "car": eng.result.get("car"), "cars": eng.result.get("cars"), "things": eng.things.view(overview.settings, datetime.now(eng.tz)), "generator": eng.result.get("generator"), "sources": eng.sources_used(), "learning": eng.learning.summary(), "blend": eng.blend_info(),
                               "decision": overview.engine_decision(lang(req)), "selfcheck": eng.follow.check() + eng.checks + (overview.controller.watch_checks() if overview.controller else []),
                               "fixed": _fixed_lines(overview),
+                              "can_sell": bool(eng.can_export()),
                               "tested": _tested(overview)}
         return web.json_response(data)
 
@@ -346,6 +350,12 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
     app.router.add_get("/", index)
     app.router.add_get("/api/status", status)
     app.router.add_get("/api/overview", get_overview)
+    async def tariff_choices(req: web.Request) -> web.Response:
+        """The deals the user may pick as their own (Denmark, UK)."""
+        tf = getattr(overview, "tariffs", None)
+        return web.json_response({"choices": tf.choices() if tf else [], "current": overview.settings.get("tariff_current")})
+
+    app.router.add_get("/api/tariffs", tariff_choices)
     app.router.add_get("/api/settings", get_settings)
     app.router.add_post("/api/settings", save_settings)
     app.router.add_post("/api/detect", redetect)
@@ -451,6 +461,8 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
         images = [{"name": str(i.get("name") or "billede")[:60], "data": i["data"]}
                   for i in (body.get("images") or [])[:3]
                   if isinstance(i, dict) and isinstance(i.get("data"), str) and len(i["data"]) <= 2_000_000]
+        tl = getattr(overview, "timeline", None)
+        diag["timeline"] = tl.last() if tl else []  # the last two days, every 5 minutes: to replay what happened
         payload = {"note": str(body.get("note") or "")[:4000], "test": test, "diagnostics": diag, "images": images,
                    "profile": c.profile_key("battery") if c else None, "lang": str(body.get("lang") or "")[:5],
                    "install": overview.settings.get("install_id")}  # so the answer finds its way back here

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
 import json
 import logging
 import os
@@ -122,6 +123,16 @@ async def main() -> None:
 
     asyncio.create_task(run_recover())
 
+    from .timeline import Timeline, snapshot
+
+    overview.timeline = Timeline(data_dir / "energy_pilot_timeline.jsonl")  # the last two days, sent with a report
+    from .whatif import Hourly
+
+    overview.hourly = Hourly(data_dir / "energy_pilot_hours.json")  # 30 days of hours, for "what if"
+    from .tariffs import Tariffs
+
+    overview.tariffs = Tariffs(data_dir)  # which electricity deal would have been cheapest
+
     async def run_engine() -> None:
         await ha.connected.wait()
         await asyncio.sleep(20)  # let the parts be found first
@@ -144,6 +155,12 @@ async def main() -> None:
                     await controller.discover()
                 await controller.tick()
                 await curtail.tick()
+                overview.timeline.add(snapshot(overview, engine, controller))
+                fl, ns = overview.flow() or {}, getattr(engine, "now_slot", None) or {}
+                overview.hourly.add(datetime.now(engine.tz), fl.get("house"), fl.get("pv"), ns.get("price"), ns.get("sell"))
+                await engine.refresh_whatif()
+                await engine.join_power_down()
+                await engine.refresh_tariffs()
             except Exception:  # noqa: BLE001 - tries again next round
                 logging.getLogger("energy_pilot.engine").warning("Engine round failed", exc_info=True)
             # Every 5 minutes, and just after each quarter hour starts - prices change on the quarter, so the battery
@@ -240,7 +257,9 @@ async def main() -> None:
                     overview.save({"ev_trip": False})  # the car left full: back to the everyday target
                 engine._was_plugged = bool(f.get("plug"))
                 engine.batt_learn.see(f.get("battery"), f.get("soc"), 30 / 3600)
+                engine.batt_learn.see_temp(f.get("battery"), f.get("soc"), engine.battery_temp())
                 engine.grid_peak.see(now, f.get("grid"))
+                engine.export_cap.see(now, f.get("grid"))
                 engine.house_hist.see(now, f.get("house"))  # the house's own history (used when HA keeps no statistics)
                 if st.get("things"):
                     # in shadow nothing is switched: the things act only when Energy Pilot controls something

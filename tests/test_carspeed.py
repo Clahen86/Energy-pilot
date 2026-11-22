@@ -50,3 +50,16 @@ def test_fixed_steps_stop_when_the_lowest_does_not_fit():
     assert decide(flow, s, True, False, 10.0, False)["charge"] is False
     s["min_a"] = None  # a charger that can go down to 6 A still charges
     assert decide(flow, s, True, False, 10.0, False)["current"] == 6
+
+
+def test_battery_without_grid_charging_gets_the_sun_first():
+    sf = {**S, "batt_sun_w": 3000}
+    d = decide(f(pv=8000, house=600), sf, planned=True, manual=False, need_kwh=20, sun_was_on=False)
+    assert d["charge"] and d["current"] == 6  # (8000-600-3000)/690 = 6.4 A: the battery keeps 3 kW of sun
+    d = decide(f(pv=4000, house=600), sf, planned=True, manual=False, need_kwh=20, sun_was_on=False)
+    assert d["charge"] and d["current"] == 6  # turned down to the lowest, never stopped in its planned hours
+    assert not decide(f(pv=4000, house=600), sf, planned=False, manual=False, need_kwh=20, sun_was_on=False)["charge"]
+    assert decide(f(pv=8000, house=600), sf, planned=False, manual=True, need_kwh=20, sun_was_on=False)["current"] == 16
+    on_off = decide(f(pv=8000, house=600), {**sf, "onoff": True}, planned=True, manual=False, need_kwh=20, sun_was_on=False)
+    assert on_off["current"] == 16  # a charger that can't be turned down isn't touched
+    assert decide(f(house=500), sf, planned=True, manual=False, need_kwh=20, sun_was_on=False)["current"] == 16  # no sun

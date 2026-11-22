@@ -428,3 +428,12 @@ def test_goodwe_ems_profile():
         pat = [v for p, k, v in prof[intent] if k == "select"][0][3:]
         assert adapters.pick_option(pat, opts) == want
     assert prof["charge"][-1][1] == "select"  # the power limit first, then the mode
+
+
+def test_hypervolt_full_power_at_the_current_and_stops_by_activation_mode():
+    ents = ["select.hypervolt_charge_mode", "number.hypervolt_max_current", "select.hypervolt_activation_mode", "switch.hypervolt_charging"]
+    calls = adapters.charger_calls("charge", ents, "hypervolt_charger", 16)
+    assert [(c["data"].get("entity_id"), c["data"].get("option", c["data"].get("value"))) for c in calls] == [
+        ("select.hypervolt_charge_mode", "Boost"), ("number.hypervolt_max_current", 16), ("select.hypervolt_activation_mode", "Plug and Charge")]
+    stop = adapters.charger_calls("stop", ents, "hypervolt_charger", 16)
+    assert [(c["data"]["entity_id"], c["data"]["option"]) for c in stop] == [("select.hypervolt_activation_mode", "Schedule Charge")]

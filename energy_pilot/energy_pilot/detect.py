@@ -22,7 +22,7 @@ _LOGGER = logging.getLogger(__name__)
 PRICE = ("stromligning", "nordpool", "energidataservice", "tibber", "octopus_energy", "entsoe", "easyenergy", "frank_energie",
          "awattar", "zonneplan_one", "amber", "elering")
 SOLAR_FORECAST = ("solcast_solar", "forecast_solar", "open_meteo_solar_forecast", "solarman_forecast")
-CHARGERS = ("keba", "easee", "zaptec", "goecharger", "go_e", "goe_charger", "wallbox", "ocpp", "ohme", "myenergi",
+CHARGERS = ("keba", "easee", "zaptec", "goecharger", "go_e", "goe_charger", "wallbox", "ocpp", "ohme", "myenergi", "hypervolt_charger",
             "tesla_wall_connector", "evse_wifi", "openevse", "peblar", "alfen_wallbox", "v2c")
 INVERTERS = ("growatt_server", "huawei_solar", "solaredge", "solaredge_modbus_multi", "victron", "victron_ble", "givenergy",
              "givenergy_local", "sungrow", "solax", "solax_modbus", "foxess", "foxess_modbus", "sofar", "fronius",

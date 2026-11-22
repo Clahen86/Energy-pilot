@@ -156,6 +156,19 @@ class Battery:
     peak_price: float = 0.0
     targets: tuple = ()  # (hour, minute, soc %): the user wants at least this much in the battery at that time, every day
     at: tuple = ()  # (datetime, soc %): at least this much at that very time (a storm coming: storm.py)
+    force: dict = field(default_factory=dict)  # "YYYY-MM-DDTHH" -> "charge" / "sell" / "hold": the user's own hours
+
+
+GENTLE = 0.0015  # gentle charging: the extra per kWh is 2 x GENTLE x kW of the typical price (1.8 % at 6 kW)
+SUN_DOUBT = 0.15  # share of the way from the expected sun towards the poor day the battery plan counts on
+
+
+def doubt_sun(sun: float, raw: float | None, low: float | None) -> float:
+    """The sun the battery plan counts on: a little less when the forecast is unsure (its poor day far below what it
+    expects), the same when it is sure or has no poor day. sun is the learned figure; raw and low the forecast's own."""
+    if low is None or not raw or raw <= low:
+        return sun
+    return max(0.0, sun * (1 - SUN_DOUBT * (raw - low) / raw))
 
 
 @dataclass
@@ -260,6 +273,9 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
     # Selling from the battery must beat buying the kWh back: the cheapest price ahead after the loss, plus the wear
     # out and in again. Below that it would sell at a loss - also a small rest from rounding to whole steps.
     refill = (min(h.price for h in hours) / b.efficiency if b.grid_charge else 0.0) + 2 * b.wear
+    gentle = GENTLE * median(h.price for h in hours)  # in the prices' own money (kr, €, £)
+    forced = [b.force.get(h.start.strftime("%Y-%m-%dT%H")) for h in hours]
+    push = 5 * max(1.0, max(abs(h.price) for h in hours))
     best = [[INF] * m for _ in range(n + 1)]
     choice: list[list[tuple[int, str, float, float]]] = [[(0, "hold", 0.0, 0.0)] * m for _ in range(n)]
     req = target_levels(hours, b.targets, b.at)
@@ -275,6 +291,8 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
             for k in range(max(0, j - down), min(m, j + up + 1)):
                 nxt = levels[k]
                 delta = kwh(nxt) - kwh(lv)  # + stored, - taken out (energy in the battery)
+                if forced[i] == "hold" and k != j or forced[i] == "charge" and delta < 0 or forced[i] == "sell" and delta > 0:
+                    continue  # the user's own hour: only what they chose
                 if delta > 0:
                     share = next((sh for lvl, sh in sorted(b.taper, reverse=True) if lv >= lvl), 1.0)
                     if delta / eff > b.max_charge_kw * share * h.length + 1e-9:
@@ -298,7 +316,7 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
                     need = max(0.0, h.house - h.sun)
                     action = "discharge"
                     if out > need + 1e-9:
-                        if b.export and h.sell > 0 and h.start not in b.no_export and h.sell >= refill - 1e-9:
+                        if forced[i] == "sell" or b.export and h.sell > 0 and h.start not in b.no_export and h.sell >= refill - 1e-9:
                             action = "export"  # sells what the house doesn't use
                         elif k != j - 1 or need <= 0:
                             continue  # no exporting from the battery
@@ -312,7 +330,12 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
                     action = "hold"
                 if b.import_limit_kw is not None and grid > b.import_limit_kw * h.length + 1e-9 and delta > 0:
                     continue  # charging would trip the main fuse
-                cost = grid * h.price if grid > 0 else grid * h.sell
+                if grid < 0 and b.export_limit_kw is not None:
+                    # Over the limit on selling the sun is lost (clipped): it earns nothing - so the plan keeps room in
+                    # the battery for it, rather than filling it with power bought before a sunny day.
+                    cost = max(grid, -b.export_limit_kw * h.length) * h.sell
+                else:
+                    cost = grid * h.price if grid > 0 else grid * h.sell
                 cost += abs(delta) * b.wear  # every kWh in or out wears the battery: a move must pay for that too
                 if b.peak_kw is not None and b.peak_price and grid / h.length > b.peak_kw:
                     cost += (grid / h.length - b.peak_kw) * b.peak_price  # a new peak raises the month's power tariff
@@ -320,6 +343,14 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
                 # near full, or a slot the supplier moves, then still leaves it full. Far too small to change a choice
                 # where prices differ (at most 0.0002 per kWh over two days of quarter hours).
                 early = delta * i * 1e-6 if delta > 0 else 0.0
+                # Gentle charging: hard charging from the grid costs a little extra (growing with the power), so slots
+                # at nearly the same price share the charge at a calm power instead of all at once at full power -
+                # less heat and wear. Where one slot is clearly cheaper it still wins (about 2 % of the price at 6 kW).
+                if delta > 0 and action == "charge_grid":
+                    kw_grid = (into - from_sun) / h.length
+                    early += gentle * kw_grid * kw_grid * h.length
+                if forced[i] == "charge" and delta > 0 or forced[i] == "sell" and action == "export":
+                    early -= abs(delta) * push  # as much as it can in the user's hour
                 total = cost + early + best[i + 1][k]
                 if total < best[i][j] - 1e-12:
                     best[i][j] = total
@@ -335,6 +366,8 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
         plan.steps.append(Step(h.start, action, levels[j], levels[k], round(grid, 3), round(cost, 3)))
         plan.cost += cost
         base = h.house - h.sun
+        if base < 0 and b.export_limit_kw is not None:
+            base = max(base, -b.export_limit_kw * h.length)  # without a battery the sun over the limit is lost too
         plan.cost_without += base * h.price if base > 0 else base * h.sell
         if b.peak_kw is not None and b.peak_price and base / h.length > b.peak_kw:
             plan.cost_without += (base / h.length - b.peak_kw) * b.peak_price
@@ -358,6 +391,28 @@ def battery_targets(s: dict[str, Any]) -> tuple:
 
 
 # ---------- car plan ----------
+
+def car_load(hours: list[Hour], planned: set | frozenset, kw: float, now_w: float, need_kwh: float,
+             now: datetime) -> dict[datetime, float]:
+    """kWh the car takes in each slot - for the battery plan, which then weighs slot by slot whether the battery helps
+    the car or the car takes the grid. Not the house's own use: only while the car is plugged in and lacks power.
+
+    The car charging now outside the plan (it started by itself, or "charge now"): from now until what it lacks is in,
+    at the power it takes (12 hours at most). Otherwise its planned slots at the charger's power."""
+    load: dict[datetime, float] = {}
+    if not hours:
+        return load
+    if now_w > 1000 and hours[0].start not in planned:
+        left, kw_now = max(0.0, need_kwh), now_w / 1000
+        for h in hours:
+            if left <= 0.05 or h.start >= now + timedelta(hours=12):
+                break
+            load[h.start] = min(left, kw_now * h.length)
+            left -= load[h.start]
+        return load
+    return {h.start: kw * h.length for h in hours if h.start in planned}
+
+
 
 def plan_car(hours: list[Hour], need_kwh: float, charger_kw: float, ready: datetime | None, now: datetime,
              solar_only: bool = False, skip: set | None = None) -> list[datetime]:
@@ -456,6 +511,9 @@ class Engine:
         from .checks import GridPeak
 
         self.grid_peak = GridPeak(self.learning.state)  # the most the house has really bought
+        from .checks import ExportCap
+
+        self.export_cap = ExportCap(self.learning.state)  # a limit on selling, found by itself
         from .powertariff import MonthPeak
 
         self.month_peak = MonthPeak(self.learning.state)  # the month's peaks, for a power tariff
@@ -486,6 +544,75 @@ class Engine:
         self.ev_detected: bool | None = None  # is the car in the house's use? (see evsplit.py)
         self._sign_prev: tuple[float, float] | None = None
 
+    async def join_power_down(self) -> None:
+        """Octopus Power Down sessions on offer: joined by itself (powerdown.py)."""
+        from . import powerdown
+
+        if not hasattr(self, "_pd_done"):
+            self._pd_done = set(self.ov.settings.get("pd_joined") or [])
+        if await powerdown.join(self.ha, self.ha.states, datetime.now(self.tz), self._pd_done):
+            self.ov.save({"pd_joined": sorted(self._pd_done)[-50:]})
+
+    async def refresh_tariffs(self) -> None:
+        """Once a day, in the background: which electricity deal would have been cheapest (tariffs.py)."""
+        tf, hourly = getattr(self.ov, "tariffs", None), getattr(self.ov, "hourly", None)
+        today = datetime.now(self.tz).date().isoformat()
+        st = self.ov.settings
+        key = (today, st.get("tariff_current"))
+        if not tf or not hourly or getattr(self, "_tariff_key", None) == key:
+            return
+        self._tariff_key = key
+        from .sources import price_area
+
+        country = self.ha.config.get("country")
+        area = st.get("price_area") or price_area(float(self.ha.config.get("latitude") or 56), float(self.ha.config.get("longitude") or 10), country)
+        try:
+            lat, lon = self.ha.config.get("latitude"), self.ha.config.get("longitude")
+            await tf.refresh(country, area, st.get("agile_region"), float(lat) if lat is not None else None,
+                             float(lon) if lon is not None else None)
+            b = self.settings() if (self.ov.flow() or {}).get("soc") is not None else None
+            tf.result = await asyncio.to_thread(tf.compute, hourly.days(today), b, self.tz, st.get("tariff_current"))
+        except Exception:  # noqa: BLE001 - a comparison never stops the plan
+            _LOGGER.debug("Tariff comparison failed", exc_info=True)
+
+    async def refresh_whatif(self) -> None:
+        """Once a day, in the background: the last 30 days with a bigger battery or more panels (whatif.py)."""
+        from . import whatif
+
+        hourly = getattr(self.ov, "hourly", None)
+        today = datetime.now(self.tz).date().isoformat()
+        if not hourly or getattr(self, "_whatif_day", None) == today:
+            return
+        self._whatif_day = today
+        try:
+            self.whatif = await asyncio.to_thread(whatif.compute, hourly.days(today), self.settings(), self.tz)
+        except Exception:  # noqa: BLE001 - a comparison never stops the plan
+            _LOGGER.debug("What-if failed", exc_info=True)
+
+    def battery_temp(self) -> float | None:
+        """The battery's own temperature, found by itself: a temperature sensor on the battery's device named for the
+        battery (battery, BMS, cell) - not the inverter's. None when there is none."""
+        ctl = getattr(self.ov, "controller", None)
+        states = self.ha.states
+        e = getattr(self, "_temp_e", None)
+        if e is None and ctl is not None and ctl.registry:
+            soc_e = self.ov.role("battery_soc")
+            reg = {r["entity_id"]: r for r in ctl.registry}
+            dev = getattr(ctl, "battery_device", None) or (reg.get(soc_e) or {}).get("device_id")
+            for r in ctl.registry if dev else []:
+                eid = r["entity_id"]
+                a = (states.get(eid) or {}).get("attributes") or {}
+                text = f"{eid} {a.get('friendly_name') or ''}".lower()
+                if r.get("device_id") == dev and eid.startswith("sensor.") and a.get("device_class") == "temperature" \
+                        and re.search(r"batt|bms|cell", text) and not re.search(r"inverter|radiator|heat.?sink|ambient|igbt|dc.?dc|board", text):
+                    e = eid
+                    break
+            self._temp_e = e or ""
+        try:
+            return float((states.get(e) or {}).get("state")) if e else None
+        except (TypeError, ValueError):
+            return None
+
     def settings(self) -> Battery:
         """The battery as set - a style changes the defaults: "solar" never buys for the battery, "safe" keeps 30 %."""
         s = self.ov.settings
@@ -508,6 +635,8 @@ class Engine:
         cap = float(s.get("battery_kwh") or self.batt_learn.capacity() or self._guess_capacity() or 10)
         # Discharge as charge unless set on its own (extra chargers can make charging faster).
         charge = float(s.get("battery_charge_kw") or 3)
+        # A cold battery charges slower (learned from its own temperature): the plan counts on what it really takes.
+        charge *= self.batt_learn.cold_share(self.battery_temp())
         discharge = float(s.get("battery_discharge_kw") or s.get("battery_charge_kw") or 3)
         from . import batteries
 
@@ -530,10 +659,11 @@ class Engine:
             efficiency=self.batt_learn.efficiency(self._shared_eff(kind) or TYPES[kind]["eff"]),
             export=self.can_export(),
             wear=self.wear(cap),
-            export_limit_kw=float(s["export_limit_kw"]) if s.get("export_limit_kw") else None,
+            export_limit_kw=float(s["export_limit_kw"]) if s.get("export_limit_kw") else self.export_cap.kw(),
             taper=self.batt_learn.taper() or self._shared_taper(),  # its own once seen, else what others' show
             grid_max_soc=max([self.grid_max_soc(kind)] + [t[2] for t in targets] + [x[1] for x in storm_at]),  # a target may go past the limit
             targets=targets, at=storm_at,
+            force={k: v for k, v in (s.get("manual") or {}).items() if v in ("charge", "sell", "hold")},
             peak_kw=(pt := self.power_tariff()) and pt["limit_kw"],
             peak_price=pt["price_per_kw"] if pt else 0.0,
         )
@@ -1132,12 +1262,23 @@ class Engine:
             self._gen_since = None
         return decide(now, f.get("soc"), running, self._gen_since, hours, gs)
 
+    def _curve_info(self) -> dict[str, Any]:
+        """What it has learned about the battery's charging: slower near full (the taper) and when cold."""
+        own = self.batt_learn.taper()
+        try:
+            shared = () if own else self._shared_taper()
+        except Exception:  # noqa: BLE001
+            shared = ()
+        return {"taper": [list(x) for x in (own or shared)], "shared": bool(shared and not own),
+                "cold": self.batt_learn.cold_share(2.0), "cool": self.batt_learn.cold_share(10.0), "temp": self.battery_temp()}
+
     def blend_info(self) -> dict[str, Any]:
         """Who decides now, and how well each one hits."""
         from . import common
 
         return {"house": self.mixer.info("house"), "sun": self.mixer.info("sun"), "price": self.mixer.info("price"),
                 "battery": self.batt_learn.info(0.92), "car": self.habits.info(),
+                "curve": self._curve_info(),
                 "common": self._common_info(common),
                 "sky": self.sky.info(self.home()),
                 "trained": {"house": self.house_model.samples // 24, "sun": self.solar_model.days, "price": self.price_days}}
@@ -1162,6 +1303,7 @@ class Engine:
         if self.ov.settings.get("storm") and not self.storm:  # grid failing at houses nearby: kept full as for a storm
             self.storm = _sky.storm(self.sky.outage(self.home()), now)
         start = now.replace(minute=0, second=0, microsecond=0)
+        self.notes = []  # short lines under "Right now" when something automatic changes the plan
         offgrid = bool(self.ov.settings.get("offgrid"))
         if offgrid:
             for h in plan["hours"]:
@@ -1200,10 +1342,30 @@ class Engine:
         L.expect([{"t": times[0].isoformat(), "house": house[0], "sun": hours[0].sun, "price": rows[0]["price"], "cloud": clouds[0],
                    "house_s": simple[0], "house_m": ml[0], "sun_s": sun_simple[0], "sun_m": sun_ml.get(times[0]),
                    "sun_raw": rows[0].get("sun")}])
+        # An unsure forecast (Solcast's poor day far below the expected): the plan counts on a little less sun, so a
+        # cloudier day than foreseen doesn't leave the battery short. A sure one (a clear sky) changes nothing.
+        # After the learning above, which keeps comparing with the forecast itself.
+        for i, h in enumerate(hours):
+            h.sun = doubt_sun(h.sun, rows[i].get("sun"), rows[i].get("sun10"))
+        # Nobody home for a day (away.py): the house only uses what runs by itself until someone is back.
+        from . import away as _away
+
+        if _away.is_away(self.ha.states, now) and (base := _away.standby(house)) is not None:
+            for h in hours:
+                h.house = min(h.house, base)
+            self.notes.append("away")
+        if self.batt_learn.cold_share(self.battery_temp()) < 0.95:
+            self.notes.append("cold")
         # Prices per quarter (or half) hour where the market has them: plan in those slots, so the battery and
         # the car use the cheapest quarters inside an hour too. House and sun are spread evenly over the hour.
         hours = split_slots(hours, getattr(self.ov, "fine_prices", None) or {}, now, sells)
+        # Octopus Power Down sessions (UK): the reward per kWh saved on top of the slots they cover (powerdown.py).
+        from . import powerdown as _pd
+
+        if _pd.apply(hours, now, self.ha.states):
+            self.notes.append("power_down")
         slot_min = round(hours[0].length * 60) if hours else 60
+        self.now_slot = {"price": hours[0].price, "sell": hours[0].sell, "sun_f": hours[0].sun, "house_f": hours[0].house} if hours else {}
         f = self.ov.flow()
         result: dict[str, Any] = {"at": now.isoformat(), "house": [{"t": t.isoformat(), "kwh": k} for t, k in zip(times, house)],
                                   "style": st.get("style") or "cheapest"}
@@ -1216,29 +1378,36 @@ class Engine:
         if offgrid:
             result["generator"] = self._generator(now, f, [(t, house[i], sun[i]) for i, t in enumerate(times)])
         if f["soc"] is not None and not offgrid:
+            from dataclasses import replace
+
             b = self.settings()
-            # The car's cheap charging hours: the house battery doesn't empty itself into the car then.
-            pre = car_plan or (self._car(hours, now, f, set()) if f.get("plug") else None)
-            if pre and pre.get("set"):
-                from dataclasses import replace
-
-                b = replace(b, no_discharge=frozenset(pre["set"]))
+            # The car's charging counts in the battery plan (planned, or charging by itself now): the plan weighs
+            # whether the battery helps the car - only what the house won't need before the sun or cheap power fills
+            # it again, and only when it beats the wear - or the car takes the grid. ("Car first" has it in already.)
+            bh = hours
+            if not car_plan:
+                pre = self._car(hours, now, f, set()) if f.get("plug") else None
+                need = pre["need"] if pre else self.habits.need(float(st.get("ev_need_kwh") or 20))
+                load = car_load(hours, (pre or {}).get("set") or set(), float(st.get("charger_kw") or 7.4),
+                                float(f.get("ev") or 0.0), need, now)
+                if load:
+                    bh = [replace(h, house=h.house + load.get(h.start, 0.0)) for h in hours]
             if st.get("battery_no_export_cheap"):
-                from dataclasses import replace
-
                 b = replace(b, no_export=cheap_slots(hours))  # no selling while power is cheap - only charging
-            end_value = end_price(hours, b) * end_f
-            p = plan_battery(hours, f["soc"], b, end_value=end_value)
+            end_value = end_price(bh, b) * end_f
+            p = plan_battery(bh, f["soc"], b, end_value=end_value)
             # A daily cap on paid feed-in (15 kWh a day, say): what is sold past it earns nothing - the best-paid
             # slots keep the pay, the plan is made again without pay in the rest.
             cap = (self.tou_plan() or {}).get("sell_cap_kwh")
             for _ in range(3):
-                over = over_cap(hours, p, float(cap)) if cap else []
+                over = over_cap(bh, p, float(cap)) if cap else []
                 if not over:
                     break
-                for h in over:
-                    h.sell = 0.0
-                p = plan_battery(hours, f["soc"], b, end_value=end_value)
+                gone = {h.start for h in over}
+                for h in {id(x): x for x in bh + hours}.values():
+                    if h.start in gone:
+                        h.sell = 0.0
+                p = plan_battery(bh, f["soc"], b, end_value=end_value)
             # The target: where the current action leads (not just the end of this quarter).
             run = 0
             while run + 1 < len(p.steps) and p.steps[run + 1].action == p.steps[0].action:
@@ -1256,7 +1425,7 @@ class Engine:
         try:
             from . import checks
 
-            self.checks = checks.run(self, hours, self.settings(), p if f["soc"] is not None and not offgrid else None,
+            self.checks = checks.run(self, bh if f["soc"] is not None and not offgrid else hours, self.settings(), p if f["soc"] is not None and not offgrid else None,
                                      end_value if f["soc"] is not None and not offgrid else 0.0)
         except Exception:  # noqa: BLE001
             _LOGGER.debug("Self-check failed", exc_info=True)
