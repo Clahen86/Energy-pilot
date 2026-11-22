@@ -97,8 +97,7 @@ class Learning:
     def _expected(self, day: str) -> dict[str, dict[str, Any]]:
         out: dict[str, dict[str, Any]] = {}
         try:
-            for line in self.log_file.read_text().splitlines():
-                row = json.loads(line)
+            for row in _rows(self.log_file):
                 if str(row.get("t", "")).startswith(day):
                     hour = out.setdefault(row["t"][:13], {})
                     for k, v in row.items():
@@ -193,7 +192,7 @@ class Learning:
         """Keep two weeks of expectations."""
         cut = (day - timedelta(days=14)).strftime("%Y-%m-%d")
         try:
-            lines = [ln for ln in self.log_file.read_text().splitlines() if json.loads(ln).get("t", "") >= cut]
+            lines = [json.dumps(r) for r in _rows(self.log_file) if str(r.get("t", "")) >= cut]
             self.log_file.write_text("\n".join(lines) + ("\n" if lines else ""))
         except (OSError, ValueError):
             pass
@@ -223,4 +222,18 @@ def accuracy(rows: list[dict[str, Any]]) -> dict[str, float | None]:
         out[kind] = round(max(0.0, 100 - 100 * sum(abs(a - b) for a, b in pairs) / real)) if pairs and real > 0.5 else None
     pairs = [r["soc"] for r in rows if r["soc"][0] is not None and r["soc"][1] is not None]
     out["soc"] = round(max(0.0, 100 - mean(abs(a - b) for a, b in pairs))) if len(pairs) >= 6 else None
+    return out
+
+
+def _rows(path: Any) -> list[dict[str, Any]]:
+    """The file's rows, one JSON object a line - a broken line (half written when the power went, or zeros) is
+    skipped, never the end of reading: one bad line once hid every plan after it from "Plan vs. real"."""
+    out = []
+    for line in path.read_text(errors="replace").splitlines():
+        try:
+            row = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(row, dict):
+            out.append(row)
     return out

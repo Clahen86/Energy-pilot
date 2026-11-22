@@ -2,6 +2,10 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.102.1 – 2026-11-22
+
+- "Plan vs. real" could stay empty: one broken line in the plan log (left by a power cut) stopped the reading, so every plan after it was missing - and the log was never trimmed. Broken lines are now skipped and the log cleans itself up. The chart is back the morning after updating
+
 ## 0.102.0 – 2026-11-22
 
 Ideas many people know from other battery planners, made to work by themselves - no new settings to learn.

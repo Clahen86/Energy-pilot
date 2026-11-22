@@ -51,9 +51,12 @@ class Timeline:
         self.rows: deque = deque(maxlen=KEEP)
         self._saved = time.time()
         try:
-            for line in path.read_text().splitlines()[-KEEP:]:
-                self.rows.append(json.loads(line))
-        except (OSError, ValueError):
+            for line in path.read_text(errors="replace").splitlines()[-KEEP:]:
+                try:
+                    self.rows.append(json.loads(line))
+                except ValueError:
+                    continue  # a broken line (the power went mid-write): skipped, the rest kept
+        except OSError:
             pass
 
     def add(self, row: dict[str, Any]) -> None:
