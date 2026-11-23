@@ -1,0 +1,57 @@
+# Selvrettende fejl: when an app error is seen in a second installation, the report worker labels its issue "autofix"
+# (report-worker/worker.js). This job then asks Claude for a small fix with a test, as a pull request - never on main.
+# The developer reads it and merges it or closes it. Needs the repository secret ANTHROPIC_API_KEY.
+name: Selvrettende fejl
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: "Issue number"
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+
+concurrency:
+  group: autofix-${{ github.event.issue.number || inputs.issue }}
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    if: github.event_name == 'workflow_dispatch' || (github.event.label.name == 'autofix' && contains(github.event.issue.labels.*.name, 'app-error'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Test tools
+        run: pip install pytest pytest-asyncio aiohttp numpy holidays
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          claude_args: >-
+            --max-turns 40
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(python -m pytest:*),Bash(git status:*),Bash(git diff:*),Bash(git checkout -b:*),Bash(git add:*),Bash(git commit:*),Bash(git push origin autofix/*),Bash(gh pr create:*),Bash(gh issue view:*),Bash(gh issue comment:*)"
+          prompt: |
+            Repository: ${{ github.repository }}. Issue #${{ github.event.issue.number || inputs.issue }} is an error that
+            Energy Pilot (a Home Assistant add-on, code in energy_pilot/energy_pilot/) reported from at least two homes.
+            Read it with `gh issue view`. The title names the exception, file, line and function.
+
+            1. Find the cause in the code. Read AGENTS.md / the comments around it first: the code style is plain English
+               comments that say why, short functions, no new settings.
+            2. Make the smallest fix that stops the error without hiding it, and add a test in tests/ that fails without it.
+            3. Run `python -m pytest -q` (tests/test_scene.py may need the holidays package - it is installed here).
+            4. Create a branch `autofix/issue-<number>`, commit as "Fix #<number>: <what>", push it, and open a pull
+               request to main that says in two or three plain sentences what was wrong and what changed.
+               Do not add any Co-Authored-By line or tool advertisement to the commit or the pull request.
+            5. If you can't find a safe fix, don't change anything: comment on the issue what you found instead.
+
+            Never push to main, never change versions, the CHANGELOG, workflows or the report worker.

@@ -49,3 +49,18 @@ def test_wallbox_pause_resume_is_turned_on_to_charge():
     assert {"domain": "switch", "service": "turn_on", "data": {"entity_id": "switch.wb_pause_resume"}} in calls
     calls = charger_calls("charge", ["switch.x_charging_pause"], None, 16, switch="switch.x_charging_pause")
     assert calls[-1]["service"] == "turn_off"  # a plain "pause" switch: off = charging, as before
+
+
+def test_old_solarman_and_kostal_get_the_integration_that_controls_them():
+    from types import SimpleNamespace
+    from energy_pilot import checks
+    def eng(reg, soc, prof=None):
+        ctl = SimpleNamespace(_ent_reg=reg, profile_key=lambda part: prof)
+        return SimpleNamespace(ov=SimpleNamespace(controller=ctl, role=lambda r: soc))
+    reg = {"sensor.deye_battery": {"platform": "solarman"}}
+    out = checks.read_only(eng(reg, "sensor.deye_battery", prof="solarman"), {})
+    assert out and out[0]["vals"]["use"] == "Solarman (davidrapan)"
+    reg["number.deye_program_1_soc"] = {"platform": "solarman"}
+    assert checks.read_only(eng(reg, "sensor.deye_battery", prof="solarman"), {}) == []  # the new one: nothing to say
+    out = checks.read_only(eng({"sensor.k_soc": {"platform": "kostal_plenticore"}}, "sensor.k_soc"), {})
+    assert out[0]["vals"]["name"] == "Kostal"

@@ -262,6 +262,13 @@ READ_ONLY = {
     # HA's own SolaX integration (the Pocket WiFi's local API) only reads: SolaX Modbus can control it (X1/X3 Gen4+).
     "solax": ("SolaX", "SolaX Modbus", "https://my.home-assistant.io/redirect/hacs_repository/?owner=wills106&repository=homeassistant-solax-modbus&category=integration"),
     "solis": ("Solis", "Solis Modbus", "https://my.home-assistant.io/redirect/hacs_repository/?owner=Pho3niX90&repository=solis_modbus&category=integration"),
+    # Kostal's own HA integration reads, and sets little more than the battery's minimum: Kostal Plenticore Battery
+    # Control (its own profile here) charges and discharges it.
+    "kostal_plenticore": ("Kostal", "Kostal Plenticore Battery Control",
+                          "https://my.home-assistant.io/redirect/hacs_repository/?owner=mbuhansen&repository=kostal_plenticore_battery_control&category=integration"),
+    # The old Solarman integration (StephanJoubert, same domain "solarman") only reads - davidrapan's controls a Deye.
+    "solarman_old": ("Deye", "Solarman (davidrapan)",
+                     "https://my.home-assistant.io/redirect/hacs_repository/?owner=davidrapan&repository=ha-solarman&category=integration"),
 }
 
 
@@ -272,10 +279,17 @@ def read_only(engine: Any, st: dict[str, Any]) -> list[dict[str, Any]]:
     reg = getattr(ctl, "_ent_reg", None) or {}
     soc = engine.ov.role("battery_soc")
     plat = (reg.get(soc or "") or {}).get("platform")
-    if plat not in READ_ONLY or plat in (st.get("readonly_dismissed") or []):
-        return []
-    if ctl and (ctl.profile_key("battery") or st.get("custom_profile")):
+    if plat == "solarman":
+        # The same domain for both: the old one makes no controls (no programme SOC, no time of use) - say so, even if a
+        # Deye profile was guessed from the model (its steps would find nothing)
+        mine = [e for e, r in reg.items() if (r or {}).get("platform") == "solarman" and re.match(r"(number|select)\..*(program_\d_soc|time_of_use)$", e)]
+        if mine:
+            return []
+        plat = "solarman_old"
+    elif ctl and (ctl.profile_key("battery") or st.get("custom_profile")):
         return []  # something to control it with was found (or set up by hand): nothing to say
+    if plat not in READ_ONLY or plat in (st.get("readonly_dismissed") or []) or st.get("custom_profile"):
+        return []
     name, use, link = READ_ONLY[plat]
     return [{"key": "read_only", "level": "info", "vals": {"name": name, "use": use}, "link": link,
              "dismiss": {"readonly_dismissed": list(st.get("readonly_dismissed") or []) + [plat]}}]
