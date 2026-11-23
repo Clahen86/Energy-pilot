@@ -2,6 +2,12 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.104.2 – 2026-11-23
+
+- Sungrow (mkaiser Modbus): back to self-consumption, the forced charge/discharge command is set to "Stop (default)" too, as mkaiser's own scene does. Left on "Forced charge", the battery kept charging from the grid after a charge (#42)
+- Car: a "ready at" from a timestamp sensor (evcc's departure time) shows as local time - it said "2026-" (#43, thanks @mbuhansen)
+- Settings > Car: pick the charger once, and its power, plug, charged energy, car level and departure time are filled in from it. evcc's loadpoints are listed too (#44, thanks @mbuhansen)
+
 ## 0.104.1 – 2026-11-23
 
 - Fox ESS through its cloud (the foxess integration) has its own profile: it was taken for Fox ESS Modbus by its names, so "Force Charge" was refused and charging and selling never worked. Charging and selling now go through Fox ESS's Mode Scheduler, and the scheduler is turned off before the work mode is changed
