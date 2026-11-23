@@ -645,11 +645,16 @@ class Engine:
         # What the user set wins; then the capacity it has learned (the usable kWh); then a guess.
         cap = float(s.get("battery_kwh") or self.batt_learn.capacity() or self._guess_capacity() or 10)
         # Discharge as charge unless set on its own (extra chargers can make charging faster).
-        charge = float(s.get("battery_charge_kw") or 3)
+        from . import batteries
+
+        # The inverter's own top power, where its profile tells (a Kostal's "Battery Max Control Power").
+        try:
+            top = ctl.max_power_kw() if ctl is not None else None
+        except Exception:  # no controller yet, or nothing found
+            top = None
+        charge, discharge = batteries.main_kw(s, top)
         # A cold battery charges slower (learned from its own temperature): the plan counts on what it really takes.
         charge *= self.batt_learn.cold_share(self.battery_temp())
-        discharge = float(s.get("battery_discharge_kw") or s.get("battery_charge_kw") or 3)
-        from . import batteries
 
         if more := batteries.extras(s):
             # More than one battery: planned as one, everything added up.
