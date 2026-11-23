@@ -64,3 +64,18 @@ def test_old_solarman_and_kostal_get_the_integration_that_controls_them():
     assert checks.read_only(eng(reg, "sensor.deye_battery", prof="solarman"), {}) == []  # the new one: nothing to say
     out = checks.read_only(eng({"sensor.k_soc": {"platform": "kostal_plenticore"}}, "sensor.k_soc"), {})
     assert out[0]["vals"]["name"] == "Kostal"
+
+
+def test_new_profiles_are_picked_and_steered():
+    gen3 = ["select.sx_charger_use_mode", "select.sx_allow_grid_charge", "number.sx_battery_minimum_capacity",
+            "number.sx_forcetime_period_1_max_capacity", "time.sx_charge_start_1", "time.sx_charge_end_1"]
+    assert guess_profile(gen3, {"solax_modbus"}) == "solax_modbus_gen3"
+    gen4 = ["select.sx_charger_use_mode", "select.sx_manual_mode_select"]
+    assert guess_profile(gen4, {"solax_modbus"}) == "solax_modbus"
+    c = [x for x in resolve(PROFILES["solax_modbus_gen3"]["charge"], gen3, {**CTX, "lease_from": "02:00", "lease_to": "06:00"}) if x["domain"] == "time"]
+    assert len(c) == 2 and c[0]["service"] == "set_value" and c[0]["data"]["time"].count(":") == 2
+    srne = ["select.srne_output_priority_0xe204", "select.srne_charger_source_priority_0xe20f", "number.ac_charging_current_limit_0xe205"]
+    assert guess_profile(srne, {"esphome"}) == "offgrid_esphome"
+    assert ("select.mk_operating_mode", "auto") in _calls("marstek", "normal", ["select.mk_operating_mode"])
+    z = ["select.zendure_manager_operation", "number.zendure_manager_manual_power"]
+    assert ("number.zendure_manager_manual_power", -3000) in _calls("zendure_ha", "charge", z)

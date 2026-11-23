@@ -217,7 +217,7 @@ class Controller:
                         break
             dev = (by_id.get(anchor) or {}).get("device_id")
             plat = (by_id.get(anchor) or {}).get("platform")
-            found = [e["entity_id"] for e in entities if not e.get("disabled_by") and e["entity_id"].split(".")[0] in ("select", "number", "switch", "button")
+            found = [e["entity_id"] for e in entities if not e.get("disabled_by") and e["entity_id"].split(".")[0] in ("select", "number", "switch", "button", "time")
                      and ((dev and e.get("device_id") == dev) or (plat and e.get("platform") == plat and plat not in GENERIC_PLATFORMS
                                                                    and not (part == "car" and dev)))]
             # The charger: only its own device when it has one - Tuya, say, also has the air conditioner and the cat's
@@ -250,7 +250,7 @@ class Controller:
             dev = (by_id.get(anchor) or {}).get("device_id")
             plat = (by_id.get(anchor) or {}).get("platform")
             found = [e["entity_id"] for e in entities if not e.get("disabled_by") and dev and e.get("device_id") == dev
-                     and e["entity_id"].split(".")[0] in ("select", "number", "switch", "button")]
+                     and e["entity_id"].split(".")[0] in ("select", "number", "switch", "button", "time")]
             self.entities[part], self.platforms[part], self.car_devices[part] = sorted(found), plat, dev
             self.lone_ok[part] = bool(dev)
 
@@ -276,7 +276,7 @@ class Controller:
         for part, bt in zip(self.bat_parts(), batteries.extras(self.ov.settings)):
             reg = by_id.get(bt.get("soc")) or {}
             dev, plat = reg.get("device_id"), reg.get("platform")
-            found = [e["entity_id"] for e in entities if not e.get("disabled_by") and e["entity_id"].split(".")[0] in ("select", "number", "switch", "button")
+            found = [e["entity_id"] for e in entities if not e.get("disabled_by") and e["entity_id"].split(".")[0] in ("select", "number", "switch", "button", "time")
                      and ((dev and e.get("device_id") == dev) or (plat and e.get("platform") == plat and plat not in ("mqtt", "template")
                                                                    and plat != self.platforms.get("battery")))]
             d = (devices or {}).get(dev or "") if "devices" in dir() else None
@@ -449,7 +449,7 @@ class Controller:
         prof = adapters.PROFILES.get(key or "") or {}
         if prof.get("anywhere"):
             pats = [st[0] for i in ("normal", "hold", "charge", "export") for st in prof.get(i, []) if isinstance(st[0], str)]
-            extra = [e for e in self.ha.states if e not in own and e.split(".")[0] in ("select", "number", "switch", "button")
+            extra = [e for e in self.ha.states if e not in own and e.split(".")[0] in ("select", "number", "switch", "button", "time")
                      and any(adapters.hit(p, e) for p in pats)]
             return own + sorted(extra)
         return own

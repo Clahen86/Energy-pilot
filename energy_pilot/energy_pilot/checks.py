@@ -286,6 +286,8 @@ def read_only(engine: Any, st: dict[str, Any]) -> list[dict[str, Any]]:
         if mine:
             return []
         plat = "solarman_old"
+    elif plat not in READ_ONLY:
+        return []
     elif ctl and (ctl.profile_key("battery") or st.get("custom_profile")):
         return []  # something to control it with was found (or set up by hand): nothing to say
     if plat not in READ_ONLY or plat in (st.get("readonly_dismissed") or []) or st.get("custom_profile"):

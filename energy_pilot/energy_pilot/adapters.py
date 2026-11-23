@@ -28,6 +28,14 @@ import re
 from typing import Any
 
 # step: (pattern on the entity id, service, value). Service: "select" | "number" | "on" | "off" | "press" | "<domain>.<service>"
+
+# Off-grid inverters through ESPHome (Growatt SPF, SRNE HF, Voltronic/MPP via esphome-pipsolar, Effekta): every config
+# names its priority selects its own way ("Output Prority" spelled so, "_0xe204" register suffixes) - tested on 7.
+_SFX = r"(_0x[0-9a-f]+)?(_\d)?$"
+_OUT = r"select\..*(output_(source_)?pri?ority|inverter_priority|source_priority_output)" + _SFX
+_CHG = r"select\..*(charger?_(source_)?pri?ority|source_priority_charge|charge_source)" + _SFX
+_CUR = r"number\..*(mains|ac|utility|grid|line)_charg\w*_current(_limit)?" + _SFX
+
 PROFILES: dict[str, dict[str, Any]] = {
     "growatt": {
         "name": "Growatt (SPH/SPA)",
@@ -501,6 +509,124 @@ PROFILES: dict[str, dict[str, Any]] = {
     # the smart meter. Hold: "manual" with the home load preset at 0 W (the sun goes to the battery). Charge: "backup",
     # the AC models' charging from the grid at full power (an SB2 Pro/Plus has no such option and can't). Selling:
     # "manual" at a set power to the house. Through the cloud: a change shows after about 5 minutes.
+    # SolaX Gen2/Gen3 through SolaX Modbus (wills106): no "Manual Mode" - Self Use with its minimum as the floor, and a
+    # grid charge as Force Time Use in charge period 1 (from the lease, so it ends by itself). Picked before the Gen4
+    # profile by "platform" + its own controls (allow_grid_charge, battery_minimum_capacity are Gen2/Gen3 only).
+    "solax_modbus_gen3": {
+        "name": "SolaX Gen2/Gen3 (Modbus)", "platform": "solax_modbus",
+        "match": r"forcetime_period_1_max_capacity|allow_grid_charge",
+        "normal": [(r"select\..*charger_use_mode$", "select", "Self Use Mode"),
+                   (r"select\..*allow_grid_charge$", "select", "Both Forbidden"),
+                   (r"number\..*battery_minimum_capacity$", "number", "{min_soc}"),
+                   (r"select\..*export_duration$", "select", "Default")],
+        "hold": [(r"select\..*charger_use_mode$", "select", "Self Use Mode"),
+                 (r"select\..*allow_grid_charge$", "select", "Both Forbidden"),
+                 (r"number\..*battery_minimum_capacity$", "number", "{hold_soc}")],
+        "charge": [(r"number\..*battery_minimum_capacity$", "number", "{min_soc}"),
+                   (r"number\..*forcetime_period_1_max_capacity$", "number", "{target}"),
+                   (r"time\..*charge_start_1$", "time", "{lease_from}"),
+                   (r"time\..*charge_end_1$", "time", "{lease_to}"),
+                   (r"select\..*allow_grid_charge$", "select", "Period 1 Allowed"),
+                   (r"select\..*charger_use_mode$", "select", "Force Time Use")],
+        "export": [(r"number\..*battery_minimum_capacity_grid_?tied$", "number", "{min_soc}"),
+                   (r"select\..*export_duration$", "select", "60 Minutes"),
+                   (r"number\..*grid_export_limit$", "number", "-{power_w}"),
+                   (r"button\..*grid_export$", "press", None)],
+        "optional": [r"select\..*export_duration$", r"number\..*forcetime_period_1_max_capacity$",
+                     r"number\..*battery_minimum_capacity_grid_?tied$"],
+    },
+    # Growatt through SolaX Modbus' Growatt plugin: VPP remote control (power in % of the rate, a timer in minutes that
+    # runs out by itself). The non-persistent AC charge power (_2) spares the EEPROM.
+    "solax_modbus_growatt": {
+        "name": "Growatt (SolaX Modbus, VPP)", "platform": "solax_modbus", "match": r"vpp_remote_control",
+        "reassert_s": 1500, "keepalive": True,
+        "normal": [(r"select\..*vpp_remote_control$", "select", "Disabled"),
+                   (r"select\..*vpp_allow_ac_charging$", "select", "Disabled"),
+                   (r"number\..*vpp_power$", "number", "0")],
+        "hold": [(r"select\..*vpp_allow_ac_charging$", "select", "Disabled"), (r"number\..*vpp_power$", "number", "0"),
+                 (r"number\..*vpp_time$", "number", "60"), (r"select\..*vpp_remote_control$", "select", "Enabled")],
+        "charge": [(r"number\..*vpp_ac_charge_max_power_2$", "number", "{power_kw}"),
+                   (r"select\..*vpp_allow_ac_charging$", "select", "Enabled"), (r"number\..*vpp_power$", "number", "{rate}"),
+                   (r"number\..*vpp_time$", "number", "60"), (r"select\..*vpp_remote_control$", "select", "Enabled")],
+        "export": [(r"select\..*vpp_allow_ac_charging$", "select", "Disabled"), (r"number\..*vpp_power$", "number", "-{rate}"),
+                   (r"number\..*vpp_time$", "number", "60"), (r"select\..*vpp_remote_control$", "select", "Enabled")],
+        "optional": [r"number\..*vpp_ac_charge_max_power_2$", r"select\..*vpp_allow_ac_charging$"],
+    },
+    # Off-grid inverters through ESPHome: normal = SBU + charger solar only (else the grid fills it at night); hold =
+    # output from the grid (UTI/SUB) - the battery rests, the sun may still fill it, and it is still the UPS; charge =
+    # the grid charges too. They can't feed the grid: no export. No stop level of their own - EP ends a charge.
+    "offgrid_esphome": {
+        "name": "Off-grid inverter (Growatt SPF / SRNE / Voltronic, ESPHome)",
+        "match": r"output_(source_)?pri?ority|inverter_priority|charge_source|charger?_(source_)?pri?ority|source_priority_(output|charge)|srne|spf|axpert|pipsolar|voltronic",
+        "normal": [(_CHG, "select", "re:only"), (_OUT, "select", r"re:sbu|battery.?first|sol\w*\W+batt\w*\W+util")],
+        "hold": [(_CHG, "select", "re:only"), (_OUT, "select", r"re:^(uti|line|utility|sub)|sol\w*\W+util\w*\W+batt")],
+        "charge": [(_OUT, "select", r"re:^(uti|line|utility|sub)|sol\w*\W+util\w*\W+batt"), (_CUR, "number", "{charge_a}"),
+                   (_CHG, "select", "re:util|hybrid|mains|snu")],
+        "restore_charge": [_CUR], "optional": [_CUR],
+    },
+    # Luxpower / EG4 through MonitorMySolar (its v4 source): AC charge and forced discharge switches with their SOC
+    # limits. Lux runs them only inside their time windows: window 1 set to 00:00-23:59 once (as the luxpower profile).
+    "monitormysolar": {
+        "name": "Luxpower / EG4 (MonitorMySolar)", "match": r"accharge|forceddischg|acchgsoclimit",
+        "normal": [(r"switch\.(.*_)?accharge$", "off", None), (r"switch\.(.*_)?forceddischg$", "off", None),
+                   (r"number\.(.*_)?eod$", "number", "{min_soc}"), (r"number\.(.*_)?dischgpowerpercentcmd$", "number", "100")],
+        "hold": [(r"switch\.(.*_)?accharge$", "off", None), (r"switch\.(.*_)?forceddischg$", "off", None),
+                 (r"number\.(.*_)?eod$", "number", "{soc}"), (r"number\.(.*_)?dischgpowerpercentcmd$", "number", "0")],
+        "charge": [(r"switch\.(.*_)?forceddischg$", "off", None), (r"number\.(.*_)?acchgsoclimit$", "number", "{target}"),
+                   (r"switch\.(.*_)?accharge$", "on", None)],
+        "export": [(r"switch\.(.*_)?accharge$", "off", None), (r"number\.(.*_)?dischgpowerpercentcmd$", "number", "100"),
+                   (r"switch\.(.*_)?feedingrid$", "on", None), (r"number\.(.*_)?forceddischgsoclimit$", "number", "{target}"),
+                   (r"switch\.(.*_)?forceddischg$", "on", None)],
+        "optional": [r"switch\.(.*_)?feedingrid$"],
+    },
+    # Voltronic / Axpert through docker-voltronic-homeassistant (MQTT): no entities to set - raw commands on its topic
+    # (its README). Can't be found by itself (no controls to see): chosen by hand.
+    "voltronic_mqtt": {
+        "name": "Voltronic/Axpert (docker-voltronic MQTT)", "match": r"voltronic|axpert",
+        "normal": [("mqtt.publish", "service", {"topic": "homeassistant/sensor/voltronic", "payload": "PCP03"}),
+                   ("mqtt.publish", "service", {"topic": "homeassistant/sensor/voltronic", "payload": "POP02"})],
+        "hold": [("mqtt.publish", "service", {"topic": "homeassistant/sensor/voltronic", "payload": "PCP03"}),
+                 ("mqtt.publish", "service", {"topic": "homeassistant/sensor/voltronic", "payload": "POP00"})],
+        "charge": [("mqtt.publish", "service", {"topic": "homeassistant/sensor/voltronic", "payload": "POP00"}),
+                   ("mqtt.publish", "service", {"topic": "homeassistant/sensor/voltronic", "payload": "PCP02"})],
+    },
+    # Zendure SolarFlow / Hyper through Zendure's own integration (Zendure-HA): its "Zendure Manager" - Operation and a
+    # signed manual power (+ discharges, - charges). Needs the P1 meter set in the integration.
+    "zendure_ha": {
+        "name": "Zendure SolarFlow/Hyper (Zendure-HA)",
+        "match": r"zendure_manager|manual_power",
+        "normal": [(r"select\..*_operation$", "select", "smart")],
+        "hold": [(r"select\..*_operation$", "select", "store_solar")],
+        "charge": [(r"number\..*manual_power$", "number", "-{power_w}"), (r"select\..*_operation$", "select", "manual")],
+        "export": [(r"number\..*manual_power$", "number", "{power_w}"), (r"select\..*_operation$", "select", "manual")],
+    },
+    # EcoFlow PowerOcean through ecoflow-energy-ha's local Modbus entry: the switch hands control over, the mode and a
+    # setpoint (+ charges). Off again = its own Automatic. The switch starts off after a restart: written again.
+    "ecoflow_energy": {
+        "name": "EcoFlow PowerOcean (local Modbus)",
+        "match": r"modbus_control|battery_power_setpoint",
+        "reassert_s": 120,
+        "normal": [(r"switch\..*modbus_control$", "off", None)],
+        "hold": [(r"switch\..*modbus_control$", "on", None), (r"select\..*battery_mode$", "select", "hold")],
+        "charge": [(r"switch\..*modbus_control$", "on", None),
+                   (r"number\..*(battery_power_setpoint|local_battery_setpoint_w)$", "number", "{power_w}"),
+                   (r"select\..*battery_mode$", "select", "charge")],
+        "export": [(r"switch\..*modbus_control$", "on", None),
+                   (r"number\..*(battery_power_setpoint|local_battery_setpoint_w)$", "number", "-{power_w}"),
+                   (r"select\..*battery_mode$", "select", "discharge")],
+    },
+    # Marstek Venus E through its local API (taurgis/has-marstek-local-api, domain marstek): the select takes only
+    # auto/ai/ups - passive mode is a service with a duration, so it falls back to auto by itself within 15 minutes.
+    "marstek": {
+        "name": "Marstek Venus (local API)",
+        "match": r"marstek",
+        "reassert_s": 300,
+        "keepalive": True,
+        "normal": [(r"select\..*operating_mode$", "select", "auto")],
+        "hold": [("marstek.set_passive_mode", "service", {"device_id": "{device_id}", "power": 0, "duration": 900})],
+        "charge": [("marstek.set_passive_mode", "service", {"device_id": "{device_id}", "power": "-{power_w}", "duration": 900})],
+        "export": [("marstek.set_passive_mode", "service", {"device_id": "{device_id}", "power": "{power_w}", "duration": 900})],
+    },
     # Anker SOLIX Solarbank 4 E5000 Pro / Max / Max AC (anker-charging/ha-anker-solix-official, Anker's own, local
     # Modbus TCP) - checked in its source (1.5.1). "third_party_control" + Grid Flow + Power Control; the option values
     # are its translation keys. Power Control isn't read back, so it is written again every 5 minutes.
@@ -889,6 +1015,9 @@ def resolve(steps: list, entities: list[str], ctx: dict[str, Any]) -> list[dict[
             calls.append({"domain": domain, "service": f"turn_{kind}", "data": {"entity_id": entity}})
         elif kind == "press":
             calls.append({"domain": domain, "service": "press", "data": {"entity_id": entity}})
+        elif kind == "time":  # a time entity (SolaX Gen3's charge window): "HH:MM" from the context
+            t = str(fill(value, ctx))
+            calls.append({"domain": "time", "service": "set_value", "data": {"entity_id": entity, "time": t if t.count(":") == 2 else t + ":00"}})
     return calls
 
 
@@ -905,6 +1034,9 @@ def guess_profile(entities: list[str], platforms: set[str], model: str | None = 
             return True  # all by services (Alpha ESS): the integration's name is all there is
         return sum(1 for pat, _k, _v in hits if any(hit(pat, e) for e in entities)) >= max(1, len(hits) // 2)
 
+    for key, p in PROFILES.items():  # one integration, several makes or generations (SolaX Modbus: Gen3, Growatt)
+        if p.get("platform") in platforms and fits(p):
+            return key
     for key, p in PROFILES.items():
         # The integration's name only counts when its controls are there too: Solarman serves Deye and Sofar alike.
         if key in platforms and fits(p):
