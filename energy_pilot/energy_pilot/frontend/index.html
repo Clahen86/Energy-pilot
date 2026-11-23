@@ -464,7 +464,7 @@ const T_ALL = {
     legSoc: "Batteri-niveau (plan)", legCar: "Bilen lader", legExport: "Batteriet sælger", saves: "Planen sparer cirka {x} de næste timer.", otherSays: "AppDaemon: {x}",
     bat: { n: "Batteri {n}", add: "+ Tilføj batteri", name: "Navn", soc: "Batteriniveau", power: "Batterieffekt", remove: "Fjern batteriet",
       hint: "Planen ser alle batterierne som ét – størrelser og effekter lægges sammen. Hvert batteri styres gennem sin egen inverter og starter i skygge.", noCtl: "Fandt ingen inverter-styring – vælg den her", each: "Hvert batteri", pick: "Vælg sensor…" },
-    chg: { n: "Lader {n}", add: "+ Tilføj ladeboks", from: "Hent fra lader", fromH: "Vælg laderen – så udfyldes effekt, stik, ladet og bilens niveau fra dens egen integration", fromPick: "Vælg lader…", fromNone: "Ingen lader fundet i Home Assistant", name: "Navn", power: "Ladeeffekt", plug: "Stik", session: "Ladet", remove: "Fjern ladeboksen",
+    chg: { n: "Lader {n}", add: "+ Tilføj ladeboks", from: "Hent fra lader", fromH: "Vælg laderen – så udfyldes effekt, stik, ladet og bilens niveau fra dens egen integration", fromPick: "Vælg lader…", fromNone: "Ingen lader fundet i Home Assistant", fromOwn: "Vælg selv – udfyld entiteterne", fromOwnMain: "Bilens entiteter vælges selv øverst under «Det du har» → Bil", fromOwnExtra: "Vælg effekt, stik og ladet selv herunder", name: "Navn", power: "Ladeeffekt", plug: "Stik", session: "Ladet", remove: "Fjern ladeboksen",
       shadow: "Starter i skygge – slå styring til under Styring", planned: "Lader kl. {x}", none: "Ingen opladning planlagt", car: "Bil" },
     chk: { title: "Tjek af indstillinger", fix: "Ret det", show: "Vis mig", no: "Nej tak",
       charger_found: "Fandt en ladeboks mere: {name}. Skal den med i planen?",
@@ -588,7 +588,7 @@ const T_ALL = {
     legSoc: "Battery level (plan)", legCar: "Car charges", legExport: "Battery sells", saves: "The plan saves about {x} over the coming hours.", otherSays: "AppDaemon: {x}",
     bat: { n: "Battery {n}", add: "+ Add a battery", name: "Name", soc: "Battery level", power: "Battery power", remove: "Remove this battery",
       hint: "The plan sees all the batteries as one – sizes and powers are added up. Each battery is controlled through its own inverter and starts in shadow.", noCtl: "No inverter control found – pick it here", each: "Each battery", pick: "Pick a sensor…" },
-    chg: { n: "Charger {n}", add: "+ Add a charger", from: "Fill in from a charger", fromH: "Pick the charger – its power, plug, charged energy and the car's level are filled in from its own integration", fromPick: "Pick a charger…", fromNone: "No charger found in Home Assistant", name: "Name", power: "Charging power", plug: "Plug", session: "Charged", remove: "Remove this charger",
+    chg: { n: "Charger {n}", add: "+ Add a charger", from: "Fill in from a charger", fromH: "Pick the charger – its power, plug, charged energy and the car's level are filled in from its own integration", fromPick: "Pick a charger…", fromNone: "No charger found in Home Assistant", fromOwn: "Pick them myself – fill in the entities", fromOwnMain: "Pick the car's entities yourself at the top under “What you have” → Car", fromOwnExtra: "Pick power, plug and charged yourself below", name: "Name", power: "Charging power", plug: "Plug", session: "Charged", remove: "Remove this charger",
       shadow: "Starts in shadow – turn on control under Control", planned: "Charges at {x}", none: "No charging planned", car: "Car" },
     chk: { title: "Settings check", fix: "Fix it", show: "Show me", no: "No thanks",
       charger_found: "Found another charger: {name}. Add it to the plan?",
@@ -2470,8 +2470,13 @@ function fromCharger(row, target) {
   const names = (T.roles || {});
   const used = at < 0 ? "" : ["ev_power", "ev_plug", "ev_session", "ev_soc"].filter((k) => cur[k])
     .map((k) => `${esc(names[k] || k)}: <code>${esc(cur[k])}</code>`).join("<br>");
-  return row(c.from || "Fill in from a charger", used || c.fromH || "", `<select data-chgfrom="${target}"><option value="">${c.fromPick || "Pick a charger…"}</option>${list.map((d, i) =>
-    `<option value="${i}" ${i === at ? "selected" : ""}>${esc(d.name)} · ${esc(PLATNAME[d.platform] || d.platform)}</option>`).join("")}</select>`);
+  // Picked by hand (the entities were chosen one by one, or the one wanted isn't listed): "Pick them myself" - nothing is
+  // filled in, and the hint says where the fields are.
+  const own = at < 0 && !!cur.ev_power;
+  const ownHint = target === "main" ? (c.fromOwnMain || "Pick the car's entities yourself at the top under “What you have” → Car") : (c.fromOwnExtra || "Pick power, plug and charged yourself below");
+  return row(c.from || "Fill in from a charger", used || (own ? ownHint : c.fromH || ""), `<select data-chgfrom="${target}"><option value="">${c.fromPick || "Pick a charger…"}</option>${list.map((d, i) =>
+    `<option value="${i}" ${i === at ? "selected" : ""}>${esc(d.name)} · ${esc(PLATNAME[d.platform] || d.platform)}</option>`).join("")}
+    <option value="own" ${own ? "selected" : ""}>${c.fromOwn || "Pick them myself – fill in the entities"}</option></select>`);
 }
 function chargerList(v, row) {
   const c = T.chg, list = v.chargers || [];
@@ -2949,6 +2954,12 @@ function wire() {
   $("[data-chgadd]")?.addEventListener("click", () => saveChgs([...chgs(), { name: "", power: "", plug: "" }]));
   // A charger picked once: its own sensors filled in (the main car's roles, or that charger's).
   document.querySelectorAll("[data-chgfrom]").forEach((sel) => sel.onchange = async () => {
+    if (sel.value === "own") {  // the fields stay as they are - only the hint says where they are
+      const h = sel.closest(".ctl")?.querySelector(".t span");
+      const c = T.chg;
+      if (h) h.textContent = sel.dataset.chgfrom === "main" ? (c.fromOwnMain || "") : (c.fromOwnExtra || "");
+      return;
+    }
     const d = (settings.charger_devices || [])[+sel.value];
     if (!d) return;
     if (sel.dataset.chgfrom === "main") {
