@@ -215,16 +215,7 @@ async function telemetry(request, env, app = "energy-pilot") {
     const known = await db.prepare("SELECT count FROM errors WHERE hash = ?1").bind(hash).first();
     await db.prepare("INSERT INTO errors (hash, first_seen, last_seen, count, version, text) VALUES (?1, ?2, ?2, 1, ?3, ?4) ON CONFLICT(hash) DO UPDATE SET last_seen = ?2, count = count + 1, version = ?3")
       .bind(hash, day, s(b.version, 20), text).run();
-    const added = await db.prepare("INSERT OR IGNORE INTO error_installs (hash, install) VALUES (?1, ?2)").bind(hash, install).run();
-    if (known && added.meta?.changes) {
-      // Seen in a second installation: the label "autofix" starts the GitHub Action that tries a fix as a pull request
-      // (.github/workflows/autofix.yml) - the developer merges it or not. Never for an error only one home had.
-      const n = (await db.prepare("SELECT COUNT(*) AS n FROM error_installs WHERE hash = ?1").bind(hash).first()).n;
-      const iss = await db.prepare("SELECT issue FROM error_issues WHERE hash = ?1").bind(hash).first();
-      if (n === 2 && iss?.issue) {
-        try { await github(env)(`issues/${iss.issue}/labels`, "POST", { labels: ["autofix"] }); } catch { /* the issue stays as it is */ }
-      }
-    }
+    await db.prepare("INSERT OR IGNORE INTO error_installs (hash, install) VALUES (?1, ?2)").bind(hash, install).run();
     if (!known) {
       const r = await github(env)("issues", "POST", { title: `⚡ Energy Pilot: 🐞 ${s(b.text, 80)}`, labels: ["energy-pilot", "app-error"],
         body: `First seen ${day} in version ${s(b.version, 20)}.\n\n\`\`\`\n${text}\n\`\`\`\n\n_Comments here reach every installation that had this error._` });
