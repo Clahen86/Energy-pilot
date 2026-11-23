@@ -318,10 +318,13 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
                     if out > need + 1e-9:
                         if forced[i] == "sell" or b.export and h.sell > 0 and h.start not in b.no_export and h.sell >= refill - 1e-9:
                             action = "export"  # sells what the house doesn't use
-                        elif k != j - 1 or need <= 0:
-                            continue  # no exporting from the battery
+                        elif need <= 0 or (kwh(lv) - kwh(levels[k + 1])) * eff >= need - 1e-9:
+                            continue  # no exporting from the battery (a smaller step already covers the house)
                         else:
-                            out = need  # the smallest step is more than the house needs: it covers the house, no more
+                            # The step that just covers the house: it covers it, no more. Only the smallest step was
+                            # allowed before - so an hour where the house takes 1.8 kWh and one 2 % step gives 0.9
+                            # bought the rest from the grid in the plan, while the battery really covers it all.
+                            out = need
                     grid = h.house - h.sun - out
                     if action == "export" and b.export_limit_kw is not None and -grid > b.export_limit_kw * h.length + 1e-9:
                         continue  # more than may go out on the grid

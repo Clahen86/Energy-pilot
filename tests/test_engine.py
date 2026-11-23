@@ -215,3 +215,13 @@ def test_equal_cheap_slots_charge_from_the_start():
     assert acts[0] == "charge_grid"
     assert all(a != "charge_grid" for a in acts[12:])
     assert p.steps[11].soc_end >= 99
+
+
+def test_a_big_battery_covers_the_whole_house_not_one_step_of_it():
+    # 48 kWh: one 2 % step is 0.96 kWh, the house takes 1.8 kWh an hour. Only the smallest step could cover the house,
+    # so each evening hour took one step and bought the other half from the grid - while it said "covers the house".
+    hours = [Hour(T0 + timedelta(hours=i), 4.0, 0.0, 1.8, 0.0) for i in range(5)]
+    hours += [Hour(T0 + timedelta(hours=5 + i), 2.0, 0.0, 0.7, 0.0) for i in range(5)]
+    p = plan_battery(hours, soc_now=40, b=Battery(capacity_kwh=48, max_charge_kw=12, max_discharge_kw=12, efficiency=0.93))
+    for s in p.steps[:5]:
+        assert s.action == "discharge" and s.grid_kwh == 0, s
