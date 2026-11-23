@@ -449,11 +449,51 @@ PROFILES: dict[str, dict[str, Any]] = {
                    (r"number\..*battery_charge_power_limit$", "number", "{rate}"), (r"switch\..*charge_from_grid$", "on", None)],
         "optional": [r"number\..*battery_discharge_power_limit$", r"number\..*battery_charge_power_limit$"],
     },
+    # Anker SOLIX Solarbank 2/3/4 and Max AC (thomluther/ha-anker-solix, the cloud), checked in its source (3.9.2).
+    # The usage mode's options are its keys: "smartmeter", "smart", "manual", "backup" … Normal: self consumption with
+    # the smart meter. Hold: "manual" with the home load preset at 0 W (the sun goes to the battery). Charge: "backup",
+    # the AC models' charging from the grid at full power (an SB2 Pro/Plus has no such option and can't). Selling:
+    # "manual" at a set power to the house. Through the cloud: a change shows after about 5 minutes.
+    "anker_solix": {
+        "name": "Anker SOLIX (Solarbank)",
+        "match": r"solarbank|anker_solix",
+        "source": "integration",
+        "normal": [(r"select\..*_usage_mode$", "select", "re:^smart(meter)?$")],
+        "hold": [(r"select\..*_usage_mode$", "select", "manual"), (r"number\..*_system_load_preset$", "number", "0")],
+        "charge": [(r"select\..*_usage_mode$", "select", "backup")],
+        "export": [(r"select\..*_usage_mode$", "select", "manual"), (r"number\..*_system_load_preset$", "number", "{power_w}")],
+    },
+    # GivEnergy through GivTCP (britkat1980/giv_tcp, MQTT: select.givtcp_<serial>_mode …), checked in its source (3.6.14).
+    # Not its "Force Charge"/"Force Export": those put the old settings back by themselves afterwards and would undo
+    # Energy Pilot's. Instead: the mode, charge/discharge slot 1 and the rates (W; GivTCP rounds them to whole % of the
+    # battery, at most 50 %). Hold: discharge rate 0 - the sun may still charge. "Eco" sets the reserve to 4 %:
+    # Energy Pilot keeps its own minimum. The inverter stops at the lower of the targets: slot 1's is set too (#576).
+    "givtcp": {
+        "name": "GivEnergy (GivTCP)",
+        "match": r"givtcp",
+        "source": "integration",
+        "normal": [(r"select\..*givtcp\d?_[a-z0-9]+_mode$", "select", "Eco"), (r"switch\..*enable_charge_schedule$", "off", None),
+                   (r"switch\..*enable_discharge_schedule$", "off", None),
+                   (r"number\..*battery_charge_rate$", "number", "{max_charge_w}"), (r"number\..*battery_discharge_rate$", "number", "{max_power_w}")],
+        "hold": [(r"select\..*givtcp\d?_[a-z0-9]+_mode$", "select", "Eco"), (r"switch\..*enable_charge_schedule$", "off", None),
+                 (r"switch\..*enable_discharge_schedule$", "off", None),
+                 (r"number\..*battery_charge_rate$", "number", "{max_charge_w}"), (r"number\..*battery_discharge_rate$", "number", "0")],
+        "charge": [(r"select\..*givtcp\d?_[a-z0-9]+_mode$", "select", "Eco"), (r"number\..*givtcp\d?_[a-z0-9]+_target_soc$", "number", "{target}"),
+                   (r"number\..*charge_target_soc_1$", "number", "{target}"),
+                   (r"select\..*charge_start_time_slot_1$", "select", "{lease_from}:00"), (r"select\..*charge_end_time_slot_1$", "select", "{lease_to}:00"),
+                   (r"number\..*battery_charge_rate$", "number", "{power_w}"), (r"switch\..*enable_charge_schedule$", "on", None)],
+        # Selling from the battery (only when the user turns it on).
+        "export": [(r"select\..*discharge_start_time_slot_1$", "select", "{lease_from}:00"),
+                   (r"select\..*discharge_end_time_slot_1$", "select", "{lease_to}:00"),
+                   (r"number\..*battery_discharge_rate$", "number", "{power_w}"), (r"switch\..*enable_discharge_schedule$", "on", None),
+                   (r"select\..*givtcp\d?_[a-z0-9]+_mode$", "select", "Timed Export")],
+        "optional": [r"number\..*charge_target_soc_1$", r"switch\..*enable_discharge_schedule$"],
+    },
     # GivEnergy (cdpuk/givenergy-local): charging is a "timed charge" (service, needs the inverter's device_id) with
     # a charge target; hold pauses discharging.
     "givenergy_local": {
         "name": "GivEnergy (GivEnergy Local)",
-        "match": r"givenergy|givtcp",
+        "match": r"givenergy",
         "source": "integration",
         "normal": [("givenergy_local.activate_mode_eco", "service", {"device_id": "{device_id}"}), ("givenergy_local.disable_timed_charge", "service", {"device_id": "{device_id}"}),
                    (r"select\..*battery_pause_mode$", "select", "Not Paused"), (r"number\..*battery_charge_power_limit$", "number", "{max_charge_w}"),

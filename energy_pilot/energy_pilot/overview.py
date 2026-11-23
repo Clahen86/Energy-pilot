@@ -220,6 +220,8 @@ class Overview:
 
     def grid_sign(self) -> int:
         """+1: positive grid power is buying (most meters). -1: positive is selling (Solis/SolaX PCC …). Chosen, or found."""
+        if getattr(self, "ha", None) is not None and self.grid_pair():
+            return 1  # buying less selling: always positive when buying
         chosen = self.settings.get("grid_sign")
         if chosen in (1, -1):
             return chosen
@@ -330,6 +332,18 @@ class Overview:
         if other not in self.ha.states:
             return None
         return (other, e) if m.group(2) else (e, other)
+
+    def grid_pair(self) -> tuple[str, str] | None:
+        """(buying, selling) when the grid's power is two sensors that each show one way only - Fox ESS Modbus has
+        "Grid Consumption" and "Feed-in", others "import" and "export" power. Then the power is buying less selling;
+        with the buying one alone, selling never showed (a user in the UK: "Export not shown")."""
+        e = self.role("grid_power") or ""
+        if not e.startswith("sensor.") or re.search(r"(^|[._])net([._]|$)|import_export|export_import", e):
+            return None
+        for buy, sell in (("grid_consumption", "feed_in"), ("consumption", "feed_in"), ("import", "export")):
+            if buy in e and (other := e.replace(buy, sell, 1)) in self.ha.states:
+                return e, other
+        return None
 
     def battery_sign(self) -> int:
         """+1: positive battery power is charging (Growatt). -1: positive is discharging (Fox ESS). Chosen, or found."""
@@ -532,6 +546,9 @@ class Overview:
             soc, batt = batteries.combine(main, others)
             packs = [main] + others
         grid = self.scaled("grid_power", _watts(st.get(r["grid_power"])) if r["grid_power"] else None)
+        if (gpair := self.grid_pair()) is not None:
+            b, s_ = (self.scaled("grid_power", _watts(st.get(x))) for x in gpair)
+            grid = None if b is None and s_ is None else (b or 0) - (s_ or 0)
         if grid is not None:
             self._watch_grid(grid, house, pv, batt, self.scaled("ev_power", _watts(st.get(r["ev_power"])) if r["ev_power"] else None))
             grid *= self.grid_sign()  # some meters (Solis/SolaX PCC …) count buying as negative

@@ -66,3 +66,14 @@ def test_brand_from_another_entity_or_the_integration():
     assert setupinfo.brand_device(["sensor.tpl_power", "sensor.keba_x"], reg, devs)["model"] == "P30"
     assert setupinfo.brand_device(["sensor.tpl_power"], reg, devs, "keba")["manufacturer"] == "KEBA"
     assert setupinfo.brand_device(["sensor.tpl_power"], reg, devs, None, ["k"])["model"] == "P30"
+
+
+def test_many_controls_the_used_ones_and_the_switches_are_kept():
+    """A Fox ESS has dozens of controls: cut at 30 in name order, its switches were never seen."""
+    ov = _ov(True)
+    many = [f"button.inv_b{i:02d}" for i in range(70)] + ["switch.inv_mode_scheduler", "number.inv_min_soc"]
+    ov.controller.entities["battery"] = many + ["select.claus_inverter_export_limiter"]
+    names = [e["name"] for e in setupinfo.collect(ov, True)["devices"][0]["entities"]]
+    assert names[1] == "select.claus_inverter_export_limiter"  # the one in use first (after the sensors)
+    assert "switch.inv_mode_scheduler" in names and "number.inv_min_soc" in names
+    assert len(names) == 1 + setupinfo.MAX_CONTROLS

@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 import re
+
+from .detect import NOT_EV_POWER, SMALL_CHARGED
 from typing import Any
 
 POWER_WORDS = ("charging_power", "charge_power", "charger_power", "wallbox_power", "ladeeffekt")
@@ -120,6 +122,8 @@ def find(states: dict[str, Any], main_power: str | None, main_plug: str | None, 
         a = s.get("attributes") or {}
         if t is None or str(a.get("unit_of_measurement") or "").lower() not in ("w", "kw"):
             continue
+        if NOT_EV_POWER.search(f"{obj} {a.get('friendly_name') or ''}"):
+            continue  # an e-bike's or a mower's charger is no car charger
         plug = plugs.get(t)
         if plug is None or plug == main_plug or plug in taken:
             continue  # a power sensor alone could be anything - a charger has a plug
@@ -135,7 +139,7 @@ NOT_CHARGER = re.compile(r"batter|inverter|discharg|grid_charg|ac_charg|force_ch
                          r"bornesikring|bornelas|barnlas|barnesikring|kinderslot|kindersicherung|securite_enfant|"
                          r"buzzer|firmware|restart|reboot|identify|sentry|climate|heater|defrost|steering|precondition|"
                          r"charge_port|cable_lock|" + _T + r"(sell|eco|lock|led|leds|light|lights|lys|screen|sound|beep|"
-                         r"update|ota|sleep|seat|seats|valet|window|windows|door|doors|trunk|frunk)(?:_|$)")
+                         r"update|ota|sleep|seat|seats|valet|window|windows|door|doors|trunk|frunk)(?:_|$)|" + SMALL_CHARGED)
 CHARGER_MODEL = re.compile(r"charg|evse|wallbox|lader|laad|borne de|zappi|easee|keba|go-e|ohme|pod point", re.I)
 
 

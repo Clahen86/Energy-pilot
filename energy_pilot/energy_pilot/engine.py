@@ -528,6 +528,7 @@ class Engine:
         self.house_model = HouseModel()
         self.house_stats_hours: int | None = None  # hours of house history Home Assistant's statistics gave (None: not looked yet)
         self.own_at_learn = False  # the own-history setting when the house model last learned
+        self.roles_at_learn: tuple | None = None  # the meters the house and sun were learned from (learn_roles())
         self.house_source = "stats"  # where the house model learned from: "stats" or "own" (Energy Pilot's own history)
         self.solar_factors: dict[int, float] = {}
         self.own_prices: list[dict[str, Any]] = []
@@ -868,7 +869,11 @@ class Engine:
     async def _computed_house(self, days: int) -> list[tuple[datetime, float]]:
         """The house's use from the history of the other meters, the way the panel works it out for now: what comes
         from the grid and the sun, less what goes into the battery and the car. Only hours where grid and sun are known."""
-        grid = dict(await self._hourly_kw(self.ov.role("grid_power"), days))
+        if (gpair := self.ov.grid_pair()) is not None:  # buying and selling as two sensors (Fox ESS Modbus)
+            buy, sell = dict(await self._hourly_kw(gpair[0], days)), dict(await self._hourly_kw(gpair[1], days))
+            grid = {t: buy[t] - sell.get(t, 0.0) for t in buy}
+        else:
+            grid = dict(await self._hourly_kw(self.ov.role("grid_power"), days))
         pv = await self._hourly_sum(self.ov.role_all("pv_power"), days)
         if (pair := self.ov.battery_pair()) is not None:  # charge and discharge as two sensors (Fox ESS Modbus)
             ch, dis = dict(await self._hourly_kw(pair[0], days)), dict(await self._hourly_kw(pair[1], days))
@@ -877,6 +882,11 @@ class Engine:
             batt = dict(await self._hourly_kw(b, days)) if (b := self.ov.role("battery_power")) else {}
         ev = await self._all_cars(days)
         return computed_house(grid, pv, batt, ev, self.ov.grid_sign(), self.ov.battery_sign())
+
+    def learn_roles(self) -> tuple:
+        """The meters the house and the sun are learned from: another one chosen (the house's own sensor in place of
+        the grid's, wrongly found at first) is learned from at once - not after a day of a wrong forecast."""
+        return tuple(tuple(self.ov.role_all(r)) for r in ("house_power", "grid_power", "pv_power", "battery_power", "ev_power"))
 
     async def learn(self) -> None:
         """Once a day: weather for the past weeks, the house model, and what the solar panels make of sunlight."""
@@ -900,6 +910,7 @@ class Engine:
             rows = await self._computed_house(60)  # no house sensor: grid + sun - battery - car, hour by hour
         self.house_stats_hours = len(rows)
         self.own_at_learn = bool(self.ov.settings.get("own_history"))
+        self.roles_at_learn = self.learn_roles()
         own = self.house_hist.rows() if self.ov.settings.get("own_history") else []
         self.house_source = "own" if len(own) > len(rows) else "stats"
         if self.house_source == "own":

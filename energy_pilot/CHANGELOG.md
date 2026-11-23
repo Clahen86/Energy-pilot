@@ -2,6 +2,21 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.104.0 – 2026-11-23
+
+Finding your setup - learned from a Fox ESS house in the UK ("Export not shown") and the shared setups:
+- The meters must add up: sun + grid = house + battery. When they don't for two hours, Energy Pilot finds the one sensor that makes them add up (or a battery or grid read the wrong way round) and uses it - shown with an undo. If nothing fits, it says so
+- Grid power as two one-way sensors (Fox ESS "Grid Consumption" + "Feed-in", "import" + "export" power): buying less selling, so selling shows. Before, only buying was seen
+- The grid's buying sensor was taken for the house's use (Fox ESS), so the house forecast learned the night charging as the house. Never again - and the inverter's plainest-named sensor wins, not the first one in the list
+- Another sensor chosen: the house forecast learns from it within minutes, not after a day
+- Never taken for the house battery: Hive, a car through EUDA or any sensor with a car's VIN, an energy meter's own battery, garden, leak, humidity or window sensors - and "battery level" alone only with a home battery's power found
+- Never taken for the car charger: an e-bike, a scooter, a mower or a robot
+- Never taken for another part: a generator or a solar string for the battery, "energy flow" or the grid for the sun, a "load" for the grid, "solar to house" or the battery's output for the house
+- New profiles (being tested): GivEnergy through GivTCP, Anker SOLIX (Solarbank 2/3/4, Max AC)
+- GoodWe through SEMS and Solis through its cloud: a button that opens the integration that can control them
+- Undo now works for "a sensor stopped answering"
+- Shared setups send up to 60 controls per device (the ones in use first) - a Fox ESS's switches were cut off
+
 ## 0.103.0 – 2026-11-22
 
 Learned from what users' setups look like:

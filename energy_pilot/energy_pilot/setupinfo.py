@@ -8,6 +8,9 @@ from __future__ import annotations
 import re
 from typing import Any
 
+MAX_CONTROLS = 60  # per device in a shared setup (the report worker keeps as many)
+
+
 BATTERY_ROLES = ("battery_power", "battery_soc", "pv_power", "grid_power", "house_power", "solar_today", "sell_price")
 CAR_ROLES = ("ev_power", "ev_plug", "ev_soc")
 
@@ -182,7 +185,12 @@ def collect(ov: Any, full: bool) -> dict[str, Any]:
             known = [getattr(c, "battery_device", None)] if part == "battery" else [getattr(c, "car_device", None)] if part == "car" else []
             dev = brand_device([e for _r, e in role_ents] + ents, reg, devices, plat, known)
             rows = [entity(e, role, states, reg, devices, full, words) for role, e in role_ents]
-            rows += [entity(e, "+".join(sorted(uses.get(e, []))) or "control", states, reg, devices, full, words) for e in ents if e not in dict(role_ents).values()][:30]
+            # The controls in use first, then the kinds that steer (a select or a number before a button) - with many
+            # (a Fox ESS has dozens), the switches were cut off at 30 and couldn't be seen.
+            kind = {"select": 0, "number": 1, "switch": 2, "time": 3, "button": 4}
+            rest = sorted((e for e in ents if e not in dict(role_ents).values()),
+                          key=lambda e: (e not in uses, kind.get(e.split(".")[0], 5), e))
+            rows += [entity(e, "+".join(sorted(uses.get(e, []))) or "control", states, reg, devices, full, words) for e in rest[:MAX_CONTROLS]]
             rows += [{"name": k, "use": "+".join(sorted(v)), "platform": k.split(".")[0]} for k, v in uses.items() if k not in states and "." in k and not k.startswith(("number.", "select.", "switch.", "button."))]
             last = (c.last.get(part) or {}) if hasattr(c, "last") else {}
             res = str(last.get("result") or "")

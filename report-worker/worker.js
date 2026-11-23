@@ -679,7 +679,7 @@ function cleanSetup(su) {
   const dev = (d) => ({
     kind: cut(d?.kind, 30), platform: cut(d?.platform, 40), profile: cut(d?.profile, 40), manufacturer: cut(d?.manufacturer, 60), model: cut(d?.model, 60),
     ok: typeof d?.ok === "boolean" ? d.ok : null, errors: (Array.isArray(d?.errors) ? d.errors : []).slice(0, 5).map((x) => cut(x, 200)),
-    entities: (Array.isArray(d?.entities) ? d.entities : []).slice(0, 40).map(ent),
+    entities: (Array.isArray(d?.entities) ? d.entities : []).slice(0, 70).map(ent),
     extra: d?.extra && typeof d.extra === "object" ? Object.fromEntries(Object.entries(d.extra).slice(0, 20).map(([k, v]) => [cut(k, 40), typeof v === "object" ? cut(JSON.stringify(v), 120) : cut(v, 60)])) : undefined,
   });
   const flat = (o, n = 40) => (o && typeof o === "object" ? Object.fromEntries(Object.entries(o).slice(0, n).map(([k, v]) => [cut(k, 40), typeof v === "number" || typeof v === "boolean" ? v : cut(v, 60)])) : {});
@@ -704,7 +704,9 @@ async function setupSection(env, ago, only = null, nv = null) {
   const kindTag = (k, known) => `<span class="tag ${({ inverter: "inv", battery: "bat", charger: "chg" })[k] || "oth"}${known ? "" : " unk"}">${esc(String(k || "device").toUpperCase())}${known ? "" : " ?"}</span>`;
   let html = "";
   for (const app of Object.keys(APPS)) {
-    const list = byApp[app]; if (!list?.length) continue;
+    // "Newest only": the features, sizes and counts too - not only the device cards.
+    const list = (byApp[app] || []).filter((s) => !(only && app === "energy-pilot") || verOf[app + "|" + s._install] === only);
+    if (!list.length) continue;
     const groups = {};
     for (const s of list) for (const d of s.devices || []) {
       const ver = verOf[app + "|" + s._install] || "?";
@@ -730,7 +732,7 @@ async function setupSection(env, ago, only = null, nv = null) {
     const chips = (o) => Object.entries(o).sort((a, b) => b[1] - a[1]).map(([k, n]) => `<span class="ch">${esc(k)} <b>${n}</b></span>`).join("") || "–";
     const cards = Object.values(groups).sort((a, b) => b.inst.size - a.inst.size || b.n - a.n).map((g) => {
       const known = Object.keys(g.profiles).length > 0 || !["inverter", "battery", "charger"].includes(g.kind);
-      const ents = Object.values(g.ents).sort((a, b) => b.n - a.n).slice(0, 30);
+      const ents = Object.values(g.ents).sort((a, b) => b.n - a.n).slice(0, 60);
       const open = !known || g.bad > 0 || Object.keys(g.errors).length > 0;
       return `<div class="card dv"><details ${open ? "open" : ""}><summary>${kindTag(g.kind, known)}<span class="nm">${esc(g.platform)}</span><span class="cnt">${g.inst.size} install${g.inst.size === 1 ? "" : "s"}${g.n > g.inst.size ? ` · ${g.n} devices` : ""}${Object.keys(g.profiles).length ? ` · profile ${esc(Object.keys(g.profiles).join(", "))}` : ["inverter", "battery", "charger"].includes(g.kind) ? " · no profile" : ""}${g.full ? ` ⭐${g.full}` : ""}</span><span class="vers">${Object.entries(g.vers).sort((a, b) => b[1] - a[1]).map(([v, n]) => `<span class="vtag${app === "energy-pilot" && v === nv ? " ok" : ""}">${esc(v)}${n > 1 ? " ×" + n : ""}</span>`).join("")}</span></summary>
 <div class="sum">${g.ok + g.bad ? `<span>Control <b class="${g.bad ? "bad" : "ok"}">${g.ok}/${g.ok + g.bad} ok</b></span>` : ""}${Object.keys(g.models).length ? `<span>${chips(g.models)}</span>` : ""}</div>
@@ -833,14 +835,16 @@ async function stats(url, env) {
   const help = await q("SELECT app, COUNT(*) AS n, MAX(day) AS last FROM reports WHERE day >= ?1 GROUP BY app ORDER BY n DESC", ago(30));
   const helpLast = await q("SELECT id, app, issue, day FROM reports ORDER BY day DESC LIMIT 8");
   const gh = (n) => n && env.REPORT_REPO ? `<a href="https://github.com/${esc(env.REPORT_REPO)}/issues/${n}">#${n}</a>` : "";
-  const has = (k) => ep.filter((r) => r.d.has?.[k]).length;
+  // "Newest only": the top card counts just the homes on that version too.
+  const epv = onlyNew ? ep.filter((r) => r.d.version === newest["energy-pilot"]) : ep;
+  const has = (k) => epv.filter((r) => r.d.has?.[k]).length;
   const sections = `
-<h2>⚡ Energy Pilot · ${ep.length} active</h2><p class="vtoggle">${onlyNew ? `Showing self-tests and setups from <b>${esc(newest["energy-pilot"])}</b> only · <a href="?key=${encodeURIComponent(url.searchParams.get("key"))}">show all versions</a>` : `<a href="?key=${encodeURIComponent(url.searchParams.get("key"))}&new=1">Newest version only${newest["energy-pilot"] ? " (" + esc(newest["energy-pilot"]) + ")" : ""}</a>`}</p><div class="card">
-<div class="row"><i>Inverters</i>${tally(ep, (d) => d.profile)}</div><div class="row"><i>Chargers</i>${tally(ep, (d) => d.charger)}</div>
-<div class="row"><i>Prices</i>${tally(ep, (d) => d.price)}</div><div class="row"><i>Versions</i>${tally(ep, (d) => d.version)}</div>
-<div class="row"><i>Home Assistant</i>${tally(ep, (d) => d.ha)}</div><div class="row"><i>Countries</i>${tally(ep, (d) => d.country)}</div><div class="row"><i>Languages</i>${tally(ep, (d) => d.lang)}</div>
-<div class="row"><i>Has</i><span class="ch">battery <b>${has("battery")}</b></span><span class="ch">car <b>${has("car")}</b></span><span class="ch">solar <b>${has("pv")}</b></span><span class="ch">controlling <b>${ep.filter((r) => Object.values(r.d.modes || {}).includes("control")).length}</b></span></div>
-<div class="row"><i>Saved / month (avg)</i><span class="ch"><b>${avg(ep, (d) => d.saved_month)}</b></span><i style="margin-left:12px">Battery kWh (avg)</i><span class="ch"><b>${avg(ep, (d) => d.battery_kwh)}</b></span></div>
+<h2>⚡ Energy Pilot · ${onlyNew ? `${epv.length} of ${ep.length}` : ep.length} active</h2><p class="vtoggle">${onlyNew ? `Showing self-tests and setups from <b>${esc(newest["energy-pilot"])}</b> only · <a href="?key=${encodeURIComponent(url.searchParams.get("key"))}">show all versions</a>` : `<a href="?key=${encodeURIComponent(url.searchParams.get("key"))}&new=1">Newest version only${newest["energy-pilot"] ? " (" + esc(newest["energy-pilot"]) + ")" : ""}</a>`}</p><div class="card">
+<div class="row"><i>Inverters</i>${tally(epv, (d) => d.profile)}</div><div class="row"><i>Chargers</i>${tally(epv, (d) => d.charger)}</div>
+<div class="row"><i>Prices</i>${tally(epv, (d) => d.price)}</div><div class="row"><i>Versions</i>${tally(epv, (d) => d.version)}</div>
+<div class="row"><i>Home Assistant</i>${tally(epv, (d) => d.ha)}</div><div class="row"><i>Countries</i>${tally(epv, (d) => d.country)}</div><div class="row"><i>Languages</i>${tally(epv, (d) => d.lang)}</div>
+<div class="row"><i>Has</i><span class="ch">battery <b>${has("battery")}</b></span><span class="ch">car <b>${has("car")}</b></span><span class="ch">solar <b>${has("pv")}</b></span><span class="ch">controlling <b>${epv.filter((r) => Object.values(r.d.modes || {}).includes("control")).length}</b></span></div>
+<div class="row"><i>Saved / month (avg)</i><span class="ch"><b>${avg(epv, (d) => d.saved_month)}</b></span><i style="margin-left:12px">Battery kWh (avg)</i><span class="ch"><b>${avg(epv, (d) => d.battery_kwh)}</b></span></div>
 <div class="row"><i>Fixes confirmed</i><span class="ch"><b>${fixesN}</b></span><i style="margin-left:12px">Mended by itself</i>${mended.map((m) => `<span class="ch">${esc(m.key)} <b>${m.n}</b></span>`).join("") || "–"}</div></div>
 <h3>Self-test</h3><table><tr><th>Inverter</th><th>Part</th><th class="n">Passed</th><th>What failed</th><th>Versions</th></tr>${tests.map((t) => `<tr><td>${esc(t.profile)}</td><td>${esc(t.part)}</td><td class="n">${t.ok} / ${t.n}</td><td class="sm">${esc((t.failed || "").slice(0, 140))}</td><td class="sm">${verChips(String(t.vers || "").split(","), newest["energy-pilot"])}</td></tr>`).join("") || `<tr><td colspan="5">–</td></tr>`}</table>
 <h2>🍽️ Madplan · ${mp.length} active</h2><div class="card">

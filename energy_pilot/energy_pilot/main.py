@@ -140,7 +140,11 @@ async def main() -> None:
         while True:
             try:
                 own_changed = bool(overview.settings.get("own_history")) != engine.own_at_learn  # turned on: learn from it at once
-                if asyncio.get_running_loop().time() - learned > 86400 or not engine.profile or own_changed:
+                # Another meter chosen (or found): learn again at once - at most every 10 minutes, so a meter that
+                # comes and goes can't have the 60 days of history asked for every round.
+                meters_changed = engine.roles_at_learn is not None and engine.learn_roles() != engine.roles_at_learn \
+                    and asyncio.get_running_loop().time() - learned > 600
+                if asyncio.get_running_loop().time() - learned > 86400 or not engine.profile or own_changed or meters_changed:
                     await engine.learn()
                     learned = asyncio.get_running_loop().time()
                 replan.refresh()

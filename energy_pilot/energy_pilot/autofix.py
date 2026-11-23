@@ -8,6 +8,8 @@ is read, or make Energy Pilot more careful. Each is shown as one line with an un
 - A chosen sensor that disappeared (an integration renamed it): the one found in its place is used.
 - A chosen grid or house power sensor stuck for hours, or unavailable: another that works is used.
 - A chosen battery level, battery power or solar sensor unavailable for half an hour: another that works is used.
+- The meters don't add up (sun + grid = house + battery) for two hours: the one sensor that makes them add up is
+  used instead - the house taken from the grid's sensor (Fox ESS), a battery or grid read the wrong way round.
 
 Anything that steers the inverter or the charger is never changed here.
 """
@@ -29,6 +31,57 @@ GONE_ROLES = ("battery_soc", "battery_power", "pv_power")  # may sit still (nigh
 ONE_PHASE = {"GB", "IE", "US", "CA", "AU", "NZ", "JP", "MX", "PH"}  # houses mostly on one phase
 STUCK_S = 6 * 3600
 GONE_S = 30 * 60
+BAL_ROLES = ("house_power", "grid_power", "battery_power", "pv_power")
+BAL_KEY = {"house_power": "house", "grid_power": "grid", "battery_power": "batt", "pv_power": "pv"}
+BAL_NEED = 60  # minutes with something happening before the meters are judged
+BAL_EVERY = 600
+
+
+def _tol(s: dict[str, Any]) -> float:
+    """What the meters may miss by: the inverter's own losses and sensors read a moment apart."""
+    return 0.15 * max(abs(s["pv"]), abs(s["grid"]), abs(s["batt"]), abs(s["house"])) + 120
+
+
+def _expected(key: str, s: dict[str, Any]) -> float:
+    """What one meter should show for sun + grid = house + battery (charging +) to hold."""
+    return {"house": s["pv"] + s["grid"] - s["batt"], "grid": s["house"] + s["batt"] - s["pv"],
+            "batt": s["pv"] + s["grid"] - s["house"], "pv": s["house"] + s["batt"] - s["grid"]}[key]
+
+
+def judge(samples: list[dict[str, Any]], cands: dict[str, list[str]], signable: set[str]) -> dict[str, Any]:
+    """Do the meters add up? {"ok": None} too little seen, {"ok": True}, or {"ok": False, "fix": {...}} with the one
+    change that makes them add up: another sensor for a part, or a part read the other way round. Only a change that
+    holds in nearly every minute, and also when that part shows a lot - a sensor sitting at 0 fits a quiet grid."""
+    use = [s for s in samples if max(abs(s["pv"]), abs(s["grid"]), abs(s["batt"]), abs(s["house"])) >= 250]
+    if len(use) < BAL_NEED * 2 // 3:
+        return {"ok": None}
+    off = sum(abs(s["pv"] + s["grid"] - s["batt"] - s["house"]) > _tol(s) for s in use) / len(use)
+    if off < 0.5:
+        return {"ok": True, "off": round(off, 2)}
+    best = None
+    for role in BAL_ROLES:
+        key = BAL_KEY[role]
+        options = [("sign", None)] if role in signable else []
+        options += [("entity", e) for e in cands.get(role, [])]
+        for kind, e in options:
+            n = hits = big = big_hits = 0
+            for s in use:
+                v = -s[key] if kind == "sign" else (s.get("c") or {}).get(e)
+                if v is None:
+                    continue
+                exp = _expected(key, s)
+                ok = abs(v - exp) <= _tol(s)
+                n, hits = n + 1, hits + ok
+                if abs(exp) >= 300:
+                    big, big_hits = big + 1, big_hits + ok
+            if n < 0.8 * len(use) or big < 10 or hits / n < 0.85 or big_hits / big < 0.85:
+                continue
+            if best is None or hits / n > best[0]:
+                best = (hits / n, role, kind, e)
+    out: dict[str, Any] = {"ok": False, "off": round(off, 2)}
+    if best:
+        out["fix"] = {"role": best[1], "kind": best[2], "entity": best[3], "share": round(best[0], 2)}
+    return out
 
 
 def _f(v: Any) -> float | None:
@@ -43,6 +96,9 @@ class AutoFix:
         self.ov = overview
         self.samples: dict[str, deque] = {}
         self.gone_since: dict[str, float] = {}
+        self.bal: deque = deque(maxlen=120)  # two hours of minutes: the meters and the other sensors that could be them
+        self.bal_at = time.time()
+        self.balance_state: dict[str, Any] = {"ok": None}
 
     @property
     def log(self) -> list[dict[str, Any]]:
@@ -71,9 +127,12 @@ class AutoFix:
             change["role_scale"] = {k: v for k, v in (s.get("role_scale") or {}).items() if k != role}
         elif e["what"] == "price_scale":
             change["price_scale"] = None
-        elif e["what"] in ("renamed", "stuck"):
+        elif e["what"] in ("renamed", "stuck", "gone", "balance"):
             role = key.split(":", 1)[1]
             change["roles"] = {**(s.get("roles") or {}), role: e["from"]}
+        elif e["what"] == "balance_sign":
+            role = key.split(":", 1)[1]
+            change["grid_sign" if role == "grid_power" else "battery_sign"] = e["from"]
         self.ov.save({**change, "autofix_log": [x for x in self.log if x["key"] != key],
                       "autofix_ignore": list(dict.fromkeys((s.get("autofix_ignore") or []) + [key]))})
 
@@ -93,6 +152,7 @@ class AutoFix:
         self.renamed(st, now)
         self.stuck(st, roles, now)
         self.gone(st, roles, now)
+        self.balance(st, roles, now)
 
     def _phases(self) -> int:
         return 1 if str(self.ov.ha.config.get("country") or "").upper() in ONE_PHASE else 3
@@ -203,6 +263,57 @@ class AutoFix:
             alt = self._alternative(role, e, st, now)
             if alt:
                 self._done(key, "gone", e, alt, {"roles": {**chosen, role: alt}})
+
+    def _bal_cands(self, roles: dict[str, Any]) -> dict[str, list[str]]:
+        """The sensors that could stand in for each part: named for it, able to be it, not one phase of three."""
+        from .detect import fits_role
+
+        st, out = self.ov.ha.states, {}
+        for role in BAL_ROLES:
+            got = []
+            for c in (self.ov.candidates().get(role) or []):
+                e = c.get("entity_id")
+                if not e or e == roles.get(role) or not c.get("guess"):
+                    continue
+                a = (st.get(e) or {}).get("attributes") or {}
+                if not fits_role(role, e, a, None) or (self._phases() == 3 and (PHASE_METER.search(e) or PHASE_METER.search(str(a.get("friendly_name") or "")))):
+                    continue
+                got.append(e)
+            out[role] = got[:12]
+        return out
+
+    def balance(self, st: dict[str, Any], roles: dict[str, Any], now: float) -> None:
+        """Every minute the meters are put side by side; every 10 minutes, with two hours seen, judged (judge())."""
+        from .overview import _watts
+
+        if not callable(getattr(self.ov, "flow", None)):
+            return
+        f = self.ov.flow() or {}
+        pv, grid, house, ev = f.get("pv"), f.get("grid"), f.get("house"), f.get("ev") or 0.0
+        if pv is None or grid is None or house is None or abs(ev) > 300:
+            return  # a part missing, or the car charging (in the house's sensor or not - not known for sure)
+        cands = self._bal_cands(roles)
+        c = {e: v for es in cands.values() for e in es if (v := _watts(st.get(e))) is not None}
+        self.bal.append({"pv": pv, "grid": grid, "batt": f.get("battery") or 0.0, "house": house, "c": c})
+        if now - self.bal_at < BAL_EVERY:
+            return
+        self.bal_at = now
+        signable = {r for r, pair in (("grid_power", self.ov.grid_pair()), ("battery_power", self.ov.battery_pair())) if pair is None}
+        self.balance_state = res = judge(list(self.bal), cands, signable)
+        fix = res.get("fix")
+        if not fix:
+            return
+        role, key = fix["role"], f"balance:{fix['role']}"
+        if self._ignored(key):
+            return
+        if fix["kind"] == "sign":
+            name, old = ("grid_sign", self.ov.grid_sign()) if role == "grid_power" else ("battery_sign", self.ov.battery_sign())
+            self._done(key, "balance_sign", old, -old, {name: -old})
+        else:
+            chosen = self.ov.settings.get("roles") or {}
+            self._done(key, "balance", roles.get(role), fix["entity"], {"roles": {**chosen, role: fix["entity"]}})
+        self.bal.clear()  # judged again on what the new reading shows
+        self.balance_state = {"ok": None}
 
     def _alternative(self, role: str, bad: str, st: dict[str, Any], now: float) -> str | None:
         from datetime import datetime

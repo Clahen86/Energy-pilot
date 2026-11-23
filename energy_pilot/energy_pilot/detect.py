@@ -26,7 +26,7 @@ CHARGERS = ("keba", "easee", "zaptec", "goecharger", "go_e", "goe_charger", "wal
             "tesla_wall_connector", "evse_wifi", "openevse", "peblar", "alfen_wallbox", "v2c")
 INVERTERS = ("growatt_server", "huawei_solar", "solaredge", "solaredge_modbus_multi", "victron", "victron_ble", "givenergy",
              "givenergy_local", "sungrow", "solax", "solax_modbus", "foxess", "foxess_modbus", "sofar", "fronius",
-             "enphase_envoy", "goodwe", "sma", "deye", "solarman", "sunsynk", "growatt_local", "huawei_solar_modbus")
+             "enphase_envoy", "goodwe", "sma", "deye", "solarman", "sunsynk", "growatt_local", "huawei_solar_modbus", "anker_solix")
 # Platforms whose "battery" is a phone's or a sensor's, never a home battery.
 NOT_HOME_BATTERY = ("mobile_app", "zha", "matter", "mqtt_room", "ble_monitor", "bthome", "switchbot", "homekit_controller",
                     "eufy_security", "roborock", "ecovacs", "xiaomi_ble", "tado", "netatmo", "nest", "ring", "hue",
@@ -39,7 +39,9 @@ NOT_HOME_BATTERY = ("mobile_app", "zha", "matter", "mqtt_room", "ble_monitor", "
                     # Tibber's own integration: a car's level through Tibber, not a house battery (the shared setups showed it)
                     "tibber",
                     # Octopus Intelligent: the car's level and charge target (a Tesla was taken for the house battery)
-                    "octopus_energy")
+                    "octopus_energy",
+                    # Found in the shared setups: Hive's thermostats and sensors, a car through the EU Data Act (EUDA)
+                    "hive", "get_euda_data")
 
 # The car's own battery level ("ev_soc"): only from a car's integration (or a device a car maker made), never by name
 # alone - a phone, a watch, a Zigbee sensor, the house battery or the car's 12 V battery are all "battery %".
@@ -48,7 +50,7 @@ CAR_PLATFORMS = ("tesla", "tesla_custom", "tesla_fleet", "teslemetry", "tessie",
                  "bmw_connected_drive", "mercedes_me", "mbapi2020", "kia_uvo", "hyundai_kia_connect", "renault", "zoe",
                  "nissan_leaf", "leaf", "polestar_api", "polestar", "volvo", "volvooncall", "volvo_cars", "fordpass",
                  "toyota", "stellantis_vehicles", "smartcar", "jlrincontrol", "mg_saic", "saic_ismart", "byd", "smart_hashtag",
-                 "rivian", "lucid", "zeekr", "subaru", "mazda", "honda", "evcc_intg", "ocpp", "tronity", "carconnectivity")
+                 "rivian", "lucid", "zeekr", "subaru", "mazda", "honda", "evcc_intg", "ocpp", "tronity", "carconnectivity", "get_euda_data")
 CAR_BRANDS = re.compile(r"\b(tesla|volkswagen|vw|audi|skoda|škoda|seat|cupra|porsche|bmw|mercedes|kia|hyundai|renault|dacia|"
                         r"nissan|polestar|volvo|ford|toyota|lexus|peugeot|citro[eë]n|opel|vauxhall|ds automobiles|fiat|jeep|saic motor|"
                         r"byd|zeekr|xpeng|rivian|lucid|jaguar|land rover|honda|mazda|subaru|genesis|lynk)\b", re.I)
@@ -56,7 +58,10 @@ CAR_BRANDS = re.compile(r"\b(tesla|volkswagen|vw|audi|skoda|škoda|seat|cupra|po
 # Small things with a battery of their own - never the house battery (found in users' setups: a door lock, a tablet).
 GADGET_NAMES = re.compile(r"lock|door|d(?:ø|oe|o)r_|tablet|ipad|kindle|fire_\d|phone|iphone|pixel|galaxy|watch|remote|"
                           r"button|motion|smoke|thermostat|trv|doorbell|camera|keypad|vacuum|mower|toothbrush|scale|tracker|"
-                          r"airtag|earbud|headphone|mouse|keyboard|sensor_battery", re.I)
+                          r"airtag|earbud|headphone|mouse|keyboard|sensor_battery|energy_meter|soil|garden|leak|flood|"
+                          r"humidity|window|blind|curtain|key_?fob", re.I)
+# A car's chassis number (VIN) in the name: 17 letters and digits, no I, O or Q ("buiten_vsszzzaazld501076").
+VIN = re.compile(r"(^|[._])(?=[a-hj-npr-z0-9]{0,16}\d)(?=[a-hj-npr-z0-9]{0,16}[a-hj-npr-z])[a-hj-npr-z0-9]{17}([._]|$)", re.I)
 POWER_UNITS = ("W", "kW", "MW")
 POWER_ROLES = ("battery_power", "pv_power", "grid_power", "house_power", "ev_power")
 ENERGY_OR_POWER = ("W", "kW", "MW", "Wh", "kWh", "MWh")
@@ -71,16 +76,45 @@ def fits_role(role: str, entity_id: str, a: dict, platform: str | None) -> bool:
         return False  # "opladningsenergi" in kWh is an energy, not the charger's power
     if role in ("price", "sell_price") and unit in ENERGY_OR_POWER:
         return False  # "grid_power_export" in W is no feed-in price
-    if role in ("battery_soc", "battery_power") and (platform in NOT_HOME_BATTERY or GADGET_NAMES.search(text)):
+    if role in ("battery_soc", "battery_power") and (platform in NOT_HOME_BATTERY or GADGET_NAMES.search(text) or VIN.search(entity_id)):
         return False
     if role == "ev_power" and platform not in CHARGERS and re.search(r"solar|photovolt|inverter|(^|_)pv(_|$|\d)|_scb_", text, re.I):
         return False  # Kostal's solar power ("scb") was taken for the car charger's
+    if role == "house_power" and NOT_HOUSE.search(entity_id):
+        return False  # Fox ESS's "grid consumption power" is what comes from the grid, not what the house uses
+    if role == "pv_power" and NOT_PV.search(entity_id):
+        return False  # libbi's "power grid", Luxpower's "energy flow"
+    if role == "battery_power" and NOT_BATTERY_POWER.search(entity_id):
+        return False  # Luxpower's generator, a Fox ESS's first solar string
+    if role == "grid_power" and NOT_GRID.search(entity_id):
+        return False  # GoodWe's "homekit load", a battery charged from the grid
     return True
 
 
+# One part's meter taken for another's (all found in the shared setups).
+NOT_HOUSE = re.compile(r"grid|import|export|feed_?in|(^|[._])net([._]|$)|solar_to|pv_to|(^|[._])batter|generator", re.I)
+NOT_PV = re.compile(r"grid|(^|[._])batter|(^|[._])load|house|home_(load|consumption|power)|energy_flow|generator|consumption", re.I)
+NOT_BATTERY_POWER = re.compile(r"generator|(^|[._])pv\d|energy_flow|(^|[._])load_power", re.I)
+NOT_GRID = re.compile(r"(^|[._])(homekit_)?load(_|$)|(^|[._])batter|generator|(^|[._])pv\d", re.I)
+
+
+def plain_score(role: str, entity_id: str) -> int:
+    """How plainly an inverter's sensor is named for a role: "load_power" beats "grid_consumption_power" for the house."""
+    score = 0
+    if re.search({"pv_power": r"pv_power", "battery_power": r"battery_power", "grid_power": r"grid_power",
+                  "house_power": r"load_power|house_power", "battery_soc": r"state_of_charge"}[role], entity_id):
+        score += 2
+    if role in ("battery_power", "grid_power") and re.search(r"net_til|_til_|_to_|from_grid|grid_to|to_battery", entity_id):
+        score -= 3
+    return score
+
+
+# Small things charged at home - an e-bike, a scooter, a mower - are no car (found in the shared setups:
+# "garage e-bike charger", a mower's plug, "tuin fiets lader" - a garden bike charger in Dutch).
+SMALL_CHARGED = r"(e_?)?bike|bicycle|cykel|fiets|fahrrad|velo(_|$)|scooter|mower|maaier|klipper|rasenm|automower|robot|drill|power_?bank"
 NOT_EV_POWER = re.compile(r"air_?con|klima|heat_?pump|varmepumpe|warmtepomp|w(?:ä|ae)rmepumpe|dryer|t(?:ø|oe)rretumbler|washer|"
                           r"washing|vaskemaskine|dishwasher|opvask|\boven\b|fridge|freezer|fryser|k(?:ø|oe)leskab|boiler|pool|sauna|"
-                          r"dehumid|affugter", re.I)
+                          r"dehumid|affugter|" + SMALL_CHARGED, re.I)
 EV_SOC_WORDS = re.compile(r"state_of_charge|battery_level|\bsoc\b|_soc$|charge_level|battery_percent|ev_battery|hv_battery|"
                           r"battery_charge|ladestand|ladezustand|niveau_de_charge|batteriniveau|laddniva", re.I)
 EV_SOC_NOT = re.compile(r"12v|12_v|car_battery|aux|auxiliary|lv_battery|low_voltage|starter|key|fob|phone|watch|tyre|tire|fuel|range|"
@@ -218,6 +252,7 @@ async def detect(ha: Any, shared: dict[str, Any] | None = None) -> dict[str, dic
 
     # 2. Known integrations.
     prices: list[tuple[int, str, str]] = []
+    inverter_cands: list[tuple[int, str, str, str]] = []  # the best named per role wins, not the first in the registry
     for e in entities:
         eid, platform = e["entity_id"], e.get("platform")
         if e.get("disabled_by") or not alive(eid):
@@ -246,8 +281,10 @@ async def detect(ha: Any, shared: dict[str, Any] | None = None) -> dict[str, dic
             for role, patterns in WORDS.items():
                 cls = "battery" if role == "battery_soc" else "power"
                 if a.get("device_class") == cls and re.search(patterns[0], eid) and not EXCLUDE.search(eid):
-                    put(role, eid, f"integration:{platform}")
+                    inverter_cands.append((plain_score(role, eid), role, eid, platform))
 
+    for _score, role, eid, platform in sorted(inverter_cands, key=lambda c: -c[0]):
+        put(role, eid, f"integration:{platform}")
     if prices:
         _score, _len, eid, platform = max(prices)
         put("price", eid, f"integration:{platform}")
@@ -287,13 +324,16 @@ async def detect(ha: Any, shared: dict[str, Any] | None = None) -> dict[str, dic
             if role == "house_power" and re.search(r"uden_bil|without_ev|excl", text):
                 score += 1
             # The plain names inverters use win over look-alikes ("grid to battery" is neither).
-            if re.search({"pv_power": r"pv_power", "battery_power": r"battery_power", "grid_power": r"grid_power",
-                          "house_power": r"load_power|house_power", "battery_soc": r"state_of_charge"}[role], eid):
-                score += 2
-            if role in ("battery_power", "grid_power") and re.search(r"net_til|_til_|_to_|from_grid|grid_to|to_battery", eid):
-                score -= 3
-            if best is None or score > best[0]:
-                best = (score, eid)
+            score += plain_score(role, eid)
+            if not fits_role(role, eid, a, platform):
+                continue
+            # "battery level" alone is every gadget's (a garden sensor was taken): only with a home battery's power
+            # found, on a device with a power sensor, or named for an inverter.
+            if role == "battery_soc" and not re.search(r"state_of_charge|(^|_)soc(_|$)", eid) and score < 2 \
+                    and "battery_power" not in found and not sibling(eid, "power"):
+                continue
+            if best is None or score > best[0] or (role == "battery_soc" and score == best[0] and len(eid) < len(best[1])):
+                best = (score, eid)  # a level as good as another: the plainer name ("battery_level", not a garden's)
         if best and best[0] > 0:
             put(role, best[1], "name")
 

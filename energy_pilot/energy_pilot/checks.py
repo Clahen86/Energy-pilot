@@ -153,6 +153,10 @@ def run(engine: Any, hours: list, b: Any, plan: Any, end_value: float) -> list[d
     reg = {r.get("entity_id"): r for r in getattr(getattr(engine.ov, "controller", None), "registry", None) or []}
     if (se := engine.ov.role("battery_soc")) and (reg.get(se) or {}).get("platform") in NOT_HOME_BATTERY:
         out.append({"key": "soc_not_house", "level": "warn", "vals": {"e": name(se)}, "goto": "roles"})
+    # 3d. The meters don't add up (sun + grid = house + battery) and no one sensor mends it (autofix.py): said plainly.
+    bal = getattr(getattr(engine.ov, "autofix", None), "balance_state", None) or {}
+    if bal.get("ok") is False and not bal.get("fix"):
+        out.append({"key": "balance_off", "level": "warn", "vals": {"p": round(100 * float(bal.get("off") or 0))}, "goto": "roles"})
     # 3e. The battery comes from an integration that can only read it (found in users' setups): said plainly, with the
     #     integration that can control it - or, for a battery another system already runs, that one controls it.
     plat = (reg.get(se) or {}).get("platform") if se else None
@@ -250,6 +254,9 @@ READ_ONLY = {
     "solaredge": ("SolarEdge", "SolarEdge Modbus Multi",
                   "https://my.home-assistant.io/redirect/hacs_repository/?owner=WillCodeForCats&repository=solaredge-modbus-multi&category=integration"),
     "fusion_solar": ("Huawei", "Huawei Solar", "https://my.home-assistant.io/redirect/hacs_repository/?owner=wlcrs&repository=huawei_solar&category=integration"),
+    # Found in the shared setups: GoodWe through its cloud (SEMS) and Solis through its cloud - both read only.
+    "sems": ("GoodWe", "GoodWe", "https://my.home-assistant.io/redirect/config_flow_start/?domain=goodwe"),
+    "solis": ("Solis", "Solis Modbus", "https://my.home-assistant.io/redirect/hacs_repository/?owner=Pho3niX90&repository=solis_modbus&category=integration"),
 }
 
 
