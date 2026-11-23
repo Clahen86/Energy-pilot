@@ -331,6 +331,24 @@ class Controller:
         p = adapters.PROFILES.get(key or "")
         return {i: p[i] for i in ("normal", "hold", "charge", "export") if i in p} if p else None
 
+    def ready(self, part: str = "battery") -> bool | None:
+        """Is the inverter up and able to obey? A profile's "ready" (sensor pattern, state pattern) - a Kostal asleep
+        at night first runs its start-up and grid checks, several minutes. None: the profile has no such sensor or it
+        was not found."""
+        r = (adapters.PROFILES.get(self.profile_key(part) or "") or {}).get("ready")
+        if not r:
+            return None
+        sensor, want = r
+        reg = getattr(self, "_ent_reg", None) or {}
+        dev = getattr(self, "battery_device", None) if part == "battery" else None
+        cands = [e for e in self.ha.states if adapters.hit(sensor, e)]
+        own = [e for e in cands if dev and (reg.get(e) or {}).get("device_id") == dev]
+        e = (own or cands or [None])[0]
+        st = str((self.ha.states.get(e) or {}).get("state", "")) if e else ""
+        if not e or st in ("", "unknown", "unavailable"):
+            return None
+        return bool(re.search(want, st))
+
     def check(self, part: str = "battery") -> dict[str, dict]:
         """Which of the profile's controls were found on the inverter, and which are missing."""
         steps = self.profile_steps(part) or {}

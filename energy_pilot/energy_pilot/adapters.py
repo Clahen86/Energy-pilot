@@ -545,6 +545,9 @@ PROFILES: dict[str, dict[str, Any]] = {
         # The owner's own rates are put back after charging and selling.
         "restore_charge": [r"number\..*_set_charge_rate$"],
         "restore": [r"number\..*_set_discharge_rate$"],
+        # Asleep at night ("Off") the inverter first runs StartUp and GridCheck before it charges - up to ~10 min.
+        # The self-test waits for FeedIn (state 6) before it judges.
+        "ready": (r"sensor\..*_inverter_state$", r"^(6|FeedIn)$"),
     },
     "alphaess": {
         "name": "Alpha ESS (cloud)",
