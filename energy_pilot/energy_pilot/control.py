@@ -119,12 +119,21 @@ class Controller:
 
     async def hand_back(self, part: str) -> None:
         """A battery leaving control: normal again and the owner's own settings back (a grid setpoint left selling
-        would go on selling in shadow)."""
-        if self.mode(part) != "control" or not self.is_battery(part) or self.blocked(part):
+        would go on selling in shadow). A charger with its own planning (evcc) gets it back."""
+        if self.mode(part) != "control" or self.blocked(part):
+            return
+        if part.startswith("car"):
+            if calls := self._charger_hand_back(part):
+                await self._send(self._clamp(calls))
+            return
+        if not self.is_battery(part):
             return
         want = self.intents().get(part)
         if want:
             await self._send(self.calls(part, {**want, "intent": "normal"}) + self._restore(part, "normal"))
+
+    def _charger_hand_back(self, part: str) -> list[dict[str, Any]]:
+        return adapters.charger_hand_back(self.platforms.get(part), self.entities.get(part, []))
 
     def set_mode(self, part: str, mode: str) -> None:
         modes = dict(self.ov.settings.get("control") or {})
@@ -1155,11 +1164,15 @@ class Controller:
             _LOGGER.info("Stopping: the battery is back to normal (%d changes)", len(todo))
 
     async def release(self) -> None:
-        """Back to shadow: the battery is put back to normal first, the charger is left as it is."""
+        """Back to shadow: the battery is put back to normal first. A charger is left as it is - unless it has its own
+        planning (evcc), which it gets back."""
         wants = self.intents()
         for part in ["battery", *self.bat_parts()]:
             if self.mode(part) == "control" and not self.blocked(part) and (want := wants.get(part)):
                 await self._send(self.calls(part, {**want, "intent": "normal"}) + self._restore(part, "normal"))
+        for part in ["car", *self.car_parts()]:
+            if self.mode(part) == "control" and not self.blocked(part) and (calls := self._charger_hand_back(part)):
+                await self._send(self._clamp(calls))
         modes = {p: "shadow" for p in self.parts()}
         self.ov.save({"control": modes})
         self.last.clear()
