@@ -63,6 +63,18 @@ def sun_target(settings: dict[str, Any]) -> int:
         return grid
 
 
+def charger_kw(settings: dict[str, Any], learned: float | None) -> float:
+    """The power the plan counts on for the car: the charger's as set (7.4 kW if not), but never more than the car
+    was seen to take - the plan would put the charge in too few hours."""
+    try:
+        kw = float(settings.get("charger_kw") or 0)
+    except (TypeError, ValueError):
+        kw = 0.0
+    if learned:
+        return min(kw, learned) if kw else learned
+    return kw or 7.4
+
+
 def need_kwh(soc: float, goal: float, car_kwh: float) -> float:
     """What the charger must give to bring the car from soc to goal."""
     return max(0.0, goal - soc) / 100 * car_kwh / LOSS
@@ -82,8 +94,10 @@ class CarSize:
     def __init__(self, state: dict[str, Any]) -> None:
         self.state = state
         self._start: tuple[float, float] | None = None  # soc, session kWh when this charge began
+        self._kw: list[float] = []  # this session's charging power (kW), one a minute
 
-    def see(self, plug: bool | None, soc: float | None, session_kwh: float | None) -> None:
+    def see(self, plug: bool | None, soc: float | None, session_kwh: float | None, power_w: float | None = None) -> None:
+        self._see_power(plug, power_w)
         if not plug or soc is None or session_kwh is None:
             self._start = None
             return
@@ -97,6 +111,25 @@ class CarSize:
                 seen = (self.state.setdefault("ev_kwh_seen", []) + [round(size, 1)])[-6:]
                 self.state["ev_kwh_seen"] = seen
             self._start = (soc, session_kwh)
+
+    def _see_power(self, plug: bool | None, power_w: float | None) -> None:
+        """What the car really takes: a car charging on one phase behind an 11 kW charger takes 3.7 kW. While it
+        charges (over 1 kW) the power is kept a minute at a time; when the car is unplugged, a session of at least
+        10 minutes gives its 90th percentile - the steady power, not the start or the taper near full."""
+        if plug and power_w is not None and power_w >= 1000:
+            self._kw.append(power_w / 1000)
+            return
+        if plug:
+            return  # paused (the plan waits, or the sun is gone): the same session goes on
+        if len(self._kw) >= 10:
+            k = sorted(self._kw)[int(0.9 * (len(self._kw) - 1))]
+            self.state["ev_kw_seen"] = (self.state.get("ev_kw_seen") or [])[-5:] + [round(k, 1)]
+        self._kw = []
+
+    def charge_kw(self) -> float | None:
+        """The most the car took in its last sessions (a session charged by the sun alone takes less)."""
+        seen = self.state.get("ev_kw_seen") or []
+        return max(seen) if seen else None
 
     def kwh(self, settings: dict[str, Any]) -> tuple[float, str]:
         """(kWh, "set" | "learned" | "guess")."""

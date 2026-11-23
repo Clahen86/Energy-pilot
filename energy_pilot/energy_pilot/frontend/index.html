@@ -406,7 +406,7 @@ const T_ALL = {
       sizeLearning: "Lærer den brugbare kapacitet af op- og afladningerne", useLearned: "Brug det lærte", power: "Ladeeffekt", powerH: "Hvor hurtigt batteriet kan lade",
       powerOut: "Afladeeffekt", powerOutH: "Hvor hurtigt det kan aflade – tomt = som ladeeffekten",
       sell: "Regn med salgsprisen", sellH: "Strøm til nettet tjener penge i planen – fra: den tæller som 0", sellPrice: "Du får pr. kWh", fuse: "Importloft", fuseH: "Hovedsikringen - køb aldrig mere",
-      carMode: "Bilen lader", carModes: { cheapest: "Billigst", solar: "Kun sol" }, charger: "Laderens effekt", chargerH: "Typisk 3,7 / 7,4 / 11 kW", evSize: "Bilens batteri", evSizeH: "Brugbar størrelse i kWh – tom: lært af opladningerne (eller fra laderen)",
+      carMode: "Bilen lader", carModes: { cheapest: "Billigst", solar: "Kun sol" }, charger: "Laderens effekt", chargerH: "Typisk 3,7 / 7,4 / 11 kW", chargerSeen: "Bilen er set tage {x} kW – planen regner med højst det", evSize: "Bilens batteri", evSizeH: "Brugbar størrelse i kWh – tom: lært af opladningerne (eller fra laderen)",
       quiet: "Stille timer", quietH: "Ingen opladning i dette tidsrum", quietBatt: "Gælder batteriet (kun strøm fra nettet - solen lader stadig)", quietCar: "Gælder bilen",
       source: "Elpris", sourceH: "Hvor priserne kommer fra", sources: { auto: "Automatisk", spot: "Spotpris", tou: "Egen tarif" },
       preset: "Start fra", choose: "Vælg…", defaultPrice: "Normalpris", defaultPriceH: "Når ingen periode gælder", periodName: "Navn, fx Spids",
@@ -529,7 +529,7 @@ const T_ALL = {
       sizeLearning: "Learning the usable capacity from charging and discharging", useLearned: "Use the learned", power: "Charge power", powerH: "How fast the battery can charge",
       powerOut: "Discharge power", powerOutH: "How fast it can discharge – empty = same as charge",
       sell: "Use the export price", sellH: "Power to the grid earns money in the plan – off: it counts as 0", sellPrice: "You get per kWh", fuse: "Import limit", fuseH: "The main fuse - never buy more",
-      carMode: "The car charges", carModes: { cheapest: "Cheapest", solar: "Sun only" }, charger: "Charger power", chargerH: "Typically 3.7 / 7.4 / 11 kW", evSize: "Car battery", evSizeH: "Usable size in kWh – empty: learned from the charges (or from the charger)",
+      carMode: "The car charges", carModes: { cheapest: "Cheapest", solar: "Sun only" }, charger: "Charger power", chargerH: "Typically 3.7 / 7.4 / 11 kW", chargerSeen: "The car was seen taking {x} kW – the plan counts on at most that", evSize: "Car battery", evSizeH: "Usable size in kWh – empty: learned from the charges (or from the charger)",
       quiet: "Quiet hours", quietH: "No charging in this period", quietBatt: "Applies to the battery (grid only - the sun still charges it)", quietCar: "Applies to the car",
       source: "Electricity price", sourceH: "Where prices come from", sources: { auto: "Automatic", spot: "Spot price", tou: "Own tariff" },
       preset: "Start from", choose: "Choose…", defaultPrice: "Normal price", defaultPriceH: "When no period applies", periodName: "Name, e.g. Peak",
@@ -2568,7 +2568,7 @@ function styleView() {
       ${v.inverter_profile === "custom" ? customEditor(v) : ""}
       ${batteryList(v, row, numIn)}` : "")}
     ${section("car", y.secCar, y.secCarH, hasCar ? `${(v.chargers || []).length ? `<h4 class="bathead">${T.chg.n.replace("{n}", 1)}</h4>` : ""}${row(y.carMode, "", `<div class="seg mini">${["cheapest", "solar"].map((m) => `<button class="${(v.ev_mode || "cheapest") === m ? "on" : ""}" data-evmode="${m}">${y.carModes[m]}</button>`).join("")}</div>`)}
-      ${row(y.charger, y.chargerH, numIn("charger_kw", 7.4, "0.1", "kW"))}
+      ${row(y.charger, data?.ev?.charge_kw_seen ? (y.chargerSeen || "The car was seen taking {x} kW").replace("{x}", num(data.ev.charge_kw_seen, 1)) : y.chargerH, numIn("charger_kw", 7.4, "0.1", "kW"))}
       ${row(y.evSize || "Car battery", y.evSizeH || "", numIn("ev_battery_kwh", data?.ev?.car_kwh ?? 60, "0.1", "kWh"))}
       ${row(T.sw.t, T.sw.h, swPick("car", v.ev_switch || "", `data-text="ev_switch"`))}
       ${adv("car", `${settings.roles.pv_power ? row(y.followSun, y.followSunH, tog("ev_follow_sun", true)) : ""}
