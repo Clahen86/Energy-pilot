@@ -582,7 +582,10 @@ CHARGER_SERVICES = {
     # Ohme (built in): no current control - "Charge mode" max charge / paused
     "ohme": {"charge": [(r"select\..*charge_mode$", "select", "max_charge")], "stop": [(r"select\..*charge_mode$", "select", "paused")]},
     # evcc (marq24/ha-evcc): the loadpoint's "Mode" - now / off (evcc keeps its own current and phases)
-    "evcc_intg": {"charge": [(r"select\..*_mode$", "select", "now")], "stop": [(r"select\..*_mode$", "select", "off")]},
+    # Handed back to evcc's own planning ("smart"; "pv" in evcc before 0.200) when Energy Pilot lets go - else it would
+    # stay at "off" or "now" and the owner's evcc plans would stop working.
+    "evcc_intg": {"charge": [(r"select\..*_mode$", "select", "now")], "stop": [(r"select\..*_mode$", "select", "off")],
+                  "hand_back": [(r"select\..*_mode$", "select", "re:^(smart|pv)$")]},
     # Hypervolt (gndean/home-assistant-hypervolt-charger): "Activation Mode" starts and stops it (Plug and Charge /
     # Schedule Charge - its own schedule then decides, so keep it empty), "Max Current" the speed, Boost = full power
     # (its Eco modes would only use the sun the house battery leaves)
@@ -832,6 +835,13 @@ def charger_switch(entities: list[str], lone_ok: bool = False) -> str | None:
         return named
     switches = [e for e in entities if e.startswith("switch.")]
     return switches[0] if len(switches) == 1 else None
+
+
+def charger_hand_back(platform: str | None, entities: list[str]) -> list[dict[str, Any]]:
+    """What gives the charger back to its own planning when Energy Pilot lets go (evcc: its "smart" mode). Most
+    chargers have none: they are left as they are."""
+    steps = (CHARGER_SERVICES.get(platform or "") or {}).get("hand_back")
+    return resolve(steps, entities, {}) if steps else []
 
 
 def charger_calls(intent: str, entities: list[str], platform: str | None, current: float,
