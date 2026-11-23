@@ -362,6 +362,43 @@ async def detect(ha: Any, shared: dict[str, Any] | None = None) -> dict[str, dic
     return found
 
 
+# A charger's own integration, and what each of its sensors is (evcc: the loadpoint's "Connected" and "Charge energy").
+CHARGER_INTEGRATIONS = (*CHARGERS, "evcc_intg")
+CHARGER_PLUG = re.compile(r"plug|cable|stik|connected|car_connected", re.I)
+CHARGER_SESSION = re.compile(r"session_energy|session|energy_charged|charged_energy|added_energy|charge_energy", re.I)
+CHARGER_SOC = re.compile(r"vehicle_soc|vehicle_charge|car_soc|ev_soc|state_of_charge", re.I)
+
+
+def charger_devices(entities: list[dict[str, Any]], devices: dict[str, Any], states: dict[str, Any]) -> list[dict[str, Any]]:
+    """The chargers Home Assistant has, each with the sensors Energy Pilot needs from it - so a charger is picked once
+    (Settings > Car) instead of sensor by sensor. Only what sits on the charger's own device: a plug sensor from the
+    car's integration would hide the charger's controls. A device without both power and plug is no charger (evcc's
+    site with the house's power)."""
+    by_dev: dict[str, list[dict[str, Any]]] = {}
+    for e in entities:
+        if e.get("platform") in CHARGER_INTEGRATIONS and e.get("device_id") and not e.get("disabled_by"):
+            by_dev.setdefault(e["device_id"], []).append(e)
+    out = []
+    for dev_id, ents in by_dev.items():
+        ids = sorted(e["entity_id"] for e in ents if e["entity_id"] in states)
+        a = lambda x: (states.get(x) or {}).get("attributes") or {}  # noqa: E731
+        unit = lambda x: str(a(x).get("unit_of_measurement") or "").lower()  # noqa: E731
+        powers = [x for x in ids if x.startswith("sensor.") and (a(x).get("device_class") == "power" or unit(x) in ("w", "kw"))
+                  and not EXCLUDE.search(x)]
+        power = next((x for x in powers if re.search(r"charg", x)), powers[0] if powers else None)
+        plug = next((x for x in ids if x.startswith("binary_sensor.") and (a(x).get("device_class") == "plug" or CHARGER_PLUG.search(x))), None)
+        if not power or not plug:
+            continue
+        session = next((x for x in ids if x.startswith("sensor.") and unit(x) in ("kwh", "wh") and CHARGER_SESSION.search(x)
+                        and not re.search(r"total|lifetime|remaining", x)), None)
+        soc = next((x for x in ids if x.startswith("sensor.") and unit(x) == "%" and CHARGER_SOC.search(x)), None)
+        d = devices.get(dev_id) or {}
+        roles = {"ev_power": power, "ev_plug": plug, **({"ev_session": session} if session else {}), **({"ev_soc": soc} if soc else {})}
+        out.append({"device_id": dev_id, "name": d.get("name_by_user") or d.get("name") or power, "platform": ents[0].get("platform"),
+                    "roles": roles})
+    return sorted(out, key=lambda c: str(c["name"]).lower())
+
+
 def plausible(role: str, st: dict[str, Any]) -> bool:
     """A sensor the finder points at is only used when it looks like what the role needs (unit and value) - a wrong
     rule sent out by mistake can't hand a home a sensor that makes no sense."""

@@ -464,7 +464,7 @@ const T_ALL = {
     legSoc: "Batteri-niveau (plan)", legCar: "Bilen lader", legExport: "Batteriet sælger", saves: "Planen sparer cirka {x} de næste timer.", otherSays: "AppDaemon: {x}",
     bat: { n: "Batteri {n}", add: "+ Tilføj batteri", name: "Navn", soc: "Batteriniveau", power: "Batterieffekt", remove: "Fjern batteriet",
       hint: "Planen ser alle batterierne som ét – størrelser og effekter lægges sammen. Hvert batteri styres gennem sin egen inverter og starter i skygge.", noCtl: "Fandt ingen inverter-styring – vælg den her", each: "Hvert batteri", pick: "Vælg sensor…" },
-    chg: { n: "Lader {n}", add: "+ Tilføj ladeboks", name: "Navn", power: "Ladeeffekt", plug: "Stik", session: "Ladet", remove: "Fjern ladeboksen",
+    chg: { n: "Lader {n}", add: "+ Tilføj ladeboks", from: "Hent fra lader", fromH: "Vælg laderen – så udfyldes effekt, stik, ladet og bilens niveau fra dens egen integration", fromPick: "Vælg lader…", fromNone: "Ingen lader fundet i Home Assistant", name: "Navn", power: "Ladeeffekt", plug: "Stik", session: "Ladet", remove: "Fjern ladeboksen",
       shadow: "Starter i skygge – slå styring til under Styring", planned: "Lader kl. {x}", none: "Ingen opladning planlagt", car: "Bil" },
     chk: { title: "Tjek af indstillinger", fix: "Ret det", show: "Vis mig", no: "Nej tak",
       charger_found: "Fandt en ladeboks mere: {name}. Skal den med i planen?",
@@ -588,7 +588,7 @@ const T_ALL = {
     legSoc: "Battery level (plan)", legCar: "Car charges", legExport: "Battery sells", saves: "The plan saves about {x} over the coming hours.", otherSays: "AppDaemon: {x}",
     bat: { n: "Battery {n}", add: "+ Add a battery", name: "Name", soc: "Battery level", power: "Battery power", remove: "Remove this battery",
       hint: "The plan sees all the batteries as one – sizes and powers are added up. Each battery is controlled through its own inverter and starts in shadow.", noCtl: "No inverter control found – pick it here", each: "Each battery", pick: "Pick a sensor…" },
-    chg: { n: "Charger {n}", add: "+ Add a charger", name: "Name", power: "Charging power", plug: "Plug", session: "Charged", remove: "Remove this charger",
+    chg: { n: "Charger {n}", add: "+ Add a charger", from: "Fill in from a charger", fromH: "Pick the charger – its power, plug, charged energy and the car's level are filled in from its own integration", fromPick: "Pick a charger…", fromNone: "No charger found in Home Assistant", name: "Name", power: "Charging power", plug: "Plug", session: "Charged", remove: "Remove this charger",
       shadow: "Starts in shadow – turn on control under Control", planned: "Charges at {x}", none: "No charging planned", car: "Car" },
     chk: { title: "Settings check", fix: "Fix it", show: "Show me", no: "No thanks",
       charger_found: "Found another charger: {name}. Add it to the plan?",
@@ -2384,7 +2384,7 @@ function shadowView() {
 }
 const GROUPICON = { sun: "sun", battery: "battery", grid: "house", car: "car", data: "chart" };
 const PLATNAME = { stromligning: "Strømligning", nordpool: "Nord Pool", energidataservice: "Energi Data Service", tibber: "Tibber", solcast_solar: "Solcast",
-  forecast_solar: "Forecast.Solar", keba: "KEBA", easee: "Easee", zaptec: "Zaptec", goecharger: "go-e", wallbox: "Wallbox", ocpp: "OCPP",
+  forecast_solar: "Forecast.Solar", keba: "KEBA", easee: "Easee", zaptec: "Zaptec", goecharger: "go-e", wallbox: "Wallbox", ocpp: "OCPP", evcc_intg: "evcc",
   growatt_server: "Growatt", huawei_solar: "Huawei", solaredge: "SolarEdge", victron: "Victron", givenergy: "GivEnergy" };
 function sourceLabel(src) {
   if (!src) return "";
@@ -2459,12 +2459,20 @@ function swPick(part, cur, attr) {
   return `<select ${attr}><option value="">${S.auto}</option>${opts.map((o) =>
     `<option value="${esc(o.entity_id)}" ${cur === o.entity_id ? "selected" : ""}>${esc(o.name)}</option>`).join("")}</select><div class="muted">${hint}</div>`;
 }
+/** Settings > Car: pick the charger once - its sensors are filled in from its own integration (target "main" or a charger's index). */
+function fromCharger(row, target) {
+  const c = T.chg, list = settings.charger_devices || [];
+  if (!list.length) return "";
+  return row(c.from || "Fill in from a charger", c.fromH || "", `<select data-chgfrom="${target}"><option value="">${c.fromPick || "Pick a charger…"}</option>${list.map((d, i) =>
+    `<option value="${i}">${esc(d.name)} · ${esc(PLATNAME[d.platform] || d.platform)}</option>`).join("")}</select>`);
+}
 function chargerList(v, row) {
   const c = T.chg, list = v.chargers || [];
   const pick = (i, key, role) => `<select data-chg="${i}:${key}"><option value="">${T.bat.pick}</option>${(settings.candidates[role] || []).map((x) =>
     `<option value="${esc(x.entity_id)}" ${list[i][key] === x.entity_id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>`;
   return `${list.map((x, i) => `<div class="batbox"><h4 class="bathead">${c.n.replace("{n}", i + 2)}${x.name ? ` · ${esc(x.name)}` : ""}</h4>
       ${row(c.name, "", `<input class="pname" data-chgt="${i}:name" value="${esc(x.name || "")}">`)}
+      ${fromCharger(row, i)}
       ${row(c.power, "", pick(i, "power", "ev_power"))}
       ${row(c.plug, "", pick(i, "plug", "ev_plug"))}
       ${row(c.session, "", pick(i, "session", "ev_session"))}
@@ -2569,7 +2577,7 @@ function styleView() {
         <option value="custom" ${v.inverter_profile === "custom" ? "selected" : ""}>${T.ctl.custom}</option></select>`) : ""}
       ${v.inverter_profile === "custom" ? customEditor(v) : ""}
       ${batteryList(v, row, numIn)}` : "")}
-    ${section("car", y.secCar, y.secCarH, hasCar ? `${(v.chargers || []).length ? `<h4 class="bathead">${T.chg.n.replace("{n}", 1)}</h4>` : ""}${row(y.carMode, "", `<div class="seg mini">${["cheapest", "solar"].map((m) => `<button class="${(v.ev_mode || "cheapest") === m ? "on" : ""}" data-evmode="${m}">${y.carModes[m]}</button>`).join("")}</div>`)}
+    ${section("car", y.secCar, y.secCarH, hasCar ? `${fromCharger(row, "main")}${(v.chargers || []).length ? `<h4 class="bathead">${T.chg.n.replace("{n}", 1)}</h4>` : ""}${row(y.carMode, "", `<div class="seg mini">${["cheapest", "solar"].map((m) => `<button class="${(v.ev_mode || "cheapest") === m ? "on" : ""}" data-evmode="${m}">${y.carModes[m]}</button>`).join("")}</div>`)}
       ${row(y.charger, data?.ev?.charge_kw_seen ? (y.chargerSeen || "The car was seen taking {x} kW").replace("{x}", num(data.ev.charge_kw_seen, 1)) : y.chargerH, numIn("charger_kw", 7.4, "0.1", "kW"))}
       ${row(y.evSize || "Car battery", y.evSizeH || "", numIn("ev_battery_kwh", data?.ev?.car_kwh ?? 60, "0.1", "kWh"))}
       ${row(T.sw.t, T.sw.h, swPick("car", v.ev_switch || "", `data-text="ev_switch"`))}
@@ -2579,7 +2587,7 @@ function styleView() {
       ${quietRow("car")}
       ${row(y.evInHouse, settings.ev_detected == null ? y.evInHouseUnknown : settings.ev_detected ? y.evInHouseYes : y.evInHouseNo,
         `<div class="seg mini">${[["auto", null], ["yes", true], ["no", false]].map(([k, val]) => `<button class="${(v.ev_in_house ?? null) === val ? "on" : ""}" data-evhouse="${k}">${y.evHouse[k]}</button>`).join("")}</div>`)}`)}
-      ${chargerList(v, row)}` : "")}
+      ${chargerList(v, row)}` : fromCharger(row, "main"))}
     ${thingsSection(v, row)}
     ${settings.roles.pv_power ? section("bolt", (T_PANEL[L] || T_PANEL.en).t, (T_PANEL[L] || T_PANEL.en).h, panelsBody(), "panels") : ""}
     ${section("bolt", y.secPrice, y.secPriceH, `${row((T_TAR[L] || T_TAR.en).show, (T_TAR[L] || T_TAR.en).showH, tog("tariff_show", true))}${tarChoices && tarChoices.length ? row((T_TAR[L] || T_TAR.en).yours, (T_TAR[L] || T_TAR.en).yoursH,
@@ -2932,6 +2940,19 @@ function wire() {
   const chgs = () => JSON.parse(JSON.stringify((settings?.settings || data.settings).chargers || []));
   const saveChgs = async (l) => { await api("/api/settings", { chargers: l }); settings = await api("/api/settings"); await load(); render(); };
   $("[data-chgadd]")?.addEventListener("click", () => saveChgs([...chgs(), { name: "", power: "", plug: "" }]));
+  // A charger picked once: its own sensors filled in (the main car's roles, or that charger's).
+  document.querySelectorAll("[data-chgfrom]").forEach((sel) => sel.onchange = async () => {
+    const d = (settings.charger_devices || [])[+sel.value];
+    if (!d) return;
+    if (sel.dataset.chgfrom === "main") {
+      await api("/api/settings", { roles: d.roles });
+      settings = await api("/api/settings"); await load(); render();
+      return;
+    }
+    const l = chgs(), i = +sel.dataset.chgfrom, r = d.roles;
+    l[i] = { ...l[i], name: l[i].name || d.name, power: r.ev_power || "", plug: r.ev_plug || "", session: r.ev_session || "" };
+    await saveChgs(l);
+  });
   document.querySelectorAll("[data-chgdel]").forEach((x) => x.onclick = () => { const l = chgs(); l.splice(Number(x.dataset.chgdel), 1); saveChgs(l); });
   document.querySelectorAll("[data-chg],[data-chgn],[data-chgt]").forEach((el) => el.onchange = () => {
     const [i, key] = (el.dataset.chg || el.dataset.chgn || el.dataset.chgt).split(":"), l = chgs();
