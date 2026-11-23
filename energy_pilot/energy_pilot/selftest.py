@@ -29,6 +29,7 @@ STEADY_S = 30  # right this long in a row …
 MIN_S = 60  # … and never sooner than this after a command
 WAIT_S = {"local": 120, "cloud": 600, "car": 180}  # a cloud (AlphaESS, Tesla, EcoFlow) can take several minutes
 CLOUD = {"alphaess", "tesla", "ecoflow"}
+READY_WAIT_S = 900  # an inverter waking up (a profile's "ready" sensor) gets this long before the clock starts
 MAX_TRIES = 5  # other options tried for one step
 # Options never tried: they could take the house off the grid, wipe settings or stop the inverter.
 UNSAFE = re.compile(r"off.?grid|island|\beps\b|backup|calibrat|factory|reset|emergenc|maint|\btest|update|firmware|"
@@ -291,10 +292,21 @@ class SelfTest:
                 return True, last
         return (False if seen else None), last
 
+    async def _wake(self, part: str, intent: str) -> None:
+        """An inverter that was asleep (a Kostal at night) first starts up and checks the grid - several minutes. The
+        clock starts once its profile's "ready" sensor says it is running, or when it gave up waiting."""
+        if part != "battery" or intent not in ("charge", "export") or not hasattr(self.ctl, "ready"):
+            return
+        t0 = time.time()
+        while self.ctl.ready(part) is False and time.time() - t0 < READY_WAIT_S and not self._stop:
+            self._save(step={"part": part, "step": intent, "since": t0, "waiting": "inverter_start"})
+            await asyncio.sleep(SAMPLE_S)
+
     async def _step(self, part: str, intent: str, calls: list[dict[str, Any]], check: Any, wait_s: int,
                     base: dict[str, Any]) -> None:
         self._save(step={"part": part, "step": intent, "since": time.time()})
         sent = await self.ctl._send(calls, force=True)
+        await self._wake(part, intent)
         ok, f = await self._watch(check, wait_s, base)
         if ok:
             self._result(part, intent, "ok")

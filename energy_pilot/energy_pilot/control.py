@@ -203,7 +203,10 @@ class Controller:
                 # and numbers without a device - picked up by their fixed names.
                 found += [e["entity_id"] for e in entities if not e.get("disabled_by") and e["entity_id"] not in found
                           and YAML_CONTROLS.match(e["entity_id"])]
-            self.entities[part], self.platforms[part] = sorted(found), plat
+            # The anchor's own device first: with two inverters on one integration (a Kostal G3 and a Plenticore Plus)
+            # a profile's pattern then finds this one's controls, not whichever sorts first.
+            own = {e["entity_id"] for e in entities if dev and e.get("device_id") == dev}
+            self.entities[part], self.platforms[part] = sorted(found, key=lambda e: (e not in own, e)), plat
             if part == "car":
                 self.car_device = dev  # Easee's actions want the charger's device
                 self.lone_ok["car"] = bool(dev)
@@ -330,6 +333,73 @@ class Controller:
             return steps if any(steps.values()) else None
         p = adapters.PROFILES.get(key or "")
         return {i: p[i] for i in ("normal", "hold", "charge", "export") if i in p} if p else None
+
+    def max_power_kw(self, part: str = "battery") -> float | None:
+        """The most the inverter lets the battery charge or discharge, in kW - a profile's "max_power" sensor (Kostal
+        works it out from the battery's voltage and current), the anchor's own device first. None: none found."""
+        st = self._profile_state("max_power", part)
+        try:
+            v = float(st.get("state"))
+        except (TypeError, ValueError):
+            return None
+        unit = str((st.get("attributes") or {}).get("unit_of_measurement") or "W")
+        kw = v if unit.lower() == "kw" else v / 1000
+        return round(kw, 2) if kw > 0 else None
+
+    def fuse_amps(self, part: str = "battery") -> float | None:
+        """The house's main fuse in amps as the inverter's integration knows it - a profile's "fuse" number (Kostal's
+        House Fuse Size, which its own grid protection uses), the anchor's own device first. None: none found."""
+        try:
+            v = float(self._profile_state("fuse", part).get("state"))
+        except (TypeError, ValueError):
+            return None
+        return v if 0 < v <= 1000 else None
+
+    def _profile_state(self, key: str, part: str = "battery") -> dict[str, Any]:
+        """The state of the entity a profile names under key (a pattern): the anchor's own device first, then any."""
+        pat = (adapters.PROFILES.get(self.profile_key(part) or "") or {}).get(key)
+        if not pat:
+            return {}
+        reg = getattr(self, "_ent_reg", None) or {}
+        dev = getattr(self, "battery_device", None) if part == "battery" else None
+        cands = sorted(e for e in self.ha.states if adapters.hit(pat, e))
+        own = [e for e in cands if dev and (reg.get(e) or {}).get("device_id") == dev]
+        e = (own or cands or [None])[0]
+        return (self.ha.states.get(e) or {}) if e else {}
+
+    def ready(self, part: str = "battery") -> bool | None:
+        """Is the inverter up and able to obey? A profile's "ready" (sensor pattern, state pattern) - a Kostal asleep
+        at night first runs its start-up and grid checks, several minutes. None: the profile has no such sensor or it
+        was not found."""
+        r = (adapters.PROFILES.get(self.profile_key(part) or "") or {}).get("ready")
+        if not r:
+            return None
+        sensor, want = r
+        reg = getattr(self, "_ent_reg", None) or {}
+        dev = getattr(self, "battery_device", None) if part == "battery" else None
+        cands = [e for e in self.ha.states if adapters.hit(sensor, e)]
+        own = [e for e in cands if dev and (reg.get(e) or {}).get("device_id") == dev]
+        e = (own or cands or [None])[0]
+        st = str((self.ha.states.get(e) or {}).get("state", "")) if e else ""
+        if not e or st in ("", "unknown", "unavailable"):
+            return None
+        return bool(re.search(want, st))
+
+    def soc_limits(self, part: str = "battery") -> tuple[float | None, float | None]:
+        """(lowest, highest) % the inverter lets the battery go to - a profile's "limits" (minimum and maximum number
+        patterns), the anchor's own device first. None where the profile has none or the value can't be read."""
+        r = (adapters.PROFILES.get(self.profile_key(part) or "") or {}).get("limits")
+        if not r:
+            return None, None
+        out: list[float | None] = []
+        for pat in r:
+            e = next((x for x in self.entities.get(part, []) if adapters.hit(pat, x)), None)
+            try:
+                v = float((self.ha.states.get(e) or {}).get("state")) if e else None
+            except (TypeError, ValueError):
+                v = None
+            out.append(v if v is not None and 0 <= v <= 100 else None)
+        return out[0], out[1]
 
     def check(self, part: str = "battery") -> dict[str, dict]:
         """Which of the profile's controls were found on the inverter, and which are missing."""
@@ -484,8 +554,7 @@ class Controller:
 
         s = self.ov.settings
         more = batteries.extras(s)
-        c1 = float(s.get("battery_charge_kw") or 3)
-        d1 = float(s.get("battery_discharge_kw") or s.get("battery_charge_kw") or 3)
+        c1, d1 = batteries.main_kw(s, self.max_power_kw())
         cs = [c1] + [float(b.get("charge_kw") or 3) for b in more]
         ds = [d1] + [float(b.get("discharge_kw") or b.get("charge_kw") or 3) for b in more]
         packs = f.get("batteries") or []

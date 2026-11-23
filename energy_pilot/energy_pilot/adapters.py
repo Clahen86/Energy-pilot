@@ -564,6 +564,41 @@ PROFILES: dict[str, dict[str, Any]] = {
     # charge and discharge windows may not overlap. A discharge window is when the battery MAY discharge - so "hold"
     # is a discharge window far from now. The windows come from the clock (alpha_windows): charging from now for 4 h,
     # the parked windows 12 h away, each on its own quarter.
+    # Kostal Plenticore (hybrid G1-G3 and BI) through Kostal Plenticore Battery Control (mbuhansen/kostal_plenticore_
+    # battery_control, domain kostal_modbus_control). The inverter's battery management must be "External via protocol
+    # (Modbus TCP)". The four control switches are mutually exclusive in the integration (one on turns the others off),
+    # and the integration itself keeps the Modbus session alive while one is on - nothing to send again. All off hands
+    # the battery back to the inverter's own self-use; Block Discharge holds the SoC (the sun may still fill it); Charge
+    # Start / Discharge Start charge or discharge at the rate in watts. The integration waits Modbus timeout + 15 s
+    # after a stop before it writes again, so a change of intent takes up to a minute to show.
+    # With Predbat in an active control mode, Charge Start follows Predbat's best_charge_limit instead - Predbat must be
+    # off (checks.py warns about it).
+    "kostal_modbus_control": {
+        "name": "Kostal Plenticore (Modbus)",
+        "match": r"plenticore|kostal",
+        "normal": [(r"switch\..*_charge_start$", "off", None), (r"switch\..*_discharge_start$", "off", None),
+                   (r"switch\..*_block_charge$", "off", None), (r"switch\..*_block_discharge$", "off", None)],
+        "hold": [(r"switch\..*_block_discharge$", "on", None)],
+        "charge": [(r"number\..*_set_charge_rate$", "number", "{power_w}"), (r"switch\..*_charge_start$", "on", None)],
+        # Selling from the battery (only when the user turns it on).
+        "export": [(r"number\..*_set_discharge_rate$", "number", "{power_w}"), (r"switch\..*_discharge_start$", "on", None)],
+        # The owner's own rates are put back after charging and selling.
+        "restore_charge": [r"number\..*_set_charge_rate$"],
+        "restore": [r"number\..*_set_discharge_rate$"],
+        # Asleep at night ("Off") the inverter first runs StartUp and GridCheck before it charges - up to ~10 min.
+        # The self-test waits for FeedIn (state 6) before it judges.
+        "ready": (r"sensor\..*_inverter_state$", r"^(6|FeedIn)$"),
+        # The integration's own SoC limits, which it keeps writing to the inverter while they are in use: the battery
+        # won't go below the minimum or above the maximum, whatever is asked - so the plan stays inside them too.
+        # 5 % and 100 % mean "not in use" (the inverter's own), which changes nothing.
+        "limits": (r"number\..*_battery_minimum_soc_limit$", r"number\..*_battery_maximum_soc_limit$"),
+        # The most the integration lets the battery charge or discharge (worked out from the battery's voltage and
+        # current, in W): the battery's power when none is set, and the cap on what is set.
+        "max_power": r"sensor\..*_battery_max_control_power$",
+        # The house's main fuse in amps, as set in the integration (its own grid protection uses it): Energy Pilot's
+        # import limit is set from it while that is still the 10 kW it starts with (autofix.py).
+        "fuse": r"number\..*_house_fuse_size$",
+    },
     "alphaess": {
         "name": "Alpha ESS (cloud)",
         "match": r"alpha_?ess",
