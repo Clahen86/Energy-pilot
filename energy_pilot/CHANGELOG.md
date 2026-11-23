@@ -2,6 +2,14 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.106.1 – 2026-11-23
+
+From the nightly self-test reports:
+- Anker SOLIX through Anker's own integration (Solarbank 4 E5000 Pro and others, local Modbus): its own profile - found and controlled by itself (#51)
+- Deye single-phase (SG0*LP1) through Solarman: holding the battery sets the limit 1 % above the level now - it kept discharging at the level itself (#53)
+- SolarEdge (Modbus Multi): holding stops discharging and lets the sun cover the house first; only the timer and the command are written again every 30 minutes, so the inverter's flash isn't worn; homes without battery control get a hint where to turn on Storage Control (#50)
+- FoxESS H3 Pro / H3 Smart: the self-test says when charging fails because of a known bug in the FoxESS integration (#1244, fixed there but not released), and a sale the sun covered is tried again another time instead of failing (#52)
+
 ## 0.106.0 – 2026-11-23
 
 - The companion integration can now come from the Marketplace (HACS): repository Clahen86/energy-pilot-companion. Then it serves the dashboard card itself and the app never touches it - the first step to the app needing no access to Home Assistant's folder. Have it from the app? The front page shows how to move it, in three steps
