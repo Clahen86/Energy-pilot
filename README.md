@@ -47,10 +47,12 @@ Home Assistant address and a long-lived access token, and open `http://<host>:80
 (any user name): set your own with `EP_PASSWORD`, or use the one written to the log at the first start. Changes are
 only taken as JSON from the panel itself, so another web page can't send them.
 
-**What the add-on may reach:** its own folder, and your Home Assistant configuration folder – to put the companion
-integration in `custom_components/energy_pilot` and the dashboard card in `www/energipilot`. It reads nothing else
-there. It talks to Home Assistant through the Supervisor, like other add-ons. Auto update is your choice – it only
-suggests it.
+**What the add-on may reach:** its own folder, and your Home Assistant configuration folder – only to put the companion
+integration in `custom_components/energy_pilot` and the dashboard card in `www/energipilot`. Install the companion from the
+Marketplace (HACS) instead – [energy-pilot-companion](https://github.com/Clahen86/energy-pilot-companion) – and the add-on
+leaves it alone and the integration serves the card; the access to the folder goes once most have moved. It talks to Home
+Assistant through the Supervisor, like other add-ons, and only answers Home Assistant itself and its login (ingress).
+Auto update is your choice – it only suggests it.
 
 ## How it works
 
@@ -212,7 +214,10 @@ Two ways of forecasting side by side, and the better one decides:
 
 ## Dashboard cards
 
-Add them from the card picker – search for *Energipilot*. They follow your Home Assistant theme.
+Add them from the card picker – search for *Energipilot* – and pick a view: Everything, Energy flow, **Status** (small, for a
+phone: what it does now, why and what comes next), Battery (with its level the next 24 hours), Today's plan, The car or
+Savings. They follow your Home Assistant theme. The card comes with the companion integration – install it from the
+Marketplace (HACS): [energy-pilot-companion](https://github.com/Clahen86/energy-pilot-companion).
 
 ![Dashboard cards](docs/cards.png)
 
@@ -231,10 +236,13 @@ Everything goes through the device's own Home Assistant integration.<br>
 
 | | |
 |---|---|
-| **Inverter / battery** | ✅ Growatt SPH (SPA) · ✅ Victron (ESS) · ✅ Deye (Solarman) · ✅ GoodWe (ET/EH/BT/BH) · ✅ Alpha ESS · 🧪 GoodWe EMS · 🧪 Deye (ESPHome) · 🧪 Growatt MIN/MOD TL-XH · 🧪 Growatt (cloud) · 🧪 Sofar (Solarman or SolaX Modbus) · 🧪 Sigenergy · 🧪 Tesla Powerwall · 🧪 Enphase IQ Battery · 🧪 EcoFlow PowerStream · 🧪 Megarevo · 🧪 Huawei SUN2000/LUNA2000 · 🧪 SolaX · 🧪 Sungrow · 🧪 SolarEdge · 🧪 Fox ESS · 🧪 GivEnergy · 🧪 Solis · 🧪 myenergi libbi · 🧪 Marstek Venus · 🧪 Luxpower · 🧪 E3DC · 🧪 GivEnergy (GivTCP) · 🧪 Anker SOLIX · 🧪 Kostal Plenticore · any other with a guide: search its controls and pick an option with one tap |
+| **Inverter / battery** | ✅ Growatt SPH (SPA) · ✅ Victron (ESS) · ✅ Deye (Solarman) · ✅ GoodWe (ET/EH/BT/BH) · ✅ Alpha ESS · 🧪 GoodWe EMS · 🧪 Deye (ESPHome) · 🧪 Growatt MIN/MOD TL-XH · 🧪 Growatt (cloud) · 🧪 Sofar (Solarman or SolaX Modbus) · 🧪 Sigenergy · 🧪 Tesla Powerwall · 🧪 Enphase IQ Battery · 🧪 EcoFlow PowerStream · 🧪 Megarevo · 🧪 Huawei SUN2000/LUNA2000 · 🧪 SolaX · 🧪 Sungrow · 🧪 SolarEdge · 🧪 Fox ESS · 🧪 GivEnergy · 🧪 Solis · 🧪 myenergi libbi · 🧪 Marstek Venus · 🧪 Luxpower · 🧪 E3DC · 🧪 GivEnergy (GivTCP) · 🧪 Anker SOLIX (also Anker's own integration) · 🧪 Kostal Plenticore · 🧪 SolaX Gen2/Gen3 · 🧪 Growatt (SolaX Modbus) · 🧪 Off-grid via ESPHome (Growatt SPF, SRNE, Voltronic/MPP) · 🧪 Luxpower/EG4 (MonitorMySolar) · 🧪 Zendure SolarFlow/Hyper · 🧪 EcoFlow PowerOcean (local Modbus) · 🧪 Marstek Venus (local API) · 🧪 Voltronic/Axpert (MQTT, chosen by hand) · any other with a guide: search its controls and pick an option with one tap |
 | **EV charger** | ✅ KEBA · 🧪 Easee · 🧪 Zaptec · 🧪 go-e · 🧪 Wallbox · 🧪 Peblar · 🧪 OCPP · 🧪 Alfen · 🧪 Ohme · 🧪 myenergi zappi · 🧪 Hypervolt · 🧪 evcc · any with a switch and a current setting |
 | **Prices** | ✅ Strømligning · ✅ built-in spot prices · ✅ Octopus Energy (Intelligent Go, Agile Outgoing) · 🧪 Octopus Agile import · 🧪 Nord Pool · 🧪 Tibber · 🧪 Energi Data Service · 🧪 ENTSO-E · 🧪 Amber · 🧪 EDF Tempo · 🧪 EnergyZero · 🧪 easyEnergy · 🧪 Frank Energie · 🧪 Zonneplan · tariff plans |
 
+**SolarEdge (Modbus Multi):** turn on *Power Control Options → Storage Control* in the integration's options – its battery controls only show then.<br>
+**Luxpower/EG4 through MonitorMySolar:** set AC charge and forced discharge window 1 to 00:00–23:59 once – they only run inside their windows.<br>
+**Zendure:** set your P1 meter in the Zendure integration – it only steers when the meter updates.<br>
 **Alpha ESS:** in the AlphaESS app, add one short charge and one short discharge period (e.g. 00:00–00:15) on all weekdays and turn on time-based control. Its integration can only change periods that already exist – Energy Pilot then takes them over and sets the times itself.
 
 ## FAQ

@@ -47,9 +47,12 @@ Home Assistant-adresse og et langtidsadgangstoken, og åbn `http://<vært>:8099`
 brugernavn): vælg din egen med `EP_PASSWORD`, eller brug den, der skrives i loggen ved første start. Ændringer tages
 kun imod som JSON fra panelet selv, så en anden hjemmeside kan ikke sende dem.
 
-**Hvad add-on'en kan nå:** sin egen mappe og din Home Assistant-konfigurationsmappe – for at lægge følgeintegrationen i
-`custom_components/energy_pilot` og dashboard-kortet i `www/energipilot`. Den læser ikke andet der. Den taler med Home
-Assistant gennem Supervisor ligesom andre add-ons. Automatisk opdatering er dit valg – den foreslår det kun.
+**Hvad add-on'en kan nå:** sin egen mappe og din Home Assistant-konfigurationsmappe – kun for at lægge følgeintegrationen
+i `custom_components/energy_pilot` og dashboard-kortet i `www/energipilot`. Installér i stedet integrationen fra
+Marketplace (HACS) – [energy-pilot-companion](https://github.com/Clahen86/energy-pilot-companion) – så lader add-on'en
+den være, og integrationen leverer kortet; adgangen til mappen fjernes, når de fleste er flyttet. Den taler med Home
+Assistant gennem Supervisor ligesom andre add-ons og svarer kun Home Assistant selv og dens login (ingress).
+Automatisk opdatering er dit valg – den foreslår det kun.
 
 ## Sådan virker den
 
@@ -204,7 +207,10 @@ To slags prognoser side om side, og den bedste bestemmer:
 
 ## Dashboard-kort
 
-Tilføj dem fra kortvælgeren – søg efter *Energipilot*. De følger dit Home Assistant-tema.
+Tilføj dem fra kortvælgeren – søg efter *Energipilot* – og vælg en visning: Alt, Energiflow, **Status** (lille, til en
+telefon: hvad den gør nu, hvorfor og hvad der sker næste gang), Batteri (med niveauet de næste 24 timer), Dagens plan,
+Bilen eller Besparelse. De følger dit Home Assistant-tema. Kortet følger med integrationen – installér den fra
+Marketplace (HACS): [energy-pilot-companion](https://github.com/Clahen86/energy-pilot-companion).
 
 ![Dashboard-kort](docs/cards.png)
 
@@ -223,10 +229,13 @@ Alt går gennem enhedens egen Home Assistant-integration.<br>
 
 | | |
 |---|---|
-| **Inverter / batteri** | ✅ Growatt SPH (SPA) · ✅ Victron (ESS) · ✅ Deye (Solarman) · ✅ GoodWe (ET/EH/BT/BH) · ✅ Alpha ESS · 🧪 GoodWe EMS · 🧪 Deye (ESPHome) · 🧪 Growatt MIN/MOD TL-XH · 🧪 Growatt (cloud) · 🧪 Sofar · 🧪 Sigenergy · 🧪 Tesla Powerwall · 🧪 Enphase IQ Battery · 🧪 EcoFlow PowerStream · 🧪 Megarevo · 🧪 Huawei · 🧪 SolaX · 🧪 Sungrow · 🧪 SolarEdge · 🧪 Fox ESS · 🧪 GivEnergy · 🧪 Solis · 🧪 myenergi libbi · 🧪 Marstek Venus · 🧪 Luxpower · 🧪 E3DC · 🧪 GivEnergy (GivTCP) · 🧪 Anker SOLIX · 🧪 Kostal Plenticore · alle andre ved at vælge kontrollerne selv |
+| **Inverter / batteri** | ✅ Growatt SPH (SPA) · ✅ Victron (ESS) · ✅ Deye (Solarman) · ✅ GoodWe (ET/EH/BT/BH) · ✅ Alpha ESS · 🧪 GoodWe EMS · 🧪 Deye (ESPHome) · 🧪 Growatt MIN/MOD TL-XH · 🧪 Growatt (cloud) · 🧪 Sofar · 🧪 Sigenergy · 🧪 Tesla Powerwall · 🧪 Enphase IQ Battery · 🧪 EcoFlow PowerStream · 🧪 Megarevo · 🧪 Huawei · 🧪 SolaX · 🧪 Sungrow · 🧪 SolarEdge · 🧪 Fox ESS · 🧪 GivEnergy · 🧪 Solis · 🧪 myenergi libbi · 🧪 Marstek Venus · 🧪 Luxpower · 🧪 E3DC · 🧪 GivEnergy (GivTCP) · 🧪 Anker SOLIX (også Ankers egen integration) · 🧪 Kostal Plenticore · 🧪 SolaX Gen2/Gen3 · 🧪 Growatt (SolaX Modbus) · 🧪 Off-grid via ESPHome (Growatt SPF, SRNE, Voltronic/MPP) · 🧪 Luxpower/EG4 (MonitorMySolar) · 🧪 Zendure SolarFlow/Hyper · 🧪 EcoFlow PowerOcean (lokal Modbus) · 🧪 Marstek Venus (lokal API) · 🧪 Voltronic/Axpert (MQTT, vælges selv) · alle andre ved at vælge kontrollerne selv |
 | **Elbil-lader** | ✅ KEBA · 🧪 Easee · 🧪 Zaptec · 🧪 go-e · 🧪 Wallbox · 🧪 Peblar · 🧪 OCPP · 🧪 Alfen · 🧪 Ohme · 🧪 myenergi zappi · 🧪 Hypervolt · alle med en kontakt og en strømindstilling |
 | **Priser** | ✅ Strømligning · ✅ indbyggede spotpriser · ✅ Octopus · 🧪 Nord Pool · 🧪 Tibber · 🧪 Energi Data Service · 🧪 ENTSO-E · 🧪 Amber · 🧪 EDF Tempo · 🧪 EnergyZero · 🧪 easyEnergy · 🧪 Frank Energie · 🧪 Zonneplan · tarifplaner |
 
+**SolarEdge (Modbus Multi):** slå *Power Control Options → Storage Control* til i integrationens indstillinger – først da kommer batteristyringen.<br>
+**Luxpower/EG4 via MonitorMySolar:** sæt AC-opladningens og den tvungne afladnings vindue 1 til 00:00–23:59 én gang – de kører kun inden for vinduet.<br>
+**Zendure:** vælg din P1-måler i Zendure-integrationen – den styrer kun, når måleren opdaterer.<br>
 **Alpha ESS:** Opret i AlphaESS-appen én kort lade- og én kort afladeperiode (fx 00:00–00:15) på alle ugedage, og slå tidsstyring til. Integrationen kan kun ændre perioder, der allerede findes – Energipilot overtager dem og sætter selv tiderne.
 
 ## Spørgsmål
