@@ -376,6 +376,17 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
     return plan
 
 
+def inverter_limits(min_soc: float, grid_max: float, low: float | None, high: float | None) -> tuple[float, float, float]:
+    """(min_soc, max_soc, grid_max_soc) kept inside the inverter's own SoC limits (Kostal's minimum and maximum SoC
+    limit): it won't take the battery below or above them, so a plan outside them could never happen. A maximum at or
+    below the minimum would leave no room at all - a slip, not a wish: ignored."""
+    lo = max(min_soc, low) if low is not None else min_soc
+    hi = 100.0
+    if high is not None and lo + 1 <= high < 100:
+        hi = high
+    return lo, hi, min(grid_max, hi)
+
+
 def battery_targets(s: dict[str, Any]) -> tuple:
     """The user's "at least X % at HH:MM" from the settings, as (hour, minute, soc); bad rows are left out."""
     out = []
@@ -649,11 +660,18 @@ class Engine:
         from . import storm as _storm
 
         storm_at = _storm.targets(getattr(self, "storm", None), s) if s.get("storm") else ()
+        grid_max = max([self.grid_max_soc(kind)] + [t[2] for t in targets] + [x[1] for x in storm_at])  # a target may go past the limit
+        # The inverter's own SoC limits (a Kostal's minimum and maximum): the battery won't go past them, so neither does the plan.
+        try:
+            low, high = ctl.soc_limits()
+        except Exception:  # no controller yet, or nothing found
+            low, high = None, None
+        min_soc, max_soc, grid_max = inverter_limits(min_soc, grid_max, low, high)
         return Battery(
             capacity_kwh=cap,
             max_charge_kw=charge,
             max_discharge_kw=discharge,
-            min_soc=min_soc, grid_charge=grid, import_limit_kw=float(s["import_limit_kw"]) if s.get("import_limit_kw") else None,
+            min_soc=min_soc, max_soc=max_soc, grid_charge=grid, import_limit_kw=float(s["import_limit_kw"]) if s.get("import_limit_kw") else None,
             quiet=frozenset(self.quiet_hours("battery")),
             # the type's (or what other batteries like it on this inverter give), until it has seen the real one
             efficiency=self.batt_learn.efficiency(self._shared_eff(kind) or TYPES[kind]["eff"]),
@@ -661,7 +679,7 @@ class Engine:
             wear=self.wear(cap),
             export_limit_kw=float(s["export_limit_kw"]) if s.get("export_limit_kw") else self.export_cap.kw(),
             taper=self.batt_learn.taper() or self._shared_taper(),  # its own once seen, else what others' show
-            grid_max_soc=max([self.grid_max_soc(kind)] + [t[2] for t in targets] + [x[1] for x in storm_at]),  # a target may go past the limit
+            grid_max_soc=grid_max,
             targets=targets, at=storm_at,
             force={k: v for k, v in (s.get("manual") or {}).items() if v in ("charge", "sell", "hold")},
             peak_kw=(pt := self.power_tariff()) and pt["limit_kw"],
