@@ -26,8 +26,11 @@ jobs:
       - name: Selvtest (opdigtede data)
         run: |
           python training/synth.py "$RUNNER_TEMP/synth.json"
-          python training/train.py "$RUNNER_TEMP/synth.json" "$RUNNER_TEMP/synth_models" | tee "$RUNNER_TEMP/synth.md"
+          EP_EXPORT_ALWAYS=1 python training/train.py "$RUNNER_TEMP/synth.json" "$RUNNER_TEMP/synth_models" | tee "$RUNNER_TEMP/synth.md"
           grep -q "| Forbrug |" "$RUNNER_TEMP/synth.md"
+          # the export walks the trees exactly as scikit-learn does, and is small enough to hand out
+          test -f "$RUNNER_TEMP/synth_models/house.json"
+          test "$(stat -c %s "$RUNNER_TEMP/synth_models/house.json")" -lt 300000
       - name: Hent time-tal og opsætninger
         env:
           EP_EXPORT_KEY: ${{ secrets.EP_EXPORT_KEY }}
@@ -58,6 +61,17 @@ jobs:
           PY
       - name: Træn og mål
         run: python training/train.py "$RUNNER_TEMP/data.json" "$RUNNER_TEMP/models" >> "$GITHUB_STEP_SUMMARY"
+      - name: Fællesmodel til Energipilot
+        # only written by train.py when it clearly beat the houses' own forecasts on held-out days
+        env:
+          EP_EXPORT_KEY: ${{ secrets.EP_EXPORT_KEY }}
+        run: |
+          if [ -f "$RUNNER_TEMP/models/house.json" ]; then
+            curl -sf -X POST -H "content-type: application/json" --data-binary @"$RUNNER_TEMP/models/house.json" \
+              "https://ep-reports.clahen86.workers.dev/models?key=$EP_EXPORT_KEY&part=house" > /dev/null \
+              && echo "Fællesmodellen er sendt ud til Energipilot." >> "$GITHUB_STEP_SUMMARY" \
+              || echo "⚠️ Fællesmodellen kunne ikke sendes til workeren." >> "$GITHUB_STEP_SUMMARY"
+          fi
       - uses: actions/upload-artifact@v6
         with:
           name: models

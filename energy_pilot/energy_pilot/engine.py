@@ -810,6 +810,25 @@ class Engine:
                            getattr(c, "model", None) if c else None, self.batt_learn.capacity(),
                            float(s["battery_kwh"]) if s.get("battery_kwh") else None)
 
+    def _common_house(self, times: list[datetime]) -> list[float | None]:
+        """The shared house model's kWh per hour (sharedmodel.py) - only when the worker names one and it checks out;
+        read from disk again only when the file changed."""
+        from . import sharedmodel
+
+        try:
+            path = self.ov.file.parent / sharedmodel.FILE
+            mt = path.stat().st_mtime if path.exists() else None
+            if mt != getattr(self, "_common_mt", None):
+                self._common_mt, self._common_m = mt, (sharedmodel.load(self.ov.file.parent) if mt else None)
+            named = ((self.ov.settings.get("community") or {}).get("common") or {}).get("house_model")
+            if not self._common_m or not named:
+                return [None] * len(times)
+            return sharedmodel.house(self._common_m, getattr(self, "house_rows", None) or {}, times,
+                                     self.ha.config.get("country"), self.settings().capacity_kwh, bool(self.ov.role("ev_power")))
+        except Exception:  # noqa: BLE001 - the old two-way blend
+            _LOGGER.debug("Shared house model not used", exc_info=True)
+            return [None] * len(times)
+
     def home(self) -> tuple[float, float] | None:
         """The house's position - only used here; the sky network gets the ~10 km cell (skynet.cell)."""
         try:
@@ -998,6 +1017,7 @@ class Engine:
                 if self.ev_in_house():
                     rows = evsplit.subtract(rows, list((await self._all_cars(60)).items()))  # the cars are planned on their own
         if rows:
+            self.house_rows = {t: kw for t, kw in rows}  # this home's own hours - the shared model's level (sharedmodel.py)
             self.profile = house_profile(rows, now)
             self.profile_at = now
             try:
@@ -1290,7 +1310,8 @@ class Engine:
             # How well each way hit yesterday - the ML share moves towards what it earned.
             for kind in ("house", "sun"):
                 days = (self.house_model.samples // 24) if kind == "house" else self.solar_model.days
-                self.mixer.update(kind, report.get(f"{kind}_err_simple"), report.get(f"{kind}_err_ml"), days)
+                self.mixer.update(kind, report.get(f"{kind}_err_simple"), report.get(f"{kind}_err_ml"), days,
+                                  report.get("house_err_common") if kind == "house" else None)
             es, em = self.price_model.score(now)
             if es is not None or em is not None:
                 self.mixer.update("price", es, em, self.price_days)
@@ -1403,7 +1424,9 @@ class Engine:
         simple = house_forecast(self.profile, times) if self.profile else [h.get("house", 0.6) for h in rows]
         ml = self.house_model.predict(times, w) or [None] * len(times)
         hw = self.mixer.share("house")
-        house = [Mixer.mix(s, m, hw) for s, m in zip(simple, ml)]
+        common = self._common_house(times)
+        wc = self.mixer.common_share("house")
+        house = [Mixer.mix3(s, m, c, hw, wc) for s, m, c in zip(simple, ml, common)]
         st = self.ov.settings
         sell = float(st.get("sell_price") or 0) if st.get("sell") else 0.0  # what exported power earns
         sells = self.sell_prices()  # a changing feed-in price, when one is chosen
@@ -1425,7 +1448,7 @@ class Engine:
         hours = [Hour(t, r["price"], self.sell_at(sells, t, sell), house[i] + (margin if dear is not None and r["price"] >= dear else 0.0), sun[i])
                  for i, (t, r) in enumerate(zip(times, rows))]
         L.expect([{"t": times[0].isoformat(), "house": house[0], "sun": hours[0].sun, "price": rows[0]["price"], "cloud": clouds[0],
-                   "house_s": simple[0], "house_m": ml[0], "sun_s": sun_simple[0], "sun_m": sun_ml.get(times[0]),
+                   "house_s": simple[0], "house_m": ml[0], "house_c": common[0], "sun_s": sun_simple[0], "sun_m": sun_ml.get(times[0]),
                    "sun_raw": rows[0].get("sun")}])
         # An unsure forecast (Solcast's poor day far below the expected): the plan counts on a little less sun, so a
         # cloudier day than foreseen doesn't leave the battery short. A sure one (a clear sky) changes nothing.

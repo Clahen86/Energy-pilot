@@ -46,13 +46,49 @@ def plausible_day(d: dict) -> bool:
     return True
 
 
+FEATURES = ["h", "weekday", "month", "country", "battery_kwh", "car", "prev", "week"]
+# The shared house model goes out to Energy Pilot only when it clearly beats the houses' own forecasts on held-out days
+MIN_HOMES, MIN_TEST_DAYS, MIN_BETTER, MIN_WIN_SHARE, MAX_WORSE = 8, 5, 5.0, 0.6, 20.0
+
+
+def export_hgb(model, countries: list[str]) -> dict:
+    """The trained trees as plain arrays, so Energy Pilot can use them with plain Python - no pickle (a downloaded pickle
+    would run code) and no scikit-learn version to match."""
+    trees = []
+    for pred in model._predictors:
+        n = pred[0].nodes
+        trees.append({"f": [int(x) for x in n["feature_idx"]], "t": [float(f"{x:.6g}") for x in n["num_threshold"]],
+                      "l": [int(x) for x in n["left"]], "r": [int(x) for x in n["right"]],
+                      "m": [int(x) for x in n["missing_go_to_left"]], "leaf": [int(x) for x in n["is_leaf"]],
+                      "v": [float(f"{x:.6g}") for x in n["value"]]})
+    return {"schema": 1, "kind": "house", "features": FEATURES, "countries": countries,
+            "base": float(np.ravel(model._baseline_prediction)[0]), "trees": trees}
+
+
+def predict_json(m: dict, x: list) -> float:
+    """The same walk Energy Pilot does (sharedmodel.py) - checked against scikit-learn before anything is published."""
+    out = m["base"]
+    for t in m["trees"]:
+        i = 0
+        while not t["leaf"][i]:
+            v = x[t["f"][i]]
+            go_left = t["m"][i] if v is None or v != v else v <= t["t"][i]
+            i = t["l"][i] if go_left else t["r"][i]
+        out += t["v"][i]
+    return out
+
+
+def data_countries(data: list[dict]) -> list[str]:
+    return sorted({(d.get("kind") or {}).get("country") or "?" for d in data})
+
+
 def rows_from(data: list[dict]) -> list[dict]:
     """One row per house and hour, with what is known the day before."""
     by_home: dict[str, dict[str, dict]] = defaultdict(dict)
     for d in data:
         if plausible_day(d):
             by_home[d["home"]][d["day"]] = d
-    countries = sorted({(d.get("kind") or {}).get("country") or "?" for d in data})
+    countries = data_countries(data)
     out = []
     for home, days in by_home.items():
         real: dict[tuple[str, int], float] = {}
@@ -118,7 +154,9 @@ def main() -> None:
         print("For lidt data til både træning og test endnu.")
         return
     table = ["| | Husenes egne | Fællesmodel | Forskel | Bedre i |", "|---|---|---|---|---|"]
-    house = HistGradientBoostingRegressor(max_iter=300, learning_rate=0.05).fit([r["x"] for r in train], [r["y"] for r in train])
+    # Small enough to hand out (about 100-150 KB as JSON) and to walk in plain Python every hour
+    house = HistGradientBoostingRegressor(max_iter=150, learning_rate=0.08, max_leaf_nodes=15, min_samples_leaf=40).fit(
+        [r["x"] for r in train], [r["y"] for r in train])
     lines, better, wins, n = score("Forbrug", test, house.predict([r["x"] for r in test]), "own", "y")
     table += lines
     result = {"house": {"better_pct": round(better, 1), "wins": wins, "homes": n}}
@@ -134,9 +172,32 @@ def main() -> None:
         with open(os.path.join(model_dir, "sun.pkl"), "wb") as f:
             pickle.dump(sun, f)
     print("\n".join(table) + "\n")
-    ready = better > 0 and wins > n / 2
-    print("✅ Fællesmodellen for forbrug rammer bedre i de fleste huse." if ready else
-          "⏳ Fællesmodellen slår endnu ikke husenes egne prognoser - den bliver ikke udgivet.")
+    # Per home on the held-out days: none may be much worse with the shared model
+    per = defaultdict(lambda: [0.0, 0.0])
+    for r, p in zip(test, house.predict([r["x"] for r in test])):
+        per[r["home"]][0] += abs(p - r["y"])
+        per[r["home"]][1] += abs(r["own"] - r["y"])
+    worst = max(((m - o) / o * 100 if o else 0.0) for m, o in per.values()) if per else 0.0
+    test_days = len({r["day"] for r in test})
+    ready = (n >= MIN_HOMES and test_days >= MIN_TEST_DAYS and better >= MIN_BETTER and wins >= MIN_WIN_SHARE * n
+             and worst <= MAX_WORSE)
+    print("✅ Fællesmodellen for forbrug rammer klart bedre - den sendes ud til Energipilot." if ready else
+          f"⏳ Fællesmodellen udgives ikke endnu ({n} huse, {test_days} testdage, {better:+.0f} %, værste hus {worst:+.0f} %).")
+    if ready or os.environ.get("EP_EXPORT_ALWAYS") == "1":  # (the workflow's self-test on made-up data checks the export)
+        exp = export_hgb(house, data_countries(data))
+        sample = [r["x"] for r in test[:200]]
+        ref = house.predict(sample)
+        if any(abs(predict_json(exp, x) - y) > 1e-4 for x, y in zip(sample, ref)):
+            print("⚠️ Eksporten regner ikke som modellen - intet udgivet.")
+        else:
+            body = json.dumps({**exp, "probe": [[x, round(float(y), 6)] for x, y in zip(sample[:20], ref[:20])],
+                               "trained": last, "homes": n, "test_days": test_days, "better_pct": round(better, 1),
+                               "wins": wins, "clip": 1.5}, separators=(",", ":"))
+            import hashlib
+            exp_sha = hashlib.sha256(body.encode()).hexdigest()
+            with open(os.path.join(model_dir, "house.json"), "w") as f:
+                f.write(body)
+            print(f"Eksport: {len(body) // 1024} KB, sha {exp_sha[:12]}.")
     with open(os.path.join(model_dir, "house.pkl"), "wb") as f:
         pickle.dump(house, f)
     with open(os.path.join(model_dir, "result.json"), "w") as f:

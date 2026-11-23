@@ -148,7 +148,7 @@ class Learning:
             report.update(saving=p.saving, cost=p.cost, cost_without=p.cost_without, best_factor=best)
         # Both ways of forecasting, each against what really happened (for the blend).
         for kind, real in (("house", house), ("sun", pv)):
-            for way, col in (("simple", f"{kind}_s"), ("ml", f"{kind}_m")):
+            for way, col in (("simple", f"{kind}_s"), ("ml", f"{kind}_m")) + ((("common", "house_c"),) if kind == "house" else ()):
                 pairs = [(exp[h][col], real[h]) for h in exp if h in real and exp[h].get(col) is not None
                          and (kind == "house" or (exp[h].get("sun_s") or 0) > 0.05 or real[h] > 0.05)]
                 if len(pairs) >= 6:

@@ -43,7 +43,13 @@ class Mixer:
     def info(self, kind: str) -> dict[str, Any]:
         return dict(self.state.get(kind) or {"w": 0.0})
 
-    def update(self, kind: str, err_simple: float | None, err_ml: float | None, ml_days: int) -> None:
+    def common_share(self, kind: str) -> float:
+        return float((self.state.get(kind) or {}).get("wc", 0.0))
+
+    def update(self, kind: str, err_simple: float | None, err_ml: float | None, ml_days: int,
+               err_common: float | None = None) -> None:
+        """Each way's error smoothed night by night; the shares move a third of the way towards inverse squared error.
+        The shared model (sharedmodel.py) is a third way: no say until it has hit here for MIN_DAYS scored nights."""
         s = self.state.setdefault(kind, {"w": 0.0, "simple": None, "ml": None, "days": 0})
         smooth = lambda old, new: new if old is None else round(0.8 * old + 0.2 * new, 4)  # noqa: E731
         if err_simple is not None:
@@ -51,13 +57,23 @@ class Mixer:
         if err_ml is not None:
             s["ml"] = smooth(s.get("ml"), err_ml)
             s["days"] = int(s.get("days", 0)) + 1
+        if err_common is not None:
+            s["common"] = smooth(s.get("common"), err_common)
+            s["cdays"] = int(s.get("cdays", 0)) + 1
         s["ml_days"] = ml_days
-        if ml_days < MIN_DAYS[kind] or s.get("ml") is None or s.get("simple") is None:
-            target = 0.0
-        else:
-            a, b = max(1e-6, s["simple"]) ** 2, max(1e-6, s["ml"]) ** 2
-            target = a / (a + b)  # equal errors: half each; the better one gets more
-        s["w"] = round(s["w"] + STEP * (target - s["w"]), 3)
+        inv = {}
+        if s.get("simple") is not None:
+            inv["simple"] = 1 / max(1e-6, s["simple"]) ** 2
+            if ml_days >= MIN_DAYS[kind] and s.get("ml") is not None:
+                inv["ml"] = 1 / max(1e-6, s["ml"]) ** 2
+            if int(s.get("cdays", 0)) >= MIN_DAYS[kind] and s.get("common") is not None:
+                inv["common"] = 1 / max(1e-6, s["common"]) ** 2
+        total = sum(inv.values())
+        target_ml = inv.get("ml", 0.0) / total if total and "ml" in inv else 0.0  # two ways, equal errors: half each
+        target_c = inv.get("common", 0.0) / total if total and "common" in inv else 0.0
+        s["w"] = round(s["w"] + STEP * (target_ml - s["w"]), 3)
+        if "common" in s or "wc" in s:
+            s["wc"] = round(float(s.get("wc", 0.0)) + STEP * (target_c - float(s.get("wc", 0.0))), 3)
 
     @staticmethod
     def mix(simple: float | None, ml: float | None, w: float) -> float | None:
@@ -66,6 +82,17 @@ class Mixer:
         if simple is None:
             return ml
         return round((1 - w) * simple + w * ml, 3)
+
+    @staticmethod
+    def mix3(simple: float | None, ml: float | None, common: float | None, w: float, wc: float) -> float | None:
+        """The three ways by their shares; a way that has no number this hour gives its share to the others."""
+        parts = [(v, s) for v, s in ((ml, w), (common, wc)) if v is not None and s > 0]
+        rest = 1.0 - sum(s for _v, s in parts)
+        if simple is None:
+            tot = sum(s for _v, s in parts)
+            return round(sum(v * s for v, s in parts) / tot, 3) if tot else None
+        return round(max(0.0, rest) * simple + sum(v * s for v, s in parts), 3) if rest >= 0 else \
+            round(sum(v * s for v, s in parts) / sum(s for _v, s in parts), 3)
 
 
 def mae(pairs: list[tuple[float, float]]) -> float | None:

@@ -547,9 +547,18 @@ class Telemetry:
         except Exception:  # noqa: BLE001
             return
         common = d.get("common") if isinstance(d.get("common"), dict) else {}
+        # ("tune" was left out here, so the shared tuning never reached common.tune_start)
         self.ov.save({"community": {"fixes": (d.get("fixes") or [])[:500], "tested": d.get("tested") or {},
-                                    "common": {k: v for k, v in common.items() if k in ("sun", "eff", "taper", "peers", "health", "tariff", "sensors") and isinstance(v, dict)},
+                                    "common": {k: v for k, v in common.items() if k in ("sun", "eff", "taper", "peers", "health", "tariff", "sensors", "tune", "house_model") and isinstance(v, dict)},
                                     "t": time.time()}})
+        # The shared house model (sharedmodel.py): fetched once per version, dropped when the worker names none
+        try:
+            from . import sharedmodel
+
+            async with aiohttp.ClientSession() as s:
+                await sharedmodel.refresh(s, self.url, self.ov.file.parent, common.get("house_model"))
+        except Exception:  # noqa: BLE001 - the blend runs as before without it
+            _LOGGER.debug("Shared house model not fetched", exc_info=True)
 
 
 class ErrorHandler(logging.Handler):

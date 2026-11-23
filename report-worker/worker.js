@@ -51,6 +51,7 @@ export default {
     if (request.method === "GET") return json({ ok: true, service: "energy-pilot-reports" });
     if (request.method !== "POST") return json({ error: "method" }, 405);
     if (url.pathname === "/models") return putModels(request, env);
+    if (request.method === "GET" && url.pathname === "/model/house") return houseModel(env);
     const app = request.headers.get("x-ep-client");
     if (!APPS[app]) return json({ error: "client" }, 403);
     if (url.pathname === "/t") return telemetry(request, env, app);
@@ -284,6 +285,11 @@ async function fixes(env) {
     const models = row ? safe(row.v).m : null;
     if (models && models.sensors && !off) common = { ...common, sensors: models.sensors };
   } catch { /* none yet */ }
+  try {
+    const hm = await env.DB.prepare("SELECT v FROM meta WHERE k = 'model_house'").first();
+    const h = hm ? safe(hm.v) : null;
+    if (h?.sha && !off) common = { ...common, house_model: { v: h.sha, homes: h.homes, better_pct: h.better_pct } };
+  } catch { /* none yet */ }
   return new Response(JSON.stringify({ fixes: f.results || [], tested, common }), {
     headers: { "content-type": "application/json", "cache-control": "public, max-age=3600" } });
 }
@@ -490,6 +496,15 @@ async function exportSetups(env) {
   return json({ rows: out });
 }
 
+async function houseModel(env) {
+  if (!env.DB || String(env.COMMON_OFF || "") === "1") return new Response("Not found", { status: 404 });
+  await schema(env);
+  const row = await env.DB.prepare("SELECT v FROM meta WHERE k = 'model_house'").first();
+  const v = row ? safe(row.v) : null;
+  if (!v?.body) return new Response("Not found", { status: 404 });
+  return new Response(v.body, { headers: { "content-type": "application/json", "cache-control": "public, max-age=86400", etag: `"${v.sha}"` } });
+}
+
 // The models the nightly training made (a GitHub Action with EXPORT_KEY): kept here and handed out with the fixes.
 async function putModels(request, env) {
   const url = new URL(request.url);
@@ -499,6 +514,16 @@ async function putModels(request, env) {
   const m = safe(text);
   if (!m || typeof m !== "object") return json({ error: "json" }, 400);
   await schema(env);
+  if (url.searchParams.get("part") === "house") {
+    // The shared house model (training/train.py, only when it beat the houses' own forecasts): kept apart from the
+    // sensors, handed out by its sha (common.house_model), the trees fetched once per version from /model/house
+    if (m.schema !== 1 || m.kind !== "house" || !Array.isArray(m.trees) || text.length > 300_000) return json({ error: "model" }, 400);
+    const d = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)));
+    const sha = [...d].map((b) => b.toString(16).padStart(2, "0")).join("");
+    await env.DB.prepare("INSERT OR REPLACE INTO meta (k, v) VALUES ('model_house', ?1)")
+      .bind(JSON.stringify({ t: Date.now(), sha, homes: m.homes, better_pct: m.better_pct, body: text })).run();
+    return json({ ok: true, sha });
+  }
   await env.DB.prepare("INSERT OR REPLACE INTO meta (k, v) VALUES ('models', ?1)").bind(JSON.stringify({ t: Date.now(), m })).run();
   return json({ ok: true });
 }
