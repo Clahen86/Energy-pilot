@@ -434,6 +434,28 @@ PROFILES: dict[str, dict[str, Any]] = {
         "optional": [r"number\..*force_charge_power$", r"number\..*force_charge_max_soc$"],
         "source": "integration",
     },
+    # Fox ESS through its cloud (macxq/foxess-ha, domain foxess), checked in its source (0.61.1) - not foxess_modbus:
+    # its work modes are "Self-Use", "Feed-in", "Backup", "Peak Shaving"; "ForceCharge"/"ForceDischarge" are only
+    # reachable through the Mode Scheduler (service foxess.set_schedule, one group from the lease's start to its end),
+    # and the work mode can't be changed while the scheduler is on - so it is turned off first. 1,440 cloud calls a day.
+    # Three installs were taken for foxess_modbus by their names and "Force Charge" was refused.
+    "foxess": {
+        "name": "Fox ESS (cloud)",
+        "match": r"foxess|fox_ess",
+        "source": "integration",
+        "normal": [(r"switch\..*_mode_scheduler$", "off", None), (r"number\..*_min_soc_on_grid$", "number", "{min_soc}"),
+                   (r"select\..*_work_mode$", "select", "re:^self.?use$")],
+        "hold": [(r"switch\..*_mode_scheduler$", "off", None), (r"number\..*_min_soc_on_grid$", "number", "{soc}"),
+                 (r"select\..*_work_mode$", "select", "re:^self.?use$")],
+        "charge": [("foxess.set_schedule", "service", {"device_sn": "{serial}", "enable": True, "is_default": False, "groups": [
+            {"enable": 1, "startHour": "{lease_from_h}", "startMinute": "{lease_from_m}", "endHour": "{lease_to_h}", "endMinute": "{lease_to_m}",
+             "workMode": "ForceCharge", "extraParam": {"maxSoc": "{target}", "minSocOnGrid": "{min_soc}", "fdPwr": "{power_w}", "fdSoc": 100}}]})],
+        # Selling from the battery (only when the user turns it on): down to the target at the power asked.
+        "export": [("foxess.set_schedule", "service", {"device_sn": "{serial}", "enable": True, "is_default": False, "groups": [
+            {"enable": 1, "startHour": "{lease_from_h}", "startMinute": "{lease_from_m}", "endHour": "{lease_to_h}", "endMinute": "{lease_to_m}",
+             "workMode": "ForceDischarge", "extraParam": {"maxSoc": 100, "minSocOnGrid": "{min_soc}", "fdPwr": "{power_w}", "fdSoc": "{target}"}}]})],
+        "optional": [r"switch\..*_mode_scheduler$"],
+    },
     # Growatt via the cloud (built-in growatt_server, MIN/TLX): no work modes, but limits - how low it may discharge
     # on the grid, how full it may charge, how hard, and "Charge from grid". Entity names from a user's install.
     "growatt_server": {
@@ -719,6 +741,8 @@ def alpha_windows(now: Any, start: Any = None, end: Any = None) -> dict[str, str
     # its normal running by itself - an order is never left standing all day (Growatt, GivEnergy).
     ls = max(s - timedelta(minutes=LEASE_LEAD_MIN), q.replace(hour=0, minute=0))
     lease = {"lease_from": hm(ls), "lease_to": hm(e) if e.date() == q.date() else "23:59"}
+    for k in ("lease_from", "lease_to"):  # as numbers too (Fox ESS's cloud scheduler takes hour and minute apart)
+        lease[k + "_h"], lease[k + "_m"] = (int(x) for x in lease[k].split(":"))
     return {**win, **lease,
             "park_c_from": hm(q + timedelta(hours=12)), "park_c_to": hm(q + timedelta(hours=12, minutes=15)),
             "park_d_from": hm(q + timedelta(hours=12, minutes=30)), "park_d_to": hm(q + timedelta(hours=12, minutes=45))}
@@ -737,6 +761,8 @@ def fill(value: Any, ctx: dict[str, Any]) -> Any:
             return out
     if isinstance(value, dict):
         return {k: fill(v, ctx) for k, v in value.items()}
+    if isinstance(value, list):
+        return [fill(v, ctx) for v in value]
     return value
 
 
