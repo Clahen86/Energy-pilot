@@ -387,6 +387,15 @@ def inverter_limits(min_soc: float, grid_max: float, low: float | None, high: fl
     return lo, hi, min(grid_max, hi)
 
 
+def car_kw(engine: Any) -> float:
+    """What the plan counts on the (first) car to take in an hour: the charger's power as set, capped at what the
+    car was seen to take (evsoc.charger_kw)."""
+    from .evsoc import charger_kw
+
+    cs = getattr(engine, "car_size", None)
+    return charger_kw(engine.ov.settings, cs.charge_kw() if cs is not None and hasattr(cs, "charge_kw") else None)
+
+
 def battery_targets(s: dict[str, Any]) -> tuple:
     """The user's "at least X % at HH:MM" from the settings, as (hour, minute, soc); bad rows are left out."""
     out = []
@@ -691,6 +700,11 @@ class Engine:
             peak_kw=(pt := self.power_tariff()) and pt["limit_kw"],
             peak_price=pt["price_per_kw"] if pt else 0.0,
         )
+
+    def charger_kw(self) -> float:
+        """What the plan counts on the (first) car to take in an hour: the charger's power, capped at what the car was
+        seen to take (see evsoc.charger_kw). Steering the charger keeps the charger's own."""
+        return car_kw(self)
 
     def grid_max_soc(self, kind: str) -> float:
         """How full the battery may be charged from the grid: as set, else 95 % (NMC 90 %). Every 14 days without a
@@ -1405,7 +1419,7 @@ class Engine:
                                   "style": st.get("style") or "cheapest"}
         car_plan = self._car(hours, now, f, skip=set()) if (st.get("style") == "car_first") else None
         if car_plan:
-            charger = float(st.get("charger_kw") or 7.4)
+            charger = car_kw(self)
             for h in hours:
                 if h.start in car_plan["set"]:
                     h.house += charger * h.length  # the car gets the sun first: what's left goes to the battery
@@ -1422,7 +1436,7 @@ class Engine:
             if not car_plan:
                 pre = self._car(hours, now, f, set()) if f.get("plug") else None
                 need = pre["need"] if pre else self.habits.need(float(st.get("ev_need_kwh") or 20))
-                load = car_load(hours, (pre or {}).get("set") or set(), float(st.get("charger_kw") or 7.4),
+                load = car_load(hours, (pre or {}).get("set") or set(), car_kw(self),
                                 float(f.get("ev") or 0.0), need, now)
                 if load:
                     bh = [replace(h, house=h.house + load.get(h.start, 0.0)) for h in hours]
@@ -1492,7 +1506,7 @@ class Engine:
         load: dict[datetime, float] = {}
         if car_plan:
             for t in car_plan.get("set") or []:
-                load[t] = load.get(t, 0.0) + float(st.get("charger_kw") or 7.4)
+                load[t] = load.get(t, 0.0) + car_kw(self)
         from . import chargers
 
         for c, p in zip(chargers.extras(st), result.get("cars") or []):
@@ -1535,7 +1549,7 @@ class Engine:
                         break
         if quiet := self.quiet_hours("car"):
             skip = skip | {h.start for h in hours if h.start.hour in quiet}
-        kw = float(st.get("charger_kw") or 7.4)
+        kw = car_kw(self)
         chosen = None
         if pt := self.power_tariff():
             # Power tariff: charge beside the peaks when that still gets the car full - else as usual.
@@ -1561,7 +1575,7 @@ class Engine:
                 continue
             if c is None:
                 ev = self.ov.ev() or {}
-                kw = float(st.get("charger_kw") or 7.4)
+                kw = car_kw(self)
                 need = self.ghosts.need(part, self.habits.need(float(st.get("ev_need_kwh") or 20)))
                 if ev.get("soc") is not None and ev.get("car_kwh"):
                     from . import evsoc
@@ -1593,7 +1607,7 @@ class Engine:
         load = {h.start: 0.0 for h in hours}  # what the cars already planned draw in each slot (kW)
         if car_plan:
             for t in car_plan["set"]:
-                load[t] = load.get(t, 0.0) + float(st.get("charger_kw") or 7.4)
+                load[t] = load.get(t, 0.0) + car_kw(self)
         quiet = self.quiet_hours("car")
         out = []
         for c, now_c in zip(more, f.get("cars") or [{}] * len(more)):

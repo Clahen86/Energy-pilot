@@ -254,7 +254,7 @@ async def main() -> None:
                                   engine.ghosts.sun_to_car(own_w, f.get("pv"), f.get("grid"), f.get("battery")), sell)
                 for i, c in enumerate(extra):
                     engine.ghosts.see(f"car{i + 2}", now, c.get("plug"), c.get("power"), price, 30)
-                engine.car_size.see(f.get("plug"), ev.get("soc"), ev.get("session_kwh"))
+                engine.car_size.see(f.get("plug"), ev.get("soc"), ev.get("session_kwh"), own_w)
                 from .evsoc import trip_done
 
                 if trip_done(st, f.get("plug"), getattr(engine, "_was_plugged", False), ev.get("soc")):

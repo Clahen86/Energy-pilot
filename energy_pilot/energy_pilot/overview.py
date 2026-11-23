@@ -821,7 +821,7 @@ class Overview:
         # Octopus, an automation), and Energy Pilot's guess at its slots would show charging that won't happen.
         ctl = getattr(self, "controller", None)
         running = (lambda part: ctl.mode(part) == "control") if ctl else (lambda part: False)
-        cars = [(res.get("car"), float(self.settings.get("charger_kw") or 7.4), "car")]
+        cars = [(res.get("car"), self.engine.charger_kw() if self.engine and hasattr(self.engine, "charger_kw") else float(self.settings.get("charger_kw") or 7.4), "car")]
         cars += [(c, float(x.get("charger_kw") or 7.4), f"car{i + 2}") for i, (c, x) in enumerate(zip(res.get("cars") or [], chargers.extras(self.settings)))]
         # A charger in shadow: the charge Energy Pilot would have made (kept from when the car was plugged in), drawn
         # apart from real plans - to compare with what charges the car today, not as something that will happen.
@@ -897,10 +897,13 @@ class Overview:
         e = self.role("ev_soc")
         soc = evsoc.num(self.ha.states.get(e)) if e else None
         size = self.engine.car_size.kwh(self.settings) if self.engine and hasattr(self.engine, "car_size") else (evsoc.DEFAULT_KWH, "guess")
+        if size[1] == "guess" and (c := evsoc.charger_kwh(self.ha.states)):
+            size = (c, "charger")  # what the charger (evcc) knows of the car, until it is learned or set
         return {"soc": soc, "soc_known": e is not None, "target": evsoc.target(self.settings), "trip": bool(self.settings.get("ev_trip")),
                 "sun_target": evsoc.sun_target(self.settings), "sun_target_set": bool(self.settings.get("ev_sun_target")),
                 "has_sun": bool(self.role("pv_power")),
-                "everyday": evsoc.target({**self.settings, "ev_trip": False}), "car_kwh": size[0], "car_kwh_from": size[1]}
+                "everyday": evsoc.target({**self.settings, "ev_trip": False}), "car_kwh": size[0], "car_kwh_from": size[1],
+                "charge_kw_seen": self.engine.car_size.charge_kw() if self.engine and hasattr(self.engine, "car_size") else None}
 
     def snapshot(self, lang: str = "da") -> dict[str, Any]:
         price_e = self.role("price")
