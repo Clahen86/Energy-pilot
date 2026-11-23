@@ -807,9 +807,21 @@ class Overview:
                 hours[k]["manual"] = v  # the user's own choice for that hour
         # The plan shows Energy Pilot's own charging; another system's plan (AppDaemon) is only compared.
         res = (self.engine.result if self.engine else None) or {}
+        # For the detailed plan (Plan > Detailed plan): what the battery does, what is bought (+) or sold (-), and the
+        # feed-in price that hour - a slot of a quarter hour adds to its hour.
+        sells = self.engine.sell_prices() if self.engine and hasattr(self.engine, "sell_prices") else {}
+        fixed_sell = float(self.settings.get("sell_price") or 0) if self.settings.get("sell") else 0.0
         for st in (res.get("battery") or {}).get("steps", []):
             if (h := slot(datetime.fromisoformat(st["t"]))) is not None:
                 h["soc"] = st["soc"]
+                h["grid"] = round(h.get("grid", 0.0) + float(st.get("grid") or 0.0), 3)
+                if st["action"] != "hold" or "action" not in h:
+                    h["action"] = st["action"]
+                if "sell" not in h and self.engine is not None and hasattr(self.engine, "sell_at"):
+                    try:
+                        h["sell"] = round(self.engine.sell_at(sells, datetime.fromisoformat(st["t"]), fixed_sell), 3)
+                    except Exception:  # noqa: BLE001 - the table just shows no feed-in price
+                        pass
                 if st["action"] in ("charge_grid", "charge_sun"):
                     h["charge"] = True
                 elif st["action"] == "export":
