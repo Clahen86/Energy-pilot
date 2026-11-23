@@ -320,7 +320,10 @@ PROFILES: dict[str, dict[str, Any]] = {
         "name": "Sungrow (Modbus)",
         # mkaiser's YAML package: template selects/numbers without a device - picked up by name (control.discover).
         "match": r"sungrow|sh\d+rt|ems_mode",
-        "normal": [(r"select\..*ems_mode.*$", "select", "Self-consumption mode (default)"),
+        # The forced command back to Stop too (as mkaiser's own self-consumption scene): left on "Forced charge" it
+        # kept charging from the grid after a charge (issue #42).
+        "normal": [(r"select\..*battery_forced_charge_discharge.*$", "select", "Stop (default)"),
+                   (r"select\..*ems_mode.*$", "select", "Self-consumption mode (default)"),
                    (r"number\..*battery_max_discharge_power$", "number", "{max_power_w}"),
                    (r"number\..*battery_max_charge_power$", "number", "{max_charge_w}")],
         "hold": [(r"select\..*ems_mode.*$", "select", "Forced mode"), (r"select\..*battery_forced_charge_discharge.*$", "select", "Stop (default)")],
