@@ -16,6 +16,10 @@ def test_mkaiser_template_controls_are_picked_up_and_matched():
     assert not YAML_CONTROLS.match("select.ems_mode_other")
     ents = ["select.ems_mode", "select.battery_forced_charge_discharge", "number.battery_forced_charge_discharge_power"]
     assert ("select_option", "select.battery_forced_charge_discharge", "Forced charge") in _calls("sungrow", "charge", ents)
+    # normal puts the forced command back to Stop as well - else it kept charging from the grid (issue #42)
+    n = _calls("sungrow", "normal", ents)
+    assert n[0] == ("select_option", "select.battery_forced_charge_discharge", "Stop (default)")
+    assert ("select_option", "select.ems_mode", "Self-consumption mode (default)") in n
 
 
 def test_sungrow_hass_by_its_translated_battery_mode():
