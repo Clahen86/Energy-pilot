@@ -17,6 +17,11 @@ Finding your setup - learned from a Fox ESS house in the UK ("Export not shown")
 - Undo now works for "a sensor stopped answering"
 - Shared setups send up to 60 controls per device (the ones in use first) - a Fox ESS's switches were cut off
 
+From @mbuhansen - thank you:
+- New profile (being tested): Kostal Plenticore through Kostal Plenticore Battery Control (Modbus). The plan stays inside the inverter's own minimum and maximum SoC, its top battery power is used, the main fuse is read from the integration, and the self-test waits while the inverter wakes up at night
+- Car: a field for the battery's size; a plug-in hybrid's small battery is learned; evcc's size is used until then; the plan counts on the power the car really takes (a car on one phase behind an 11 kW charger takes 3.7 kW)
+- evcc gets its own planning ("smart") back when Energy Pilot lets go of the car - it stayed at "off" or "now"; and a hint when no charger controls are found
+
 ## 0.103.0 – 2026-11-22
 
 Learned from what users' setups look like:
