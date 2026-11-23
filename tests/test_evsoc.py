@@ -84,3 +84,29 @@ def test_above_grid_limit_only_the_sun_charges():
     # At 85 % with grid limit 80 and sun limit 100: the sun charges, the grid never (no planned hours, need kept > 0).
     assert decide(sunny, st, False, False, 1.0, False)["why"] == "sun"
     assert decide(dark, st, False, False, 1.0, False)["charge"] is False
+
+
+def test_a_plug_in_hybrids_small_battery_is_learned():
+    """A Passat GTE (about 10 kWh usable): 70 % in for 7.8 kWh at the charger - learned, not thrown away as too small."""
+    state = {}
+    s = evsoc.CarSize(state)
+    for soc, kwh in ((10, 0.0), (80, 7.8)):
+        s.see(True, soc, kwh)
+    s.see(False, None, None)
+    for soc, kwh in ((20, 0.0), (90, 7.8)):
+        s.see(True, soc, kwh)
+    size, src = s.kwh({})
+    assert src == "learned" and 9 <= size <= 11
+
+
+def test_the_charger_knows_the_car_until_it_is_learned():
+    """evcc's Vehicle select carries the car at the loadpoint and its capacity."""
+    states = {"select.evcc_garage_vehicle_name": {"state": "db:3", "attributes": {
+        "vehicle": {"name": "VW Passat GTE", "capacity": 8, "originObject": {"capacity": 8}}}}}
+    assert evsoc.charger_kwh(states) == 8
+    # no select: evcc's one vehicle_capacity sensor
+    assert evsoc.charger_kwh({"sensor.evcc_vw_passat_gte_vehicle_capacity": {"state": "8", "attributes": {"unit_of_measurement": "kWh"}}}) == 8
+    # two cars and none at the loadpoint: no telling which
+    two = {f"sensor.evcc_{c}_vehicle_capacity": {"state": k, "attributes": {"unit_of_measurement": "kWh"}} for c, k in (("a", "8"), ("b", "77"))}
+    assert evsoc.charger_kwh(two) is None
+    assert evsoc.charger_kwh({}) is None

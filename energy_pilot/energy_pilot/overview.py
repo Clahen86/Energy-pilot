@@ -880,6 +880,8 @@ class Overview:
         e = self.role("ev_soc")
         soc = evsoc.num(self.ha.states.get(e)) if e else None
         size = self.engine.car_size.kwh(self.settings) if self.engine and hasattr(self.engine, "car_size") else (evsoc.DEFAULT_KWH, "guess")
+        if size[1] == "guess" and (c := evsoc.charger_kwh(self.ha.states)):
+            size = (c, "charger")  # what the charger (evcc) knows of the car, until it is learned or set
         return {"soc": soc, "soc_known": e is not None, "target": evsoc.target(self.settings), "trip": bool(self.settings.get("ev_trip")),
                 "sun_target": evsoc.sun_target(self.settings), "sun_target_set": bool(self.settings.get("ev_sun_target")),
                 "has_sun": bool(self.role("pv_power")),
