@@ -57,10 +57,11 @@ def export_hgb(model, countries: list[str]) -> dict:
     trees = []
     for pred in model._predictors:
         n = pred[0].nodes
-        trees.append({"f": [int(x) for x in n["feature_idx"]], "t": [float(f"{x:.6g}") for x in n["num_threshold"]],
+        # thresholds at full precision: rounded, an hour right at a split went the other way than in scikit-learn
+        trees.append({"f": [int(x) for x in n["feature_idx"]], "t": [float(x) for x in n["num_threshold"]],
                       "l": [int(x) for x in n["left"]], "r": [int(x) for x in n["right"]],
                       "m": [int(x) for x in n["missing_go_to_left"]], "leaf": [int(x) for x in n["is_leaf"]],
-                      "v": [float(f"{x:.6g}") for x in n["value"]]})
+                      "v": [float(x) for x in n["value"]]})
     return {"schema": 1, "kind": "house", "features": FEATURES, "countries": countries,
             "base": float(np.ravel(model._baseline_prediction)[0]), "trees": trees}
 
@@ -184,11 +185,16 @@ def main() -> None:
     print("✅ Fællesmodellen for forbrug rammer klart bedre - den sendes ud til Energipilot." if ready else
           f"⏳ Fællesmodellen udgives ikke endnu ({n} huse, {test_days} testdage, {better:+.0f} %, værste hus {worst:+.0f} %).")
     if ready or os.environ.get("EP_EXPORT_ALWAYS") == "1":  # (the workflow's self-test on made-up data checks the export)
-        exp = export_hgb(house, data_countries(data))
+        try:
+            exp = export_hgb(house, data_countries(data))
+        except Exception as err:  # noqa: BLE001 - scikit-learn's inner layout changed: nothing goes out
+            print(f"⚠️ Eksporten kunne ikke laves ({type(err).__name__}: {err}) - intet udgivet.")
+            return
         sample = [r["x"] for r in test[:200]]
         ref = house.predict(sample)
-        if any(abs(predict_json(exp, x) - y) > 1e-4 for x, y in zip(sample, ref)):
-            print("⚠️ Eksporten regner ikke som modellen - intet udgivet.")
+        diff = max((abs(predict_json(exp, x) - y) for x, y in zip(sample, ref)), default=0.0)
+        if diff > 1e-4:
+            print(f"⚠️ Eksporten regner ikke som modellen (op til {diff:.4g} kWh fra) - intet udgivet.")
         else:
             body = json.dumps({**exp, "probe": [[x, round(float(y), 6)] for x, y in zip(sample[:20], ref[:20])],
                                "trained": last, "homes": n, "test_days": test_days, "better_pct": round(better, 1),

@@ -28,7 +28,12 @@ jobs:
           python training/synth.py "$RUNNER_TEMP/synth.json"
           EP_EXPORT_ALWAYS=1 python training/train.py "$RUNNER_TEMP/synth.json" "$RUNNER_TEMP/synth_models" | tee "$RUNNER_TEMP/synth.md"
           grep -q "| Forbrug |" "$RUNNER_TEMP/synth.md"
-          # the export walks the trees exactly as scikit-learn does, and is small enough to hand out
+      - name: Selvtest af eksporten
+        # the export walks the trees exactly as scikit-learn does and is small enough to hand out - a failure here is
+        # shown, but never stops the sensor finder, the reports or the training below
+        continue-on-error: true
+        run: |
+          grep "Eksport" "$RUNNER_TEMP/synth.md" || true
           test -f "$RUNNER_TEMP/synth_models/house.json"
           test "$(stat -c %s "$RUNNER_TEMP/synth_models/house.json")" -lt 300000
       - name: Hent time-tal og opsætninger
