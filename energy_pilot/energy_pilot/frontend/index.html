@@ -1897,15 +1897,15 @@ function pvrCard(yd) {
     <div class="muted" id="pvrtip" style="font-size:13px;margin-top:8px">${tip}</div>`;
 }
 const T_PT = {
-  da: { t: "Detaljeret plan", h: "Time for time: hvad batteriet gør, hvad der købes og sælges", time: "Tid", price: "Køb/salg", act: "Batteri", soc: "Niveau", house: "Hus", sun: "Sol", car: "Bil", grid: "Net", cost: "Kr.", total: "I alt", shadow: "skygge",
+  da: { t: "Detaljeret plan", h: "Time for time: hvad batteriet gør, hvad der købes og sælges", time: "Tid", price: "Køb/salg", act: "Batteri", soc: "Niveau", house: "Hus", sun: "Sol", car: "Bil", grid: "Net", cost: "Pris", total: "I alt", shadow: "skygge", gridH: "+ køb / − salg",
     a: { charge_grid: "Lader fra nettet", charge_sun: "Lader fra sol", discharge: "Dækker huset", export: "Sælger", hold: "Holder" } },
-  en: { t: "Detailed plan", h: "Hour by hour: what the battery does, what is bought and sold", time: "Time", price: "Buy/sell", act: "Battery", soc: "Level", house: "House", sun: "Sun", car: "Car", grid: "Grid", cost: "Cost", total: "Total", shadow: "shadow",
+  en: { t: "Detailed plan", h: "Hour by hour: what the battery does, what is bought and sold", time: "Time", price: "Buy/sell", act: "Battery", soc: "Level", house: "House", sun: "Sun", car: "Car", grid: "Grid", cost: "Cost", total: "Total", shadow: "shadow", gridH: "+ buy / − sell",
     a: { charge_grid: "Charging from the grid", charge_sun: "Charging from the sun", discharge: "Covers the house", export: "Selling", hold: "Holding" } },
-  de: { t: "Detaillierter Plan", h: "Stunde für Stunde: was die Batterie tut, was gekauft und verkauft wird", time: "Zeit", price: "Kauf/Verkauf", act: "Batterie", soc: "Stand", house: "Haus", sun: "Sonne", car: "Auto", grid: "Netz", cost: "Kosten", total: "Summe", shadow: "Schatten",
+  de: { t: "Detaillierter Plan", h: "Stunde für Stunde: was die Batterie tut, was gekauft und verkauft wird", time: "Zeit", price: "Kauf/Verkauf", act: "Batterie", soc: "Stand", house: "Haus", sun: "Sonne", car: "Auto", grid: "Netz", cost: "Kosten", total: "Summe", shadow: "Schatten", gridH: "+ Kauf / − Verkauf",
     a: { charge_grid: "Lädt aus dem Netz", charge_sun: "Lädt mit Sonne", discharge: "Deckt das Haus", export: "Verkauft", hold: "Hält" } },
-  sv: { t: "Detaljerad plan", h: "Timme för timme: vad batteriet gör, vad som köps och säljs", time: "Tid", price: "Köp/sälj", act: "Batteri", soc: "Nivå", house: "Hus", sun: "Sol", car: "Bil", grid: "Nät", cost: "Kostnad", total: "Totalt", shadow: "skugga",
+  sv: { t: "Detaljerad plan", h: "Timme för timme: vad batteriet gör, vad som köps och säljs", time: "Tid", price: "Köp/sälj", act: "Batteri", soc: "Nivå", house: "Hus", sun: "Sol", car: "Bil", grid: "Nät", cost: "Kostnad", total: "Totalt", shadow: "skugga", gridH: "+ köp / − sälj",
     a: { charge_grid: "Laddar från nätet", charge_sun: "Laddar från solen", discharge: "Täcker huset", export: "Säljer", hold: "Håller" } },
-  nb: { t: "Detaljert plan", h: "Time for time: hva batteriet gjør, hva som kjøpes og selges", time: "Tid", price: "Kjøp/salg", act: "Batteri", soc: "Nivå", house: "Hus", sun: "Sol", car: "Bil", grid: "Nett", cost: "Kr.", total: "Totalt", shadow: "skygge",
+  nb: { t: "Detaljert plan", h: "Time for time: hva batteriet gjør, hva som kjøpes og selges", time: "Tid", price: "Kjøp/salg", act: "Batteri", soc: "Nivå", house: "Hus", sun: "Sol", car: "Bil", grid: "Nett", cost: "Pris", total: "Totalt", shadow: "skygge", gridH: "+ kjøp / − salg",
     a: { charge_grid: "Lader fra nettet", charge_sun: "Lader fra solen", discharge: "Dekker huset", export: "Selger", hold: "Holder" } },
 };
 /** Plan > Detailed plan: the plan hour by hour, folded away - like Predbat's plan table. */
@@ -1930,7 +1930,9 @@ function planTable(plan) {
   }).join("");
   return `<details class="more" data-adv="plantable" ${advOpen.has("plantable") ? "open" : ""}><summary>${t.t}</summary>
     <div class="muted" style="margin:6px 0">${t.h}</div><div style="overflow-x:auto"><table class="ptable">
-    <tr><th>${t.time}</th><th>${t.price}</th><th>${t.act}</th><th>${t.soc}</th><th>${t.house}</th><th>${t.sun}</th><th>${t.car}</th><th>${t.grid}</th><th>${t.cost}</th></tr>
+    <tr><th>${t.time}</th><th>${t.price}<br><small>${SYM()}/kWh</small></th><th>${t.act}</th><th>${t.soc}<br><small>%</small></th>
+    <th>${t.house}<br><small>kWh</small></th><th>${t.sun}<br><small>kWh</small></th><th>${t.car}<br><small>kWh</small></th>
+    <th>${t.grid}<br><small>kWh ${t.gridH}</small></th><th>${t.cost}<br><small>${SYM()}</small></th></tr>
     ${body}<tr><td colspan="8"><b>${t.total}</b></td><td><b>${kr(sum)}</b></td></tr></table></div></details>`;
 }
 function planView() { return `<div class="card fade"><div class="eyebrow"><span>${T.planTitle}</span></div>${priceNote()}${planSvg(data.plan)}${planTable(data.plan)}</div>${learnCard()}`; }
