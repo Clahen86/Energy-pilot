@@ -1926,9 +1926,9 @@ function planTable(plan) {
     return `<tr><td>${clock(h.t)}</td><td>${num(price, 2)} / ${num(sell, 2)}</td>
       <td><span style="color:${color[act] || "inherit"};font-weight:650">${t.a[act] || act}</span></td>
       <td>${start != null ? `${num(start, 0)} → ` : ""}${num(h.soc, 0)} %</td><td>${num(h.house, 1)}</td><td>${num(h.sun, 1)}</td><td>${car}</td>
-      <td>${grid > 0 ? "+" : ""}${num(grid, 1)}</td><td>${kr(cost)}</td></tr>`;
+      <td style="color:${grid > 0.05 ? "var(--bad)" : grid < -0.05 ? "var(--sell)" : "inherit"}">${grid > 0 ? "+" : ""}${num(grid, 1)}</td><td>${kr(cost)}</td></tr>`;
   }).join("");
-  return `<details class="more" data-adv="plantable" ${advOpen.has("plantable") ? "open" : ""}><summary>${t.t}</summary>
+  return `<details class="more" style="margin-left:0" data-adv="plantable" ${advOpen.has("plantable") ? "open" : ""}><summary>${t.t}</summary>
     <div class="muted" style="margin:6px 0">${t.h}</div><div style="overflow-x:auto"><table class="ptable">
     <tr><th>${t.time}</th><th>${t.price}<br><small>${SYM()}/kWh</small></th><th>${t.act}</th><th>${t.soc}<br><small>%</small></th>
     <th>${t.house}<br><small>kWh</small></th><th>${t.sun}<br><small>kWh</small></th><th>${t.car}<br><small>kWh</small></th>
