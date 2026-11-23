@@ -399,6 +399,40 @@ def car_kw(engine: Any) -> float:
     return charger_kw(engine.ov.settings, cs.charge_kw() if cs is not None and hasattr(cs, "charge_kw") else None)
 
 
+def carried_out(plan: Plan, hours: list[Hour], soc_now: float, b: Battery) -> list[tuple[float, float]]:
+    """The plan's steps as the battery really carries them out: (level after, grid kWh) per slot.
+
+    The plan moves in whole steps of the level (2 % of a big battery is about 1 kWh), so a slot where the house takes
+    1.4 kWh "covers the house" with one step and buys the rest. But "covers the house" is the inverter's normal
+    running: it covers all of it until the battery is at its floor. Charging goes to the planned level, holding and
+    selling as planned - so what's shown is what will happen, not the rounding.
+    """
+    eff = math.sqrt(b.efficiency)
+    cap = b.capacity_kwh
+    kwh = lambda pct: pct / 100 * cap  # noqa: E731
+    floor = kwh(b.min_soc)
+    level = kwh(soc_now)
+    out: list[tuple[float, float]] = []
+    for st, h in zip(plan.steps, hours):
+        base = h.house - h.sun
+        if st.action in ("charge_grid", "charge_sun"):
+            stored = min(max(0.0, kwh(st.soc_end) - level), b.max_charge_kw * h.length * eff)
+            level += stored
+            grid = base + stored / eff
+        elif st.action == "discharge":
+            take = min(max(0.0, base), max(0.0, level - floor) * eff, b.max_discharge_kw * h.length)
+            level -= take / eff
+            grid = base - take
+        elif st.action == "export":
+            take = min(max(0.0, kwh(st.soc_start) - kwh(st.soc_end)), max(0.0, level - floor)) * eff
+            level -= take / eff
+            grid = base - take
+        else:
+            grid = st.grid_kwh
+        out.append((round(level / cap * 100, 1), round(grid, 3)))
+    return out
+
+
 def battery_targets(s: dict[str, Any]) -> tuple:
     """The user's "at least X % at HH:MM" from the settings, as (hour, minute, soc); bad rows are left out."""
     out = []
@@ -1464,7 +1498,8 @@ class Engine:
             while run + 1 < len(p.steps) and p.steps[run + 1].action == p.steps[0].action:
                 run += 1
             result["battery"] = {
-                "steps": [{"t": s.start.isoformat(), "action": s.action, "soc": s.soc_end, "grid": s.grid_kwh} for s in p.steps],
+                "steps": [{"t": s.start.isoformat(), "action": s.action, "soc": lv, "grid": g}
+                          for s, (lv, g) in zip(p.steps, carried_out(p, bh, f["soc"], b))],
                 "slot_min": slot_min,
                 "now": ACTION_KIND[p.steps[0].action] if p.steps else "hold", "target": p.steps[run].soc_end if p.steps else None,
                 "cost": p.cost, "cost_without": p.cost_without, "saving": p.saving, "capacity": b.capacity_kwh,
