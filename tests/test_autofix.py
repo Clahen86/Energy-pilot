@@ -173,3 +173,32 @@ def test_unavailable_battery_level_is_swapped_after_half_an_hour():
     o2, store2 = ov({"roles": {"battery_soc": "sensor.old_soc"}}, states, roles={"battery_soc": "sensor.old_soc"})
     A.AutoFix(o2).run()
     assert store2["roles"]["battery_soc"] == "sensor.old_soc"
+
+
+def test_fuse_from_the_inverter_while_still_the_start_value():
+    """Kostal's House Fuse Size (50 A): the 10 kW new installs start with becomes 32 kW (50 A × 230 V × 3, a bit under)."""
+    amps = {"v": 50.0}
+    o, store = ov({"import_limit_kw": 10})
+    o.controller = SimpleNamespace(fuse_amps=lambda: amps["v"])
+    a = A.AutoFix(o)
+    a.run()
+    assert store["import_limit_kw"] == 32 and store["autofix_log"][-1]["what"] == "fuse_inv"
+    amps["v"] = 35.0  # changed in the integration: follows, while the limit is still what it set
+    a.run()
+    assert store["import_limit_kw"] == 22 and store["autofix_log"][-1]["from"] == 10
+    a.undo("fuse_inverter")  # back to the 10 kW, and never again
+    a.run()
+    assert store["import_limit_kw"] == 10
+
+
+def test_fuse_from_the_inverter_never_overrides_the_users_own():
+    for own in (25, None):  # typed in, or taken away on purpose
+        o, store = ov({"import_limit_kw": own})
+        o.controller = SimpleNamespace(fuse_amps=lambda: 50.0)
+        a = A.AutoFix(o)
+        a.run()
+        assert store["import_limit_kw"] == own
+    o, store = ov({"import_limit_kw": 10, "fuse_ok": True})  # 10 kW confirmed as right
+    o.controller = SimpleNamespace(fuse_amps=lambda: 50.0)
+    A.AutoFix(o).run()
+    assert store["import_limit_kw"] == 10
