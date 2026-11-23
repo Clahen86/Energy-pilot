@@ -352,6 +352,22 @@ class Controller:
             return None
         return bool(re.search(want, st))
 
+    def soc_limits(self, part: str = "battery") -> tuple[float | None, float | None]:
+        """(lowest, highest) % the inverter lets the battery go to - a profile's "limits" (minimum and maximum number
+        patterns), the anchor's own device first. None where the profile has none or the value can't be read."""
+        r = (adapters.PROFILES.get(self.profile_key(part) or "") or {}).get("limits")
+        if not r:
+            return None, None
+        out: list[float | None] = []
+        for pat in r:
+            e = next((x for x in self.entities.get(part, []) if adapters.hit(pat, x)), None)
+            try:
+                v = float((self.ha.states.get(e) or {}).get("state")) if e else None
+            except (TypeError, ValueError):
+                v = None
+            out.append(v if v is not None and 0 <= v <= 100 else None)
+        return out[0], out[1]
+
     def check(self, part: str = "battery") -> dict[str, dict]:
         """Which of the profile's controls were found on the inverter, and which are missing."""
         steps = self.profile_steps(part) or {}

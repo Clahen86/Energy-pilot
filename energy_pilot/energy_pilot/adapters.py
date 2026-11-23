@@ -548,6 +548,10 @@ PROFILES: dict[str, dict[str, Any]] = {
         # Asleep at night ("Off") the inverter first runs StartUp and GridCheck before it charges - up to ~10 min.
         # The self-test waits for FeedIn (state 6) before it judges.
         "ready": (r"sensor\..*_inverter_state$", r"^(6|FeedIn)$"),
+        # The integration's own SoC limits, which it keeps writing to the inverter while they are in use: the battery
+        # won't go below the minimum or above the maximum, whatever is asked - so the plan stays inside them too.
+        # 5 % and 100 % mean "not in use" (the inverter's own), which changes nothing.
+        "limits": (r"number\..*_battery_minimum_soc_limit$", r"number\..*_battery_maximum_soc_limit$"),
     },
     "alphaess": {
         "name": "Alpha ESS (cloud)",
