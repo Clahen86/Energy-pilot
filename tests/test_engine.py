@@ -2,7 +2,7 @@
 
 from datetime import datetime, timedelta
 
-from energy_pilot.engine import Battery, Hour, house_forecast, house_profile, plan_battery, plan_car
+from energy_pilot.engine import Battery, Hour, carried_out, house_forecast, house_profile, plan_battery, plan_car
 
 T0 = datetime(2026, 11, 7, 0, 0)
 
@@ -215,3 +215,38 @@ def test_equal_cheap_slots_charge_from_the_start():
     assert acts[0] == "charge_grid"
     assert all(a != "charge_grid" for a in acts[12:])
     assert p.steps[11].soc_end >= 99
+
+
+def test_a_big_battery_covers_the_whole_house_not_one_step_of_it():
+    # 48 kWh: one 2 % step is 0.96 kWh, the house takes 1.8 kWh an hour. Only the smallest step could cover the house,
+    # so each evening hour took one step and bought the other half from the grid - while it said "covers the house".
+    hours = [Hour(T0 + timedelta(hours=i), 4.0, 0.0, 1.8, 0.0) for i in range(5)]
+    hours += [Hour(T0 + timedelta(hours=5 + i), 2.0, 0.0, 0.7, 0.0) for i in range(5)]
+    p = plan_battery(hours, soc_now=40, b=Battery(capacity_kwh=48, max_charge_kw=12, max_discharge_kw=12, efficiency=0.93))
+    for s in p.steps[:5]:
+        assert s.action == "discharge" and s.grid_kwh == 0, s
+
+
+def test_shown_as_carried_out_covers_the_house_until_the_floor():
+    # Shown hour by hour, "covers the house" is the inverter's normal running: the house is covered all the way, not
+    # one step of the level and the rest bought, until the battery reaches its floor.
+    hours = [Hour(T0 + timedelta(hours=i), 4.0, 0.0, 1.44, 0.0) for i in range(6)]
+    hours += [Hour(T0 + timedelta(hours=6 + i), 2.0, 0.0, 0.7, 0.0) for i in range(4)]
+    b = Battery(capacity_kwh=48, max_charge_kw=12, max_discharge_kw=12, efficiency=0.93)
+    p = plan_battery(hours, soc_now=30, b=b)
+    done = carried_out(p, hours, 30, b)
+    for st, (level, grid) in zip(p.steps[:6], done[:6]):
+        assert st.action == "discharge" and grid == 0, (st, level, grid)
+    assert 10 <= done[5][0] < 30
+
+
+def test_carried_out_stops_at_the_floor_and_charges_to_the_planned_level():
+    b = Battery(capacity_kwh=10, max_charge_kw=5, max_discharge_kw=5, efficiency=1.0)
+    hours = [Hour(T0 + timedelta(hours=i), 3.0, 0.0, 1.0, 0.0) for i in range(3)]
+    from energy_pilot.engine import Plan, Step
+    p = Plan(steps=[Step(hours[0].start, "discharge", 15, 10, 0, 0), Step(hours[1].start, "discharge", 10, 10, 1, 0),
+                    Step(hours[2].start, "charge_grid", 10, 50, 5, 0)])
+    done = carried_out(p, hours, 15, b)
+    assert done[0] == (10.0, 0.5)  # only 0.5 kWh above the floor: the rest is bought
+    assert done[1] == (10.0, 1.0)
+    assert done[2] == (50.0, 5.0)  # charges to the planned level
