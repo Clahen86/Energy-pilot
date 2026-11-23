@@ -551,6 +551,9 @@ PROFILES: dict[str, dict[str, Any]] = {
         # The most the integration lets the battery charge or discharge (worked out from the battery's voltage and
         # current, in W): the battery's power when none is set, and the cap on what is set.
         "max_power": r"sensor\..*_battery_max_control_power$",
+        # The house's main fuse in amps, as set in the integration (its own grid protection uses it): Energy Pilot's
+        # import limit is set from it while that is still the 10 kW it starts with (autofix.py).
+        "fuse": r"number\..*_house_fuse_size$",
     },
     "alphaess": {
         "name": "Alpha ESS (cloud)",

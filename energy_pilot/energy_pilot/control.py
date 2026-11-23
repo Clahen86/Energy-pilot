@@ -337,15 +337,7 @@ class Controller:
     def max_power_kw(self, part: str = "battery") -> float | None:
         """The most the inverter lets the battery charge or discharge, in kW - a profile's "max_power" sensor (Kostal
         works it out from the battery's voltage and current), the anchor's own device first. None: none found."""
-        pat = (adapters.PROFILES.get(self.profile_key(part) or "") or {}).get("max_power")
-        if not pat:
-            return None
-        reg = getattr(self, "_ent_reg", None) or {}
-        dev = getattr(self, "battery_device", None) if part == "battery" else None
-        cands = sorted(e for e in self.ha.states if adapters.hit(pat, e))
-        own = [e for e in cands if dev and (reg.get(e) or {}).get("device_id") == dev]
-        e = (own or cands or [None])[0]
-        st = (self.ha.states.get(e) or {}) if e else {}
+        st = self._profile_state("max_power", part)
         try:
             v = float(st.get("state"))
         except (TypeError, ValueError):
@@ -353,6 +345,27 @@ class Controller:
         unit = str((st.get("attributes") or {}).get("unit_of_measurement") or "W")
         kw = v if unit.lower() == "kw" else v / 1000
         return round(kw, 2) if kw > 0 else None
+
+    def fuse_amps(self, part: str = "battery") -> float | None:
+        """The house's main fuse in amps as the inverter's integration knows it - a profile's "fuse" number (Kostal's
+        House Fuse Size, which its own grid protection uses), the anchor's own device first. None: none found."""
+        try:
+            v = float(self._profile_state("fuse", part).get("state"))
+        except (TypeError, ValueError):
+            return None
+        return v if 0 < v <= 1000 else None
+
+    def _profile_state(self, key: str, part: str = "battery") -> dict[str, Any]:
+        """The state of the entity a profile names under key (a pattern): the anchor's own device first, then any."""
+        pat = (adapters.PROFILES.get(self.profile_key(part) or "") or {}).get(key)
+        if not pat:
+            return {}
+        reg = getattr(self, "_ent_reg", None) or {}
+        dev = getattr(self, "battery_device", None) if part == "battery" else None
+        cands = sorted(e for e in self.ha.states if adapters.hit(pat, e))
+        own = [e for e in cands if dev and (reg.get(e) or {}).get("device_id") == dev]
+        e = (own or cands or [None])[0]
+        return (self.ha.states.get(e) or {}) if e else {}
 
     def ready(self, part: str = "battery") -> bool | None:
         """Is the inverter up and able to obey? A profile's "ready" (sensor pattern, state pattern) - a Kostal asleep
