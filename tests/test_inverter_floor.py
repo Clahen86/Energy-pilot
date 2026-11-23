@@ -17,6 +17,12 @@ def test_floors_found_without_restart_and_program():
     assert ("deye_inverter_battery_restart_soc", 30.0) in inverter_floors(STATES, ENTS, restart=True)
 
 
+def test_kostal_minimum_soc_limit_is_a_floor():
+    st = {"number.plenticore_l_g3_battery_minimum_soc_limit": {"state": "30", "attributes": {"unit_of_measurement": "%"}},
+          "number.plenticore_l_g3_battery_maximum_soc_limit": {"state": "90", "attributes": {"unit_of_measurement": "%"}}}
+    assert inverter_floors(st, list(st)) == [("plenticore_l_g3_battery_minimum_soc_limit", 30.0)]
+
+
 def _engine(mode="control"):
     ctl = SimpleNamespace(mode=lambda part: mode, entities={"battery": ENTS})
     return SimpleNamespace(ov=SimpleNamespace(controller=ctl, ha=SimpleNamespace(states=STATES)))
