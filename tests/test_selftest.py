@@ -126,3 +126,12 @@ def test_a_profile_that_cant_charge_from_the_grid_skips_that_step():
     res = {r["step"]: (r["result"], r.get("why")) for r in store["selftest"]["results"]}
     assert res["charge"] == ("skipped", "no_grid_charge") and res["hold"][0] == "ok" and res["normal"][0] == "ok"
     assert not any(d.get("option") == "Force Charge" for d in inv.sent)
+
+
+def test_a_step_without_controls_says_so_not_no_reaction():
+    """Sungrow and Solarman installs whose controls weren't found reported "no reaction" - nothing had been sent."""
+    steps = {**STEPS, "hold": [(r"select\..*battery_hold_mode$", "select", "On")]}  # not on this inverter
+    t, inv, store = make({"Self Use": 0, "Force Charge": 900, "Force Discharge": -800}, OPTS, steps)
+    run(t)
+    res = {r["step"]: (r["result"], r.get("why")) for r in store["selftest"]["results"]}
+    assert res["hold"] == ("failed", "no_controls") and res["charge"][0] == "ok"

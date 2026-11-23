@@ -2,6 +2,11 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.104.1 – 2026-11-23
+
+- Fox ESS through its cloud (the foxess integration) has its own profile: it was taken for Fox ESS Modbus by its names, so "Force Charge" was refused and charging and selling never worked. Charging and selling now go through Fox ESS's Mode Scheduler, and the scheduler is turned off before the work mode is changed
+- The self-test says "found no controls" when a step had nothing to send, instead of "no reaction" from the inverter
+
 ## 0.104.0 – 2026-11-23
 
 Finding your setup - learned from a Fox ESS house in the UK ("Export not shown") and the shared setups:

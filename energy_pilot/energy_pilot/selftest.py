@@ -305,6 +305,9 @@ class SelfTest:
     async def _step(self, part: str, intent: str, calls: list[dict[str, Any]], check: Any, wait_s: int,
                     base: dict[str, Any]) -> None:
         self._save(step={"part": part, "step": intent, "since": time.time()})
+        if not calls:  # nothing to send: the profile's controls weren't found - not "no reaction" from the inverter
+            self._result(part, intent, "failed", why="no_controls")
+            return
         sent = await self.ctl._send(calls, force=True)
         await self._wake(part, intent)
         ok, f = await self._watch(check, wait_s, base)
