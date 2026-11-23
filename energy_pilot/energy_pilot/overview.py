@@ -861,6 +861,17 @@ class Overview:
                 "price_min": min(prices) if prices else None, "price_max": max(prices) if prices else None,
                 "cheapest": sorted(h["t"] for h in cheapest)}
 
+    def _ready_hm(self, value: Any) -> Any:
+        """A "ready at" sensor as the local "HH:MM" the page shows: evcc's plan time is a whole timestamp in UTC
+        ("2026-11-24T06:30:00+00:00" - shown as "2026-" before). A helper's "07:30:00" or an unreadable value is left
+        as it is (the page shows its first five characters)."""
+        from .engine import ready_time
+
+        if not isinstance(value, str) or not re.match(r"\d{4}-\d{2}-\d{2}[T ]", value):
+            return value
+        hm = ready_time(value, datetime.now(ZoneInfo(self.ha.config.get("time_zone") or "UTC")))
+        return f"{hm[0]:02d}:{hm[1]:02d}" if hm else None
+
     def ev(self) -> dict[str, Any] | None:
         r, st = self.roles(), self.ha.states
         if not (r["ev_power"] or r["ev_plug"]):
@@ -873,7 +884,7 @@ class Overview:
 
         # Without helpers of its own, the car's buttons are Energy Pilot's (its settings).
         return {"manual": val("ev_manual") == "on" if r["ev_manual"] else bool(self.settings.get("ev_now")),
-                "ready": val("ev_ready") if r["ev_ready"] else self.settings.get("ev_ready"),
+                "ready": self._ready_hm(val("ev_ready")) if r["ev_ready"] else self.settings.get("ev_ready"),
                 "cap": _num(st.get(r["ev_cap"])) if r["ev_cap"] else self.settings.get("ev_need_kwh"),
                 "cap_max": ((st.get(r["ev_cap"]) or {}).get("attributes") or {}).get("max") if r["ev_cap"] else None,
                 "session_kwh": chargers.session(st, r["ev_session"], r["ev_plug"],
