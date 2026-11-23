@@ -524,6 +524,31 @@ PROFILES: dict[str, dict[str, Any]] = {
     # charge and discharge windows may not overlap. A discharge window is when the battery MAY discharge - so "hold"
     # is a discharge window far from now. The windows come from the clock (alpha_windows): charging from now for 4 h,
     # the parked windows 12 h away, each on its own quarter.
+    # Kostal Plenticore (hybrid G1-G3 and BI) through Kostal Plenticore Battery Control (mbuhansen/kostal_plenticore_
+    # battery_control, domain kostal_modbus_control). The inverter's battery management must be "External via protocol
+    # (Modbus TCP)". The four control switches are mutually exclusive in the integration (one on turns the others off),
+    # and the integration itself keeps the Modbus session alive while one is on - nothing to send again. All off hands
+    # the battery back to the inverter's own self-use; Block Discharge holds the SoC (the sun may still fill it); Charge
+    # Start / Discharge Start charge or discharge at the rate in watts. The integration waits Modbus timeout + 15 s
+    # after a stop before it writes again, so a change of intent takes up to a minute to show.
+    # With Predbat in an active control mode, Charge Start follows Predbat's best_charge_limit instead - Predbat must be
+    # off (checks.py warns about it).
+    "kostal_modbus_control": {
+        "name": "Kostal Plenticore (Modbus)",
+        "match": r"plenticore|kostal",
+        "normal": [(r"switch\..*_charge_start$", "off", None), (r"switch\..*_discharge_start$", "off", None),
+                   (r"switch\..*_block_charge$", "off", None), (r"switch\..*_block_discharge$", "off", None),
+                   (r"switch\..*_inverter_control$", "off", None)],
+        "hold": [(r"switch\..*_block_discharge$", "on", None)],
+        "charge": [(r"number\..*_set_charge_rate$", "number", "{power_w}"), (r"switch\..*_charge_start$", "on", None)],
+        # Selling from the battery (only when the user turns it on).
+        "export": [(r"number\..*_set_discharge_rate$", "number", "{power_w}"), (r"switch\..*_discharge_start$", "on", None)],
+        # The owner's own rates are put back after charging and selling.
+        "restore_charge": [r"number\..*_set_charge_rate$"],
+        "restore": [r"number\..*_set_discharge_rate$"],
+        # Inverter Control only exists while a grid power entity is set in the integration's options.
+        "optional": [r"switch\..*_inverter_control$"],
+    },
     "alphaess": {
         "name": "Alpha ESS (cloud)",
         "match": r"alpha_?ess",

@@ -99,6 +99,33 @@ def test_victron_ess():
     assert all("grid_setpoint" not in str(c) for i in steps for c in adapters.resolve(p[i], vic, CTX))  # his own setpoint stays
 
 
+def test_kostal_plenticore_battery_control():
+    kos = ["switch.plenticore_l_g3_charge_start", "switch.plenticore_l_g3_discharge_start",
+           "switch.plenticore_l_g3_block_charge", "switch.plenticore_l_g3_block_discharge",
+           "switch.plenticore_l_g3_ems_grid_protection", "number.plenticore_l_g3_set_charge_rate",
+           "number.plenticore_l_g3_set_discharge_rate", "number.plenticore_l_g3_battery_minimum_soc_limit"]
+    assert adapters.guess_profile(kos, {"kostal_modbus_control"}) == "kostal_modbus_control"
+    assert adapters.guess_profile(kos, set()) == "kostal_modbus_control"
+    p = adapters.PROFILES["kostal_modbus_control"]
+    steps = {i: p[i] for i in ("normal", "hold", "charge", "export")}
+    assert adapters.missing(adapters.check(steps, kos, p["optional"])) == []  # no grid entity: no Inverter Control
+    normal = adapters.resolve(p["normal"], kos, CTX)
+    assert {c["data"]["entity_id"] for c in normal} == {
+        "switch.plenticore_l_g3_charge_start", "switch.plenticore_l_g3_discharge_start",
+        "switch.plenticore_l_g3_block_charge", "switch.plenticore_l_g3_block_discharge"}
+    assert all(c["service"] == "turn_off" for c in normal)
+    assert adapters.resolve(p["hold"], kos, CTX) == [
+        {"domain": "switch", "service": "turn_on", "data": {"entity_id": "switch.plenticore_l_g3_block_discharge"}}]
+    charge = adapters.resolve(p["charge"], kos, CTX)
+    assert charge[0]["data"] == {"entity_id": "number.plenticore_l_g3_set_charge_rate", "value": 2400}
+    assert charge[-1] == {"domain": "switch", "service": "turn_on", "data": {"entity_id": "switch.plenticore_l_g3_charge_start"}}
+    export = adapters.resolve(p["export"], kos, CTX)
+    assert export[0]["data"] == {"entity_id": "number.plenticore_l_g3_set_discharge_rate", "value": 2400}
+    assert export[-1]["data"] == {"entity_id": "switch.plenticore_l_g3_discharge_start"}
+    # The grid protection is the owner's - never touched
+    assert all("ems_grid_protection" not in str(c) for i in steps for c in adapters.resolve(p[i], kos, CTX))
+
+
 def test_ecoflow_powerstream_gives_the_house_its_watts():
     eco = ["number.powerstream_rooster_custom_load_power_settings", "number.powerstream_rooster_max_charge_level",
            "number.powerstream_rooster_min_discharge_level"]
