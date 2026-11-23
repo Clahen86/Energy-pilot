@@ -334,6 +334,26 @@ class Controller:
         p = adapters.PROFILES.get(key or "")
         return {i: p[i] for i in ("normal", "hold", "charge", "export") if i in p} if p else None
 
+    def max_power_kw(self, part: str = "battery") -> float | None:
+        """The most the inverter lets the battery charge or discharge, in kW - a profile's "max_power" sensor (Kostal
+        works it out from the battery's voltage and current), the anchor's own device first. None: none found."""
+        pat = (adapters.PROFILES.get(self.profile_key(part) or "") or {}).get("max_power")
+        if not pat:
+            return None
+        reg = getattr(self, "_ent_reg", None) or {}
+        dev = getattr(self, "battery_device", None) if part == "battery" else None
+        cands = sorted(e for e in self.ha.states if adapters.hit(pat, e))
+        own = [e for e in cands if dev and (reg.get(e) or {}).get("device_id") == dev]
+        e = (own or cands or [None])[0]
+        st = (self.ha.states.get(e) or {}) if e else {}
+        try:
+            v = float(st.get("state"))
+        except (TypeError, ValueError):
+            return None
+        unit = str((st.get("attributes") or {}).get("unit_of_measurement") or "W")
+        kw = v if unit.lower() == "kw" else v / 1000
+        return round(kw, 2) if kw > 0 else None
+
     def ready(self, part: str = "battery") -> bool | None:
         """Is the inverter up and able to obey? A profile's "ready" (sensor pattern, state pattern) - a Kostal asleep
         at night first runs its start-up and grid checks, several minutes. None: the profile has no such sensor or it
@@ -521,8 +541,7 @@ class Controller:
 
         s = self.ov.settings
         more = batteries.extras(s)
-        c1 = float(s.get("battery_charge_kw") or 3)
-        d1 = float(s.get("battery_discharge_kw") or s.get("battery_charge_kw") or 3)
+        c1, d1 = batteries.main_kw(s, self.max_power_kw())
         cs = [c1] + [float(b.get("charge_kw") or 3) for b in more]
         ds = [d1] + [float(b.get("discharge_kw") or b.get("charge_kw") or 3) for b in more]
         packs = f.get("batteries") or []

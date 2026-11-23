@@ -552,6 +552,9 @@ PROFILES: dict[str, dict[str, Any]] = {
         # won't go below the minimum or above the maximum, whatever is asked - so the plan stays inside them too.
         # 5 % and 100 % mean "not in use" (the inverter's own), which changes nothing.
         "limits": (r"number\..*_battery_minimum_soc_limit$", r"number\..*_battery_maximum_soc_limit$"),
+        # The most the integration lets the battery charge or discharge (worked out from the battery's voltage and
+        # current, in W): the battery's power when none is set, and the cap on what is set.
+        "max_power": r"sensor\..*_battery_max_control_power$",
     },
     "alphaess": {
         "name": "Alpha ESS (cloud)",
