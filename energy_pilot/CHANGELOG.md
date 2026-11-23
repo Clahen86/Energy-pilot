@@ -2,6 +2,26 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.107.0 – 2026-11-23
+
+New brands:
+- SolaX Gen2/Gen3 and Growatt through SolaX Modbus - picked by their own controls, Gen4 and later keep their profile
+- Off-grid inverters through ESPHome (Growatt SPF, SRNE, Voltronic/MPP): grid or battery first, and charging from the grid
+- Luxpower / EG4 through MonitorMySolar, Zendure SolarFlow/Hyper (Zendure-HA), EcoFlow PowerOcean (local Modbus), Marstek Venus (local API), and Voltronic/Axpert over MQTT (chosen by hand)
+- Kostal (its own integration) and the old Solarman integration only read: a button now opens the integration that can control them
+
+Fixes:
+- Homes with Powerwall, Solis, GoodWe (SEMS) and a few others lost all their checks and warnings - two lists had the same name in the code
+- Huawei: charging from the grid turns on "Charge from grid" (and its limits) while it charges, and puts your own values back after
+- SolaX through Home Assistant's own integration (read only): says to install SolaX Modbus instead of failing
+- Wallbox: starting a charge no longer pauses the charger ("pause/resume" is on while charging)
+- A known charger (Wallbox, Zaptec, Peblar, Hypervolt …) keeps its own way to start and stop, also with its switch chosen by hand
+- The car's self-test is skipped when the car isn't plugged in, instead of counting as a fault
+
+Learning together:
+- The shared house model trained every night on the homes that share their hours can now be used as a third forecast. It is sent out only when it clearly beats the homes' own forecasts on days it hasn't seen, is checked before use, gets no say in a home for three weeks, and loses it again by itself if it misses. Until there's enough data, nothing changes
+- The shared start values for the nightly tuning now reach Energy Pilot (they were left out)
+
 ## 0.106.1 – 2026-11-23
 
 From the nightly self-test reports:
