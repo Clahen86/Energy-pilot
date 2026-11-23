@@ -151,8 +151,13 @@ def collect(states: dict[str, dict], entity_id: str | None, own: list[dict[str, 
         both = [k for k in mine if k in prices]
         offset = sum(prices[k] - mine[k] for k in both) / len(both) if both else 0.0
         last = max(prices)
+        # The last known price holds for its whole slot: an hourly price at 23:00 covers up to midnight. Own prices in
+        # quarters (23:15, 23:30, 23:45) were taken for missing hours - and the plan said tomorrow was estimated.
+        keys = sorted(prices)
+        step = min((b - a for a, b in zip(keys, keys[1:]) if b > a), default=timedelta(hours=1))
+        covered = last + min(step, timedelta(hours=1))
         for k, v in mine.items():
-            if k > last:
+            if k >= covered:
                 prices[k] = round(v + offset, 4)
                 # Counted only where the plan shows it: with all of tomorrow known, the spot prices reaching into the
                 # day after are no "tomorrow estimated" (the note said so while every hour of tomorrow was known).
