@@ -43,6 +43,22 @@ def _ctl(state):
     return c
 
 
+def test_two_kostals_on_one_integration_use_the_soc_sensors_own():
+    """A Plenticore Plus (sorts first: "plenticore_a…") next to the G3: the G3's switches are used, not the other's."""
+    g3 = ["sensor.plenticore_l_g3_battery_soc", "switch.plenticore_l_g3_charge_start", "switch.plenticore_l_g3_block_discharge",
+          "switch.plenticore_l_g3_discharge_start", "switch.plenticore_l_g3_block_charge", "number.plenticore_l_g3_set_charge_rate"]
+    other = ["switch.plenticore_a_plus_charge_start", "switch.plenticore_a_plus_block_discharge",
+             "switch.plenticore_a_plus_discharge_start", "switch.plenticore_a_plus_block_charge", "number.plenticore_a_plus_set_charge_rate"]
+    reg = [{"entity_id": e, "platform": "kostal_modbus_control", "device_id": "g3"} for e in g3]
+    reg += [{"entity_id": e, "platform": "kostal_modbus_control", "device_id": "plus"} for e in other]
+    c = Controller(HA({e: {"state": "off"} for e in g3 + other}, reg), OV(), None)
+    asyncio.run(c.discover())
+    calls = c.calls("battery", {"intent": "hold", "ctx": {}})
+    assert [x["data"]["entity_id"] for x in calls] == ["switch.plenticore_l_g3_block_discharge"]
+    charge = c.calls("battery", {"intent": "charge", "ctx": {"power_w": 2000}})
+    assert {x["data"]["entity_id"] for x in charge} == {"number.plenticore_l_g3_set_charge_rate", "switch.plenticore_l_g3_charge_start"}
+
+
 def test_kostal_waits_for_feed_in():
     assert _ctl("0").profile_key() == "kostal_modbus_control"
     assert _ctl("0").ready() is False  # Off

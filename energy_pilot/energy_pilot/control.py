@@ -203,7 +203,10 @@ class Controller:
                 # and numbers without a device - picked up by their fixed names.
                 found += [e["entity_id"] for e in entities if not e.get("disabled_by") and e["entity_id"] not in found
                           and YAML_CONTROLS.match(e["entity_id"])]
-            self.entities[part], self.platforms[part] = sorted(found), plat
+            # The anchor's own device first: with two inverters on one integration (a Kostal G3 and a Plenticore Plus)
+            # a profile's pattern then finds this one's controls, not whichever sorts first.
+            own = {e["entity_id"] for e in entities if dev and e.get("device_id") == dev}
+            self.entities[part], self.platforms[part] = sorted(found, key=lambda e: (e not in own, e)), plat
             if part == "car":
                 self.car_device = dev  # Easee's actions want the charger's device
                 self.lone_ok["car"] = bool(dev)

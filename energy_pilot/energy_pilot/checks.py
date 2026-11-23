@@ -299,8 +299,9 @@ def house_history(engine: Any, st: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 # The inverter's own lowest battery level: below it the inverter won't discharge, whatever is asked (Deye's
-# "Battery Low SOC" and "Shutdown SOC", Solis' over-discharge SOC, SolaX' "Selfuse Discharge Min SOC" ...).
-FLOOR = re.compile(r"(low|shut_?down|cut_?off|over_?discharge|discharge_?min|min_?discharge|end_?of_?discharge)[a-z_]*soc|soc[a-z_]*(low|min|cut_?off|shut_?down)$", re.I)
+# "Battery Low SOC" and "Shutdown SOC", Solis' over-discharge SOC, SolaX' "Selfuse Discharge Min SOC", Kostal's
+# "Battery minimum SoC limit" ...).
+FLOOR = re.compile(r"(low|minimum|shut_?down|cut_?off|over_?discharge|discharge_?min|min_?discharge|end_?of_?discharge)[a-z_]*soc|soc[a-z_]*(low|min|cut_?off|shut_?down)$", re.I)
 RESTART = re.compile(r"restart[a-z_]*soc|soc[a-z_]*restart", re.I)
 NOT_FLOOR = re.compile(r"program_|time_point|energ(i|y)_?pilot|charg(e|ing)_(soc|start)|max", re.I)
 
