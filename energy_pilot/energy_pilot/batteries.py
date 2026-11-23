@@ -23,6 +23,20 @@ def extras(settings: dict[str, Any]) -> list[dict[str, Any]]:
     return [b for b in (settings.get("batteries") or []) if isinstance(b, dict) and b.get("soc")]
 
 
+def main_kw(settings: dict[str, Any], top: float | None = None) -> tuple[float, float]:
+    """(charge, discharge) kW of the main battery: as set, else what the inverter says it can (top, a Kostal's "Battery
+    Max Control Power"), else 3. Never above top - the inverter clamps to it anyway, and a value typed in watts
+    (11599.9 "kW") is caught that way too."""
+    try:
+        charge = float(settings.get("battery_charge_kw") or top or 3)
+        discharge = float(settings.get("battery_discharge_kw") or settings.get("battery_charge_kw") or top or 3)
+    except (TypeError, ValueError):
+        charge = discharge = float(top or 3)
+    if top:
+        charge, discharge = min(charge, top), min(discharge, top)
+    return charge, discharge
+
+
 def _num(s: dict[str, Any] | None) -> float | None:
     try:
         return float((s or {}).get("state"))

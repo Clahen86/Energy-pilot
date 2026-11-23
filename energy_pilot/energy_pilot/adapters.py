@@ -548,6 +548,9 @@ PROFILES: dict[str, dict[str, Any]] = {
         # Asleep at night ("Off") the inverter first runs StartUp and GridCheck before it charges - up to ~10 min.
         # The self-test waits for FeedIn (state 6) before it judges.
         "ready": (r"sensor\..*_inverter_state$", r"^(6|FeedIn)$"),
+        # The most the integration lets the battery charge or discharge (worked out from the battery's voltage and
+        # current, in W): the battery's power when none is set, and the cap on what is set.
+        "max_power": r"sensor\..*_battery_max_control_power$",
     },
     "alphaess": {
         "name": "Alpha ESS (cloud)",
