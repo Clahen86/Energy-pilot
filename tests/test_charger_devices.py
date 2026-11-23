@@ -12,16 +12,19 @@ def test_evcc_loadpoint_and_not_its_site():
         ("sensor.evcc_garage_charge_power", "lp"), ("binary_sensor.evcc_garage_connected", "lp"),
         ("sensor.evcc_garage_charged_energy", "lp"), ("sensor.evcc_garage_vehicle_soc", "lp"),
         ("sensor.evcc_garage_charge_total_import", "lp"), ("sensor.evcc_garage_charge_remaining_energy", "lp"),
+        ("sensor.evcc_garage_plan_time", "lp"), ("sensor.evcc_garage_effective_plan_time", "lp"),
         ("sensor.evcc_battery_power", "site"), ("sensor.evcc_grid_power", "site"))]
     states = {"sensor.evcc_garage_charge_power": _st("power", "kW"), "binary_sensor.evcc_garage_connected": _st(),
               "sensor.evcc_garage_charged_energy": _st("energy", "kWh"), "sensor.evcc_garage_vehicle_soc": _st(None, "%"),
               "sensor.evcc_garage_charge_total_import": _st("energy", "kWh"),
               "sensor.evcc_garage_charge_remaining_energy": _st(None, "kWh"),
+              "sensor.evcc_garage_plan_time": _st("timestamp"), "sensor.evcc_garage_effective_plan_time": _st("timestamp"),
               "sensor.evcc_battery_power": _st("power", "W"), "sensor.evcc_grid_power": _st("power", "W")}
     found = charger_devices(ents, {"lp": {"name": "Garage"}, "site": {"name": "evcc"}}, states)
     assert found == [{"device_id": "lp", "name": "Garage", "platform": "evcc_intg", "roles": {
         "ev_power": "sensor.evcc_garage_charge_power", "ev_plug": "binary_sensor.evcc_garage_connected",
-        "ev_session": "sensor.evcc_garage_charged_energy", "ev_soc": "sensor.evcc_garage_vehicle_soc"}}]
+        "ev_session": "sensor.evcc_garage_charged_energy", "ev_soc": "sensor.evcc_garage_vehicle_soc",
+        "ev_ready": "sensor.evcc_garage_effective_plan_time"}}]
 
 
 def test_easee_and_a_cars_own_plug_is_never_taken():
