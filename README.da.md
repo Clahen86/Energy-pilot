@@ -43,7 +43,13 @@
 4. Genstart Home Assistant én gang. Så kommer *Energipilot* under *Enheder og tjenester* med knapper og sensorer.
 
 **Docker (Home Assistant Container/Core):** se [`docker/docker-compose.yml`](docker/docker-compose.yml). Giv den din
-Home Assistant-adresse og et langtidsadgangstoken, og åbn `http://<vært>:8099`.
+Home Assistant-adresse og et langtidsadgangstoken, og åbn `http://<vært>:8099`.Panelet beder om en adgangskode (vilkårligt
+brugernavn): vælg din egen med `EP_PASSWORD`, eller brug den, der skrives i loggen ved første start. Ændringer tages
+kun imod som JSON fra panelet selv, så en anden hjemmeside kan ikke sende dem.
+
+**Hvad add-on'en kan nå:** sin egen mappe og din Home Assistant-konfigurationsmappe – for at lægge følgeintegrationen i
+`custom_components/energy_pilot` og dashboard-kortet i `www/energipilot`. Den læser ikke andet der. Den taler med Home
+Assistant gennem Supervisor ligesom andre add-ons. Automatisk opdatering er dit valg – den foreslår det kun.
 
 ## Sådan virker den
 
@@ -232,15 +238,22 @@ Ja – det er det, skygge er til. Den styrer aldrig en del, som et andet system 
 
 <details><summary><b>Sender den data nogen steder hen?</b></summary>
 
-To ting, begge privat til udvikleren:
+Kun til udvikleren, og kun det, der står her. Hver installation har et tilfældigt id, som appen selv laver.
 
-- **Lær sammen** (slået til, medmindre du slår det fra under *Indstillinger*): én gang i døgnet en lille anonym linje –
+- **Lær sammen** (slået til, medmindre du slår det fra under *Indstillinger*): én gang i døgnet en lille linje –
   version, land, hvilken inverter/lader/priskilde, hvad huset har, Skygge eller Styrer, sparet denne måned (afrundet) –
-  plus testresultater, hvad den har rettet selv, og fejl i appen. Når tre hjem med samme inverter finder samme
-  rettelse, får alle med den inverter den. Den sender også **hvordan den er sat op**, så mærkeprofilerne kan rettes: for
-  inverter, batteri og lader integrationen, mærke og model, hvilke entiteter der bruges og til hvad (uden dit eget
-  enhedsnavn – `select.<enhed>_export_limiter`), deres værdier, og hvad der fejlede. **Aldrig** navne på personer,
-  adresse, placering eller forbrug time for time.
+  plus testresultater, hvad den har rettet selv, og fejl i appen. Den sender også **hvordan den er sat op**, så
+  mærkeprofilerne kan rettes: for inverter, batteri og lader integrationen, mærke og model, hvilke entiteter der bruges
+  og til hvad (uden dit eget enhedsnavn – `select.<enhed>_export_limiter`), deres værdier, og hvad der fejlede. Aldrig
+  navne på personer, adresse, område eller forbrug time for time.
+- **Del time for time og område** (slået fra, indtil du siger ja – forsiden spørger én gang, og det ligger under
+  *Indstillinger*): gårsdagens forbrug, sol, batteriniveau og pris time for time, og hvert kvarter din sol mod prognosen
+  og om nettet er nede, for et område på ca. 10 km. Til gengæld rettes solprognosen af naboernes sol, du får besked,
+  når strømmen går i nærheden, og prognoserne bliver bedre for alle. Forbrug time for time kan vise, hvornår nogen er
+  hjemme – derfor er det dit valg.
+- **Fælles rettelser**: når tre hjem med samme inverter finder samme rettelse i selvtesten, går den først til
+  udvikleren. Først når den er godkendt, får alle med den inverter den – og en fælles rettelse kan aldrig vende
+  opladning til salg eller omvendt eller vælge en tilstand, der kan tage huset af nettet.
 - **Del min opsætning** (slået fra, medmindre du slår det til under *Indstillinger*): så sendes de fulde entity-navne på
   inverter, batteri og lader også.
 - **Få hjælp** – kun når du trykker, og du ser præcis, hvad der sendes, først: testresultatet, dine indstillinger (uden

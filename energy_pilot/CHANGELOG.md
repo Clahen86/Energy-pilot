@@ -2,6 +2,22 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.105.0 – 2026-11-23
+
+Safety and honesty - after a careful review of the code by a user:
+- Yesterday's use hour by hour and your area (about 10 km) are sent only when you say yes. The front page asks once and tells you what you get for it (the sun forecast corrected by your neighbours' sun, a warning when the power is out nearby, better forecasts for everyone). It's under Settings too
+- Shared fixes go out only once the developer has approved them, and a shared fix can never turn charging into selling or the other way round, or pick a mode that could take the house off the grid
+- Changes are only taken as JSON from the panel itself, so another web page can't turn control on or change the settings
+- Docker: the panel asks for a password (EP_PASSWORD, or one written to the log at the first start)
+- The add-on no longer reads other add-ons' configuration
+- The README says exactly what is sent, and what the add-on may reach
+
+Plan:
+- A big battery covers the whole house in the plan, not one 2 % step of it with the rest bought (#45, thanks @mbuhansen)
+- No "tomorrow's prices are estimated" when all of tomorrow is known (#46, thanks @mbuhansen)
+- Charging hours on the chart can be tapped again (#47, thanks @mbuhansen)
+- Plan → "Detailed plan": hour by hour what the battery does, bought and sold, and the cost (#48, thanks @mbuhansen)
+
 ## 0.104.2 – 2026-11-23
 
 - Sungrow (mkaiser Modbus): back to self-consumption, the forced charge/discharge command is set to "Stop (default)" too, as mkaiser's own scene does. Left on "Forced charge", the battery kept charging from the grid after a charge (#42)

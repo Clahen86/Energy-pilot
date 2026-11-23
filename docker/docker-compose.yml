@@ -10,6 +10,8 @@ services:
       HA_URL: "http://homeassistant.local:8123"   # your Home Assistant
       HA_TOKEN: "paste a long-lived access token"  # Profile -> Security -> Long-lived access tokens
       TZ: "Europe/Copenhagen"
+      # EP_PASSWORD: "your own password"          # the panel asks for it (any user name); left out: one is made and written to the log
+      # Companion integration in Docker: give it the address with the password, http://ep:<password>@<host>:8099
     volumes:
       - ./energy-pilot-data:/data            # what it learns and your settings
       - /path/to/homeassistant/config:/homeassistant   # optional: installs the cards and the companion integration

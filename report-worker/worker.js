@@ -46,6 +46,7 @@ export default {
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname === "/fixes") return fixes(env);
     if (request.method === "GET" && url.pathname === "/stats") return stats(url, env);
+    if (request.method === "GET" && url.pathname === "/approve") return approve(url, env);
     if (request.method === "GET" && url.pathname === "/export") return exportHours(url, env);
     if (request.method === "GET") return json({ ok: true, service: "energy-pilot-reports" });
     if (request.method !== "POST") return json({ error: "method" }, 405);
@@ -152,6 +153,9 @@ async function schema(env) {
   ]);
   try { await env.DB.prepare("ALTER TABLE seen ADD COLUMN version TEXT").run(); } catch { /* there already */ }
   try { await env.DB.prepare("ALTER TABLE tests ADD COLUMN version TEXT").run(); } catch { /* there already */ }
+  // A confirmed fix goes out only once the developer has approved it (stats page): an install id is just text the app
+  // makes, so "3 homes" could be one person - and a fix could otherwise turn charging into selling for every home.
+  try { await env.DB.prepare("ALTER TABLE confirmed ADD COLUMN approved INTEGER DEFAULT 0").run(); } catch { /* there already */ }
   schemaReady = true;
 }
 
@@ -200,7 +204,7 @@ async function telemetry(request, env, app = "energy-pilot") {
         const fresh = await db.prepare("INSERT OR IGNORE INTO confirmed (profile, intent, opt_from, opt_to, day) VALUES (?1, ?2, ?3, ?4, ?5)").bind(...key, day).run();
         if (fresh.meta?.changes) {
           await github(env)("issues", "POST", { title: `⚡ Energy Pilot: 🔧 confirmed fix ${key[0]} · ${key[1]}: ${key[2]} → ${key[3]}`, labels: ["energy-pilot", "confirmed-fix"],
-            body: `${n} installations with profile \`${key[0]}\` found that **${key[1]}** works with \`${key[3]}\` instead of \`${key[2]}\`.\n\nEvery installation with this profile now gets it. Put it in the profile in \`adapters.py\` so new users have it from the start.` });
+            body: `${n} installations with profile \`${key[0]}\` found that **${key[1]}** works with \`${key[3]}\` instead of \`${key[2]}\`.\n\nIt is handed out only once approved on the stats page ("Fixes to approve"). Check it first, then put it in the profile in \`adapters.py\` so new users have it from the start.` });
         }
       }
     }
@@ -238,13 +242,24 @@ async function telemetry(request, env, app = "energy-pilot") {
   return json({ ok: true });
 }
 
+// The developer approves (or drops) a confirmed fix from the stats page - only approved ones are handed out.
+async function approve(url, env) {
+  if (!env.STATS_KEY || url.searchParams.get("key") !== env.STATS_KEY) return new Response("Not found", { status: 404 });
+  await schema(env);
+  const p = url.searchParams, key = [p.get("profile"), p.get("intent"), p.get("from"), p.get("to")];
+  if (key.some((x) => !x)) return new Response("Missing", { status: 400 });
+  if (p.get("no") === "1") await env.DB.prepare("DELETE FROM confirmed WHERE profile = ?1 AND intent = ?2 AND opt_from = ?3 AND opt_to = ?4").bind(...key).run();
+  else await env.DB.prepare("UPDATE confirmed SET approved = 1 WHERE profile = ?1 AND intent = ?2 AND opt_from = ?3 AND opt_to = ?4").bind(...key).run();
+  return Response.redirect(`${url.origin}/stats?key=${encodeURIComponent(env.STATS_KEY)}`, 302);
+}
+
 async function fixes(env) {
   if (!env.DB) return json({ fixes: [], tested: {} });
   // Emergency stop: the variable COMMON_OFF = 1 (Cloudflare: Settings > Variables) hands out no shared knowledge at
   // all - every Energy Pilot drops what it had at its next daily fetch and runs on its own learning.
   const off = String(env.COMMON_OFF || "") === "1";
   await schema(env);
-  const f = await env.DB.prepare("SELECT profile, intent, opt_from AS 'from', opt_to AS 'to' FROM confirmed").all();
+  const f = await env.DB.prepare("SELECT profile, intent, opt_from AS 'from', opt_to AS 'to' FROM confirmed WHERE approved = 1").all();
   const t = await env.DB.prepare("SELECT profile, SUM(ok) AS ok, COUNT(*) AS n FROM tests GROUP BY profile").all();
   const tested = Object.fromEntries((t.results || []).map((r) => [r.profile, { ok: r.ok, n: r.n }]));
   // orders that worked in daily control, per profile: how many installations saw each (last 60 days)
@@ -828,7 +843,9 @@ async function stats(url, env) {
     : await q("SELECT profile, part, SUM(ok) AS ok, COUNT(*) AS n, GROUP_CONCAT(failed, ' / ') AS failed, GROUP_CONCAT(COALESCE(version, '?')) AS vers FROM tests GROUP BY profile, part ORDER BY n DESC LIMIT 30");
   const verChips = (list, nv) => { const c = {}; for (const v of list) c[v] = (c[v] || 0) + 1;
     return Object.entries(c).sort((a, b) => b[1] - a[1]).map(([v, n]) => `<span class="vtag${v === nv ? " ok" : ""}">${esc(v)}${n > 1 ? " ×" + n : ""}</span>`).join(""); };
-  const fixesN = (await q("SELECT COUNT(*) AS n FROM confirmed"))[0]?.n || 0;
+  const fixesN = (await q("SELECT COUNT(*) AS n FROM confirmed WHERE approved = 1"))[0]?.n || 0;
+  const waiting = await q("SELECT profile, intent, opt_from, opt_to, day FROM confirmed WHERE COALESCE(approved, 0) = 0 ORDER BY day DESC LIMIT 20");
+  const apLink = (f, no) => `/approve?key=${encodeURIComponent(env.STATS_KEY)}&profile=${encodeURIComponent(f.profile)}&intent=${encodeURIComponent(f.intent)}&from=${encodeURIComponent(f.opt_from)}&to=${encodeURIComponent(f.opt_to)}${no ? "&no=1" : ""}`;
   const mended = await q("SELECT key, COUNT(*) AS n FROM autofix GROUP BY key ORDER BY n DESC LIMIT 12");
   const errs = await q("SELECT e.hash, e.text, e.count, e.version, e.last_seen, (SELECT COUNT(*) FROM error_installs i WHERE i.hash = e.hash) AS installs, (SELECT issue FROM error_issues x WHERE x.hash = e.hash) AS issue FROM errors e WHERE e.last_seen >= ?1 ORDER BY installs DESC, e.count DESC LIMIT 25", ago(30));
   const appOf = (h) => Object.keys(APPS).find((k) => k !== "energy-pilot" && APPS[k].prefix && h.startsWith(APPS[k].prefix)) || "energy-pilot";
@@ -845,6 +862,7 @@ async function stats(url, env) {
 <div class="row"><i>Home Assistant</i>${tally(epv, (d) => d.ha)}</div><div class="row"><i>Countries</i>${tally(epv, (d) => d.country)}</div><div class="row"><i>Languages</i>${tally(epv, (d) => d.lang)}</div>
 <div class="row"><i>Has</i><span class="ch">battery <b>${has("battery")}</b></span><span class="ch">car <b>${has("car")}</b></span><span class="ch">solar <b>${has("pv")}</b></span><span class="ch">controlling <b>${epv.filter((r) => Object.values(r.d.modes || {}).includes("control")).length}</b></span></div>
 <div class="row"><i>Saved / month (avg)</i><span class="ch"><b>${avg(epv, (d) => d.saved_month)}</b></span><i style="margin-left:12px">Battery kWh (avg)</i><span class="ch"><b>${avg(epv, (d) => d.battery_kwh)}</b></span></div>
+${waiting.length ? `<div class="row"><i>Fixes to approve</i>${waiting.map((f) => `<span class="ch">${esc(f.profile)} · ${esc(f.intent)}: ${esc(f.opt_from)} → ${esc(f.opt_to)} <a href="${apLink(f)}">approve</a> · <a href="${apLink(f, true)}">drop</a></span>`).join("")}</div>` : ""}
 <div class="row"><i>Fixes confirmed</i><span class="ch"><b>${fixesN}</b></span><i style="margin-left:12px">Mended by itself</i>${mended.map((m) => `<span class="ch">${esc(m.key)} <b>${m.n}</b></span>`).join("") || "–"}</div></div>
 <h3>Self-test</h3><table><tr><th>Inverter</th><th>Part</th><th class="n">Passed</th><th>What failed</th><th>Versions</th></tr>${tests.map((t) => `<tr><td>${esc(t.profile)}</td><td>${esc(t.part)}</td><td class="n">${t.ok} / ${t.n}</td><td class="sm">${esc((t.failed || "").slice(0, 140))}</td><td class="sm">${verChips(String(t.vers || "").split(","), newest["energy-pilot"])}</td></tr>`).join("") || `<tr><td colspan="5">–</td></tr>`}</table>
 <h2>🍽️ Madplan · ${mp.length} active</h2><div class="card">

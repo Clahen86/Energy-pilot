@@ -57,6 +57,24 @@ YAML_CONTROLS = re.compile(r"^(select\.(ems_mode|battery_forced_charge_discharge
                            r"max_charge_power|max_discharge_power|min_soc|max_soc))$")
 
 
+
+# A shared fix (from other installations) may only name the same kind of mode: never the other way (charging made
+# discharging or selling, or back), and never a mode that could take the house off the grid or stop the inverter.
+_OUT = re.compile(r"dis.?charg|export|sell|feed|discharge", re.I)
+_IN = re.compile(r"(?<!dis)(?<!dis_)(?<!dis-)(?<!dis )charg|import|buy", re.I)
+
+
+def safe_shared_fix(intent: str, frm: str, to: str) -> bool:
+    from .selftest import UNSAFE
+
+    if UNSAFE.search(to):
+        return False
+    if intent in ("charge", "hold", "normal", "start") and _OUT.search(to) and not _OUT.search(frm):
+        return False
+    if intent in ("export", "stop") and _IN.search(to) and not _IN.search(frm):
+        return False
+    return True
+
 class Controller:
     def __init__(self, ha: Any, overview: Any, engine: Any) -> None:
         self.ha, self.ov, self.engine = ha, overview, engine
@@ -921,7 +939,8 @@ class Controller:
                 c = {**c, "data": {**c["data"], "option": fx[e]["to"]}}
             elif c.get("service") == "select_option":
                 opts = ((self.ha.states.get(e) or {}).get("attributes") or {}).get("options") or []
-                hit = next((f for f in shared if f.get("from") == c["data"].get("option") and f.get("to") in opts), None)
+                hit = next((f for f in shared if f.get("from") == c["data"].get("option") and f.get("to") in opts
+                            and safe_shared_fix(intent, str(f.get("from")), str(f.get("to")))), None)
                 if hit:
                     c = {**c, "data": {**c["data"], "option": hit["to"]}}
                     self.__dict__.setdefault("community_used", {})[f"{intent}|{hit['from']}|{hit['to']}"] = {"intent": intent, "from": hit["from"], "to": hit["to"]}

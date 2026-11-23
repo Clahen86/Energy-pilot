@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import hmac
 import logging
 import os
+import secrets
 
 from datetime import datetime
 from pathlib import Path
@@ -62,8 +65,53 @@ def _tested(overview: Overview) -> dict | None:
     return {"result": worst, "running": running, "report_url": t.report_url() if res and worst == "failed" else None}
 
 
-def make_app(runner: Runner, overview: Overview) -> web.Application:
-    app = web.Application(client_max_size=10 * 1024 * 1024)  # "Get help" may carry a few pictures
+def panel_password(data_dir: Path) -> str | None:
+    """In Docker the panel is on its own port with no login in front: it gets a password (EP_PASSWORD, or one made
+    once and written to the log). The add-on is reached only through Home Assistant's own login (ingress)."""
+    if os.environ.get("SUPERVISOR_TOKEN"):
+        return None
+    if pw := os.environ.get("EP_PASSWORD"):
+        return pw
+    f = data_dir / "panel_password"
+    try:
+        pw = f.read_text().strip()
+    except OSError:
+        pw = ""
+    if not pw:
+        pw = secrets.token_urlsafe(12)
+        try:
+            f.write_text(pw)
+        except OSError:
+            pass
+    logging.getLogger(__name__).warning("Panel password (any user name; set EP_PASSWORD to choose your own): %s", pw)
+    return pw
+
+
+def _auth_ok(header: str | None, password: str) -> bool:
+    if not header or not header.lower().startswith("basic "):
+        return False
+    try:
+        given = base64.b64decode(header[6:]).decode().split(":", 1)[1]
+    except (ValueError, IndexError, UnicodeDecodeError):
+        return False
+    return hmac.compare_digest(given.encode(), password.encode())
+
+
+def guard(password: str | None) -> object:
+    @web.middleware
+    async def middleware(req: web.Request, handler: object) -> web.StreamResponse:
+        if password and not _auth_ok(req.headers.get("Authorization"), password):
+            return web.Response(status=401, headers={"WWW-Authenticate": 'Basic realm="Energy Pilot"'})
+        # Changes only as JSON: a web page elsewhere can't send that without the browser asking first (CORS), and it
+        # is never allowed - so a page someone in the house opens can't turn control on or change the settings.
+        if req.method not in ("GET", "HEAD", "OPTIONS") and req.content_type != "application/json":
+            return web.json_response({"error": "json_only"}, status=415)
+        return await handler(req)
+    return middleware
+
+
+def make_app(runner: Runner, overview: Overview, password: str | None = None) -> web.Application:
+    app = web.Application(client_max_size=10 * 1024 * 1024, middlewares=[guard(password)])  # "Get help" may carry a few pictures
 
     def lang(req: web.Request) -> str:
         code = str(req.query.get("lang", overview.settings.get("language") or "da"))[:2].lower()
@@ -78,6 +126,8 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
         c = overview.controller
         data["in_control"] = [p for p in c.parts() if c.mode(p) == "control"] if c else []  # Energy Pilot's own parts
         data["setup_done"] = bool(overview.settings.get("setup_done"))
+        # the front page asks once whether to share hour by hour (None: not answered yet)
+        data["share_hours"] = overview.settings.get("share_hours") if overview.settings.get("share_anonymous", True) is not False else False
         data["currency"] = runner.ha.config.get("currency") or "EUR"
         data["price_info"] = overview.price_info
         if overview.engine:

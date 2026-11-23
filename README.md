@@ -43,7 +43,14 @@ One app for Home Assistant that finds what you have, learns your home and gets b
 4. Restart Home Assistant once. *Energipilot* then appears under *Devices & services* with buttons and sensors.
 
 **Docker (Home Assistant Container/Core):** see [`docker/docker-compose.yml`](docker/docker-compose.yml). Give it your
-Home Assistant address and a long-lived access token, and open `http://<host>:8099`.
+Home Assistant address and a long-lived access token, and open `http://<host>:8099`. The panel asks for a password
+(any user name): set your own with `EP_PASSWORD`, or use the one written to the log at the first start. Changes are
+only taken as JSON from the panel itself, so another web page can't send them.
+
+**What the add-on may reach:** its own folder, and your Home Assistant configuration folder – to put the companion
+integration in `custom_components/energy_pilot` and the dashboard card in `www/energipilot`. It reads nothing else
+there. It talks to Home Assistant through the Supervisor, like other add-ons. Auto update is your choice – it only
+suggests it.
 
 ## How it works
 
@@ -239,15 +246,22 @@ Yes – that's what shadow is for. It never controls a part another system contr
 
 <details><summary><b>Does it send any data?</b></summary>
 
-Two things, both private to the developer:
+Only to the developer, and only what is listed here. Each install has a random id the app makes itself.
 
-- **Learning together** (on unless you turn it off under *Settings*): once a day a small anonymous line – version,
+- **Learning together** (on unless you turn it off under *Settings*): once a day a small line – version,
   country, which inverter/charger/price source, what your house has, Shadow or Control, savings this month (rounded)
-  – plus self-test results, what it mended by itself, and errors in the app. When three homes with the same inverter
-  find the same fix, everyone with that inverter gets it. It also sends **how it is set up**, so the brand profiles can
-  be fixed: for the inverter, battery and charger the integration, maker and model, which entities are used and what
-  for (with your own device name taken out – `select.<device>_export_limiter`), their values, and what failed.
-  **Never** names of people, address, location or your use hour by hour.
+  – plus self-test results, what it mended by itself, and errors in the app. It also sends **how it is set up**, so
+  the brand profiles can be fixed: for the inverter, battery and charger the integration, maker and model, which
+  entities are used and what for (with your own device name taken out – `select.<device>_export_limiter`), their
+  values, and what failed. Never names of people, address, area or your use hour by hour.
+- **Share hour by hour and area** (off until you say yes – the front page asks once, and it's under *Settings*):
+  yesterday's use, sun, battery level and price hour by hour, and every quarter hour your sun against its forecast and
+  whether the grid is down, for an area of about 10 km. In return the sun forecast is corrected by your neighbours'
+  sun, you're told when the power is out nearby, and the forecasts get better for everyone. Use hour by hour can tell
+  when someone is home – that's why it's your choice.
+- **Shared fixes**: when three homes with the same inverter find the same fix in their self-test, it goes to the
+  developer first. Only once approved does everyone with that inverter get it – and a shared fix can never turn
+  charging into selling or the other way round, or pick a mode that could take the house off the grid.
 - **Share my setup** (off unless you turn it on, under *Settings*): the full entity names of the inverter, battery and
   charger are sent too.
 - **Get help** – only when you press it, and you see exactly what is sent first: the test result, your settings (no

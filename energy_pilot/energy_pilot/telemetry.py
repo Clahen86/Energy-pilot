@@ -64,6 +64,12 @@ class Telemetry:
     def on(self) -> bool:
         return bool(self.url) and self.ov.settings.get("share_anonymous", True) is not False
 
+    @property
+    def hours_on(self) -> bool:
+        """Yesterday hour by hour and the ~10 km area (the sky network, neighbours' grid tariff): only when the user
+        has said yes to it themselves (the card on the front page, or Settings) - it tells when someone is home."""
+        return self.on and self.ov.settings.get("share_hours") is True
+
     # ---------- sending ----------
     async def _post(self, kind: str, payload: dict[str, Any]) -> bool:
         if not self.on:
@@ -155,8 +161,9 @@ class Telemetry:
                     from . import skynet
 
                     # the grid tariff the user typed in, for neighbours with the same grid company (public prices)
-                    learned["tariff"] = {k: round(float(tf[k]), 3) for k in ("low", "high", "peak")}
-                    learned["cell"] = skynet.cell(*home)
+                    if self.hours_on:  # the area only with the user's yes
+                        learned["tariff"] = {k: round(float(tf[k]), 3) for k in ("low", "high", "peak")}
+                        learned["cell"] = skynet.cell(*home)
                 if tp := eng.batt_learn.taper():
                     learned["taper"] = [[float(lvl), float(sh)] for lvl, sh in tp]
                 t = ls.get("tune") or {}
@@ -455,7 +462,7 @@ class Telemetry:
                 if self.on and now - float(self.ov.settings.get("telemetry_sent") or 0) >= DAY_S:
                     if await self._post("daily", {"data": self.daily()}):
                         self.ov.save({"telemetry_sent": now})
-                if self.on:
+                if self.hours_on:
                     await self.send_hours()
                 if self.url and now - float((self.ov.settings.get("community") or {}).get("t") or 0) >= DAY_S:
                     await self.fetch_fixes()
@@ -497,7 +504,7 @@ class Telemetry:
             try:
                 eng = getattr(self.ov, "engine", None)
                 home = eng.home() if eng else None
-                if self.on and home:
+                if self.hours_on and home:
                     states = self.ov.ha.states
                     volt = volt or skynet.grid_voltage_entity(states)
                     ratio, sn = None, getattr(eng, "sun_now", None)

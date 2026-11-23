@@ -296,7 +296,9 @@ async def main() -> None:
         await companion.announce(ha.session)
 
     asyncio.create_task(companion_setup())
-    web_runner = web.AppRunner(make_app(runner, overview))
+    from .web import panel_password
+
+    web_runner = web.AppRunner(make_app(runner, overview, panel_password(data_dir)))
     await web_runner.setup()
     await web.TCPSite(web_runner, "0.0.0.0", int(os.environ.get("PORT", 8099))).start()
     await runner.start()
