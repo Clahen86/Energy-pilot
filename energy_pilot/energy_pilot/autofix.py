@@ -64,7 +64,7 @@ class AutoFix:
             return
         s = self.ov.settings
         change: dict[str, Any] = {}
-        if e["what"] == "fuse":
+        if e["what"] in ("fuse", "fuse_inv"):
             change["import_limit_kw"] = e["from"]
         elif e["what"] in ("soc_scale", "kw_scale"):
             role = key.split(":", 1)[1]
@@ -87,6 +87,7 @@ class AutoFix:
             if v is not None:
                 self.samples.setdefault(r, deque(maxlen=90)).append(v)
         self.fuse()
+        self.fuse_inverter()
         self.soc_scale(roles)
         self.kw_scale(roles)
         self.price_scale()
@@ -105,6 +106,29 @@ class AutoFix:
         phases = 1 if country in ONE_PHASE else 3
         kw = max(3, round(v * 0.23 * phases * 0.92))  # amps × 230 V × phases, a little under the fuse
         self._done("fuse", "fuse", v, kw, {"import_limit_kw": kw})
+
+    def fuse_inverter(self) -> None:
+        """The inverter's integration knows the main fuse (Kostal's House Fuse Size): the import limit is set from it
+        while it is still the 10 kW new installs start with - or what this set last time, so a fuse changed there
+        follows. A limit the user typed (or took away) is never touched."""
+        key = "fuse_inverter"
+        ctl = getattr(self.ov, "controller", None)
+        if ctl is None or not hasattr(ctl, "fuse_amps") or self._ignored(key):
+            return
+        try:
+            amps = ctl.fuse_amps()
+        except Exception:  # not discovered yet
+            return
+        if not amps:
+            return
+        kw = max(3, round(amps * 0.23 * self._phases() * 0.92))  # amps × 230 V × phases, a little under the fuse
+        s = self.ov.settings
+        cur = _f(s.get("import_limit_kw"))
+        last = next((e for e in self.log if e["key"] == key), None)
+        ours = last is not None and cur == _f(last["to"])
+        if cur == kw or not (ours or cur == 10 and not s.get("fuse_ok")):
+            return
+        self._done(key, "fuse_inv", last["from"] if ours else cur, kw, {"import_limit_kw": kw})
 
     def soc_scale(self, roles: dict[str, Any]) -> None:
         key = "soc:battery_soc"
