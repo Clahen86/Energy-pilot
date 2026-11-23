@@ -367,10 +367,13 @@ CHARGER_INTEGRATIONS = (*CHARGERS, "evcc_intg")
 CHARGER_PLUG = re.compile(r"plug|cable|stik|connected|car_connected", re.I)
 CHARGER_SESSION = re.compile(r"session_energy|session|energy_charged|charged_energy|added_energy|charge_energy", re.I)
 CHARGER_SOC = re.compile(r"vehicle_soc|vehicle_charge|car_soc|ev_soc|state_of_charge", re.I)
+# When the car must be ready: evcc's "Effective Plan: Departure time" (its own plan, or the car's repeating plan).
+CHARGER_READY = re.compile(r"effective_plan_time|plan_time|departure|ready_time", re.I)
 
 
 def charger_devices(entities: list[dict[str, Any]], devices: dict[str, Any], states: dict[str, Any]) -> list[dict[str, Any]]:
-    """The chargers Home Assistant has, each with the sensors Energy Pilot needs from it - so a charger is picked once
+    """The chargers Home Assistant has, each with the sensors Energy Pilot needs from it (power, plug, charged energy,
+    the car's level and when it must be ready) - so a charger is picked once
     (Settings > Car) instead of sensor by sensor. Only what sits on the charger's own device: a plug sensor from the
     car's integration would hide the charger's controls. A device without both power and plug is no charger (evcc's
     site with the house's power)."""
@@ -392,8 +395,11 @@ def charger_devices(entities: list[dict[str, Any]], devices: dict[str, Any], sta
         session = next((x for x in ids if x.startswith("sensor.") and unit(x) in ("kwh", "wh") and CHARGER_SESSION.search(x)
                         and not re.search(r"total|lifetime|remaining", x)), None)
         soc = next((x for x in ids if x.startswith("sensor.") and unit(x) == "%" and CHARGER_SOC.search(x)), None)
+        readys = [x for x in ids if x.startswith("sensor.") and a(x).get("device_class") == "timestamp" and CHARGER_READY.search(x)]
+        ready = next((x for x in readys if "effective" in x), readys[0] if readys else None)
         d = devices.get(dev_id) or {}
-        roles = {"ev_power": power, "ev_plug": plug, **({"ev_session": session} if session else {}), **({"ev_soc": soc} if soc else {})}
+        roles = {"ev_power": power, "ev_plug": plug, **({"ev_session": session} if session else {}), **({"ev_soc": soc} if soc else {}),
+                 **({"ev_ready": ready} if ready else {})}
         out.append({"device_id": dev_id, "name": d.get("name_by_user") or d.get("name") or power, "platform": ents[0].get("platform"),
                     "roles": roles})
     return sorted(out, key=lambda c: str(c["name"]).lower())

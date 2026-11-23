@@ -2469,7 +2469,7 @@ function fromCharger(row, target) {
   const cur = target === "main" ? x : { ev_power: x.power, ev_plug: x.plug, ev_session: x.session };
   const at = chgOwn.has(String(target)) ? -1 : list.findIndex((d) => d.roles.ev_power && d.roles.ev_power === cur.ev_power && d.roles.ev_plug === cur.ev_plug);
   const names = (T.roles || {});
-  const used = at < 0 ? "" : ["ev_power", "ev_plug", "ev_session", "ev_soc"].filter((k) => cur[k])
+  const used = at < 0 ? "" : ["ev_power", "ev_plug", "ev_session", "ev_soc", "ev_ready"].filter((k) => cur[k])
     .map((k) => `${esc(names[k] || k)}: <code>${esc(cur[k])}</code>`).join("<br>");
   // Picked by hand (the entities were chosen one by one, or the one wanted isn't listed): "Pick them myself" - nothing is
   // filled in, and the hint says where the fields are.
@@ -2965,7 +2965,7 @@ function wire() {
     chgOwn.delete(tgt);
     if (sel.value === "none") {  // no charger: the first car's sensors off, or that charger removed
       if (tgt === "main") {
-        await api("/api/settings", { roles: { ev_power: "", ev_plug: "", ev_session: "", ev_soc: "" } });
+        await api("/api/settings", { roles: { ev_power: "", ev_plug: "", ev_session: "", ev_soc: "", ev_ready: "" } });
         settings = await api("/api/settings"); await load(); render();
       } else {
         const l = chgs(); l.splice(+tgt, 1); await saveChgs(l);
