@@ -2463,8 +2463,15 @@ function swPick(part, cur, attr) {
 function fromCharger(row, target) {
   const c = T.chg, list = settings.charger_devices || [];
   if (!list.length) return "";
-  return row(c.from || "Fill in from a charger", c.fromH || "", `<select data-chgfrom="${target}"><option value="">${c.fromPick || "Pick a charger…"}</option>${list.map((d, i) =>
-    `<option value="${i}">${esc(d.name)} · ${esc(PLATNAME[d.platform] || d.platform)}</option>`).join("")}</select>`);
+  // What is in use now: the first car's roles, or that charger's own fields.
+  const x = target === "main" ? settings.roles || {} : ((settings.settings || {}).chargers || [])[target] || {};
+  const cur = target === "main" ? x : { ev_power: x.power, ev_plug: x.plug, ev_session: x.session };
+  const at = list.findIndex((d) => d.roles.ev_power && d.roles.ev_power === cur.ev_power && d.roles.ev_plug === cur.ev_plug);
+  const names = (T.roles || {});
+  const used = at < 0 ? "" : ["ev_power", "ev_plug", "ev_session", "ev_soc"].filter((k) => cur[k])
+    .map((k) => `${esc(names[k] || k)}: <code>${esc(cur[k])}</code>`).join("<br>");
+  return row(c.from || "Fill in from a charger", used || c.fromH || "", `<select data-chgfrom="${target}"><option value="">${c.fromPick || "Pick a charger…"}</option>${list.map((d, i) =>
+    `<option value="${i}" ${i === at ? "selected" : ""}>${esc(d.name)} · ${esc(PLATNAME[d.platform] || d.platform)}</option>`).join("")}</select>`);
 }
 function chargerList(v, row) {
   const c = T.chg, list = v.chargers || [];
