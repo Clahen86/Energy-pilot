@@ -82,6 +82,17 @@
       },
       "battery_runtime": {
         "name": "Batteriet rækker til"
+      },
+      "price_level": {
+        "name": "Prisniveau",
+        "state": {
+          "cheap": "Billig",
+          "mid": "Normal",
+          "dear": "Dyr"
+        }
+      },
+      "battery_health": {
+        "name": "Batteriets sundhed"
       }
     },
     "switch": {
@@ -139,6 +150,11 @@
     "button": {
       "all_shadow": {
         "name": "Alt tilbage i skygge"
+      }
+    },
+    "binary_sensor": {
+      "problem": {
+        "name": "Problem"
       }
     }
   }

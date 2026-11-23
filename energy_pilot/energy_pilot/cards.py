@@ -46,17 +46,24 @@ class Cards:
     async def run(self) -> None:
         await self.ha.connected.wait()
         await self.install()
+        n = 0
         while True:
             try:
                 await self.publish()
+                n += 1
+                if n % 60 == 0:  # every half hour: the companion may have come from HACS since (it serves the card then)
+                    await self.install()
             except Exception:  # noqa: BLE001 - the cards wait for the next round
                 _LOGGER.debug("Could not publish %s", SENSOR, exc_info=True)
             await asyncio.sleep(30)
 
     async def install(self) -> None:
         """Copy the card to /config/www/energipilot/ and add it to the dashboards' resources (UI dashboards)."""
+        if await self._integration_serves_card():
+            await self._drop_old_resource()
+            return  # the companion integration (1.0.0+) serves the card itself - nothing put into Home Assistant's folder
         if not HA_CONFIG.is_dir():
-            _LOGGER.info("Home Assistant's folder isn't mapped: add the card resource by hand")
+            _LOGGER.info("Home Assistant's folder isn't mapped: install the companion integration from HACS for the card")
             return
         target = HA_CONFIG / "www" / "energipilot" / CARD.name
         try:
@@ -81,6 +88,27 @@ class Cards:
         else:
             await self.ha.command({"type": "lovelace/resources/create", "res_type": "module", "url": url})
         _LOGGER.info("Card resource %s", url)
+
+    async def _integration_serves_card(self) -> bool:
+        try:
+            m = await self.ha.command({"type": "manifest/get", "integration": "energy_pilot"})
+            entries = await self.ha.command({"type": "config_entries/get", "domain": "energy_pilot"})
+        except Exception:  # noqa: BLE001 - not installed (or too old a Home Assistant)
+            return False
+        try:
+            major = int(str((m or {}).get("version") or "0").split(".")[0])
+        except ValueError:
+            major = 0
+        return major >= 1 and any(e.get("state") == "loaded" for e in entries or [])
+
+    async def _drop_old_resource(self) -> None:
+        try:
+            resources = await self.ha.command({"type": "lovelace/resources"})
+            for r in resources or []:
+                if "/local/energipilot/" in str(r.get("url")):
+                    await self.ha.command({"type": "lovelace/resources/delete", "resource_id": r["id"]})
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug("Could not drop the old card resource", exc_info=True)
 
     async def publish(self) -> None:
         """sensor.energipilot: the decision as its state; the plan, prices and which sensors are which as attributes.

@@ -54,13 +54,37 @@ async def test_changes_only_as_json_and_with_the_password():
     async def handler(_req):
         return web.Response(text="ok")
 
-    mw = guard(None)
+    mw = guard(None, addon=False)
     form = make_mocked_request("POST", "/api/control", headers={"Content-Type": "text/plain"})
     assert (await mw(form, handler)).status == 415  # what a page elsewhere could send without asking
     js = make_mocked_request("POST", "/api/control", headers={"Content-Type": "application/json"})
     assert (await mw(js, handler)).status == 200
     assert (await mw(make_mocked_request("GET", "/api/overview"), handler)).status == 200
-    locked = guard("pw")
+    locked = guard("pw", addon=False)
     assert (await locked(make_mocked_request("GET", "/"), handler)).status == 401
     auth = {"Authorization": "Basic " + base64.b64encode(b"x:pw").decode()}
     assert (await locked(make_mocked_request("GET", "/", headers=auth), handler)).status == 200
+
+
+@pytest.mark.asyncio
+async def test_addon_only_from_home_assistant_and_ingress():
+    async def handler(_req):
+        return web.Response(text="ok")
+
+    mw = guard(None, addon=True)
+    for ip, code in (("172.30.32.1", 200), ("172.30.32.2", 200), ("172.30.33.5", 403), ("192.168.1.20", 403)):
+        req = make_mocked_request("GET", "/api/overview", transport=SimpleNamespace(get_extra_info=lambda k, d=None, ip=ip: (ip, 0) if k == "peername" else d))
+        assert (await mw(req, handler)).status == code, ip
+
+
+def test_hacs_copy_is_never_overwritten(tmp_path, monkeypatch):
+    from energy_pilot import companion
+
+    target = tmp_path / "custom_components" / "energy_pilot"
+    monkeypatch.setattr(companion, "TARGET", target)
+    assert companion.status() == "none"
+    assert companion.install() and companion.status() == "app"
+    (target / companion.HACS_MARK).write_text("")
+    (target / "manifest.json").write_text("{}")  # HACS' own version
+    assert companion.status() == "hacs" and not companion.install()
+    assert (target / "manifest.json").read_text() == "{}"

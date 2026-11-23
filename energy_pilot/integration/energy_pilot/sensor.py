@@ -19,7 +19,8 @@ async def async_setup_entry(hass, entry, add):
          NextSlot(p, "next_battery_charge", "charge"), NextSlot(p, "next_car_charge", "car"), NextSlot(p, "next_battery_sell", "export"),
          Cheapest(p), Runtime(p), Energy(p, "house_today", lambda d: d.get("house_today")),
          Energy(p, "solar_forecast_today", lambda d: (d.get("solar") or {}).get("solar_today")),
-         Energy(p, "solar_forecast_tomorrow", lambda d: (d.get("solar") or {}).get("solar_tomorrow"))])
+         Energy(p, "solar_forecast_tomorrow", lambda d: (d.get("solar") or {}).get("solar_tomorrow")),
+         PriceLevel(p), BatteryHealth(p)])
 
 
 def _hours(d: dict) -> list[tuple[datetime, dict]]:
@@ -259,3 +260,48 @@ class BatteryCost(PilotEntity, SensorEntity):
     def extra_state_attributes(self):
         g = self.d.get("ledger") or {}
         return {"kwh": g.get("battery_kwh", g.get("stored_kwh")), "source": g.get("avg_source")}
+
+
+class PriceLevel(PilotEntity, SensorEntity):
+    """The price now against today's and tomorrow's: cheap, normal or dear - for the washing machine and the like."""
+
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = ["cheap", "mid", "dear"]
+    _attr_icon = "mdi:cash-clock"
+
+    def __init__(self, p):
+        super().__init__(p, "price_level")
+
+    @property
+    def native_value(self):
+        now, plan = (self.d.get("price") or {}).get("now"), self.d.get("plan") or {}
+        lo, hi = plan.get("price_min"), plan.get("price_max")
+        if now is None or lo is None or hi is None:
+            return None
+        x = (now - lo) / max(0.01, hi - lo)
+        return "cheap" if x < 0.33 else "mid" if x < 0.66 else "dear"
+
+    @property
+    def extra_state_attributes(self):
+        plan = self.d.get("plan") or {}
+        return {"price_min": plan.get("price_min"), "price_max": plan.get("price_max")}
+
+
+class BatteryHealth(PilotEntity, SensorEntity):
+    """What the battery really holds against its label, learned from its own charging - empty until it has learned."""
+
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_icon = "mdi:battery-heart-variant"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, p):
+        super().__init__(p, "battery_health")
+
+    @property
+    def native_value(self):
+        return (self.d.get("battery_health") or {}).get("pct")
+
+    @property
+    def extra_state_attributes(self):
+        h = self.d.get("battery_health") or {}
+        return {"learned_kwh": h.get("learned_kwh"), "nominal_kwh": h.get("nominal_kwh")}

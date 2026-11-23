@@ -97,9 +97,18 @@ def _auth_ok(header: str | None, password: str) -> bool:
     return hmac.compare_digest(given.encode(), password.encode())
 
 
-def guard(password: str | None) -> object:
+# The add-on: only Home Assistant itself (the companion integration, 172.30.32.1) and the Supervisor's ingress
+# (172.30.32.2, the panel behind HA's login) - other containers on HA's internal network can't reach the panel.
+ADDON_FROM = {"172.30.32.1", "172.30.32.2", "127.0.0.1", "::1"}
+
+
+def guard(password: str | None, addon: bool | None = None) -> object:
+    addon = bool(os.environ.get("SUPERVISOR_TOKEN")) if addon is None else addon
+
     @web.middleware
     async def middleware(req: web.Request, handler: object) -> web.StreamResponse:
+        if addon and req.remote not in ADDON_FROM:
+            return web.Response(status=403, text="Only through Home Assistant")
         if password and not _auth_ok(req.headers.get("Authorization"), password):
             return web.Response(status=401, headers={"WWW-Authenticate": 'Basic realm="Energy Pilot"'})
         # Changes only as JSON: a web page elsewhere can't send that without the browser asking first (CORS), and it
@@ -126,6 +135,10 @@ def make_app(runner: Runner, overview: Overview, password: str | None = None) ->
         c = overview.controller
         data["in_control"] = [p for p in c.parts() if c.mode(p) == "control"] if c else []  # Energy Pilot's own parts
         data["setup_done"] = bool(overview.settings.get("setup_done"))
+        from . import companion
+
+        data["companion"] = companion.status()  # "app": the panel offers the move to HACS (one tap)
+        data["companion_snooze"] = overview.settings.get("companion_snooze")
         # the front page asks once whether to share hour by hour (None: not answered yet)
         data["share_hours"] = overview.settings.get("share_hours") if overview.settings.get("share_anonymous", True) is not False else False
         data["currency"] = runner.ha.config.get("currency") or "EUR"
@@ -179,6 +192,16 @@ def make_app(runner: Runner, overview: Overview, password: str | None = None) ->
                               "fixed": _fixed_lines(overview),
                               "can_sell": bool(eng.can_export()),
                               "tested": _tested(overview)}
+            # For the companion's entities: the battery's health (what it really holds against its label, learned) and
+            # whether something needs a look (a warning in the self-check, or Home Assistant not answering)
+            try:
+                lc, nominal = eng.batt_learn.capacity(), overview.settings.get("battery_kwh")
+                data["battery_health"] = {"pct": round(100 * float(lc) / float(nominal)), "learned_kwh": round(float(lc), 1),
+                                          "nominal_kwh": round(float(nominal), 1)} if lc and nominal else None
+            except (TypeError, ValueError, ZeroDivisionError):
+                data["battery_health"] = None
+            warn = [c.get("key") for c in data["engine"]["selfcheck"] if c.get("level") in ("warn", "error")]
+            data["problem"] = {"on": bool(warn) or not data.get("connected", True), "keys": warn}
         return web.json_response(data)
 
     def _phase_ctl() -> dict[str, str | None]:

@@ -82,6 +82,17 @@
       },
       "battery_runtime": {
         "name": "Battery lasts until"
+      },
+      "price_level": {
+        "name": "Price level",
+        "state": {
+          "cheap": "Cheap",
+          "mid": "Normal",
+          "dear": "Dear"
+        }
+      },
+      "battery_health": {
+        "name": "Battery health"
       }
     },
     "switch": {
@@ -139,6 +150,11 @@
     "button": {
       "all_shadow": {
         "name": "Everything back to shadow"
+      }
+    },
+    "binary_sensor": {
+      "problem": {
+        "name": "Problem"
       }
     }
   }

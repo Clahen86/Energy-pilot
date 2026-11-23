@@ -4,6 +4,7 @@
 
 const SENSOR = "sensor.energipilot";
 // What the battery saved - the companion integration's sensors, found by what they are (their names follow the language).
+const STAT_T = {"da": {"view": "Status", "next": "Næste: lader {a}–{b} til {p} %", "now": "nu"}, "en": {"view": "Status", "next": "Next: charging {a}–{b} to {p} %", "now": "now"}, "de": {"view": "Status", "next": "Als Nächstes: lädt {a}–{b} auf {p} %", "now": "jetzt"}, "fr": {"view": "Statut", "next": "Ensuite : charge {a}–{b} jusqu'à {p} %", "now": "maint."}, "nl": {"view": "Status", "next": "Hierna: laadt {a}–{b} tot {p} %", "now": "nu"}, "sv": {"view": "Status", "next": "Nästa: laddar {a}–{b} till {p} %", "now": "nu"}, "nb": {"view": "Status", "next": "Neste: lader {a}–{b} til {p} %", "now": "nå"}};
 const SAVE_T = {
   da: { view: "Sparet", today: "Sparet i dag", yesterday: "I går", month: "Måned", year: "År", total: "I alt" },
   en: { view: "Saved", today: "Saved today", yesterday: "Yesterday", month: "Month", year: "Year", total: "In all" },
@@ -197,7 +198,7 @@ class EnergipilotCard extends HTMLElement {
   setConfig(config) { this._config = { view: "overview", ...config }; if (!this.shadowRoot) this.attachShadow({ mode: "open" }); this._uid = Math.random().toString(36).slice(2, 7); }
   static getConfigElement() { return document.createElement("energipilot-card-editor"); }
   static getStubConfig() { return { view: "flow" }; }
-  getCardSize() { return { flow: 5, plan: 4, car: 7, battery: 2, savings: 3, overview: 11 }[this._config.view] || 5; }
+  getCardSize() { return { flow: 5, plan: 4, car: 7, battery: 4, savings: 3, status: 3, overview: 11 }[this._config.view] || 5; }
   getGridOptions() { return { columns: 12, min_columns: 6, rows: "auto" }; }  // as tall as what it shows
 
   set hass(hass) {
@@ -245,7 +246,7 @@ class EnergipilotCard extends HTMLElement {
     let body;
     if (!ep) body = `<div class="empty">${ic("bolt", 22)}<div>${t.noData}</div></div>`;
     else body = v === "plan" ? this._planHtml() : v === "car" ? this._carHtml() : v === "battery" ? this._batteryHtml() : v === "flow" ? this._flowHtml()
-      : v === "savings" ? this._savingsHtml()
+      : v === "savings" ? this._savingsHtml() : v === "status" ? this._statusCard()
       : `${this._flowHtml()}${this._statusHtml()}${this._savingsHtml(true)}${this._batteryHtml(true)}${this._carHtml(true)}${this._planHtml(true)}`;
     this.shadowRoot.innerHTML = `<style>${CSS}</style><ha-card>${this._config.title ? `<div class="title">${esc(this._config.title)}</div>` : ""}${body}</ha-card>`;
     this._wire();
@@ -324,6 +325,20 @@ class EnergipilotCard extends HTMLElement {
       ${h.ev ? this._node("car", 180, 260, "#f472b6", f.ev > 30 ? ev : "–", f.ev > 30 ? evu : "", (f.ev > 30 ? t.charging : f.plug ? t.plugged : t.notPlugged).toUpperCase(), "", false, (f.ev || 0) > 30) : ""}
     </svg></div>`;
   }
+  _statusCard() {
+    // Small: what it does now and why, what comes next, and three numbers - for a phone's front page.
+    const a = this._hass.states[SENSOR].attributes, f = this._flow(), st = STAT_T[lang(this._hass)] || STAT_T.en;
+    const plan = (a.plan || []).filter((h) => h.soc != null && new Date(h.t) > Date.now());
+    const hm = (iso) => { const x = new Date(iso); return `${String(x.getHours()).padStart(2, "0")}:${String(x.getMinutes()).padStart(2, "0")}`; };
+    const i = plan.findIndex((h) => h.charge), j = i >= 0 ? plan.findIndex((h, k) => k > i && !h.charge) : -1;
+    const end = j >= 0 ? j : plan.length;
+    const next = i >= 0 && end > i ? st.next.replace("{a}", hm(plan[i].t)).replace("{b}", end < plan.length ? hm(plan[end].t) : hm(new Date(new Date(plan[end - 1].t).getTime() + 3600e3)))
+      .replace("{p}", Math.round(plan[end - 1].soc)) : "";
+    const price = this._num(a.roles?.price), cur = this._hass.states[a.roles?.price]?.attributes?.unit_of_measurement;
+    const chip = (k, v) => `<span class="chipx">${ic(k, 15)}<b>${v}</b></span>`;
+    return `${this._statusHtml()}<div class="pad" style="padding-top:2px">${next ? `<div class="muted2">${esc(next)}</div>` : ""}
+      <div class="chips2">${f.soc != null ? chip("battery", this._n(f.soc, 0) + " %") : ""}${f.house != null ? chip("house", this._split(f.house).join(" ")) : ""}${price != null ? chip("bolt", this._n(price, 2) + (cur ? " " + esc(cur) : "")) : ""}</div></div>`;
+  }
   _statusHtml() {
     const d = this._hass.states[SENSOR].attributes.decision, t = this.t;
     if (!d || !d.kind) return "";
@@ -334,7 +349,20 @@ class EnergipilotCard extends HTMLElement {
     if (f.soc == null) return "";
     const state = f.batt > NOISE_W ? `${t.charging} ${this._split(f.batt).join(" ")}` : f.batt < -NOISE_W ? `${t.discharging} ${this._split(f.batt).join(" ")}` : t.idle;
     return `<div class="${inline ? "sec" : "pad"}"><div class="eyebrow">${ic("battery")} ${t.battery}<span>${d.target != null ? `${t.target} ${this._n(d.target, 0)} %` : ""}</span></div>
-      <div class="big"><span id="bsoc">${this._n(f.soc, 0)}</span><small>%</small> <em>${esc(state)}</em></div><div class="bar"><span id="bbar" style="width:${f.soc}%"></span></div>${this._runtimeHtml()}</div>`;
+      <div class="big"><span id="bsoc">${this._n(f.soc, 0)}</span><small>%</small> <em>${esc(state)}</em></div><div class="bar"><span id="bbar" style="width:${f.soc}%"></span></div>${this._runtimeHtml()}${inline ? "" : this._socCurve(f.soc)}</div>`;
+  }
+  _socCurve(now) {
+    // The battery's planned level the next 24 hours: a small curve, the charging hours shaded, "now" as a dot.
+    const plan = (this._hass.states[SENSOR].attributes.plan || []).filter((h) => h.soc != null && new Date(h.t) > Date.now() - 3600e3).slice(0, 24);
+    if (plan.length < 3) return "";
+    const W = 340, H = 64, n = plan.length, x = (i) => 6 + i * (W - 12) / (n - 1), y = (v) => 6 + (H - 12) * (1 - v / 100);
+    const pts = [[x(0), y(now ?? plan[0].soc)], ...plan.slice(1).map((h, i) => [x(i + 1), y(h.soc)])];
+    const line = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
+    const bw = (W - 12) / (n - 1), st = STAT_T[lang(this._hass)] || STAT_T.en;
+    const shade = plan.map((h, i) => h.charge ? `<rect x="${(x(i) - bw / 2).toFixed(1)}" y="0" width="${bw.toFixed(1)}" height="${H}" fill="var(--batt)" opacity=".10"/>` : "").join("");
+    const hh = (i) => { const d = new Date(plan[i].t); return `${String(d.getHours()).padStart(2, "0")}:00`; };
+    const ticks = [0, Math.round(n / 3), Math.round(2 * n / 3), n - 1].map((i) => `<text x="${x(i)}" y="${H + 12}" text-anchor="${i ? (i === n - 1 ? "end" : "middle") : "start"}" font-size="10" fill="var(--secondary-text-color)">${i ? hh(i) : st.now}</text>`).join("");
+    return `<svg viewBox="0 0 ${W} ${H + 16}" style="width:100%;margin-top:10px">${shade}<path d="${line} L${x(n - 1)} ${H} L${x(0)} ${H}Z" fill="var(--batt)" opacity=".12"/><path d="${line}" fill="none" stroke="var(--batt)" stroke-width="2.2" stroke-linejoin="round"/><circle cx="${pts[0][0]}" cy="${pts[0][1]}" r="4" fill="var(--batt)"/>${ticks}</svg>`;
   }
   _runtimeHtml() {
     // How long the battery lasts (Energy Pilot's runtime.py): one tidy line under the bar, and a storm on its way.
@@ -370,6 +398,8 @@ class EnergipilotCard extends HTMLElement {
   _carFull() {
     const a = this._hass.states[SENSOR].attributes, ev = a.ev, f = this._flow(), t = this.t, c = CAR_T[lang(this._hass)] || CAR_T.en;
     if (!ev) return "";
+    // not plugged in: the line and the buttons only - the flow to the car and its hours say nothing then
+    if (!f.plug && (f.ev || 0) <= 30) return this._carHtml(true).replace('class="sec"', 'class="pad"');
     const e = ev.entities || {}, charging = (f.ev || 0) > 30, car = Math.max(0, f.ev || 0);
     const hm = (d) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
     // the car's share of each source now: the grid and the battery feed it first (the sun the house first), the sun the rest
@@ -483,7 +513,8 @@ class EnergipilotCard extends HTMLElement {
   }
 }
 
-const CSS = `
+const CSS = `.muted2{opacity:.7;font-size:13px;margin:6px 0 10px}.chips2{display:flex;gap:8px;flex-wrap:wrap}.chipx{display:inline-flex;gap:6px;align-items:center;padding:6px 10px;border-radius:999px;background:color-mix(in srgb,currentColor 8%,transparent);font-size:13px}
+
   :host { --ep-house: var(--primary-text-color); --house: var(--primary-text-color); --sun:#f5b544; --batt:#a78bfa; --grid:#6ea8fe; --car:#f472b6; }
   .lane { fill:none; stroke-width:1.2; stroke-opacity:.18; }
   .node .halo { fill:var(--nc); opacity:0; } .node.on .halo { animation:halo 3s ease-in-out infinite; }
@@ -564,7 +595,7 @@ class EnergipilotCardEditor extends HTMLElement {
     this._form.hass = this._hass;
     this._form.data = { view: "overview", ...this._config };
     this._form.schema = [
-      { name: "view", selector: { select: { mode: "list", options: Object.entries({ ...t.views, savings: (SAVE_T[lang(this._hass)] || SAVE_T.en).view }).map(([value, label]) => ({ value, label })) } } },
+      { name: "view", selector: { select: { mode: "list", options: Object.entries({ ...t.views, savings: (SAVE_T[lang(this._hass)] || SAVE_T.en).view, status: (STAT_T[lang(this._hass)] || STAT_T.en).view }).map(([value, label]) => ({ value, label })) } } },
       { name: "title", selector: { text: {} } },
     ];
   }

@@ -14,6 +14,18 @@ import socket
 _LOGGER = logging.getLogger(__name__)
 SOURCE = Path(__file__).parent.parent / "integration" / "energy_pilot"
 TARGET = Path("/homeassistant/custom_components/energy_pilot")
+HACS_MARK = "installed_from_hacs"  # the file the HACS repo (energy-pilot-companion) carries: never overwritten by the app
+
+
+def status() -> str:
+    """Where the companion integration comes from: "hacs" (the user installs and updates it - the app needs no access
+    to Home Assistant's folder), "app" (copied in by the app, the old way) or "none"."""
+    try:
+        if (TARGET / HACS_MARK).exists():
+            return "hacs"
+        return "app" if TARGET.is_dir() else ("none" if TARGET.parent.parent.is_dir() else "unknown")
+    except OSError:
+        return "unknown"
 
 
 def _same(a: Path, b: Path) -> bool:
@@ -27,6 +39,8 @@ def install() -> bool:
     """Copy the integration in when it's missing or older. Returns True when Home Assistant must restart to load it."""
     if not SOURCE.is_dir() or not TARGET.parent.parent.is_dir():
         return False
+    if (TARGET / HACS_MARK).exists():
+        return False  # installed from HACS: HACS keeps it up to date
     if _same(SOURCE, TARGET):
         return False
     new = not TARGET.exists()

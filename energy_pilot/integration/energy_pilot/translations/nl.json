@@ -82,6 +82,17 @@
       },
       "battery_runtime": {
         "name": "Batterij houdt het tot"
+      },
+      "price_level": {
+        "name": "Prijsniveau",
+        "state": {
+          "cheap": "Goedkoop",
+          "mid": "Normaal",
+          "dear": "Duur"
+        }
+      },
+      "battery_health": {
+        "name": "Batterijconditie"
       }
     },
     "switch": {
@@ -139,6 +150,11 @@
     "button": {
       "all_shadow": {
         "name": "Alles terug in de schaduw"
+      }
+    },
+    "binary_sensor": {
+      "problem": {
+        "name": "Probleem"
       }
     }
   }

@@ -82,6 +82,17 @@
       },
       "battery_runtime": {
         "name": "Batterie reicht bis"
+      },
+      "price_level": {
+        "name": "Preisniveau",
+        "state": {
+          "cheap": "Günstig",
+          "mid": "Normal",
+          "dear": "Teuer"
+        }
+      },
+      "battery_health": {
+        "name": "Batteriezustand"
       }
     },
     "switch": {
@@ -139,6 +150,11 @@
     "button": {
       "all_shadow": {
         "name": "Alles zurück in den Schatten"
+      }
+    },
+    "binary_sensor": {
+      "problem": {
+        "name": "Problem"
       }
     }
   }

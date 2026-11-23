@@ -82,6 +82,17 @@
       },
       "battery_runtime": {
         "name": "Batteriet räcker till"
+      },
+      "price_level": {
+        "name": "Prisnivå",
+        "state": {
+          "cheap": "Billigt",
+          "mid": "Normalt",
+          "dear": "Dyrt"
+        }
+      },
+      "battery_health": {
+        "name": "Batteriets hälsa"
       }
     },
     "switch": {
@@ -139,6 +150,11 @@
     "button": {
       "all_shadow": {
         "name": "Allt tillbaka till skugga"
+      }
+    },
+    "binary_sensor": {
+      "problem": {
+        "name": "Problem"
       }
     }
   }
