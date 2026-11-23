@@ -300,10 +300,14 @@ class Controller:
             if not reg:
                 continue
             dev = reg.get("device_id")
+            # A known charger integration (Wallbox, Zaptec, Peblar …) keeps its own way even with its switch chosen by
+            # hand - the generic way paused a Wallbox and lost Zaptec's services. Else the switch and a current control.
+            plat = reg.get("platform") if reg.get("platform") in adapters.CHARGER_SERVICES else None
+            kinds = r"(number|select|switch|button)\." if plat else r"(number|select)\."
             own = [e["entity_id"] for e in entities if not e.get("disabled_by") and dev and e.get("device_id") == dev
-                   and re.match(r"(number|select)\.", e["entity_id"])]
+                   and re.match(kinds, e["entity_id"])]
             self.entities[part] = sorted(set(own) | {sw})
-            self.platforms[part], self.chosen[part] = None, sw  # the generic way: the switch and a current control
+            self.platforms[part], self.chosen[part] = plat, sw
             if part == "car":
                 self.car_device = dev
             else:

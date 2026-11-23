@@ -416,6 +416,12 @@ class SelfTest:
     async def _car(self) -> None:
         base: dict[str, Any] = {}
         top = 16
+        # Not plugged in: there is nothing to start - it counted as "no reaction" (or "offline": Zaptec's switch is only
+        # there while a car waits), and made the chargers look broken in the shared results.
+        if self.ov.flow().get("plug") is False:
+            for step in ("start", "low", "stop"):
+                self._result("car", step, "skipped", why="not_plugged")
+            return
         for step, intent, amps in (("start", "charge", top), ("low", "charge", 6), ("stop", "stop", top)):
             if self._stop:
                 return

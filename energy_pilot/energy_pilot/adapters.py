@@ -301,22 +301,30 @@ PROFILES: dict[str, dict[str, Any]] = {
                  (r"select\..*(?<!emma_)working_mode(_settings)?$", "select", "re:maximi[sz]e.?self.?consum"),
                  (r"number\..*maximum_discharging_power$", "number", "0"),
                  (r"number\..*maximum_charging_power$", "number", "{max_charge_w}")],
-        "charge": [(r"number\..*maximum_discharging_power$", "number", "{max_power_w}"),
+        # A forcible charge only takes power from the grid when "Charge from grid" is on (its wiki; services.py writes
+        # only the charge itself) - with little sun it got nothing (self-test). The grid charge cut-off and power can
+        # block it too. All three are the owner's: remembered before, put back after (restore_charge).
+        "charge": [(r"switch\..*charge_from_grid$", "on", None),
+                   (r"number\..*grid_charge_cutoff_soc$", "number", "100"),
+                   (r"number\..*grid_charge_maximum_power$", "number", "{power_w}"),
+                   (r"number\..*maximum_discharging_power$", "number", "{max_power_w}"),
                    ("huawei_solar.forcible_charge_soc", "service", {"device_id": "{device_id}", "target_soc": "{target}", "power": "{power_w}"})],
+        "restore_charge": [r"switch\..*charge_from_grid$", r"number\..*grid_charge_cutoff_soc$", r"number\..*grid_charge_maximum_power$"],
         # Selling from the battery (only when the user turns it on): checked in the integration's source.
         "export": [(r"number\..*maximum_discharging_power$", "number", "{max_power_w}"),
                    ("huawei_solar.forcible_discharge_soc", "service", {"device_id": "{device_id}", "target_soc": "{target}", "power": "{power_w}"})],
-        "optional": [r"number\..*maximum_charging_power$", r"select\..*(?<!emma_)working_mode(_settings)?$", r"button\..*stop_forcible_charge$"],
+        "optional": [r"number\..*maximum_charging_power$", r"select\..*(?<!emma_)working_mode(_settings)?$", r"button\..*stop_forcible_charge$",
+                     r"switch\..*charge_from_grid$", r"number\..*grid_charge_cutoff_soc$", r"number\..*grid_charge_maximum_power$"],
     },
     "solax_modbus": {
         "name": "SolaX (Modbus)",
         "match": r"solax",
         "normal": [(r"select\..*charger_use_mode$", "select", "Self Use Mode")],
-        "hold": [(r"select\..*charger_use_mode$", "select", "Manual Mode"), (r"select\..*manual_mode_select$", "select", "Stop Charge and Discharge")],
-        "charge": [(r"select\..*charger_use_mode$", "select", "Manual Mode"), (r"select\..*manual_mode_select$", "select", "Force Charge")],
+        "hold": [(r"select\..*charger_use_mode$", "select", "Manual Mode"), (r"select\..*manual_mode_select(_\d+)?$", "select", "Stop Charge and Discharge")],
+        "charge": [(r"select\..*charger_use_mode$", "select", "Manual Mode"), (r"select\..*manual_mode_select(_\d+)?$", "select", "Force Charge")],
         # Selling from the battery (only when the user turns it on): checked in the integration's source.
         "export": [(r"select\..*charger_use_mode$", "select", "Manual Mode"),
-                   (r"select\..*manual_mode_select$", "select", "Force Discharge")],
+                   (r"select\..*manual_mode_select(_\d+)?$", "select", "Force Discharge")],
     },
     "sungrow": {
         "name": "Sungrow (Modbus)",
@@ -994,7 +1002,8 @@ def charger_calls(intent: str, entities: list[str], platform: str | None, curren
     switch = switch or charger_switch(entities)
     number = next((e for e in entities if hit(CHARGER_CURRENT, e)), None)
     calls = []
-    paused = switch is not None and hit(r"pause", switch)
+    # "pause" (on = paused) - but Wallbox's "pause_resume" is on while charging: turning it off paused the charger
+    paused = switch is not None and hit(r"pause", switch) and not hit(r"pause_resume", switch)
     if intent == "charge":
         if number:
             calls.append({"domain": "number", "service": "set_value", "data": {"entity_id": number, "value": round(current)}})

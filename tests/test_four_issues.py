@@ -32,3 +32,20 @@ def test_anker_official_is_picked_and_steered():
     assert guess_profile(ents, {"anker_solix_official"}) == "anker_solix_official"
     c = _calls("anker_solix_official", "export", ents)
     assert ("select.sb4_grid_flow", "discharge") in c and ("number.sb4_power_control", 3000) in c
+
+
+def test_read_only_batteries_keep_the_other_checks():
+    # READ_ONLY was defined twice, the 3-tuples won, and "alt, why = READ_ONLY[plat]" failed for Powerwall, Solis, SEMS
+    # homes - checks.run() raised and every other check was lost with it
+    from energy_pilot import checks
+    assert all(len(v) == 2 for v in checks.BATTERY_READ_ONLY.values())
+    assert all(len(v) == 3 for v in checks.READ_ONLY.values()) and "solax" in checks.READ_ONLY
+
+
+def test_wallbox_pause_resume_is_turned_on_to_charge():
+    from energy_pilot.adapters import charger_calls
+    ents = ["switch.wb_pause_resume", "number.wb_maximum_charging_current"]
+    calls = charger_calls("charge", ents, None, 16, switch="switch.wb_pause_resume")
+    assert {"domain": "switch", "service": "turn_on", "data": {"entity_id": "switch.wb_pause_resume"}} in calls
+    calls = charger_calls("charge", ["switch.x_charging_pause"], None, 16, switch="switch.x_charging_pause")
+    assert calls[-1]["service"] == "turn_off"  # a plain "pause" switch: off = charging, as before

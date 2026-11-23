@@ -68,7 +68,9 @@ class ExportCap:
 
 # Battery integrations that can only read (or where another system already runs the battery): the integration that
 # can control it instead, and which message.
-READ_ONLY = {"powerwall": ("Teslemetry", "readonly"), "solis": ("Solis Modbus", "readonly"), "sems": ("GoodWe (local)", "readonly"),
+# Not READ_ONLY (the links further down): that name was given twice, so this one was overwritten and the check failed
+# for every home with one of them - and took all its other checks with it.
+BATTERY_READ_ONLY = {"powerwall": ("Teslemetry", "readonly"), "solis": ("Solis Modbus", "readonly"), "sems": ("GoodWe (local)", "readonly"),
              "hanchuess": (None, "readonly"), "omnibattery": (None, "other_ems")}
 
 
@@ -160,8 +162,8 @@ def run(engine: Any, hours: list, b: Any, plan: Any, end_value: float) -> list[d
     # 3e. The battery comes from an integration that can only read it (found in users' setups): said plainly, with the
     #     integration that can control it - or, for a battery another system already runs, that one controls it.
     plat = (reg.get(se) or {}).get("platform") if se else None
-    if plat in READ_ONLY:
-        alt, why = READ_ONLY[plat]
+    if plat in BATTERY_READ_ONLY:
+        alt, why = BATTERY_READ_ONLY[plat]
         key = "battery_" + why + ("_alt" if alt else "")
         out.append({"key": key, "level": "info", "vals": {"i": plat, **({"alt": alt} if alt else {})}, "goto": "battery"})
 
@@ -257,6 +259,8 @@ READ_ONLY = {
     "fusion_solar": ("Huawei", "Huawei Solar", "https://my.home-assistant.io/redirect/hacs_repository/?owner=wlcrs&repository=huawei_solar&category=integration"),
     # Found in the shared setups: GoodWe through its cloud (SEMS) and Solis through its cloud - both read only.
     "sems": ("GoodWe", "GoodWe", "https://my.home-assistant.io/redirect/config_flow_start/?domain=goodwe"),
+    # HA's own SolaX integration (the Pocket WiFi's local API) only reads: SolaX Modbus can control it (X1/X3 Gen4+).
+    "solax": ("SolaX", "SolaX Modbus", "https://my.home-assistant.io/redirect/hacs_repository/?owner=wills106&repository=homeassistant-solax-modbus&category=integration"),
     "solis": ("Solis", "Solis Modbus", "https://my.home-assistant.io/redirect/hacs_repository/?owner=Pho3niX90&repository=solis_modbus&category=integration"),
 }
 
