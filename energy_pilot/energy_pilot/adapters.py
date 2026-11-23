@@ -537,8 +537,7 @@ PROFILES: dict[str, dict[str, Any]] = {
         "name": "Kostal Plenticore (Modbus)",
         "match": r"plenticore|kostal",
         "normal": [(r"switch\..*_charge_start$", "off", None), (r"switch\..*_discharge_start$", "off", None),
-                   (r"switch\..*_block_charge$", "off", None), (r"switch\..*_block_discharge$", "off", None),
-                   (r"switch\..*_inverter_control$", "off", None)],
+                   (r"switch\..*_block_charge$", "off", None), (r"switch\..*_block_discharge$", "off", None)],
         "hold": [(r"switch\..*_block_discharge$", "on", None)],
         "charge": [(r"number\..*_set_charge_rate$", "number", "{power_w}"), (r"switch\..*_charge_start$", "on", None)],
         # Selling from the battery (only when the user turns it on).
@@ -546,8 +545,6 @@ PROFILES: dict[str, dict[str, Any]] = {
         # The owner's own rates are put back after charging and selling.
         "restore_charge": [r"number\..*_set_charge_rate$"],
         "restore": [r"number\..*_set_discharge_rate$"],
-        # Inverter Control only exists while a grid power entity is set in the integration's options.
-        "optional": [r"switch\..*_inverter_control$"],
     },
     "alphaess": {
         "name": "Alpha ESS (cloud)",

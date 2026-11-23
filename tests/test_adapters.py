@@ -108,7 +108,7 @@ def test_kostal_plenticore_battery_control():
     assert adapters.guess_profile(kos, set()) == "kostal_modbus_control"
     p = adapters.PROFILES["kostal_modbus_control"]
     steps = {i: p[i] for i in ("normal", "hold", "charge", "export")}
-    assert adapters.missing(adapters.check(steps, kos, p["optional"])) == []  # no grid entity: no Inverter Control
+    assert adapters.missing(adapters.check(steps, kos)) == []
     normal = adapters.resolve(p["normal"], kos, CTX)
     assert {c["data"]["entity_id"] for c in normal} == {
         "switch.plenticore_l_g3_charge_start", "switch.plenticore_l_g3_discharge_start",
@@ -122,8 +122,10 @@ def test_kostal_plenticore_battery_control():
     export = adapters.resolve(p["export"], kos, CTX)
     assert export[0]["data"] == {"entity_id": "number.plenticore_l_g3_set_discharge_rate", "value": 2400}
     assert export[-1]["data"] == {"entity_id": "switch.plenticore_l_g3_discharge_start"}
-    # The grid protection is the owner's - never touched
-    assert all("ems_grid_protection" not in str(c) for i in steps for c in adapters.resolve(p[i], kos, CTX))
+    # Inverter Control (grid trimming) and the grid protection are the owner's - never touched
+    kos.append("switch.plenticore_l_g3_inverter_control")
+    assert all("ems_grid_protection" not in str(c) and "inverter_control" not in str(c)
+               for i in steps for c in adapters.resolve(p[i], kos, CTX))
 
 
 def test_ecoflow_powerstream_gives_the_house_its_watts():
