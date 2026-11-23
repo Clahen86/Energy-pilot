@@ -42,6 +42,27 @@ def test_missing_tomorrow_is_filled_at_the_users_level():
     assert prices[T1 + timedelta(hours=8)] == 3.0 and info["filled"] == 24
 
 
+def test_spot_prices_past_tomorrow_are_no_estimated_tomorrow():
+    """All of tomorrow known (Strømligning): the spot prices reaching into the day after fill those hours, but the plan's
+    "tomorrow is estimated" note must not show - it said so while every hour of tomorrow was known."""
+    states = {"sensor.my_price": {"attributes": {"prices": [{"start": iso(DAY0 + timedelta(hours=h)), "price": 3.0} for h in range(48)]}}}
+    own = [{"start": iso(DAY0 + timedelta(hours=h)), "price": 2.5} for h in range(51)]  # 3 hours into the day after
+    prices, info = collect(states, "sensor.my_price", own, TZ)
+    assert DAY0 + timedelta(days=2, hours=2) in prices  # still filled for the planner
+    assert info["filled"] == 0
+
+
+def test_own_quarters_inside_the_last_known_hour_are_not_estimated():
+    """Strømligning in hours, Energy Pilot's own prices in quarters: 23:15-23:45 tomorrow lie inside the known 23:00
+    hour - no "tomorrow is estimated" (it showed with every hour of tomorrow known)."""
+    states = {"sensor.my_price": {"attributes": {"prices": [
+        {"start": iso(DAY0 + timedelta(hours=h)), "end": iso(DAY0 + timedelta(hours=h + 1)), "price": 3.0} for h in range(48)]}}}
+    own = [{"start": iso(DAY0 + timedelta(minutes=15 * q)), "price": 2.5} for q in range(48 * 4)]
+    prices, info = collect(states, "sensor.my_price", own, TZ)
+    assert info["filled"] == 0
+    assert prices[T1 + timedelta(hours=23)] == 3.0
+
+
 def test_octopus_rates_import_and_export_apart():
     base = "octopus_energy_electricity_19l1234_2100"
     t1 = DAY0 + timedelta(days=1)
