@@ -110,3 +110,31 @@ def test_the_charger_knows_the_car_until_it_is_learned():
     two = {f"sensor.evcc_{c}_vehicle_capacity": {"state": k, "attributes": {"unit_of_measurement": "kWh"}} for c, k in (("a", "8"), ("b", "77"))}
     assert evsoc.charger_kwh(two) is None
     assert evsoc.charger_kwh({}) is None
+
+
+def test_the_cars_charge_power_is_learned():
+    """A Passat GTE on one phase behind a 7.4 kW charger: it takes 3.4 kW, the plan counts on that."""
+    state = {}
+    s = evsoc.CarSize(state)
+    for w in [1500] + [3400] * 30 + [2000]:  # starting, steady, tapering near full
+        s.see(True, None, None, w)
+    s.see(True, None, None, 0)  # paused: the same session
+    s.see(False, None, None, None)  # unplugged: the session is done
+    assert s.charge_kw() == 3.4
+    assert evsoc.charger_kw({}, 3.4) == 3.4  # nothing set: what the car takes
+    assert evsoc.charger_kw({"charger_kw": 7.4}, 3.4) == 3.4  # set higher than the car takes: capped
+    assert evsoc.charger_kw({"charger_kw": 2.3}, 3.4) == 2.3  # set lower (a granny cable): kept
+    assert evsoc.charger_kw({}, None) == 7.4
+
+
+def test_a_short_or_sun_only_session_does_not_lower_it():
+    state = {"ev_kw_seen": [3.4]}
+    s = evsoc.CarSize(state)
+    for _ in range(5):  # 5 minutes: too short to tell
+        s.see(True, None, None, 3400)
+    s.see(False, None, None, None)
+    assert state["ev_kw_seen"] == [3.4]
+    for _ in range(20):  # the sun alone gives 1.8 kW
+        s.see(True, None, None, 1800)
+    s.see(False, None, None, None)
+    assert s.charge_kw() == 3.4  # the most it took, not the latest
