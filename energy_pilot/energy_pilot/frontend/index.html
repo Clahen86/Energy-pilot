@@ -169,6 +169,9 @@
   /* plan */
   .planwrap { overflow-x:auto; margin:0 -18px; padding:0 18px; scrollbar-width:none; } .planwrap::-webkit-scrollbar { display:none; }
   .plan { display:block; }
+  /* What is drawn over the hours (sun, car, the car in shadow, the battery's level, the now line) lets a tap through to
+     the hour beneath - the car's area over the charging hours made those hours impossible to tap. */
+  svg.plan > path, svg.plan > line, svg.plan > circle, svg.plan > rect { pointer-events:none; }
   .axis { font:500 10px system-ui, sans-serif; fill:var(--faint); }
   .legend { display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:var(--muted); margin-top:12px; }
   .legend i { display:inline-block; width:14px; height:3px; border-radius:2px; margin-right:6px; vertical-align:3px; }
