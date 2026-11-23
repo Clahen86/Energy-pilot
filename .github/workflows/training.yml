@@ -58,7 +58,7 @@ jobs:
           PY
       - name: Træn og mål
         run: python training/train.py "$RUNNER_TEMP/data.json" "$RUNNER_TEMP/models" >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: models
           path: ${{ runner.temp }}/models
