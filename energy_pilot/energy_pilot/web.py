@@ -165,8 +165,18 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
                                   "wear_default": overview.engine.wear(own=False) if overview.engine else None,
                                   "battery_type_found": overview.engine.battery_type() if overview.engine else None,
                                   "roles_all": {r: overview.role_all(r) for r in ("pv_power", "solar_today", "solar_tomorrow")},
-                                  "charger_switches": switches(), "thing_options": thing_options(),
+                                  "charger_switches": switches(), "thing_options": thing_options(), "charger_devices": charger_devices(),
                                   "curtail": overview.curtail.status() if getattr(overview, "curtail", None) else None})
+
+    def charger_devices() -> list:
+        """For Settings > Car: the chargers found, each with its power, plug, charged-energy and car-level sensors."""
+        from .detect import charger_devices as _cd
+
+        c = overview.controller
+        try:
+            return _cd(list((getattr(c, "_ent_reg", None) or {}).values()), getattr(c, "_devices", {}) or {}, runner.ha.states)
+        except Exception:  # noqa: BLE001 - never in the way of the settings page
+            return []
 
     def thing_options() -> dict:
         """For Settings → Runs cheaply: the switches, start buttons and power sensors that make sense (and all, on request)."""
@@ -194,9 +204,10 @@ def make_app(runner: Runner, overview: Overview) -> web.Application:
         body = await req.json()
         ua = req.headers.get("User-Agent") or ""
         overview.save(body, "home_assistant" if "HomeAssistant" in ua or "aiohttp" in ua.lower() else "app")
-        if overview.controller and ("ev_switch" in body or "chargers" in body or "things" in body or "things_dismissed" in body):
+        if overview.controller and ("ev_switch" in body or "chargers" in body or "things" in body or "things_dismissed" in body
+                                    or "roles" in body):
             try:
-                await overview.controller.discover()  # the chosen switch is used at once
+                await overview.controller.discover()  # the chosen switch - or a charger picked by its sensors - is used at once
             except Exception:  # noqa: BLE001
                 pass
         if overview.engine and set(body) - {"saved_view"}:  # only what the card shows: no new plan
