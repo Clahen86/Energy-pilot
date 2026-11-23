@@ -2,6 +2,13 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.106.0 – 2026-11-23
+
+- The companion integration can now come from the Marketplace (HACS): repository Clahen86/energy-pilot-companion. Then it serves the dashboard card itself and the app never touches it - the first step to the app needing no access to Home Assistant's folder. Have it from the app? The front page shows how to move it, in three steps
+- The add-on only answers Home Assistant itself and its login (ingress): other containers on Home Assistant's network can't reach the panel
+- Dashboard card: a new **Status** view (what it does now and why, what comes next, battery, house and price - small, for a phone), the battery's level the next 24 hours in the Battery view, and the car folded to one line when it isn't plugged in
+- New entities: **Problem** (on when something needs a look), **Price level** (cheap / normal / dear) and **Battery health** (what it holds against its label)
+
 ## 0.105.0 – 2026-11-23
 
 Safety and honesty - after a careful review of the code by a user:
