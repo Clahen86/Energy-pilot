@@ -785,7 +785,7 @@ class Controller:
                 force = self._forced(prof) and self.is_battery(part)
                 if self.is_battery(part):
                     async with self._lock():
-                        entry["result"] = await self._send(calls, force=force)
+                        entry["result"] = await self._send_kept(prof, calls, force)
                 else:
                     entry["result"] = await self._send(calls)
                 if entry["result"] != "ok":  # what failed, for the developer's view of the brand (setupinfo.py)
@@ -992,9 +992,23 @@ class Controller:
             if why == "back":
                 _LOGGER.info("%s controls are back (%s) - set again", part, ", ".join(sorted(back)))
             async with self._lock():
-                prev["result"] = await self._send(prev["calls"], force=why != "due" or self._forced(prof))
+                if why == "due":
+                    prev["result"] = await self._send_kept(prof, prev["calls"], self._forced(prof))
+                else:
+                    prev["result"] = await self._send(prev["calls"], force=True)
             prev["t"] = time.time()
             self._note_resent(part, why)
+
+    async def _send_kept(self, prof: dict[str, Any], calls: list[dict[str, Any]], force: bool) -> str:
+        """Forced writes limited to the profile's "keepalive_only" (SolarEdge: the timer and the command) - the rest sits
+        in the inverter's flash and is written only when it changed."""
+        only = prof.get("keepalive_only")
+        if not force or not only:
+            return await self._send(calls, force=force)
+        hit = lambda c: any(re.search(r, str((c.get("data") or {}).get("entity_id") or "")) for r in only)  # noqa: E731
+        rest = await self._send([c for c in calls if not hit(c)])
+        kept = await self._send([c for c in calls if hit(c)], force=True)
+        return kept if rest == "ok" else rest
 
     async def _send(self, calls: list[dict[str, Any]], force: bool = False) -> str:
         """Send the calls - only those whose value isn't already set (some links, like Solarman, drop writes now

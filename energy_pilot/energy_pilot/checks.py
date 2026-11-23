@@ -243,6 +243,7 @@ def run(engine: Any, hours: list, b: Any, plan: Any, end_value: float) -> list[d
 
     out += house_history(engine, st)
     out += read_only(engine, st)
+    out += solaredge_storage(engine, st)
     out += alpha_period(engine)
     out += inverter_floor(engine, b)
     return out
@@ -274,6 +275,21 @@ def read_only(engine: Any, st: dict[str, Any]) -> list[dict[str, Any]]:
     name, use, link = READ_ONLY[plat]
     return [{"key": "read_only", "level": "info", "vals": {"name": name, "use": use}, "link": link,
              "dismiss": {"readonly_dismissed": list(st.get("readonly_dismissed") or []) + [plat]}}]
+
+
+def solaredge_storage(engine: Any, st: dict[str, Any]) -> list[dict[str, Any]]:
+    """SolarEdge Modbus Multi makes its battery controls only when "Storage Control" is turned on in its options - off by
+    default, so homes with it showed up as "no profile" (#50). One line that says where, with a button to the options."""
+    ctl = getattr(engine.ov, "controller", None)
+    reg = getattr(ctl, "_ent_reg", None) or {}
+    soc = engine.ov.role("battery_soc")
+    if (reg.get(soc or "") or {}).get("platform") != "solaredge_modbus_multi" or "solaredge_storage" in (st.get("readonly_dismissed") or []):
+        return []
+    if ctl and ctl.profile_key("battery"):
+        return []
+    return [{"key": "solaredge_storage", "level": "info", "vals": {},
+             "link": "https://my.home-assistant.io/redirect/integration/?domain=solaredge_modbus_multi",
+             "dismiss": {"readonly_dismissed": list(st.get("readonly_dismissed") or []) + ["solaredge_storage"]}}]
 
 
 # AlphaESS' integration only changes a period that exists, on the weekdays it already runs: one made in its app fixes it.

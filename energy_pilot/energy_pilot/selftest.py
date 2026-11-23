@@ -346,6 +346,16 @@ class SelfTest:
         from .checks import victron_limit
         if intent == "normal" and part == "battery" and why == "no_reaction" and victron_limit(self.ctl.ha.states if hasattr(self.ctl, "ha") else {}):
             why = "victron_limit"  # the battery may not discharge: Victron's own persistent limit is 0
+        if part == "battery" and why == "no_reaction" and self.ctl.profile_key("battery") == "foxess_modbus":
+            if intent == "charge" and re.search(r"H3-Pro|P3-Pro|H3-.*Smart|P3-[\d.]+-SH", str(getattr(self.ctl, "model", "") or ""), re.I):
+                # FoxESS H3 Pro / H3 Smart: the integration drops a force charge while the sun is up (foxess_modbus
+                # #1244, fixed in its PR #1286, not released yet) - not Energy Pilot's profile (#52)
+                why = "fox_bug"
+            elif intent == "export" and (f.get("pv") or 0) >= 700:
+                # Fox's force discharge sets the inverter's output, not the battery's: with that much sun the sun gives
+                # it and the battery rests - nothing to tell by in daylight. Not a fault: tried again another time.
+                self._result(part, intent, "skipped", why="sun_covers")
+                return
         rejected = [{"entity": c["data"].get("entity_id"), "value": c["data"].get("option", c["data"].get("value"))}
                     for c in calls if self.ctl._matches(c) is False]
         self._result(part, intent, "failed", why=why, rejected=rejected, error=err,

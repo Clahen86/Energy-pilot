@@ -87,5 +87,6 @@ def test_solis_and_solaredge_timers_are_kept_alive():
         c.profile_key = lambda *a, k=key: k
         c.last["battery"]["t"] -= every + 10
         run(c)
-        assert sent == [CALL["data"]], key  # written although HA shows the value
+        # written although HA shows the value - SolarEdge only its timer and command (the rest sits in its flash)
+        assert sent == ([] if key == "solaredge_modbus_multi" else [CALL["data"]]), key
         assert adapters.PROFILES[key]["reassert_s"] == every

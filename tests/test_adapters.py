@@ -82,7 +82,7 @@ def test_deye_solarman_sets_all_six_programmes():
     assert {"entity_id": "select.deye_program_6_charging", "option": "Grid"} in [c["data"] for c in charge]
     assert {"domain": "switch", "service": "turn_on", "data": {"entity_id": "switch.deye_battery_grid_charging"}} in charge
     hold = adapters.resolve(p["hold"], deye, CTX)
-    assert {"entity_id": "number.deye_program_1_soc", "value": 62} in [c["data"] for c in hold]
+    assert {"entity_id": "number.deye_program_1_soc", "value": 63} in [c["data"] for c in hold]  # 1 % above (#53)
 
 
 def test_victron_ess():

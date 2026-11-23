@@ -98,7 +98,9 @@ PROFILES: dict[str, dict[str, Any]] = {
         + [(rf"number\..*program_{n}_soc$", "number", "{min_soc}") for n in range(1, 7)]
         + [(rf"select\..*program_{n}_charging$", "select", "Disabled") for n in range(1, 7)],
         "hold": [(r"select\..*time_of_use$", "select", "Week"), (r"switch\..*battery_grid_charging$", "grid", None)]
-        + [(rf"number\..*program_{n}_soc$", "number", "{soc}") for n in range(1, 7)]
+        # 1 % above the level now: a single-phase Deye (SG0*LP1) keeps discharging until it is *below* the programme's
+        # SOC, so the level itself didn't hold it (#53) - the 3-phase ones hold at either
+        + [(rf"number\..*program_{n}_soc$", "number", "{hold_soc}") for n in range(1, 7)]
         + [(rf"select\..*program_{n}_charging$", "select", "Disabled") for n in range(1, 7)],
         "charge": [(r"select\..*time_of_use$", "select", "Week"), (r"switch\..*battery_grid_charging$", "grid", None)]
         + [(rf"number\..*program_{n}_soc$", "number", "{target}") for n in range(1, 7)]
@@ -407,17 +409,29 @@ PROFILES: dict[str, dict[str, Any]] = {
         "keepalive": True,
         "normal": [(r"select\..*storage_control_mode$", "select", "Maximize Self Consumption")],
         "source": "integration",
-        "hold": [(r"select\..*storage_control_mode$", "select", "Remote Control"), (r"number\..*storage_command_timeout$", "number", "3600"),
-                 (r"select\..*storage_command_mode$", "select", "Charge from Solar Power")],
+        # Hold: its own self-consumption with discharging limited to 0 - the sun still covers the house first (with
+        # "Charge from Solar Power" the battery took the sun while the house bought from the grid). The default mode
+        # is self-consumption too, so it runs as normal if the command times out.
+        "hold": [(r"select\..*storage_control_mode$", "select", "Remote Control"),
+                 (r"select\..*storage_default_mode$", "select", "Maximize Self Consumption"),
+                 (r"number\..*storage_command_timeout$", "number", "3600"), (r"number\..*storage_discharge_limit$", "number", "0"),
+                 (r"select\..*storage_command_mode$", "select", "Maximize Self Consumption")],
         "charge": [(r"select\..*ac_charge_policy$", "select", "Always Allowed"), (r"select\..*storage_control_mode$", "select", "Remote Control"),
+                   (r"select\..*storage_default_mode$", "select", "Maximize Self Consumption"),
                    (r"number\..*storage_command_timeout$", "number", "3600"), (r"number\..*storage_charge_limit$", "number", "{power_w}"),
                    (r"select\..*storage_command_mode$", "select", "Charge from Solar Power and Grid")],
         # Selling from the battery (only when the user turns it on): checked in the integration's source.
         "export": [(r"select\..*storage_control_mode$", "select", "Remote Control"),
+                   (r"select\..*storage_default_mode$", "select", "Maximize Self Consumption"),
                    (r"number\..*storage_command_timeout$", "number", "3600"),
                    (r"number\..*storage_discharge_limit$", "number", "{power_w}"),
                    (r"select\..*storage_command_mode$", "select", "Discharge to Maximize Export")],
-        "optional": [r"number\..*storage_command_timeout$", r"select\..*ac_charge_policy$"],
+        "optional": [r"number\..*storage_command_timeout$", r"select\..*ac_charge_policy$", r"select\..*storage_default_mode$",
+                     r"number\..*storage_discharge_limit$"],
+        # Only these are written again every 30 minutes: the control mode, AC charge policy and default mode are saved
+        # in the inverter's flash (the integration counts those writes) - 48 a day would wear it.
+        "keepalive_only": [r"number\..*storage_command_timeout$", r"select\..*storage_command_mode$",
+                           r"number\..*storage_(dis)?charge_limit$"],
     },
     "foxess_modbus": {
         "name": "Fox ESS (Modbus)",
@@ -479,6 +493,26 @@ PROFILES: dict[str, dict[str, Any]] = {
     # the smart meter. Hold: "manual" with the home load preset at 0 W (the sun goes to the battery). Charge: "backup",
     # the AC models' charging from the grid at full power (an SB2 Pro/Plus has no such option and can't). Selling:
     # "manual" at a set power to the house. Through the cloud: a change shows after about 5 minutes.
+    # Anker SOLIX Solarbank 4 E5000 Pro / Max / Max AC (anker-charging/ha-anker-solix-official, Anker's own, local
+    # Modbus TCP) - checked in its source (1.5.1). "third_party_control" + Grid Flow + Power Control; the option values
+    # are its translation keys. Power Control isn't read back, so it is written again every 5 minutes.
+    "anker_solix_official": {
+        "name": "Anker SOLIX (official, Modbus)",
+        "match": r"anker_solix_official|third_party_controlled",
+        "source": "integration",
+        "reassert_s": 300,
+        "keepalive": True,
+        "normal": [(r"select\..*operating_mode", "select", "self_consumption")],
+        "hold": [(r"select\..*operating_mode", "select", "third_party_control"),
+                 (r"select\..*(_grid_flow|battery_power_direction)$", "select", "charge"),
+                 (r"number\..*(_power_control|battery_power_setpoint)$", "number", "0")],
+        "charge": [(r"select\..*operating_mode", "select", "third_party_control"),
+                   (r"select\..*(_grid_flow|battery_power_direction)$", "select", "charge"),
+                   (r"number\..*(_power_control|battery_power_setpoint)$", "number", "{power_w}")],
+        "export": [(r"select\..*operating_mode", "select", "third_party_control"),
+                   (r"select\..*(_grid_flow|battery_power_direction)$", "select", "discharge"),
+                   (r"number\..*(_power_control|battery_power_setpoint)$", "number", "{power_w}")],
+    },
     "anker_solix": {
         "name": "Anker SOLIX (Solarbank)",
         "match": r"solarbank|anker_solix",
@@ -755,6 +789,8 @@ def fill(value: Any, ctx: dict[str, Any]) -> Any:
     if isinstance(value, str) and re.fullmatch(r"-?\d+(?:\.\d+)?", value):
         return float(value) if "." in value else int(value)  # a plain number in a profile ("0")
     if isinstance(value, str) and "{" in value:
+        if "{hold_soc}" in value and isinstance(ctx.get("soc"), (int, float)):
+            ctx = {**ctx, "hold_soc": min(100, round(ctx["soc"]) + 1)}  # holding: just above the level now (Deye LP1)
         out = value.format(**{k: (round(v, 2) if isinstance(v, float) else v) for k, v in ctx.items()})
         if re.fullmatch(r"\{(serial|\w*_?id)\}", value):
             return str(out)  # an identifier stays text, even "45" (Easee refuses a number as device_id)
