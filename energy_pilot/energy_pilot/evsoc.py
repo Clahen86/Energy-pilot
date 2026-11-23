@@ -15,6 +15,32 @@ from typing import Any
 DEFAULT_TARGET = 80
 DEFAULT_KWH = 60.0  # until it's learned or set - a middle-sized car
 LOSS = 0.9  # what reaches the battery of what the charger gives
+MIN_KWH = 4.0  # the smallest car battery learned: a plug-in hybrid has 8-20 kWh
+
+
+def charger_kwh(states: dict[str, Any]) -> float | None:
+    """The car's battery size as its charger knows it, before Energy Pilot has learned it: evcc's vehicle at the
+    loadpoint (its "Vehicle" select carries the car's capacity), else evcc's one vehicle_capacity sensor."""
+    for e, st in states.items():
+        if e.startswith("select.") and e.endswith("_vehicle_name"):
+            v = ((st or {}).get("attributes") or {}).get("vehicle") or {}
+            try:
+                c = float(v.get("capacity") or (v.get("originObject") or {}).get("capacity"))
+            except (TypeError, ValueError):
+                continue
+            if 2 <= c <= 220:
+                return c
+    caps = []
+    for e, st in states.items():
+        if e.startswith("sensor.") and e.endswith("_vehicle_capacity"):
+            unit = str(((st or {}).get("attributes") or {}).get("unit_of_measurement") or "kWh").lower()
+            try:
+                c = float((st or {}).get("state"))
+            except (TypeError, ValueError):
+                continue
+            if unit == "kwh" and 2 <= c <= 220:
+                caps.append(c)
+    return caps[0] if len(caps) == 1 else None  # more cars and none at the loadpoint: no telling which
 
 
 def target(settings: dict[str, Any]) -> int:
@@ -67,7 +93,7 @@ class CarSize:
         s0, k0 = self._start
         if soc - s0 >= 15 and session_kwh - k0 >= 3:
             size = (session_kwh - k0) * LOSS / (soc - s0) * 100
-            if 10 <= size <= 220:
+            if MIN_KWH <= size <= 220:
                 seen = (self.state.setdefault("ev_kwh_seen", []) + [round(size, 1)])[-6:]
                 self.state["ev_kwh_seen"] = seen
             self._start = (soc, session_kwh)
