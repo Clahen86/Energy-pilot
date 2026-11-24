@@ -1939,19 +1939,21 @@ function planTable(plan) {
   const now = new Date(); now.setMinutes(0, 0, 0);
   const rows = (plan?.hours || []).filter((h) => h.soc != null && new Date(h.t) >= now);
   if (!rows.length) return "";
-  let prev = data?.flow?.soc, sum = 0;
+  let prev = data?.flow?.soc, sum = 0, run = 0, day = null;  // run: the day's total so far, from 0 at midnight (as Predbat)
   const color = { charge_grid: "var(--grid)", charge_sun: "var(--sun)", discharge: "var(--batt)", export: "var(--sell)", hold: "var(--muted)" };
   const body = rows.map((h) => {
     const grid = h.grid ?? 0, price = h.price ?? 0, sell = h.sell ?? 0;
     const cost = grid > 0 ? grid * price : grid * sell;
-    sum += cost;
+    const d = new Date(h.t).toDateString(), newDay = day != null && d !== day;
+    if (d !== day) { run = 0; day = d; }
+    sum += cost; run += cost;
     const start = prev; prev = h.soc;
     const car = h.car_kwh ? num(h.car_kwh, 1) : h.car_ghost_kwh ? `<i title="${t.shadow}">(${num(h.car_ghost_kwh, 1)})</i>` : "";
     const act = h.action || (h.charge ? "charge_grid" : h.export ? "export" : "hold");
-    return `<tr><td>${clock(h.t)}</td><td>${num(price, 2)} / ${num(sell, 2)}</td>
+    return `<tr${newDay ? ' style="border-top:2px solid var(--line2)"' : ""}><td>${clock(h.t)}</td><td>${num(price, 2)} / ${num(sell, 2)}</td>
       <td><span style="color:${color[act] || "inherit"};font-weight:650">${t.a[act] || act}</span></td>
       <td>${start != null ? `${num(start, 0)} → ` : ""}${num(h.soc, 0)} %</td><td>${num(h.house, 1)}</td><td>${num(h.sun, 1)}</td><td>${car}</td>
-      <td style="color:${grid > 0.05 ? "var(--bad)" : grid < -0.05 ? "var(--sell)" : "inherit"}">${grid > 0 ? "+" : ""}${num(grid, 1)}</td><td>${kr(cost)}</td><td style="color:var(--muted)">${kr(sum)}</td></tr>`;
+      <td style="color:${grid > 0.05 ? "var(--bad)" : grid < -0.05 ? "var(--sell)" : "inherit"}">${grid > 0 ? "+" : ""}${num(grid, 1)}</td><td>${kr(cost)}</td><td style="color:var(--muted)">${kr(run)}</td></tr>`;
   }).join("");
   return `<details class="more" style="margin-left:0" data-adv="plantable" ${advOpen.has("plantable") ? "open" : ""}><summary>${t.t}</summary>
     <div class="muted" style="margin:6px 0">${t.h}</div><div style="overflow-x:auto"><table class="ptable">
