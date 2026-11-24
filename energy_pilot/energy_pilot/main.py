@@ -152,11 +152,13 @@ async def main() -> None:
                 await engine.refresh_service_prices()
                 await engine.refresh_agile_predict()
                 await engine.refresh_house_today()
-                engine.run()
-                await engine.review()
+                # The controls first: the plan asks them whether the battery can sell - planned before they were
+                # found (the first round after a start), it planned without selling and said selling was blocked.
                 if (not controller.discovered or not controller.entities["battery"] and not controller.entities["car"] or int(asyncio.get_running_loop().time()) % 3600 < 300
                         or any(p not in controller.entities for p in controller.car_parts() + controller.bat_parts())):  # a charger or battery was just added
                     await controller.discover()
+                engine.run()
+                await engine.review()
                 await controller.tick()
                 await curtail.tick()
                 overview.timeline.add(snapshot(overview, engine, controller))
