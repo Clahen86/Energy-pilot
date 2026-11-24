@@ -1942,18 +1942,21 @@ function planTable(plan) {
   // run: the day's total, from 0 at midnight (as Predbat). Today starts at what the grid really cost since midnight
   // (the ledger), and the hour that is under way counts only for the part still to come.
   const soFar = data?.ledger?.today_detail?.cost, today = new Date().toDateString(), left = 1 - new Date().getMinutes() / 60;
-  let prev = data?.flow?.soc, sum = 0, run = 0, day = null;
+  // Each day ends with its own sum (the same as its last "Total") - two days added together only confused.
+  let prev = data?.flow?.soc, run = 0, day = null, dayT = null;
+  const dayRow = () => `<tr><td colspan="9"><b>${t.total} ${new Date(dayT).toLocaleDateString(LOCALE, { weekday: "long" })}</b></td><td><b>${kr(run)}</b></td></tr>`;
   const color = { charge_grid: "var(--grid)", charge_sun: "var(--sun)", discharge: "var(--batt)", export: "var(--sell)", hold: "var(--muted)" };
   const body = rows.map((h) => {
     const grid = h.grid ?? 0, price = h.price ?? 0, sell = h.sell ?? 0;
     const cost = grid > 0 ? grid * price : grid * sell;
     const d = new Date(h.t).toDateString(), newDay = day != null && d !== day;
-    if (d !== day) { run = d === today && soFar != null ? soFar : 0; day = d; }
-    sum += cost; run += d === today && soFar != null && +now === +new Date(h.t) ? cost * left : cost;
+    const ended = newDay ? dayRow() : "";
+    if (d !== day) { run = d === today && soFar != null ? soFar : 0; day = d; dayT = h.t; }
+    run += d === today && soFar != null && +now === +new Date(h.t) ? cost * left : cost;
     const start = prev; prev = h.soc;
     const car = h.car_kwh ? num(h.car_kwh, 1) : h.car_ghost_kwh ? `<i title="${t.shadow}">(${num(h.car_ghost_kwh, 1)})</i>` : "";
     const act = h.action || (h.charge ? "charge_grid" : h.export ? "export" : "hold");
-    return `<tr${newDay ? ' style="border-top:2px solid var(--line2)"' : ""}><td>${clock(h.t)}</td><td>${num(price, 2)} / ${num(sell, 2)}</td>
+    return `${ended}<tr${newDay ? ' style="border-top:2px solid var(--line2)"' : ""}><td>${clock(h.t)}</td><td>${num(price, 2)} / ${num(sell, 2)}</td>
       <td><span style="color:${color[act] || "inherit"};font-weight:650">${t.a[act] || act}</span></td>
       <td>${start != null ? `${num(start, 0)} → ` : ""}${num(h.soc, 0)} %</td><td>${num(h.house, 1)}</td><td>${num(h.sun, 1)}</td><td>${car}</td>
       <td style="color:${grid > 0.05 ? "var(--bad)" : grid < -0.05 ? "var(--sell)" : "inherit"}">${grid > 0 ? "+" : ""}${num(grid, 1)}</td><td>${kr(cost)}</td><td style="color:var(--muted)">${kr(run)}</td></tr>`;
@@ -1964,7 +1967,7 @@ function planTable(plan) {
     <th>${t.house}<br><small>kWh</small></th><th>${t.sun}<br><small>kWh</small></th><th>${t.car}<br><small>kWh</small></th>
     <th>${t.grid}<br><small>kWh ${t.gridH}</small></th><th>${t.cost}<br><small>${SYM()}</small></th><th>${t.total}<br><small>${SYM()}</small></th></tr>
     ${soFar != null && new Date(rows[0].t).toDateString() === today ? `<tr><td colspan="9" style="color:var(--muted)">${t.sofar}</td><td style="color:var(--muted)">${kr(soFar)}</td></tr>` : ""}
-    ${body}<tr><td colspan="9"><b>${t.all}</b></td><td><b>${kr(sum)}</b></td></tr></table></div></details>`;
+    ${body}${dayRow()}</table></div></details>`;
 }
 function planView() { return `<div class="card fade"><div class="eyebrow"><span>${T.planTitle}</span></div>${priceNote()}${planSvg(data.plan)}${planTable(data.plan)}</div>${learnCard()}`; }
 function ring(p) {
