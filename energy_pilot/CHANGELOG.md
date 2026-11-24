@@ -2,6 +2,15 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.107.3 – 2026-11-24
+
+Thanks to mbuhansen for all four:
+
+- After a start, the controls are looked up before the first plan - selling is no longer shown as blocked until the next round (#56)
+- Fixed by itself: an OK button next to Undo hides the line and keeps the fix (#54)
+- Detailed plan: a running total hour by hour, starting from what today really cost so far, and a sum for each day (#55)
+- Detailed plan: an hour at the battery's floor says "Holding", not "Covers the house" (#57)
+
 ## 0.107.2 – 2026-11-24
 
 - A profile chosen by hand that finds none of its controls, while another profile fits, is replaced by the one that fits (Fox ESS through Modbus with "Fox ESS (cloud)" chosen found no controls). The choice in Settings shows it, and the change log says Energy Pilot changed it
