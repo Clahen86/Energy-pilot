@@ -21,13 +21,14 @@ SESSION_WORDS = ("session_energy", "energy_session", "session")
 
 # What a charger's plug sensor says when a car is in it - a binary sensor ("on") or an enum, like VEVOR's
 # "plugged_in", OCPP's "Preparing"/"SuspendedEV" or go-e's "waiting".
+# Wallbox says "Ready" with no car in it (and "Locked" when it can't charge); Peblar "no_ev_connected" (#wallbox 0/3).
 _UNPLUGGED = ("off", "false", "available", "disconnected", "unplugged", "fault_unplugged", "not_connected", "no_car",
-              "idle", "unavailable", "unknown", "none", "")
+              "idle", "unavailable", "unknown", "none", "", "ready", "locked")
 
 
 def is_plugged(state: Any) -> bool:
     s = str(state or "").strip().lower().replace(" ", "_")
-    if s in _UNPLUGGED or "unplug" in s or "disconnect" in s or "not_connected" in s:
+    if s in _UNPLUGGED or "unplug" in s or "disconnect" in s or "not_connected" in s or s.startswith("no_"):
         return False
     return s in ("on", "true", "1") or any(w in s for w in (
         "plug", "connect", "charg", "wait", "paus", "suspend", "prepar", "finish", "complete", "occupied", "ready", "car"))

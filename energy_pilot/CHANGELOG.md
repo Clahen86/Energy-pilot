@@ -2,6 +2,11 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.107.6 – 2026-11-24
+
+- Wallbox: "Ready" means no car is plugged in (and "Locked" that it can't charge) - the self-test no longer runs without a car and calls the charger broken. The same for Peblar's "no EV connected"
+- Self-test "normal": a battery resting at your own minimum is no longer a fault (it used a fixed 20 %, so a Sungrow at 30 % failed)
+
 ## 0.107.5 – 2026-11-24
 
 - Battery tile on the front page and in the card: kWh in the battery is the big number, with the % and what can still be used down to your minimum below it. The whole tile now updates live, not just the % (#47)

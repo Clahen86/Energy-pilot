@@ -54,7 +54,9 @@ def _expect(intent: str, f: dict[str, Any], base: dict[str, Any]) -> bool | None
     # normal: the battery covers the house again - not charging from the grid, not selling, and not standing idle while
     # the house buys from the grid with charge left (a limit elsewhere, like Victron's "Max inverter power" at 0)
     soc = f.get("soc")
-    idle_buying = -150 < b < 150 and (g or 0) > 300 and (soc is None or soc > 20)
+    # above the user's own floor (+5): at its minimum the battery rests on purpose (a Sungrow at 30 % failed at a fixed 20)
+    floor = max(20.0, float(base.get("min_soc") or 10) + 5)
+    idle_buying = -150 < b < 150 and (g or 0) > 300 and (soc is None or soc > floor)
     return not (b > 300 and (g or 0) > 300) and not (b < -300 and (g or 0) < -300) and not idle_buying
 
 
@@ -396,7 +398,7 @@ class SelfTest:
         if steps.get("export") and self.ov.settings.get("battery_export"):
             plan.append("export")
         plan.append("normal")
-        base = {"battery": f.get("battery"), "grid": f.get("grid")}
+        base = {"battery": f.get("battery"), "grid": f.get("grid"), "min_soc": ctx.get("min_soc")}
         for intent in plan:
             if self._stop:
                 return
