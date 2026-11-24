@@ -100,3 +100,18 @@ def test_learned_efficiency_never_above_95_percent():
 
     bl = BatteryLearner({"battery_learned": {"in_pp": [0.77] * 10, "out_pp": [0.765] * 10}})
     assert bl.efficiency(0.92) == 0.95  # 0.99 from the battery's own meter misses the inverter's loss
+
+
+def test_selling_not_blocked_before_the_controls_are_looked_up():
+    """Just started: the plan is made before the inverter's controls are found - not taken as missing, so the first
+    plan still sells and no "selling is blocked" shows. Once looked up, missing controls do block it."""
+    from types import SimpleNamespace
+
+    from energy_pilot.engine import Engine
+
+    ctl = SimpleNamespace(discovered=False, profile_steps=lambda: {"export": [{}]}, check=lambda: {"export": {"missing": ["x"]}})
+    e = Engine.__new__(Engine)
+    e.ov = SimpleNamespace(settings={"battery_export": True}, controller=ctl)
+    assert e.can_export()
+    ctl.discovered = True
+    assert not e.can_export()

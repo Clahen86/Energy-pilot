@@ -784,6 +784,8 @@ class Engine:
             return True  # no inverter chosen yet: the plan shows what selling would do
         if not steps.get("export"):
             return False
+        if not getattr(ctl, "discovered", True):
+            return True  # its controls not looked up yet (just started): not taken as missing
         try:
             return not ctl.check().get("export", {}).get("missing")  # its controls are there
         except Exception:  # noqa: BLE001
