@@ -1939,19 +1939,19 @@ function pvrCard(yd) {
     <div class="muted" id="pvrtip" style="font-size:13px;margin-top:8px">${tip}</div>`;
 }
 const T_PT = {
-  da: { t: "Detaljeret plan", all: "Hele planen", h: "Time for time: hvad batteriet gør, hvad der købes og sælges", time: "Tid", price: "Køb/salg", act: "Batteri", soc: "Niveau", house: "Hus", sun: "Sol", car: "Bil", grid: "Net", cost: "Pris", total: "I alt", shadow: "skygge", gridH: "+ køb / − salg",
+  da: { t: "Detaljeret plan", all: "Hele planen", sofar: "Indtil nu i dag (målt)", h: "Time for time: hvad batteriet gør, hvad der købes og sælges", time: "Tid", price: "Køb/salg", act: "Batteri", soc: "Niveau", house: "Hus", sun: "Sol", car: "Bil", grid: "Net", cost: "Pris", total: "I alt", shadow: "skygge", gridH: "+ køb / − salg",
     a: { charge_grid: "Lader fra nettet", charge_sun: "Lader fra sol", discharge: "Dækker huset", export: "Sælger", hold: "Holder" } },
-  en: { t: "Detailed plan", all: "Whole plan", h: "Hour by hour: what the battery does, what is bought and sold", time: "Time", price: "Buy/sell", act: "Battery", soc: "Level", house: "House", sun: "Sun", car: "Car", grid: "Grid", cost: "Cost", total: "Total", shadow: "shadow", gridH: "+ buy / − sell",
+  en: { t: "Detailed plan", all: "Whole plan", sofar: "Today so far (measured)", h: "Hour by hour: what the battery does, what is bought and sold", time: "Time", price: "Buy/sell", act: "Battery", soc: "Level", house: "House", sun: "Sun", car: "Car", grid: "Grid", cost: "Cost", total: "Total", shadow: "shadow", gridH: "+ buy / − sell",
     a: { charge_grid: "Charging from the grid", charge_sun: "Charging from the sun", discharge: "Covers the house", export: "Selling", hold: "Holding" } },
-  de: { t: "Detaillierter Plan", all: "Ganzer Plan", h: "Stunde für Stunde: was die Batterie tut, was gekauft und verkauft wird", time: "Zeit", price: "Kauf/Verkauf", act: "Batterie", soc: "Stand", house: "Haus", sun: "Sonne", car: "Auto", grid: "Netz", cost: "Kosten", total: "Summe", shadow: "Schatten", gridH: "+ Kauf / − Verkauf",
+  de: { t: "Detaillierter Plan", all: "Ganzer Plan", sofar: "Heute bisher (gemessen)", h: "Stunde für Stunde: was die Batterie tut, was gekauft und verkauft wird", time: "Zeit", price: "Kauf/Verkauf", act: "Batterie", soc: "Stand", house: "Haus", sun: "Sonne", car: "Auto", grid: "Netz", cost: "Kosten", total: "Summe", shadow: "Schatten", gridH: "+ Kauf / − Verkauf",
     a: { charge_grid: "Lädt aus dem Netz", charge_sun: "Lädt mit Sonne", discharge: "Deckt das Haus", export: "Verkauft", hold: "Hält" } },
-  sv: { t: "Detaljerad plan", all: "Hela planen", h: "Timme för timme: vad batteriet gör, vad som köps och säljs", time: "Tid", price: "Köp/sälj", act: "Batteri", soc: "Nivå", house: "Hus", sun: "Sol", car: "Bil", grid: "Nät", cost: "Kostnad", total: "Totalt", shadow: "skugga", gridH: "+ köp / − sälj",
+  sv: { t: "Detaljerad plan", all: "Hela planen", sofar: "Hittills i dag (uppmätt)", h: "Timme för timme: vad batteriet gör, vad som köps och säljs", time: "Tid", price: "Köp/sälj", act: "Batteri", soc: "Nivå", house: "Hus", sun: "Sol", car: "Bil", grid: "Nät", cost: "Kostnad", total: "Totalt", shadow: "skugga", gridH: "+ köp / − sälj",
     a: { charge_grid: "Laddar från nätet", charge_sun: "Laddar från solen", discharge: "Täcker huset", export: "Säljer", hold: "Håller" } },
-  nb: { t: "Detaljert plan", all: "Hele planen", h: "Time for time: hva batteriet gjør, hva som kjøpes og selges", time: "Tid", price: "Kjøp/salg", act: "Batteri", soc: "Nivå", house: "Hus", sun: "Sol", car: "Bil", grid: "Nett", cost: "Pris", total: "Totalt", shadow: "skygge", gridH: "+ kjøp / − salg",
+  nb: { t: "Detaljert plan", all: "Hele planen", sofar: "Hittil i dag (målt)", h: "Time for time: hva batteriet gjør, hva som kjøpes og selges", time: "Tid", price: "Kjøp/salg", act: "Batteri", soc: "Nivå", house: "Hus", sun: "Sol", car: "Bil", grid: "Nett", cost: "Pris", total: "Totalt", shadow: "skygge", gridH: "+ kjøp / − salg",
     a: { charge_grid: "Lader fra nettet", charge_sun: "Lader fra solen", discharge: "Dekker huset", export: "Selger", hold: "Holder" } },
-  fr: { t: "Plan détaillé", all: "Plan entier", h: "Heure par heure : ce que fait la batterie, ce qui est acheté et vendu", time: "Heure", price: "Achat/vente", act: "Batterie", soc: "Niveau", house: "Maison", sun: "Soleil", car: "Voiture", grid: "Réseau", cost: "Coût", total: "Total", shadow: "ombre", gridH: "+ achat / − vente",
+  fr: { t: "Plan détaillé", all: "Plan entier", sofar: "Aujourd'hui jusqu'ici (mesuré)", h: "Heure par heure : ce que fait la batterie, ce qui est acheté et vendu", time: "Heure", price: "Achat/vente", act: "Batterie", soc: "Niveau", house: "Maison", sun: "Soleil", car: "Voiture", grid: "Réseau", cost: "Coût", total: "Total", shadow: "ombre", gridH: "+ achat / − vente",
     a: { charge_grid: "Charge depuis le réseau", charge_sun: "Charge au soleil", discharge: "Couvre la maison", export: "Vend", hold: "Maintient" } },
-  nl: { t: "Gedetailleerd plan", all: "Hele plan", h: "Uur voor uur: wat de batterij doet, wat wordt gekocht en verkocht", time: "Tijd", price: "Koop/verkoop", act: "Batterij", soc: "Niveau", house: "Huis", sun: "Zon", car: "Auto", grid: "Net", cost: "Kosten", total: "Totaal", shadow: "schaduw", gridH: "+ koop / − verkoop",
+  nl: { t: "Gedetailleerd plan", all: "Hele plan", sofar: "Vandaag tot nu (gemeten)", h: "Uur voor uur: wat de batterij doet, wat wordt gekocht en verkocht", time: "Tijd", price: "Koop/verkoop", act: "Batterij", soc: "Niveau", house: "Huis", sun: "Zon", car: "Auto", grid: "Net", cost: "Kosten", total: "Totaal", shadow: "schaduw", gridH: "+ koop / − verkoop",
     a: { charge_grid: "Laadt van het net", charge_sun: "Laadt met zon", discharge: "Dekt het huis", export: "Verkoopt", hold: "Houdt vast" } },
 };
 /** Plan > Detailed plan: the plan hour by hour, folded away - like Predbat's plan table. */
@@ -1960,14 +1960,17 @@ function planTable(plan) {
   const now = new Date(); now.setMinutes(0, 0, 0);
   const rows = (plan?.hours || []).filter((h) => h.soc != null && new Date(h.t) >= now);
   if (!rows.length) return "";
-  let prev = data?.flow?.soc, sum = 0, run = 0, day = null;  // run: the day's total so far, from 0 at midnight (as Predbat)
+  // run: the day's total, from 0 at midnight (as Predbat). Today starts at what the grid really cost since midnight
+  // (the ledger), and the hour that is under way counts only for the part still to come.
+  const soFar = data?.ledger?.today_detail?.cost, today = new Date().toDateString(), left = 1 - new Date().getMinutes() / 60;
+  let prev = data?.flow?.soc, sum = 0, run = 0, day = null;
   const color = { charge_grid: "var(--grid)", charge_sun: "var(--sun)", discharge: "var(--batt)", export: "var(--sell)", hold: "var(--muted)" };
   const body = rows.map((h) => {
     const grid = h.grid ?? 0, price = h.price ?? 0, sell = h.sell ?? 0;
     const cost = grid > 0 ? grid * price : grid * sell;
     const d = new Date(h.t).toDateString(), newDay = day != null && d !== day;
-    if (d !== day) { run = 0; day = d; }
-    sum += cost; run += cost;
+    if (d !== day) { run = d === today && soFar != null ? soFar : 0; day = d; }
+    sum += cost; run += d === today && soFar != null && +now === +new Date(h.t) ? cost * left : cost;
     const start = prev; prev = h.soc;
     const car = h.car_kwh ? num(h.car_kwh, 1) : h.car_ghost_kwh ? `<i title="${t.shadow}">(${num(h.car_ghost_kwh, 1)})</i>` : "";
     const act = h.action || (h.charge ? "charge_grid" : h.export ? "export" : "hold");
@@ -1981,6 +1984,7 @@ function planTable(plan) {
     <tr><th>${t.time}</th><th>${t.price}<br><small>${SYM()}/kWh</small></th><th>${t.act}</th><th>${t.soc}<br><small>%</small></th>
     <th>${t.house}<br><small>kWh</small></th><th>${t.sun}<br><small>kWh</small></th><th>${t.car}<br><small>kWh</small></th>
     <th>${t.grid}<br><small>kWh ${t.gridH}</small></th><th>${t.cost}<br><small>${SYM()}</small></th><th>${t.total}<br><small>${SYM()}</small></th></tr>
+    ${soFar != null && new Date(rows[0].t).toDateString() === today ? `<tr><td colspan="9" style="color:var(--muted)">${t.sofar}</td><td style="color:var(--muted)">${kr(soFar)}</td></tr>` : ""}
     ${body}<tr><td colspan="9"><b>${t.all}</b></td><td><b>${kr(sum)}</b></td></tr></table></div></details>`;
 }
 function planView() { return `<div class="card fade"><div class="eyebrow"><span>${T.planTitle}</span></div>${priceNote()}${planSvg(data.plan)}${planTable(data.plan)}</div>${learnCard()}`; }
