@@ -2,6 +2,10 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.107.2 – 2026-11-24
+
+- A profile chosen by hand that finds none of its controls, while another profile fits, is replaced by the one that fits (Fox ESS through Modbus with "Fox ESS (cloud)" chosen found no controls). The choice in Settings shows it, and the change log says Energy Pilot changed it
+
 ## 0.107.1 – 2026-11-24
 
 - SolaX read through its own integration and controlled through SolaX Modbus (two devices): the SolaX Modbus controls are now found, instead of "7 controls missing" and a self-test that found no controls

@@ -256,6 +256,8 @@ class Controller:
                 d = (devices or {}).get(dev or "") if "devices" in dir() else None
                 self.battery_serial = (d or {}).get("serial_number") or ""  # Alpha ESS wants the serial
 
+        self._mend_wrong_profile()
+
         # The extra chargers: the controls on the device of their power (or plug) sensor.
         from . import chargers
 
@@ -352,6 +354,23 @@ class Controller:
         more = batteries.extras(self.ov.settings)
         i = self.bat_parts().index(part) if part in self.bat_parts() else -1
         return more[i] if 0 <= i < len(more) else {}
+
+    def _mend_wrong_profile(self) -> None:
+        """A profile chosen by hand that finds none of its controls, while another one fits (Fox ESS Modbus with the
+        cloud profile chosen): the one that fits is taken - saved, so the choice shows it and the change log says who."""
+        chosen = self.ov.settings.get("inverter_profile")
+        p = adapters.PROFILES.get(chosen or "")
+        ents = self.entities.get("battery") or []
+        if not p or not ents:
+            return
+        need = [s[0] for steps in (p["normal"], p["hold"], p["charge"]) for s in steps
+                if s[1] not in ("service", "grid") and s[0] not in (p.get("optional") or [])]
+        if not need or any(adapters.hit(pat, e) for pat in need for e in ents):
+            return
+        guess = adapters.guess_profile(ents, {self.platforms.get("battery") or ""}, self.model)
+        if guess and guess != chosen:
+            _LOGGER.warning("Profile %s finds none of its controls here - %s fits, and is used instead", chosen, guess)
+            self.ov.save({"inverter_profile": guess}, "energy_pilot")
 
     def profile_key(self, part: str = "battery") -> str | None:
         if part != "battery":
