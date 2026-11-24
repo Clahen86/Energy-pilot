@@ -2,6 +2,10 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.107.1 – 2026-11-24
+
+- SolaX read through its own integration and controlled through SolaX Modbus (two devices): the SolaX Modbus controls are now found, instead of "7 controls missing" and a self-test that found no controls
+
 ## 0.107.0 – 2026-11-23
 
 New brands:

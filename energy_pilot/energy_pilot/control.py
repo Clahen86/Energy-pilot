@@ -230,6 +230,20 @@ class Controller:
                 # and numbers without a device - picked up by their fixed names.
                 found += [e["entity_id"] for e in entities if not e.get("disabled_by") and e["entity_id"] not in found
                           and YAML_CONTROLS.match(e["entity_id"])]
+            if part == "battery" and not found:
+                # The battery read from one integration (SolaX's own, local) and steered through another (SolaX
+                # Modbus) on a device of its own: the controls of the chosen profile's integration - or of the one
+                # inverter integration here that has controls.
+                p = adapters.PROFILES.get(self.ov.settings.get("inverter_profile") or "") or {}
+                chosen = p.get("platform") or self.ov.settings.get("inverter_profile")
+                known = {k for k in adapters.PROFILES} | {q.get("platform") for q in adapters.PROFILES.values() if q.get("platform")}
+                ctl = [e for e in entities if not e.get("disabled_by") and e["entity_id"].split(".")[0] in ("select", "number", "switch", "button", "time")
+                       and e.get("platform") in known and e.get("platform") not in GENERIC_PLATFORMS]
+                have = {e.get("platform") for e in ctl}
+                pick = chosen if chosen in have else (next(iter(have)) if len(have) == 1 else None)
+                if pick:
+                    found = [e["entity_id"] for e in ctl if e.get("platform") == pick]
+                    plat = pick
             # The anchor's own device first: with two inverters on one integration (a Kostal G3 and a Plenticore Plus)
             # a profile's pattern then finds this one's controls, not whichever sorts first.
             own = {e["entity_id"] for e in entities if dev and e.get("device_id") == dev}
