@@ -1023,17 +1023,19 @@ def resolve(steps: list, entities: list[str], ctx: dict[str, Any]) -> list[dict[
 
 def guess_profile(entities: list[str], platforms: set[str], model: str | None = None) -> str | None:
     """The built-in profile for the inverter in this home: its model first, then its integration or entity names."""
-    if model:
-        for key, p in PROFILES.items():
-            if p.get("models") and re.search(p["models"], model, re.I) and \
-                    (any(re.search(p["match"], e) for e in entities) or key.split("_")[0] in platforms or any(key.startswith(x) for x in platforms if x)):
-                return key
     def fits(p: dict) -> bool:
         hits = [s for steps in (p["normal"], p["hold"], p["charge"]) for s in steps if s[1] != "service"]
         if not hits:
             return True  # all by services (Alpha ESS): the integration's name is all there is
         return sum(1 for pat, _k, _v in hits if any(hit(pat, e) for e in entities)) >= max(1, len(hits) // 2)
 
+    if model:
+        # The model only counts when the profile's controls are there too: a Deye through deye_modbus or Solar
+        # Assistant (MQTT) has none of Solarman's programme controls (#62-64)
+        for key, p in PROFILES.items():
+            if p.get("models") and re.search(p["models"], model, re.I) and fits(p) and \
+                    (any(re.search(p["match"], e) for e in entities) or key.split("_")[0] in platforms or any(key.startswith(x) for x in platforms if x)):
+                return key
     for key, p in PROFILES.items():  # one integration, several makes or generations (SolaX Modbus: Gen3, Growatt)
         if p.get("platform") in platforms and fits(p):
             return key

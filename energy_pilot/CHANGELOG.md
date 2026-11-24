@@ -2,6 +2,12 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.107.4 – 2026-11-24
+
+- A Deye whose model fits but that has none of Solarman's controls (through deye_modbus or Solar Assistant/MQTT) no longer gets the Solarman profile - the self-test found no controls there (#62, #63, #64)
+- Self-test, selling from the battery: when the battery discharges but nothing is sold, it says "export limit, or the house used it" instead of a fault (#61)
+- The shared house model can be fetched again (the report service answered every GET before reaching it)
+
 ## 0.107.3 – 2026-11-24
 
 Thanks to mbuhansen for all four:

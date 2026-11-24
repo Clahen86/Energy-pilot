@@ -356,6 +356,11 @@ class SelfTest:
                 # it and the battery rests - nothing to tell by in daylight. Not a fault: tried again another time.
                 self._result(part, intent, "skipped", why="sun_covers")
                 return
+        if part == "battery" and intent == "export" and why == "no_reaction" and f and (f.get("battery") or 0) <= -300:
+            # The battery discharged but nothing was sold: an export limit in the inverter (zero export) or a house
+            # using it all - the control worked, selling is just limited here (#61). Not a fault.
+            self._result(part, intent, "skipped", why="export_limited", seen={k: f.get(k) for k in ("battery", "grid") if f})
+            return
         rejected = [{"entity": c["data"].get("entity_id"), "value": c["data"].get("option", c["data"].get("value"))}
                     for c in calls if self.ctl._matches(c) is False]
         self._result(part, intent, "failed", why=why, rejected=rejected, error=err,
