@@ -136,10 +136,18 @@ class Ledger:
         # Honest: what Energy Pilot itself adds. The same battery in the inverter's own way (the house first: charged by
         # the sun's surplus, emptied into the house, never from the grid) - run beside the real one, same house and sun.
         if capacity_kwh and soc is not None:
+            fresh = s.get("selfuse_day") != now.date().isoformat() or s.get("selfuse_kwh") is None
             day["selfuse"] = day.get("selfuse", 0.0) + cost(self._selfuse(soc, house + ev - pv, hours, capacity_kwh, min_soc,
                                                                           efficiency, max_charge_kw, max_discharge_kw))
             day["cost_p"] = day.get("cost_p", 0.0) + c  # the real cost over the same steps
-            day["pilot"] = day["selfuse"] - day["cost_p"]
+            # Both start the day at the same level: what one holds more than the other at the end counts at what the
+            # power in the battery cost - so power bought cheaply for tomorrow isn't a loss today (and the other way round).
+            extra = soc / 100 * capacity_kwh - s["selfuse_kwh"]
+            if fresh:  # the day's first step: the two may already differ by that one step - not counted
+                s["selfuse_off"] = extra
+            extra -= s.get("selfuse_off", 0.0)
+            value = s["stored_cost"] / s["stored_kwh"] if s.get("stored_kwh", 0) > 0.5 else price
+            day["pilot"] = day["selfuse"] - day["cost_p"] + extra * value
         if now.timestamp() - self._saved_at > 300:
             self._trim(now)
             self.save()

@@ -2,6 +2,10 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.107.8 – 2026-11-24
+
+- Savings, "Energy Pilot's own part": power bought cheaply and still in the battery at the end of the day no longer counts as a loss. The comparison with the inverter's own control now counts what each battery holds more than the other at what that power cost. Earlier days keep their old figure
+
 ## 0.107.7 – 2026-11-24
 
 - Home Assistant's Mac app: tapping a time field (battery targets, your own tariff, "ready by") no longer crashes the whole app. In the Mac app only, time fields are plain text (07:30); "730" or "7.30" is understood. Browsers and the phone apps keep the normal time picker
