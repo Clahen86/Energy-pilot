@@ -1951,14 +1951,14 @@ function planTable(plan) {
     return `<tr><td>${clock(h.t)}</td><td>${num(price, 2)} / ${num(sell, 2)}</td>
       <td><span style="color:${color[act] || "inherit"};font-weight:650">${t.a[act] || act}</span></td>
       <td>${start != null ? `${num(start, 0)} → ` : ""}${num(h.soc, 0)} %</td><td>${num(h.house, 1)}</td><td>${num(h.sun, 1)}</td><td>${car}</td>
-      <td style="color:${grid > 0.05 ? "var(--bad)" : grid < -0.05 ? "var(--sell)" : "inherit"}">${grid > 0 ? "+" : ""}${num(grid, 1)}</td><td>${kr(cost)}</td></tr>`;
+      <td style="color:${grid > 0.05 ? "var(--bad)" : grid < -0.05 ? "var(--sell)" : "inherit"}">${grid > 0 ? "+" : ""}${num(grid, 1)}</td><td>${kr(cost)}</td><td style="color:var(--muted)">${kr(sum)}</td></tr>`;
   }).join("");
   return `<details class="more" style="margin-left:0" data-adv="plantable" ${advOpen.has("plantable") ? "open" : ""}><summary>${t.t}</summary>
     <div class="muted" style="margin:6px 0">${t.h}</div><div style="overflow-x:auto"><table class="ptable">
     <tr><th>${t.time}</th><th>${t.price}<br><small>${SYM()}/kWh</small></th><th>${t.act}</th><th>${t.soc}<br><small>%</small></th>
     <th>${t.house}<br><small>kWh</small></th><th>${t.sun}<br><small>kWh</small></th><th>${t.car}<br><small>kWh</small></th>
-    <th>${t.grid}<br><small>kWh ${t.gridH}</small></th><th>${t.cost}<br><small>${SYM()}</small></th></tr>
-    ${body}<tr><td colspan="8"><b>${t.total}</b></td><td><b>${kr(sum)}</b></td></tr></table></div></details>`;
+    <th>${t.grid}<br><small>kWh ${t.gridH}</small></th><th>${t.cost}<br><small>${SYM()}</small></th><th>${t.total}<br><small>${SYM()}</small></th></tr>
+    ${body}<tr><td colspan="8"><b>${t.total}</b></td><td><b>${kr(sum)}</b></td><td></td></tr></table></div></details>`;
 }
 function planView() { return `<div class="card fade"><div class="eyebrow"><span>${T.planTitle}</span></div>${priceNote()}${planSvg(data.plan)}${planTable(data.plan)}</div>${learnCard()}`; }
 function ring(p) {
