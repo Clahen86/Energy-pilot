@@ -191,6 +191,21 @@ def test_fuse_from_the_inverter_while_still_the_start_value():
     assert store["import_limit_kw"] == 10
 
 
+def test_ok_hides_the_line_but_keeps_the_fix():
+    """OK: the fuse stays at 32 kW and the line goes; a new fix (the fuse changed in the inverter) shows again."""
+    amps = {"v": 50.0}
+    o, store = ov({"import_limit_kw": 10})
+    o.controller = SimpleNamespace(fuse_amps=lambda: amps["v"])
+    a = A.AutoFix(o)
+    a.run()
+    a.seen("fuse_inverter")
+    a.run()
+    assert store["import_limit_kw"] == 32 and a.lines() == []
+    amps["v"] = 35.0
+    a.run()
+    assert store["import_limit_kw"] == 22 and [e["to"] for e in a.lines()] == [22]
+
+
 def test_fuse_from_the_inverter_never_overrides_the_users_own():
     for own in (25, None):  # typed in, or taken away on purpose
         o, store = ov({"import_limit_kw": own})

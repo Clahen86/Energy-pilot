@@ -486,7 +486,10 @@ def make_app(runner: Runner, overview: Overview, password: str | None = None) ->
         a = getattr(overview, "autofix", None)
         body = await req.json()
         key = str(body.get("undo") or "")
-        if key.startswith("community|"):  # a shared fix undone: never used here again
+        seen = str(body.get("seen") or "")
+        if seen and a and not seen.startswith("community|"):  # OK: kept, the line goes away
+            a.seen(seen)
+        elif key.startswith("community|"):  # a shared fix undone: never used here again
             ign = list(overview.settings.get("community_ignore") or [])
             k = key.split("|", 1)[1]
             overview.save({"community_ignore": ign + [k]})
