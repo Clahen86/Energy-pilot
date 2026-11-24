@@ -2,6 +2,10 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.107.7 – 2026-11-24
+
+- Home Assistant's Mac app: tapping a time field (battery targets, your own tariff, "ready by") no longer crashes the whole app. In the Mac app only, time fields are plain text (07:30); "730" or "7.30" is understood. Browsers and the phone apps keep the normal time picker
+
 ## 0.107.6 – 2026-11-24
 
 - Wallbox: "Ready" means no car is plugged in (and "Locked" that it can't charge) - the self-test no longer runs without a car and calls the charger broken. The same for Peblar's "no EV connected"

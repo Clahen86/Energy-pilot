@@ -189,8 +189,9 @@
   .toggle { width:51px; height:31px; border-radius:16px; border:0; background:color-mix(in srgb, var(--muted) 35%, var(--surface2)); position:relative; cursor:pointer; flex:none; transition:.25s; box-shadow:inset 0 0 0 1.5px color-mix(in srgb, var(--muted) 70%, transparent); }
   .toggle::after { content:""; position:absolute; top:2px; left:2px; width:27px; height:27px; border-radius:50%; background:#fff; transition:.25s; box-shadow:0 2px 6px rgba(0,0,0,.3); }
   .toggle.on { background:var(--ok); box-shadow:none; } .toggle.car.on { background:var(--car); } .toggle.on::after { left:22px; }
-  input[type=time] { font:650 20px system-ui; color:var(--text); background:var(--surface2); border:1px solid var(--line); border-radius:12px; padding:6px 10px; color-scheme:dark; }
-  @media (prefers-color-scheme: light) { input[type=time] { color-scheme:light; } }
+  input.mactime { width:4.6em; text-align:center; }
+  input[type=time], input.mactime { font:650 20px system-ui; color:var(--text); background:var(--surface2); border:1px solid var(--line); border-radius:12px; padding:6px 10px; color-scheme:dark; }
+  @media (prefers-color-scheme: light) { input[type=time], input.mactime { color-scheme:light; } }
   .range { display:flex; align-items:center; gap:12px; min-width:52%; } .range input { flex:1; accent-color:var(--car); touch-action:pan-y; } .range b { min-width:62px; text-align:right; font-weight:650; }
   /* shadow */
   .app { display:grid; grid-template-columns:52px 1fr; gap:4px 14px; align-items:center; padding:16px 0; border-top:1px solid var(--line); }
@@ -370,6 +371,31 @@
 <main id="root"><div class="muted" style="padding:40px;text-align:center">Indlæser…</div></main>
 <nav><div id="tabs"></div></nav>
 <script>
+/* The Home Assistant app for Mac crashes on Apple's time picker (UIPickerView isn't supported there): in that app only,
+   time fields become plain text "HH:MM" - "730" or "7.30" is made 07:30 before anything reads it, nonsense is put back.
+   Browsers (Safari and Chrome on a Mac too), the iPhone/iPad and Android apps keep the normal time picker. */
+const MAC_APP = /io\.robbie\.HomeAssistant[^)]*mac ?os/i.test(navigator.userAgent);
+function hhmm(v) {
+  const m = String(v || "").trim().match(/^(\d{1,2})(?:[:.,\s]?(\d{2}))?$/);
+  if (!m) return null;
+  const h = +m[1], mi = +(m[2] || 0);
+  return h < 24 && mi < 60 ? `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}` : null;
+}
+function macTimes(root) {
+  const fix = (el) => { el.type = "text"; el.classList.add("mactime"); el.inputMode = "numeric"; el.placeholder = "HH:MM"; el.maxLength = 5; el.autocomplete = "off"; };
+  const all = () => root.querySelectorAll('input[type="time"]').forEach(fix);
+  all();
+  new MutationObserver(all).observe(root, { childList: true, subtree: true });
+  root.addEventListener("change", (e) => {
+    const el = e.target;
+    if (!el || !el.classList || !el.classList.contains("mactime")) return;
+    if (!el.value.trim()) { el.value = ""; return; }  // emptied on purpose: kept empty
+    const v = hhmm(el.value);
+    if (v) el.value = v;
+    else { el.value = el.defaultValue; e.stopImmediatePropagation(); }
+  }, true);
+}
+if (MAC_APP) document.addEventListener("DOMContentLoaded", () => macTimes(document.body));
 if (new URLSearchParams(location.search).get("theme")) document.documentElement.dataset.theme = new URLSearchParams(location.search).get("theme");
 // The colour theme is kept on this device (Settings → Look).
 try { const pal = new URLSearchParams(location.search).get("palette") || localStorage.getItem("ep_palette"); if (pal && pal !== "standard") document.documentElement.dataset.palette = pal; } catch (e) { /* private mode: the standard colours */ }

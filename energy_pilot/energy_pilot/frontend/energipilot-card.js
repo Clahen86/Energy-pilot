@@ -194,6 +194,31 @@ function qBars(h, x, w, y0, hOf, attrs, gap = 1) {
   return q.map((p, k) => { const bh = Math.max(0, hOf(p)), a = typeof attrs === "function" ? attrs(p) : attrs;
     return `<rect x="${(x + k * sw + (k ? gap / 2 : 0)).toFixed(1)}" y="${(y0 - bh).toFixed(1)}" width="${Math.max(1, sw - (q.length > 1 ? gap : 0)).toFixed(1)}" height="${bh.toFixed(1)}" ${a}/>`; }).join("");
 }
+/* The Home Assistant app for Mac crashes on Apple's time picker (UIPickerView isn't supported there): in that app only,
+   time fields become plain text "HH:MM" - "730" or "7.30" is made 07:30 before anything reads it, nonsense is put back.
+   Browsers (Safari and Chrome on a Mac too), the iPhone/iPad and Android apps keep the normal time picker. */
+const MAC_APP = /io\.robbie\.HomeAssistant[^)]*mac ?os/i.test(navigator.userAgent);
+function hhmm(v) {
+  const m = String(v || "").trim().match(/^(\d{1,2})(?:[:.,\s]?(\d{2}))?$/);
+  if (!m) return null;
+  const h = +m[1], mi = +(m[2] || 0);
+  return h < 24 && mi < 60 ? `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}` : null;
+}
+function macTimes(root) {
+  const fix = (el) => { el.type = "text"; el.classList.add("mactime"); el.inputMode = "numeric"; el.placeholder = "HH:MM"; el.maxLength = 5; el.autocomplete = "off"; };
+  const all = () => root.querySelectorAll('input[type="time"]').forEach(fix);
+  all();
+  new MutationObserver(all).observe(root, { childList: true, subtree: true });
+  root.addEventListener("change", (e) => {
+    const el = e.target;
+    if (!el || !el.classList || !el.classList.contains("mactime")) return;
+    if (!el.value.trim()) { el.value = ""; return; }  // emptied on purpose: kept empty
+    const v = hhmm(el.value);
+    if (v) el.value = v;
+    else { el.value = el.defaultValue; e.stopImmediatePropagation(); }
+  }, true);
+}
+
 class EnergipilotCard extends HTMLElement {
   setConfig(config) { this._config = { view: "overview", ...config }; if (!this.shadowRoot) this.attachShadow({ mode: "open" }); this._uid = Math.random().toString(36).slice(2, 7); }
   static getConfigElement() { return document.createElement("energipilot-card-editor"); }
@@ -249,6 +274,7 @@ class EnergipilotCard extends HTMLElement {
       : v === "savings" ? this._savingsHtml() : v === "status" ? this._statusCard()
       : `${this._flowHtml()}${this._statusHtml()}${this._savingsHtml(true)}${this._batteryHtml(true)}${this._carHtml(true)}${this._planHtml(true)}`;
     this.shadowRoot.innerHTML = `<style>${CSS}</style><ha-card>${this._config.title ? `<div class="title">${esc(this._config.title)}</div>` : ""}${body}</ha-card>`;
+    if (MAC_APP && !this._macTimes) { this._macTimes = true; macTimes(this.shadowRoot); }
     this._wire();
   }
   _patch() {
@@ -573,7 +599,8 @@ const CSS = `.muted2{opacity:.7;font-size:13px;margin:6px 0 10px}.chips2{display
   .tg { width:46px; height:28px; border-radius:14px; border:0; background:var(--disabled-color, #bbb); position:relative; cursor:pointer; flex:none; }
   .tg::after { content:""; position:absolute; top:2px; left:2px; width:24px; height:24px; border-radius:50%; background:#fff; transition:.2s; box-shadow:0 1px 3px rgba(0,0,0,.3); }
   .tg.on { background:#f472b6; } .tg.on::after { left:20px; }
-  input[type=time] { font:600 16px system-ui; color:var(--primary-text-color); background:var(--secondary-background-color); border:0; border-radius:10px; padding:6px 8px; }
+  input.mactime { width:4.6em; text-align:center; }
+  input[type=time], input.mactime { font:600 16px system-ui; color:var(--primary-text-color); background:var(--secondary-background-color); border:0; border-radius:10px; padding:6px 8px; }
   .rg { display:flex; align-items:center; gap:10px; flex:1; max-width:60%; } .rg input { flex:1; accent-color:#f472b6; } .rg i { font-style:normal; font-weight:600; min-width:56px; text-align:right; font-size:14px; }
   .evb { position:relative; height:7px; border-radius:5px; background:var(--secondary-background-color, rgba(127,127,127,.2)); margin:2px 0 10px; } .evb span { position:absolute; inset:0 auto 0 0; border-radius:5px; background:var(--car); }
   .evb i { position:absolute; top:-4px; width:2px; height:15px; margin-left:-1px; background:var(--primary-text-color); }
