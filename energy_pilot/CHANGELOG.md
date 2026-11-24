@@ -2,6 +2,10 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.107.5 – 2026-11-24
+
+- Battery tile on the front page and in the card: kWh in the battery is the big number, with the % and what can still be used down to your minimum below it. The whole tile now updates live, not just the % (#47)
+
 ## 0.107.4 – 2026-11-24
 
 - A Deye whose model fits but that has none of Solarman's controls (through deye_modbus or Solar Assistant/MQTT) no longer gets the Solarman profile - the self-test found no controls there (#62, #63, #64)
