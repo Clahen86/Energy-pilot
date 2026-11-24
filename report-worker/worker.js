@@ -48,10 +48,10 @@ export default {
     if (request.method === "GET" && url.pathname === "/stats") return stats(url, env);
     if (request.method === "GET" && url.pathname === "/approve") return approve(url, env);
     if (request.method === "GET" && url.pathname === "/export") return exportHours(url, env);
+    if (request.method === "GET" && url.pathname === "/model/house") return houseModel(env);
     if (request.method === "GET") return json({ ok: true, service: "energy-pilot-reports" });
     if (request.method !== "POST") return json({ error: "method" }, 405);
     if (url.pathname === "/models") return putModels(request, env);
-    if (request.method === "GET" && url.pathname === "/model/house") return houseModel(env);
     const app = request.headers.get("x-ep-client");
     if (!APPS[app]) return json({ error: "client" }, 403);
     if (url.pathname === "/t") return telemetry(request, env, app);
