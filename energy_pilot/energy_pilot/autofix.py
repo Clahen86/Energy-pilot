@@ -136,6 +136,11 @@ class AutoFix:
         self.ov.save({**change, "autofix_log": [x for x in self.log if x["key"] != key],
                       "autofix_ignore": list(dict.fromkeys((s.get("autofix_ignore") or []) + [key]))})
 
+    def seen(self, key: str) -> None:
+        """OK pressed: the fix stays, its line goes away - until it mends something new."""
+        if any(x["key"] == key for x in self.log):
+            self.ov.save({"autofix_log": [{**x, "seen": True} if x["key"] == key else x for x in self.log]})
+
     # ---------- every minute ----------
     def run(self) -> None:
         st = self.ov.ha.states
@@ -359,5 +364,5 @@ class AutoFix:
         return None
 
     def lines(self) -> list[dict[str, Any]]:
-        """For the page: what was mended, newest first."""
-        return sorted(self.log, key=lambda e: -e["t"])
+        """For the page: what was mended and not yet OK'ed, newest first."""
+        return sorted((e for e in self.log if not e.get("seen")), key=lambda e: -e["t"])
