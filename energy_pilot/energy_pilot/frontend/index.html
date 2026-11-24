@@ -1976,7 +1976,10 @@ function planTable(plan) {
     run += d === today && soFar != null && +now === +new Date(h.t) ? cost * left : cost;
     const start = prev; prev = h.soc;
     const car = h.car_kwh ? num(h.car_kwh, 1) : h.car_ghost_kwh ? `<i title="${t.shadow}">(${num(h.car_ghost_kwh, 1)})</i>` : "";
-    const act = h.action || (h.charge ? "charge_grid" : h.export ? "export" : "hold");
+    let act = h.action || (h.charge ? "charge_grid" : h.export ? "export" : "hold");
+    // "Covers the house" at the floor: the level doesn't fall and the house is bought - the battery gives nothing:
+    // shown as holding, like the hours after it. (The sun covering the house also keeps the level, but nothing is bought.)
+    if (act === "discharge" && start != null && start - h.soc < 0.05 && grid > 0.05) act = "hold";
     return `${ended}<tr${newDay ? ' style="border-top:2px solid var(--line2)"' : ""}><td>${clock(h.t)}</td><td>${num(price, 2)} / ${num(sell, 2)}</td>
       <td><span style="color:${color[act] || "inherit"};font-weight:650">${t.a[act] || act}</span></td>
       <td>${start != null ? `${num(start, 0)} → ` : ""}${num(h.soc, 0)} %</td><td>${num(h.house, 1)}</td><td>${num(h.sun, 1)}</td><td>${car}</td>
