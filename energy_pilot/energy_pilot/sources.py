@@ -263,8 +263,9 @@ class HouseModel:
             return False
         cut = max(1, len(X) - 24 * 7)
         model = GradientBoostingRegressor(n_estimators=150, max_depth=3, learning_rate=0.08, subsample=0.9)
-        model.fit(X[:cut], y[:cut], sample_weight=w[:cut])
-        if cut < len(X):
+        if cut >= 48:  # the last week held back to measure the error - only with enough before it (1 hour crashed, #59)
+            model.fit(X[:cut], y[:cut], sample_weight=w[:cut])
+        if 48 <= cut < len(X):
             pred = model.predict(X[cut:])
             self.error = round(sum(abs(p - a) for p, a in zip(pred, y[cut:])) / len(pred), 3)
         model.fit(X, y, sample_weight=w)  # then on everything

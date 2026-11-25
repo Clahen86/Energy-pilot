@@ -127,6 +127,23 @@ PROFILES: dict[str, dict[str, Any]] = {
         "restore_charge": [r"number\..*battery_grid_charging_current$"],
         "optional": [r"number\..*battery_grid_charging_current$"],
     },
+    # Deye / Sunsynk through the Sunsynk add-on (kellerza/sunsynk, MQTT): the same six programmes as Solarman, named
+    # "Prog1 capacity" / "Prog1 charge" (most set the prefix "ss_"). "Use timer" on, every programme alike; charging
+    # is the programme's "Allow Grid". No clock times are touched.
+    "sunsynk": {
+        "name": "Deye / Sunsynk (Sunsynk add-on)",
+        "match": r"prog\d_(capacity|charge)$",
+        "normal": [(r"switch\..*use_timer$", "on", None), (r"switch\..*grid_charge_enabled$", "grid", None)]
+        + [(rf"number\..*prog{n}_capacity$", "number", "{min_soc}") for n in range(1, 7)]
+        + [(rf"select\..*prog{n}_charge$", "select", "re:^no") for n in range(1, 7)],
+        # 1 % above the level now, as Solarman: a single-phase Deye discharges until it is below the programme's level
+        "hold": [(r"switch\..*use_timer$", "on", None), (r"switch\..*grid_charge_enabled$", "grid", None)]
+        + [(rf"number\..*prog{n}_capacity$", "number", "{hold_soc}") for n in range(1, 7)]
+        + [(rf"select\..*prog{n}_charge$", "select", "re:^no") for n in range(1, 7)],
+        "charge": [(r"switch\..*use_timer$", "on", None), (r"switch\..*grid_charge_enabled$", "grid", None)]
+        + [(rf"number\..*prog{n}_capacity$", "number", "{target}") for n in range(1, 7)]
+        + [(rf"select\..*prog{n}_charge$", "select", "re:^allow grid") for n in range(1, 7)],
+    },
     # Deye via ESPHome and local Modbus (klatremis/esphome-for-deye): the six "Time point" programmes, set alike.
     "deye_esphome": {
         "name": "Deye (ESPHome, local Modbus)",
@@ -951,7 +968,11 @@ def alias_for(entity_id: str, translation_key: str | None) -> str | None:
 
 def hit(pattern: str, entity: str) -> bool:
     """The pattern matches the entity's id, or its name in the integration's own words (any language)."""
-    return bool(re.search(pattern, entity) or ((a := ALIASES.get(entity)) and re.search(pattern, a)))
+    if re.search(pattern, entity) or ((a := ALIASES.get(entity)) and re.search(pattern, a)):
+        return True
+    # Home Assistant's "_2" for a second entity of the same name (a re-added integration): the control is the same
+    base = re.sub(r"_\d+$", "", entity)
+    return base != entity and bool(re.search(pattern, base))
 
 
 def _find(pattern: str, entities: list[str]) -> str | None:

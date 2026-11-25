@@ -1505,7 +1505,7 @@ function moveCard() {
   const repo = "https://github.com/Clahen86/energy-pilot-companion";
   return `<div class="card fade"><div class="eyebrow"><span>${t.t}</span></div><p style="margin:4px 0 8px">${t.b}</p>
     <ol style="margin:0 0 10px 18px;padding:0">${t.s.map((x) => `<li>${x}</li>`).join("")}</ol>
-    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><code style="flex:1;overflow-wrap:anywhere">${repo}</code><button class="ghostbtn" data-movecopy="${repo}">${t.copy}</button></div>
+    <code style="display:block;overflow-wrap:anywhere;user-select:all">${repo}</code><button class="ghostbtn" style="margin-top:8px" data-movecopy="${repo}">${t.copy}</button>
     <button class="ghostbtn" data-movelater>${t.later}</button></div>`;
 }
 function home() {
@@ -1864,6 +1864,9 @@ const T_CURVE = {
   da: { title: "Batteriets ladekurve", hint: "Hvor hurtigt det lader ved hvert niveau – lært af dit eget batteri", shared: "Lært af batterier som dit, indtil dit eget er lært", warm: "Varmt", cold: "Koldt (under 5 °C)", cool: "Køligt (5–15 °C)", now: "Batteriet er {t} °C nu", level: "Batteriniveau", speed: "Ladefart" },
   en: { title: "The battery's charging curve", hint: "How fast it charges at each level – learned from your own battery", shared: "Learned from batteries like yours until your own is learned", warm: "Warm", cold: "Cold (below 5 °C)", cool: "Cool (5–15 °C)", now: "The battery is {t} °C now", level: "Battery level", speed: "Charging speed" },
   de: { title: "Ladekurve der Batterie", hint: "Wie schnell sie bei jedem Stand lädt – von deiner eigenen Batterie gelernt", shared: "Von Batterien wie deiner gelernt, bis deine eigene gelernt ist", warm: "Warm", cold: "Kalt (unter 5 °C)", cool: "Kühl (5–15 °C)", now: "Die Batterie hat jetzt {t} °C", level: "Ladestand", speed: "Ladeleistung" },
+  fr: { title: "Courbe de charge de la batterie", hint: "La vitesse de charge à chaque niveau – apprise de votre propre batterie", shared: "Apprise de batteries comme la vôtre en attendant la vôtre", warm: "Chaud", cold: "Froid (sous 5 °C)", cool: "Frais (5–15 °C)", now: "La batterie est à {t} °C", level: "Niveau de la batterie", speed: "Vitesse de charge" },
+  sv: { title: "Batteriets laddkurva", hint: "Hur snabbt det laddar vid varje nivå – lärt av ditt eget batteri", shared: "Lärt av batterier som ditt tills ditt eget är lärt", warm: "Varmt", cold: "Kallt (under 5 °C)", cool: "Svalt (5–15 °C)", now: "Batteriet är {t} °C nu", level: "Batterinivå", speed: "Laddhastighet" },
+  nb: { title: "Batteriets ladekurve", hint: "Hvor raskt det lader ved hvert nivå – lært av ditt eget batteri", shared: "Lært av batterier som ditt til ditt eget er lært", warm: "Varmt", cold: "Kaldt (under 5 °C)", cool: "Kjølig (5–15 °C)", now: "Batteriet er {t} °C nå", level: "Batterinivå", speed: "Ladehastighet" },
   nl: { title: "Laadcurve van de batterij", hint: "Hoe snel hij laadt bij elk niveau – geleerd van je eigen batterij", shared: "Geleerd van batterijen zoals de jouwe tot de jouwe geleerd is", warm: "Warm", cold: "Koud (onder 5 °C)", cool: "Koel (5–15 °C)", now: "De batterij is nu {t} °C", level: "Batterijniveau", speed: "Laadsnelheid" },
 };
 // The learned curve as a small graph: full speed until the battery slows down near full, and lower when cold.
@@ -1879,7 +1882,8 @@ function curveCard(c) {
   const line = (mult, col, dash) => `<polyline points="${steps(mult)}" fill="none" stroke="${col}" stroke-width="2.5" stroke-linejoin="round" ${dash ? `stroke-dasharray="5 4"` : ""}/>`;
   const leg = (col, txt, dash) => `<span class="cleg"><i style="border-top:2.5px ${dash ? "dashed" : "solid"} ${col}"></i>${esc(txt)}</span>`;
   return `<div class="eyebrow" style="margin:16px 0 6px"><span>${k.title}</span></div>
-    <svg viewBox="0 0 300 118" width="100%" role="img" aria-label="${esc(k.title)}" style="display:block">
+    <svg viewBox="0 0 300 128" width="100%" role="img" aria-label="${esc(k.title)}" style="display:block">
+      <text x="38" y="9" font-size="9" fill="var(--muted)">${esc(k.speed)} ↑</text><text x="162" y="124" font-size="9" fill="var(--muted)" text-anchor="middle">${esc(k.level)} →</text>
       <line x1="34" y1="96" x2="290" y2="96" stroke="var(--faint)"/><line x1="34" y1="14" x2="34" y2="96" stroke="var(--faint)"/>
       ${[0, 50, 100].map((l) => `<text x="${X(l)}" y="110" font-size="9" fill="var(--muted)" text-anchor="${l === 100 ? "end" : l ? "middle" : "start"}">${l} %</text>`).join("")}
       ${[0, 50, 100].map((v) => `<text x="29" y="${Y(v / 100) + 3}" font-size="9" fill="var(--muted)" text-anchor="end">${v} %</text>`).join("")}

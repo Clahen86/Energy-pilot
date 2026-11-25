@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any
 
 MAX_GAP_H = 0.1  # a longer gap (restart) isn't counted as one long step
+MAX_BATT_W = 50_000  # a home battery never moves more - a reading above it is a wrong unit, not power
 
 
 class Ledger:
@@ -36,6 +37,7 @@ class Ledger:
         except (OSError, ValueError):
             pass
         self._seed_all()
+        self._repair()
         self._at: datetime | None = None
         self._saved_at = 0.0
 
@@ -57,6 +59,23 @@ class Ledger:
         s["all_since"] = s["since"]
         s["all_seeded"] = True
 
+    def _repair(self) -> None:
+        """Once: a day saved far more than any other (a battery read in the wrong unit for a while - W taken as kW -
+        made "without the battery" thousands) isn't a saving. Such a day counts as nothing rather than a wrong number."""
+        s = self.state
+        if s.get("repaired_units"):
+            return
+        s["repaired_units"] = True
+        days = s.get("days", {})
+        if len(days) < 5:
+            return
+        for key, day in days.items():
+            others = sorted(abs(d.get("saved", 0.0)) for k, d in days.items() if k != key)
+            typical = max(others[len(others) // 2], 1.0)
+            if abs(day.get("saved", 0.0)) > 20 * typical:
+                day["saved"] = day["all"] = 0.0
+                day["repaired"] = True
+
     def save(self) -> None:
         try:
             self.file.write_text(json.dumps(self.state, indent=1))
@@ -73,6 +92,8 @@ class Ledger:
         if not 0 < hours <= MAX_GAP_H:
             return
         batt, pv = flow.get("battery"), flow.get("pv") or 0.0
+        if batt is not None and abs(batt) > max(MAX_BATT_W, 3000 * max(max_charge_kw, max_discharge_kw)):
+            return  # an impossible reading (a wrong unit) - not counted
         house, ev, soc, grid = flow.get("house") or 0.0, flow.get("ev") or 0.0, flow.get("soc"), flow.get("grid")
         s = self.state
         s["since"] = s.get("since") or now.date().isoformat()

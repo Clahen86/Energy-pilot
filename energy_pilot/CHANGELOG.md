@@ -2,6 +2,13 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.108.1 – 2026-11-25
+- New profile "Deye / Sunsynk (Sunsynk add-on)": the kellerza Sunsynk add-on's six programmes (Prog1 capacity, Prog1 charge, Use timer). Found by itself - a Deye on the add-on no longer gets the Solarman profile, which has none of its controls
+- Controls with Home Assistant's "_2" at the end (a re-added integration, e.g. select.rc_force_charge_discharge_2 on Solis) are now found by every profile
+- Savings: a battery reading that can't be real (above 50 kW - a wrong unit, W taken as kW) is no longer counted. A day that was counted that way (thousands saved in one day) is set to nothing, once
+- "Move the integration to the Marketplace": the address is on its own line again, not one letter per line
+- The charging curve has names on its axes (battery level, charging speed), and the card is in French, Swedish and Norwegian too
+- House model: learning with exactly one week of data no longer crashes (#59)
 ## 0.108.0 – 2026-11-25
 
 - New optional role "Other generation (wind, hydro …)" under Sun: power made on the spot that can't be switched, such as a small wind turbine. It counts in the energy balance (house, surplus for the car, savings) and shows in the flow as "SUN · OTHER", but stays out of the solar forecast, solar learning and the shared hours. No forecast for it yet: the plan uses it as it comes
