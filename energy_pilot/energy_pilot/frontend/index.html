@@ -1750,6 +1750,7 @@ function carCard(ev, f) {
   // the settings, in clean rows; "charge now" as the big button
   const modes = T.y?.carModes || { cheapest: "Cheapest", solar: "Sun only" }, mode = settings?.settings?.ev_mode || data.settings?.ev_mode || "cheapest";
   const rows = [
+    carPick("car", ev.car, "evrow"),
     `<div class="evrow"><div class="t"><b>${esc(T.y?.carMode || "")}</b></div><div class="seg mini evseg">${["cheapest", "solar"].map((m) => `<button class="${mode === m ? "on" : ""}" data-evmode="${m}">${esc(modes[m])}</button>`).join("")}</div></div>`,
     ev.ready != null ? `<div class="evrow"><div class="t"><b>${T.readyAt}</b><span>${T.xChargedBy}</span></div><input type="time" class="evtime rtn" data-ev="ready" value="${esc(String(ev.ready).slice(0, 5))}"></div>` : "",
     ev.soc_known ? evSocHtml(ev, true) : "",
@@ -2628,6 +2629,43 @@ function chargerList(v, row) {
       <button class="link" data-chgdel="${i}">${c.remove}</button></div>`).join("")}
     <button class="ghostbtn" data-chgadd>${c.add}</button>`;
 }
+const T_CARS = {
+  da: { t: "Biler", h: "Flere biler end ladere? Tilføj bilerne her. Laderen finder selv bilen ud fra bilens egen “sat i”-sensor, ellers er det samme bil som sidst – og du kan altid vælge på bilkortet.", n: "Bil {n}", name: "Navn", soc: "Bilens batteri (%)", plug: "Bilens “sat i”-sensor", size: "Batteriets størrelse", add: "+ Tilføj bil", remove: "Fjern bil", none: "Ingen (ikke i Home Assistant)", which: "Bil i laderen", auto: "fundet selv", hand: "valgt", seen: "Tager ca. {x} kW ({n} opladninger)" },
+  en: { t: "Cars", h: "More cars than chargers? Add the cars here. The charger finds the car by itself from the car's own “plugged in” sensor, else it is the same car as last time – and you can always pick on the car card.", n: "Car {n}", name: "Name", soc: "Car battery (%)", plug: "Car's “plugged in” sensor", size: "Battery size", add: "+ Add car", remove: "Remove car", none: "None (not in Home Assistant)", which: "Car in the charger", auto: "found", hand: "picked", seen: "Takes about {x} kW ({n} charges)" },
+  de: { t: "Autos", h: "Mehr Autos als Ladepunkte? Füge die Autos hier hinzu. Der Lader erkennt das Auto selbst am eigenen „Eingesteckt“-Sensor des Autos, sonst ist es dasselbe Auto wie zuletzt – und du kannst es jederzeit auf der Autokarte wählen.", n: "Auto {n}", name: "Name", soc: "Autobatterie (%)", plug: "„Eingesteckt“-Sensor des Autos", size: "Batteriegröße", add: "+ Auto hinzufügen", remove: "Auto entfernen", none: "Keiner (nicht in Home Assistant)", which: "Auto am Lader", auto: "erkannt", hand: "gewählt", seen: "Nimmt etwa {x} kW ({n} Ladungen)" },
+  fr: { t: "Voitures", h: "Plus de voitures que de bornes ? Ajoutez les voitures ici. La borne reconnaît la voiture grâce à son propre capteur « branchée », sinon c’est la même que la dernière fois – et vous pouvez toujours choisir sur la carte voiture.", n: "Voiture {n}", name: "Nom", soc: "Batterie de la voiture (%)", plug: "Capteur « branchée » de la voiture", size: "Taille de la batterie", add: "+ Ajouter une voiture", remove: "Retirer la voiture", none: "Aucun (pas dans Home Assistant)", which: "Voiture à la borne", auto: "trouvée", hand: "choisie", seen: "Prend environ {x} kW ({n} charges)" },
+  nl: { t: "Auto's", h: "Meer auto's dan laadpunten? Voeg de auto's hier toe. De lader herkent de auto zelf aan de eigen “ingeplugd”-sensor van de auto, anders is het dezelfde auto als vorige keer – en je kunt altijd kiezen op de autokaart.", n: "Auto {n}", name: "Naam", soc: "Accu van de auto (%)", plug: "“Ingeplugd”-sensor van de auto", size: "Accugrootte", add: "+ Auto toevoegen", remove: "Auto verwijderen", none: "Geen (niet in Home Assistant)", which: "Auto aan de lader", auto: "gevonden", hand: "gekozen", seen: "Neemt ongeveer {x} kW ({n} laadbeurten)" },
+  sv: { t: "Bilar", h: "Fler bilar än laddare? Lägg till bilarna här. Laddaren hittar bilen själv via bilens egen ”inkopplad”-sensor, annars är det samma bil som förra gången – och du kan alltid välja på bilkortet.", n: "Bil {n}", name: "Namn", soc: "Bilens batteri (%)", plug: "Bilens ”inkopplad”-sensor", size: "Batteriets storlek", add: "+ Lägg till bil", remove: "Ta bort bil", none: "Ingen (inte i Home Assistant)", which: "Bil i laddaren", auto: "hittad", hand: "vald", seen: "Tar ca {x} kW ({n} laddningar)" },
+  nb: { t: "Biler", h: "Flere biler enn ladere? Legg til bilene her. Laderen finner bilen selv via bilens egen «tilkoblet»-sensor, ellers er det samme bil som sist – og du kan alltid velge på bilkortet.", n: "Bil {n}", name: "Navn", soc: "Bilens batteri (%)", plug: "Bilens «tilkoblet»-sensor", size: "Batteriets størrelse", add: "+ Legg til bil", remove: "Fjern bil", none: "Ingen (ikke i Home Assistant)", which: "Bil i laderen", auto: "funnet", hand: "valgt", seen: "Tar ca. {x} kW ({n} ladinger)" },
+};
+/** More cars than chargers: the list of cars (carlist.py) - each with its level, its "plugged in" sensor and size. */
+function carList(v, row) {
+  const k = T_CARS[L] || T_CARS.en, list = v.cars || [];
+  const pick = (i, key, opts) => `<select data-car="${i}:${key}"><option value="">${esc(k.none)}</option>${opts.map((x) =>
+    `<option value="${esc(x.entity_id)}" ${list[i][key] === x.entity_id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>`;
+  return `<h4 class="bathead" style="margin-top:18px">${esc(k.t)}</h4><div class="muted" style="font-size:12px;margin-bottom:8px">${esc(k.h)}</div>
+    ${list.map((x, i) => `<div class="batbox"><h4 class="bathead">${esc(k.n.replace("{n}", i + 1))}${x.name ? ` · ${esc(x.name)}` : ""}</h4>
+      ${row(k.name, "", `<input class="pname" data-cart="${i}:name" value="${esc(x.name || "")}">`)}
+      ${row(k.soc, "", pick(i, "soc", settings.candidates.ev_soc || []))}
+      ${row(k.plug, "", pick(i, "plug", settings.car_plugs || []))}
+      ${row(k.size, carSeen(x, k), `<span class="unitin"><input class="numin" type="number" inputmode="decimal" step="1" data-carn="${i}:car_kwh" value="${x.car_kwh ?? ""}" placeholder="60"><i>kWh</i></span>`)}
+      <button class="link" data-cardel="${i}">${esc(k.remove)}</button></div>`).join("")}
+    <button class="ghostbtn" data-caradd>${esc(k.add)}</button>`;
+}
+/** What the car was seen taking (its charges where it was sure which car it was) - how it is told apart. */
+function carSeen(x, k) {
+  const v = (x.kw_seen || []).filter((n) => typeof n === "number").sort((a, b) => a - b);
+  if (!v.length) return "";
+  const m = v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2;
+  return k.seen.replace("{x}", num(m, 1)).replace("{n}", v.length);
+}
+/** Which car is in a charger ("car", "car2" …): found by itself or picked - one tap to change it. */
+function carPick(part, cv, cls = "ctl") {
+  if (!cv?.choices?.length) return "";
+  const k = T_CARS[L] || T_CARS.en;
+  return `<div class="${cls}"><div class="t"><b>${esc(k.which)}</b><span>${esc(cv.manual ? k.hand : k.auto)}</span></div>
+    <select data-carin="${part}">${cv.choices.map((c, i) => `<option value="${esc(c.id)}" ${c.id === cv.id ? "selected" : ""}>${esc(c.name || k.n.replace("{n}", i + 1))}</option>`).join("")}</select></div>`;
+}
 function moreCars() {
   const list = data?.flow?.cars || [], plans = data?.engine?.cars || [], conf = data?.settings?.chargers || [], c = T.chg;
   return list.map((x, i) => {
@@ -2637,6 +2675,7 @@ function moreCars() {
     <div class="car"><span style="color:${charging ? "var(--car)" : "var(--faint)"}">${CAR_ART}</span>
       <div><div class="st">${charging ? `${T.charging} ${kw(x.power)}` : x.plug ? T.plugged : T.notPlugged}</div>
       <div class="muted">${x.plug ? (hrs.length ? c.planned.replace("{x}", hrs.join(", ")) : c.none) : T.xPlugIn}</div></div></div>
+    ${carPick(`car${i + 2}`, cv.car)}
     ${cv.soc_known ? carSocHtml(cv) : ""}
     <div class="ctl"><div class="t"><b>${T.chargeNow}</b><span>${T.xFullSpeed}</span></div><button class="toggle car ${cf.now ? "on" : ""}" data-chgnow="${i}"></button></div>
     <details class="adv" data-adv="car${i + 2}" ${advOpen.has("car" + (i + 2)) ? "open" : ""}><summary>${T.readyAt} ${cf.ready ? esc(cf.ready) : ""}${cv.soc_known ? "" : ` · ${T.atMost} ${cf.need_kwh ?? 20} kWh`}</summary>
@@ -2746,7 +2785,7 @@ function styleView() {
       ${quietRow("car")}
       ${row(y.evInHouse, settings.ev_detected == null ? y.evInHouseUnknown : settings.ev_detected ? y.evInHouseYes : y.evInHouseNo,
         `<div class="seg mini">${[["auto", null], ["yes", true], ["no", false]].map(([k, val]) => `<button class="${(v.ev_in_house ?? null) === val ? "on" : ""}" data-evhouse="${k}">${y.evHouse[k]}</button>`).join("")}</div>`)}`)}
-      ${chargerList(v, row)}` : fromCharger(row, "main"))}
+      ${chargerList(v, row)}${carList(v, row)}` : fromCharger(row, "main"))}
     ${thingsSection(v, row)}
     ${settings.roles.pv_power ? section("bolt", (T_PANEL[L] || T_PANEL.en).t, (T_PANEL[L] || T_PANEL.en).h, panelsBody(), "panels") : ""}
     ${section("bolt", y.secPrice, y.secPriceH, `${row((T_TAR[L] || T_TAR.en).show, (T_TAR[L] || T_TAR.en).showH, tog("tariff_show", true))}${tarChoices && tarChoices.length ? row((T_TAR[L] || T_TAR.en).yours, (T_TAR[L] || T_TAR.en).yoursH,
@@ -3113,6 +3152,17 @@ function wire() {
   const chgs = () => JSON.parse(JSON.stringify((settings?.settings || data.settings).chargers || []));
   const saveChgs = async (l) => { await api("/api/settings", { chargers: l }); settings = await api("/api/settings"); await load(); render(); };
   $("[data-chgadd]")?.addEventListener("click", () => saveChgs([...chgs(), { name: "", power: "", plug: "" }]));
+  // The list of cars (more cars than chargers) and which car is in a charger.
+  const carsL = () => JSON.parse(JSON.stringify((settings?.settings || data.settings).cars || []));
+  const saveCars = async (l) => { await api("/api/settings", { cars: l }); settings = await api("/api/settings"); await load(); render(); };
+  $("[data-caradd]")?.addEventListener("click", () => saveCars([...carsL(), { name: "" }]));
+  document.querySelectorAll("[data-cardel]").forEach((x) => x.onclick = () => { const l = carsL(); l.splice(Number(x.dataset.cardel), 1); saveCars(l); });
+  document.querySelectorAll("[data-car],[data-carn],[data-cart]").forEach((el) => el.onchange = () => {
+    const [i, key] = (el.dataset.car || el.dataset.carn || el.dataset.cart).split(":"), l = carsL();
+    l[Number(i)][key] = el.dataset.carn ? (el.value === "" ? null : Number(el.value.replace(",", "."))) : el.value || null;
+    saveCars(l);
+  });
+  document.querySelectorAll("[data-carin]").forEach((el) => el.onchange = async () => { await api("/api/car_in", { part: el.dataset.carin, car: el.value }); await load(); render(); });
   // A charger picked once: its own sensors filled in (the main car's roles, or that charger's).
   document.querySelectorAll("[data-chgfrom]").forEach((sel) => sel.onchange = async () => {
     const tgt = sel.dataset.chgfrom;

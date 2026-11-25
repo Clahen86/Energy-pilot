@@ -163,6 +163,12 @@
           "control": "Steuern",
           "off": "Aus"
         }
+      },
+      "car_in": {
+        "name": "Auto am Lader"
+      },
+      "car_car_in": {
+        "name": "{car}: Auto am Lader"
       }
     },
     "button": {

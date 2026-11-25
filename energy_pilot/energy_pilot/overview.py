@@ -194,6 +194,8 @@ class Overview:
                          "quiet_battery_from", "quiet_battery_to", "quiet_car_from", "quiet_car_to",
                          "control", "inverter_profile", "custom_profile", "battery_takeover", "ev_now", "ev_target", "ev_sun_target", "ev_trip", "ev_battery_kwh", "charger_phases", "ev_ready", "ev_switch", "ev_phase_switch",
                          "batteries", "battery_dismissed", "chargers", "charger_dismissed", "battery_targets", "manual", "tariff_current", "tariff_show",
+                         # more cars than chargers (carlist.py)
+                         "cars", "car_in", "car_in_manual", "car_in_sure",
                          # the self-test and what was mended by itself (selftest.py, autofix.py)
                          "pd_joined", "selftest", "observed", "auto_test", "auto_tested", "self_tune", "profile_fixes", "test_skipped", "autofix_log", "autofix_ignore", "role_scale", "price_scale", "last_report",
                          # learning together (telemetry.py)
@@ -569,7 +571,7 @@ class Overview:
         if plug is None and self.settings.get("ev_switch"):
             plug = True  # a plain switch (a smart plug) can't tell whether a car is in: taken as plugged in, or it never turns on
 
-        cars = [chargers.read(st, c, self.settings.get("plug_marks")) for c in chargers.extras(self.settings)] or None
+        cars = [chargers.read(st, c, self.settings.get("plug_marks")) for c in chargers.live(self.settings)] or None
         if cars and any(c["power"] is not None for c in cars):
             ev = (ev or 0.0) + sum(c["power"] or 0.0 for c in cars)  # all the chargers: shown and taken out of the house together
         # Positive battery = charging (Growatt reports discharge as negative). Grid: positive = buying.
@@ -903,12 +905,15 @@ class Overview:
         def val(role: str) -> Any:
             return (st.get(r[role]) or {}).get("state") if r[role] else None
 
-        from . import chargers
+        from . import carlist, chargers
 
-        # Without helpers of its own, the car's buttons are Energy Pilot's (its settings).
+        car = carlist.car_in(self.settings, "car")
+        # Without helpers of its own, the car's buttons are Energy Pilot's (its settings); with a list of cars, the
+        # ready time and "at most" are the car's in the charger.
         return {"manual": val("ev_manual") == "on" if r["ev_manual"] else bool(self.settings.get("ev_now")),
-                "ready": self._ready_hm(val("ev_ready")) if r["ev_ready"] else self.settings.get("ev_ready"),
-                "cap": _num(st.get(r["ev_cap"])) if r["ev_cap"] else self.settings.get("ev_need_kwh"),
+                "ready": car.get("ready") if car else self._ready_hm(val("ev_ready")) if r["ev_ready"] else self.settings.get("ev_ready"),
+                "cap": (car.get("need_kwh") or 20) if car else _num(st.get(r["ev_cap"])) if r["ev_cap"] else self.settings.get("ev_need_kwh"),
+                "car": carlist.view(self.settings, "car"),
                 "cap_max": ((st.get(r["ev_cap"]) or {}).get("attributes") or {}).get("max") if r["ev_cap"] else None,
                 "session_kwh": chargers.session(st, r["ev_session"], r["ev_plug"],
                                                 (self.settings.get("plug_marks") or {}).get(r["ev_plug"] or "")),
@@ -920,7 +925,9 @@ class Overview:
         for the dashboard card and the companion's entities."""
         from . import chargers
 
-        conf = chargers.extras(self.settings)
+        from .carlist import view
+
+        conf = chargers.live(self.settings)
         if not conf:
             return None
         now = (self.flow() or {}).get("cars") or []
@@ -935,7 +942,7 @@ class Overview:
                         "car_kwh": chargers.car_kwh(c) if soc_known else None,
                         "manual": bool(c.get("now")), "ready": c.get("ready"), "cap": c.get("need_kwh") or 20,
                         "mode": c.get("mode") or "cheapest", "charger_kw": float(c.get("charger_kw") or 7.4),
-                        "hours": p.get("hours") or [], "need_kwh": p.get("need_kwh")})
+                        "hours": p.get("hours") or [], "need_kwh": p.get("need_kwh"), "car": view(self.settings, f"car{i + 2}")})
         return out
 
     def _ev_charge(self) -> dict[str, Any] | None:
@@ -951,15 +958,24 @@ class Overview:
         """The car's own level and the target it charges to (see evsoc.py)."""
         from . import evsoc
 
-        e = self.role("ev_soc")
+        from . import carlist, chargers
+
+        car = carlist.car_in(self.settings, "car")
+        if car is not None:  # more cars than chargers: the level, size, target and trip of the car in it
+            e = car.get("soc") or None
+            st = {**self.settings, "ev_trip": car.get("trip"), "ev_target": car.get("target")}
+            size = (chargers.car_kwh(car), "set" if car.get("car_kwh") else "guess")
+        else:
+            e = self.role("ev_soc")
+            st = self.settings
+            size = self.engine.car_size.kwh(self.settings) if self.engine and hasattr(self.engine, "car_size") else (evsoc.DEFAULT_KWH, "guess")
+            if size[1] == "guess" and (c := evsoc.charger_kwh(self.ha.states)):
+                size = (c, "charger")  # what the charger (evcc) knows of the car, until it is learned or set
         soc = evsoc.num(self.ha.states.get(e)) if e else None
-        size = self.engine.car_size.kwh(self.settings) if self.engine and hasattr(self.engine, "car_size") else (evsoc.DEFAULT_KWH, "guess")
-        if size[1] == "guess" and (c := evsoc.charger_kwh(self.ha.states)):
-            size = (c, "charger")  # what the charger (evcc) knows of the car, until it is learned or set
-        return {"soc": soc, "soc_known": e is not None, "target": evsoc.target(self.settings), "trip": bool(self.settings.get("ev_trip")),
-                "sun_target": evsoc.sun_target(self.settings), "sun_target_set": bool(self.settings.get("ev_sun_target")),
+        return {"soc": soc, "soc_known": e is not None, "target": evsoc.target(st), "trip": bool(st.get("ev_trip")),
+                "sun_target": evsoc.sun_target(st), "sun_target_set": bool(self.settings.get("ev_sun_target")),
                 "has_sun": bool(self.role("pv_power")),
-                "everyday": evsoc.target({**self.settings, "ev_trip": False}), "car_kwh": size[0], "car_kwh_from": size[1],
+                "everyday": evsoc.target({**st, "ev_trip": False}), "car_kwh": size[0], "car_kwh_from": size[1],
                 "charge_kw_seen": self.engine.car_size.charge_kw() if self.engine and hasattr(self.engine, "car_size") else None}
 
     def snapshot(self, lang: str = "da") -> dict[str, Any]:

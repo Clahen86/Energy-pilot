@@ -163,6 +163,12 @@
           "control": "Styrer",
           "off": "Fra"
         }
+      },
+      "car_in": {
+        "name": "Bil i laderen"
+      },
+      "car_car_in": {
+        "name": "{car}: Bil i laderen"
       }
     },
     "button": {

@@ -428,8 +428,9 @@ class EnergipilotCard extends HTMLElement {
     const ev = this._hass.states[SENSOR].attributes.ev, f = this._flow(), t = this.t;
     if (!ev) return "";
     const charging = (f.ev || 0) > 30, e = ev.entities || {};
-    return `<div class="${inline ? "sec" : "pad"}"><div class="eyebrow">${ic("car")} ${t.car}<span>${ev.session_kwh != null ? `${this._n(ev.session_kwh, 1)} kWh` : ""}</span></div>
+    return `<div class="${inline ? "sec" : "pad"}"><div class="eyebrow">${ic("car")} ${ev.car?.name ? esc(ev.car.name) : t.car}<span>${ev.session_kwh != null ? `${this._n(ev.session_kwh, 1)} kWh` : ""}</span></div>
       <div class="big" style="font-size:20px">${charging ? `${t.charging} ${this._split(f.ev).join(" ")}` : f.plug ? t.plugged : t.notPlugged}</div>
+${this._carSel(1)}
       ${e.ev_manual ? `<div class="ctl"><b>${t.chargeNow}</b><button class="tg ${this._hass.states[e.ev_manual]?.state === "on" ? "on" : ""}" data-toggle="${e.ev_manual}"></button></div>` : ""}
       ${e.ev_ready ? `<div class="ctl"><b>${t.readyAt}</b><input type="time" data-time="${e.ev_ready}" value="${esc(String(this._hass.states[e.ev_ready]?.state || "").slice(0, 5))}"></div>` : ""}
       ${ev.soc_known ? this._evSoc(ev) : ""}
@@ -480,19 +481,27 @@ class EnergipilotCard extends HTMLElement {
       ? `<div class="big">${this._n(ev.soc, 0)}<small> %</small>${done && charging ? `<em>${c.done.replace("{t}", hm(done))}</em>` : ""}</div><div class="evb" style="margin-top:8px"><span style="width:${ev.soc}%"></span><i style="left:${ev.target}%"></i></div>`
       : `<div class="big" style="font-size:22px">${charging ? `${t.charging} ${e1} ${e2}` : state}${done && charging ? `<em>${c.done.replace("{t}", hm(done))}</em>` : ""}</div>`;
     const to = Object.keys(this._hass.states).find((x) => x.startsWith("number.") && x.endsWith("charge_to")), trip = Object.keys(this._hass.states).find((x) => x.startsWith("switch.") && x.endsWith("next_trip"));
-    return `<div class="pad"><div class="eyebrow">${ic("car")} ${t.car}<span>${esc(state)}${ready ? ` · ${esc(c.ready.replace("{t}", ready))}` : ""}</span></div>
+    return `<div class="pad"><div class="eyebrow">${ic("car")} ${ev.car?.name ? esc(ev.car.name) : t.car}<span>${esc(state)}${ready ? ` · ${esc(c.ready.replace("{t}", ready))}` : ""}</span></div>
       ${top}
       <div class="eyebrow" style="margin-top:14px">${c.from}</div>
       <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;overflow:visible">${lanes}${node}</svg>
       ${hrs.length ? `<div class="eyebrow" style="margin-top:12px">${c.hours}<span>${esc(span)}</span></div>
       <svg viewBox="0 0 336 68" style="width:100%;height:auto;display:block">${bars}</svg>` : ""}
       ${sess}
+${this._carSel(1)}
       ${e.ev_manual ? `<div class="ctl"><b>${t.chargeNow}</b><button class="tg ${this._hass.states[e.ev_manual]?.state === "on" ? "on" : ""}" data-toggle="${e.ev_manual}"></button></div>` : ""}
       ${e.ev_ready ? `<div class="ctl"><b>${t.readyAt}</b><input type="time" data-time="${e.ev_ready}" value="${esc(String(this._hass.states[e.ev_ready]?.state || "").slice(0, 5))}"></div>` : ""}
       ${ev.soc_known && to ? `<div class="ctl"><b>${t.evs.to}</b><span class="seg">${[70, 80, 90, 100].map((v) => `<button data-to="${to}" data-v="${v}" class="${!ev.trip && ev.everyday === v ? "on" : ""}">${v}</button>`).join("")}</span></div>` : ""}
       ${ev.soc_known && trip ? `<div class="ctl"><b>${t.evs.trip}</b><button class="tg ${ev.trip ? "on" : ""}" data-sw="${trip}"></button></div>` : ""}
       ${e.ev_cap && !ev.soc_known ? `<div class="ctl"><b>${t.atMost}</b><span class="rg"><input type="range" min="0" max="${this._hass.states[e.ev_cap]?.attributes.max || 100}" value="${this._hass.states[e.ev_cap]?.state}" data-cap="${e.ev_cap}"><i id="capv">${this._n(this._num(e.ev_cap), 0)} kWh</i></span></div>` : ""}
     </div>`;
+  }
+  _carSel(n) {
+    // more cars than chargers: which car is in charger n (the companion's select) - one tap to change it
+    const h = this._hass, eid = Object.keys(h.states).find((x) => x.startsWith("select.") && h.states[x].attributes?.ep_car === n && h.states[x].attributes?.ep_key === "car_in");
+    if (!eid) return "";
+    const s = h.states[eid], l = { da: "Bil i laderen", nb: "Bil i laderen", sv: "Bil i laddaren", de: "Auto am Lader", fr: "Voiture à la borne", nl: "Auto aan de lader" }[lang(h)] || "Car in charger";
+    return `<div class="ctl"><b>${l}</b><select data-sel="${eid}">${(s.attributes.options || []).map((o) => `<option ${o === s.state ? "selected" : ""}>${esc(o)}</option>`).join("")}</select></div>`;
   }
   _moreCars(inline = false) {
     // The extra cars (charger 2, 3 …): like the first car - its level, its planned hours and its buttons (the
@@ -509,9 +518,10 @@ class EnergipilotCard extends HTMLElement {
       const top = cv.soc_known && cv.soc != null
         ? `<div class="big">${this._n(cv.soc, 0)}<small> %</small></div><div class="evb" style="margin-top:8px"><span style="width:${cv.soc}%"></span><i style="left:${cv.target}%"></i></div>`
         : `<div class="big" style="font-size:20px">${esc(state)}</div>`;
-      return `<div class="${inline ? "sec" : "pad"}"><div class="eyebrow">${ic("car")} ${esc(cv.name || t.car + " " + cv.n)}<span>${cv.soc_known && cv.soc != null ? esc(state) : cv.session_kwh != null ? `${this._n(cv.session_kwh, 1)} kWh` : ""}${cv.ready ? ` · ${esc(c.ready.replace("{t}", String(cv.ready).slice(0, 5)))}` : ""}</span></div>
+      return `<div class="${inline ? "sec" : "pad"}"><div class="eyebrow">${ic("car")} ${esc(cv.car?.name || cv.name || t.car + " " + cv.n)}<span>${cv.soc_known && cv.soc != null ? esc(state) : cv.session_kwh != null ? `${this._n(cv.session_kwh, 1)} kWh` : ""}${cv.ready ? ` · ${esc(c.ready.replace("{t}", String(cv.ready).slice(0, 5)))}` : ""}</span></div>
         ${top}
         ${cv.plug ? `<div class="eyebrow" style="margin-top:12px">${c.hours}<span>${esc(span)}</span></div>` : ""}
+        ${this._carSel(cv.n)}
         ${now ? `<div class="ctl"><b>${t.chargeNow}</b><button class="tg ${h.states[now].state === "on" ? "on" : ""}" data-sw="${now}"></button></div>` : ""}
         ${ready ? `<div class="ctl"><b>${t.readyAt}</b><input type="time" data-ttime="${ready}" value="${esc(String(h.states[ready].state || "").slice(0, 5))}"></div>` : ""}
         ${to ? `<div class="ctl"><b>${t.evs.to}</b><span class="seg">${[70, 80, 90, 100].map((v) => `<button data-to="${to}" data-v="${v}" class="${!cv.trip && cv.everyday === v ? "on" : ""}">${v}</button>`).join("")}</span></div>` : ""}
@@ -565,6 +575,7 @@ class EnergipilotCard extends HTMLElement {
     r.querySelectorAll("[data-toggle]").forEach((b) => b.onclick = () => { const on = !b.classList.contains("on"); b.classList.toggle("on", on); h.callService("input_boolean", on ? "turn_on" : "turn_off", { entity_id: b.dataset.toggle }); });
     r.querySelectorAll("[data-to]").forEach((b) => b.onclick = () => h.callService("number", "set_value", { entity_id: b.dataset.to, value: Number(b.dataset.v) }));
     r.querySelectorAll("[data-sw]").forEach((b) => b.onclick = () => { const on = !b.classList.contains("on"); b.classList.toggle("on", on); h.callService("switch", on ? "turn_on" : "turn_off", { entity_id: b.dataset.sw }); });
+    r.querySelectorAll("[data-sel]").forEach((i) => i.onchange = () => h.callService("select", "select_option", { entity_id: i.dataset.sel, option: i.value }));
     r.querySelectorAll("[data-ttime]").forEach((i) => i.onchange = () => h.callService("time", "set_value", { entity_id: i.dataset.ttime, time: i.value + ":00" }));
     r.querySelectorAll("[data-num]").forEach((i) => { i.oninput = () => (r.getElementById(i.dataset.lbl).textContent = `${i.value} kWh`); i.onchange = () => h.callService("number", "set_value", { entity_id: i.dataset.num, value: Number(i.value) }); });
     r.querySelectorAll("[data-time]").forEach((i) => i.onchange = () => h.callService("input_datetime", "set_datetime", { entity_id: i.dataset.time, time: i.value + ":00" }));

@@ -251,16 +251,32 @@ async def main() -> None:
                 engine.habits.see(now, f.get("plug"), ev.get("session_kwh"))
                 # each charger's real charge, measured beside the one Energy Pilot would make (for chargers in shadow)
                 extra = f.get("cars") or []
+                # more cars than chargers: which car is in each charger now (carlist.py)
+                from . import carlist
+
+                plugged = {"car": bool(f.get("plug")), **{f"car{i + 2}": bool(c.get("plug")) for i, c in enumerate(extra)}}
+                watch = getattr(engine, "car_watch", None) or carlist.PowerWatch()
+                engine.car_watch = watch
+                own = None if f.get("ev") is None else f["ev"] - sum((c.get("power") or 0.0) for c in extra)
+                done = watch.see(plugged, {"car": own, **{f"car{i + 2}": c.get("power") for i, c in enumerate(extra)}})
+                if done and carlist.cars(st) and (learned := carlist.learn(st, done)):
+                    overview.save(learned)  # what each car takes, from charges where it was sure which car it was
+                if moved := carlist.assign(st, ha.states, plugged, {p: watch.now_kw(p) for p in plugged}):
+                    overview.save(moved)
+                    engine.run()  # another car: its level, target and ready time - a new plan now
                 own_w = None if f.get("ev") is None else f["ev"] - sum((c.get("power") or 0.0) for c in extra)
                 engine.ghosts.see("car", now, f.get("plug"), own_w, price, 30,
                                   engine.ghosts.sun_to_car(own_w, f.get("pv"), f.get("grid"), f.get("battery")), sell)
                 for i, c in enumerate(extra):
                     engine.ghosts.see(f"car{i + 2}", now, c.get("plug"), c.get("power"), price, 30)
-                engine.car_size.see(f.get("plug"), ev.get("soc"), ev.get("session_kwh"), own_w)
+                car1 = carlist.car_in(st, "car")
+                if car1 is None:  # with more cars on one charger the size is each car's own, not learned as one
+                    engine.car_size.see(f.get("plug"), ev.get("soc"), ev.get("session_kwh"), own_w)
                 from .evsoc import trip_done
 
-                if trip_done(st, f.get("plug"), getattr(engine, "_was_plugged", False), ev.get("soc")):
-                    overview.save({"ev_trip": False})  # the car left full: back to the everyday target
+                if trip_done({"ev_trip": car1.get("trip")} if car1 else st, f.get("plug"), getattr(engine, "_was_plugged", False), ev.get("soc")):
+                    # the car left full: back to the everyday target
+                    overview.save(carlist.update_car(st, car1["id"], {"trip": False}) if car1 else {"ev_trip": False})
                 engine._was_plugged = bool(f.get("plug"))
                 # an extra car's trip button the same: off when it leaves full
                 was = getattr(engine, "_was_plugged_extra", {})
@@ -268,9 +284,13 @@ async def main() -> None:
                 from .chargers import extras as _extras
 
                 for i, (c, x) in enumerate(zip(_extras(st), extra)):
-                    if c.get("trip") and was.get(i) and not x.get("plug") and (x.get("soc") is None or x["soc"] >= 95):
-                        conf[conf.index(c)] = {**c, "trip": False}
-                        overview.save({"chargers": conf})
+                    car = carlist.car_in(st, f"car{i + 2}")
+                    if (car or c).get("trip") and was.get(i) and not x.get("plug") and (x.get("soc") is None or x["soc"] >= 95):
+                        if car:
+                            overview.save(carlist.update_car(st, car["id"], {"trip": False}))
+                        else:
+                            conf[conf.index(c)] = {**c, "trip": False}
+                            overview.save({"chargers": conf})
                 engine._was_plugged_extra = {i: bool(x.get("plug")) for i, x in enumerate(extra)}
                 engine.batt_learn.see(f.get("battery"), f.get("soc"), 30 / 3600)
                 engine.batt_learn.see_temp(f.get("battery"), f.get("soc"), engine.battery_temp())

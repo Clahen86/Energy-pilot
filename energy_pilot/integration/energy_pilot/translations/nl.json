@@ -163,6 +163,12 @@
           "control": "Sturen",
           "off": "Uit"
         }
+      },
+      "car_in": {
+        "name": "Auto aan de lader"
+      },
+      "car_car_in": {
+        "name": "{car}: Auto aan de lader"
       }
     },
     "button": {

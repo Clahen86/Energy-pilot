@@ -2,6 +2,13 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.110.0 – 2026-11-25
+- More cars than chargers: a list of cars under Settings → Car, each with its own name, battery level and "plugged in" sensor (when the car is in Home Assistant) and battery size. A car without Home Assistant needs only a name and a size
+- Each charger finds the car in it by itself: the car whose own sensor says it is plugged in; else, once each car has 3 charges behind it, by the power it takes (only when the cars charge clearly differently); else the same car as last time
+- "Car in the charger" on the car card, the dashboard card and in the companion: pick it with one tap - it stays until the car is unplugged
+- The charger uses the level, size, target, ready time, at most and 100 % for the trip of the car in it
+- Under Settings each car shows what it takes ("Takes about 3.7 kW, 5 charges")
+- Without a list of cars nothing changes
 ## 0.109.0 – 2026-11-25
 - Extra cars like the first one: pick the car's battery level (and its size) under Settings → Car, and it charges to a target in % instead of a set number of kWh. Its card has the level, the target (60–100 %), 100 % for the next trip (off by itself when the car leaves full), Charge now and Ready at
 - "Charge now" on an extra car acts at once, not at the next round

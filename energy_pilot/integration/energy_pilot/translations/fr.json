@@ -163,6 +163,12 @@
           "control": "Contrôle",
           "off": "Arrêt"
         }
+      },
+      "car_in": {
+        "name": "Voiture à la borne"
+      },
+      "car_car_in": {
+        "name": "{car} : Voiture à la borne"
       }
     },
     "button": {

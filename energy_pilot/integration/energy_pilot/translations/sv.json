@@ -163,6 +163,12 @@
           "control": "Styr",
           "off": "Av"
         }
+      },
+      "car_in": {
+        "name": "Bil i laddaren"
+      },
+      "car_car_in": {
+        "name": "{car}: Bil i laddaren"
       }
     },
     "button": {

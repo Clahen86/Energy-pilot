@@ -120,7 +120,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 def _cars_key(data: dict[str, Any] | None) -> list:
-    return [(c.get("n"), c.get("name"), bool(c.get("soc_known"))) for c in (data or {}).get("cars") or []]
+    ev = (data or {}).get("ev") or {}
+    return [bool(ev.get("car")), bool(ev.get("soc_known"))] + [
+        (c.get("n"), c.get("name"), bool(c.get("soc_known")), bool(c.get("car"))) for c in (data or {}).get("cars") or []]
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

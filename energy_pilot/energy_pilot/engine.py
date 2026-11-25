@@ -1590,7 +1590,7 @@ class Engine:
         if ev is None or not f.get("plug"):
             return None
         # What the user set wins; otherwise the car's learned habits (when it leaves, how much it takes).
-        cap = float(ev.get("cap")) if self.ov.role("ev_cap") and ev.get("cap") else self.habits.need(float(ev.get("cap") or st.get("ev_need_kwh") or 20))
+        cap = float(ev.get("cap")) if (self.ov.role("ev_cap") or ev.get("car")) and ev.get("cap") else self.habits.need(float(ev.get("cap") or st.get("ev_need_kwh") or 20))
         need = cap - float(ev.get("session_kwh") or 0)
         if ev.get("soc") is not None:
             # The car says how full it is: what's missing up to the target (100 % before a long trip).
@@ -1632,7 +1632,7 @@ class Engine:
         st = self.ov.settings
         quiet = self.quiet_hours("car")
         prices = {h.start: h.price for h in hours}
-        parts = [("car", None)] + [(f"car{i + 2}", c) for i, c in enumerate(chargers.extras(st))]
+        parts = [("car", None)] + [(f"car{i + 2}", c) for i, c in enumerate(chargers.live(st))]
         extra_now = (f.get("cars") or [])
         for part, c in parts:
             if (ctl and ctl.mode(part) == "control") or not self.ghosts.wants_plan(part):
@@ -1666,7 +1666,7 @@ class Engine:
         """The other chargers: each car planned on its own - the cars before it and the main fuse taken into account."""
         from . import chargers
 
-        more = chargers.extras(self.ov.settings)
+        more = chargers.live(self.ov.settings)
         if not more:
             return None
         st = self.ov.settings

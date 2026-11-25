@@ -163,6 +163,12 @@
           "control": "Control",
           "off": "Off"
         }
+      },
+      "car_in": {
+        "name": "Car in charger"
+      },
+      "car_car_in": {
+        "name": "{car}: Car in charger"
       }
     },
     "button": {

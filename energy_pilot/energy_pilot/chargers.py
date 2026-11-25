@@ -41,6 +41,13 @@ def extras(settings: dict[str, Any]) -> list[dict[str, Any]]:
     return [c for c in (settings.get("chargers") or []) if isinstance(c, dict) and (c.get("power") or c.get("plug"))]
 
 
+def live(settings: dict[str, Any]) -> list[dict[str, Any]]:
+    """The extra chargers with the car that is in each laid over (its level, target, ready …; see carlist.py)."""
+    from .carlist import merged
+
+    return [merged(settings, f"car{i + 2}", c) for i, c in enumerate(extras(settings))]
+
+
 def _num(s: dict[str, Any] | None) -> float | None:
     try:
         return float((s or {}).get("state"))
