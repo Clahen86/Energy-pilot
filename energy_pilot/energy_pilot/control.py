@@ -391,9 +391,11 @@ class Controller:
         return adapters.guess_profile(self.entities["battery"], {self.platforms["battery"] or ""}, self.model)
 
     def can_block_sun(self) -> bool:
-        """The inverter's hold sets how much it may charge - then the sun can be kept out of the battery."""
-        hold = str((self.profile_steps() or {}).get("hold") or "")
-        return "{max_charge_w}" in hold or "{max_charge_kw}" in hold
+        """The inverter's hold sets how much it may charge, or it has a hold of its own for selling the sun (Kostal's
+        Block Charge) - then the sun can be kept out of the battery."""
+        steps = self.profile_steps() or {}
+        hold = str(steps.get("hold") or "")
+        return bool(steps.get("hold_sun")) or "{max_charge_w}" in hold or "{max_charge_kw}" in hold
 
     def profile_steps(self, part: str = "battery") -> dict[str, list] | None:
         key = self.profile_key(part)
@@ -403,7 +405,7 @@ class Controller:
             steps = {i: v for i, v in steps.items() if v or i != "export"}
             return steps if any(steps.values()) else None
         p = adapters.PROFILES.get(key or "")
-        return {i: p[i] for i in ("normal", "hold", "charge", "export") if i in p} if p else None
+        return {i: p[i] for i in ("normal", "hold", "hold_sun", "charge", "export") if i in p} if p else None
 
     def max_power_kw(self, part: str = "battery") -> float | None:
         """The most the inverter lets the battery charge or discharge, in kW - a profile's "max_power" sensor (Kostal
@@ -741,8 +743,12 @@ class Controller:
             return [{"domain": e.split(".")[0], "service": "turn_on" if want["intent"] == "run" else "turn_off", "data": {"entity_id": e}}]
         if self.is_battery(part):
             steps = self.profile_steps(part) or {}
-            # A profile without a way to sell runs normally instead (the plan doesn't sell then anyway).
-            calls = self._clamp(adapters.resolve(steps.get(want["intent"]) or steps.get("normal", []), self._pool(part), want["ctx"]))
+            # A profile without a way to sell runs normally instead (the plan doesn't sell then anyway). Holding while
+            # the sun is sold: the profile's own hold for that, when it has one (Kostal's Block Charge).
+            key = want["intent"]
+            if key == "hold" and want["ctx"].get("sell_sun") and steps.get("hold_sun"):
+                key = "hold_sun"
+            calls = self._clamp(adapters.resolve(steps.get(key) or steps.get("normal", []), self._pool(part), want["ctx"]))
             return self._fixed(part, want["intent"], calls)
         if part.startswith("car") and part != "car":
             return self._phase_call(part, want) + self._clamp(adapters.charger_calls(

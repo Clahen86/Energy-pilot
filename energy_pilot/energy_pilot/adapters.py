@@ -916,6 +916,10 @@ PROFILES: dict[str, dict[str, Any]] = {
         "normal": [(r"switch\..*_charge_start$", "off", None), (r"switch\..*_discharge_start$", "off", None),
                    (r"switch\..*_block_charge$", "off", None), (r"switch\..*_block_discharge$", "off", None)],
         "hold": [(r"switch\..*_block_discharge$", "on", None)],
+        # Holding while the plan sells the sun's surplus: Block Discharge alone lets the sun fill the battery, and the
+        # switches can't be on together - so Block Charge instead. The sun covers the house and the rest is sold, as
+        # planned; should a cloud leave the house short, the battery covers it rather than the grid.
+        "hold_sun": [(r"switch\..*_block_charge$", "on", None)],
         "charge": [(r"number\..*_set_charge_rate$", "number", "{power_w}"), (r"switch\..*_charge_start$", "on", None)],
         # Selling from the battery (only when the user turns it on).
         "export": [(r"number\..*_set_discharge_rate$", "number", "{power_w}"), (r"switch\..*_discharge_start$", "on", None)],

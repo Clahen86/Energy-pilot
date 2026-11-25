@@ -54,3 +54,30 @@ def test_no_prices_means_the_battery_runs_as_normal():
     assert c.intents()["battery"]["intent"] == "normal"
     c.ov.price_info = {}
     assert "battery" not in c.intents()  # no plan yet for another reason (just started): nothing is sent
+
+
+KOSTAL = ["switch.plenticore_l_g3_charge_start", "switch.plenticore_l_g3_discharge_start",
+          "switch.plenticore_l_g3_block_charge", "switch.plenticore_l_g3_block_discharge",
+          "number.plenticore_l_g3_set_charge_rate", "number.plenticore_l_g3_set_discharge_rate"]
+
+
+def _kostal_calls(sell_sun):
+    c = _ctl(sell_sun=sell_sun, grid=-0.8 if sell_sun else 0.6, profile="kostal_modbus_control")
+    c.entities = {"battery": KOSTAL}
+    c.ha.states = {}
+    want = c.intents()["battery"]
+    return want["intent"], [(x["service"], x["data"]["entity_id"]) for x in c.calls("battery", want)]
+
+
+def test_kostal_sells_the_sun_with_block_charge():
+    # Its switches can't be on together, and Block Discharge lets the sun fill the battery: selling the sun while
+    # holding takes Block Charge instead - the battery stays where the plan has it.
+    c = _ctl(profile="kostal_modbus_control")
+    assert c.can_block_sun()
+    intent, calls = _kostal_calls(sell_sun=True)
+    assert intent == "hold" and calls == [("turn_on", "switch.plenticore_l_g3_block_charge")]
+
+
+def test_kostal_plain_hold_still_blocks_discharge():
+    intent, calls = _kostal_calls(sell_sun=False)  # holding for later while buying: the sun may fill it
+    assert intent == "hold" and calls == [("turn_on", "switch.plenticore_l_g3_block_discharge")]
