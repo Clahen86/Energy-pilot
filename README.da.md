@@ -128,7 +128,8 @@ Små batterier og maskiner på sol eller i de billigste timer – **efter** husb
 - **Lærer** hvor meget og hvor længe hver ting tager, og **finder dem selv** – aldrig telefoner, lys eller bilen.
 - Kun den sol, der ellers ville blive solgt, og altid inden for hovedsikringen.
 - **Varmtvandsbeholder** på en kontakt: findes af sig selv, står tændt og holder kun pause i op til 4 dyre timer om
-  dagen – vandet er altid varmt. Tænder du den selv, bliver den tændt.
+  dagen – vandet er altid varmt. Tænder du den selv, bliver den tændt. Har den en temperatur i Home Assistant, varmer
+  den også 10 °C ekstra på sol, der ellers ville blive solgt billigt – beholderen gemmer solen som varme.
 
 <p align="center"><img src="docs/things_da.png" width="640" alt="Kører billigt"></p>
 
@@ -231,7 +232,8 @@ Marketplace (HACS): [energy-pilot-companion](https://github.com/Clahen86/energy-
 
 ## Mærker
 
-Alt går gennem enhedens egen Home Assistant-integration.<br>
+Alt går gennem enhedens egen Home Assistant-integration. Ingen profil til din? Vælg selv dens kontroller – eller dine
+egne scripts – for hvert trin under Indstillinger → Styring.<br>
 ✅ kører i rigtig brug · 🧪 bygget ud fra integrationens egen kode, venter på en betatester med udstyret
 
 | | |

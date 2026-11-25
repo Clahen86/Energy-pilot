@@ -130,7 +130,8 @@ Small batteries and machines on the sun or in the cheapest hours – **after** t
 - **Learns** how much and how long each thing takes, and **finds them by itself** – never phones, lights or the car.
 - Only the sun that would otherwise be sold, and always within the main fuse.
 - **Water heater** on a switch: found by itself, stays on and only rests in up to 4 dear hours a day – the water
-  stays hot. Turn it on yourself and it stays on.
+  stays hot. Turn it on yourself and it stays on. With a temperature of its own in Home Assistant it also heats 10 °C
+  extra on sun that would otherwise be sold cheaply – the tank stores the sun as heat.
 
 <p align="center"><img src="docs/things_en.png" width="640" alt="Runs cheaply"></p>
 
@@ -239,7 +240,8 @@ Marketplace (HACS): [energy-pilot-companion](https://github.com/Clahen86/energy-
 
 ## Brands
 
-Everything goes through the device's own Home Assistant integration.<br>
+Everything goes through the device's own Home Assistant integration. No profile for yours? Pick its controls yourself –
+or your own scripts – for each step under Settings → Control.<br>
 ✅ runs in real use · 🧪 built from the integration's own code, waiting for a beta tester with the hardware
 
 | | |
