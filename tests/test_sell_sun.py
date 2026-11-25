@@ -81,3 +81,29 @@ def test_kostal_sells_the_sun_with_block_charge():
 def test_kostal_plain_hold_still_blocks_discharge():
     intent, calls = _kostal_calls(sell_sun=False)  # holding for later while buying: the sun may fill it
     assert intent == "hold" and calls == [("turn_on", "switch.plenticore_l_g3_block_discharge")]
+
+
+def _with_hours(c, sell_now, later_price, later_grid=0.6):
+    # Thursday 13:00 in the user's plan: a surplus smaller than one 2 % step shows as a hold that sells; the plan buys
+    # later in the evening.
+    c.engine.result["battery"]["steps"].append(
+        {"t": "2026-11-17T21:00:00+00:00", "action": "discharge", "soc": 10, "grid": later_grid})
+    c.ov.plan = lambda: {"hours": [{"t": "2026-11-17T12:00:00+00:00", "price": 3.1, "sell": sell_now},
+                                   {"t": "2026-11-17T21:00:00+00:00", "price": later_price, "sell": 1.8}]}
+    return c
+
+
+def test_sun_stored_when_it_saves_more_than_selling_earns():
+    c = _with_hours(_ctl(), sell_now=2.145, later_price=2.909)  # stored: 0.92 * 2.909 = 2.68 > 2.145
+    want = c.intents()["battery"]
+    assert want["intent"] == "normal" and not want["ctx"].get("sell_sun")
+
+
+def test_sun_sold_when_selling_earns_more():
+    c = _with_hours(_ctl(), sell_now=2.9, later_price=2.909)  # 2.9 > 0.92 * 2.909 = 2.68
+    assert c.intents()["battery"]["ctx"].get("sell_sun")
+
+
+def test_sun_sold_when_nothing_is_bought_later():
+    c = _with_hours(_ctl(), sell_now=2.145, later_price=2.909, later_grid=0.0)
+    assert c.intents()["battery"]["ctx"].get("sell_sun")

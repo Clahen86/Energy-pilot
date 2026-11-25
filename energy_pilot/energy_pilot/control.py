@@ -397,6 +397,25 @@ class Controller:
         hold = str(steps.get("hold") or "")
         return bool(steps.get("hold_sun")) or "{max_charge_w}" in hold or "{max_charge_kw}" in hold
 
+    def _selling_sun_pays(self, steps: list[dict[str, Any]], bat: Any) -> bool:
+        """Does selling the sun's surplus now beat storing it? The plan moves in whole steps of the level (2 % of a big
+        battery is about 1 kWh), so a surplus smaller than a step shows as a hold that sells - not as a choice. A kWh of
+        sun stored saves the cheapest later hour the plan buys for the house in (after the round trip and the wear);
+        selling must beat that, or the sun goes into the battery as before. Nothing bought later: selling it is fine."""
+        plan = getattr(self.ov, "plan", None)
+        try:
+            hours = {datetime.fromisoformat(h["t"]): h for h in ((plan() or {}).get("hours") or [])} if callable(plan) else {}
+            hour = lambda t: datetime.fromisoformat(t).replace(minute=0, second=0, microsecond=0)  # noqa: E731
+            sell = (hours.get(hour(steps[0]["t"])) or {}).get("sell")
+            later = [hours[hour(s["t"])]["price"] for s in steps[1:]
+                     if (s.get("grid") or 0.0) > 0.01 and s.get("action") != "charge_grid"
+                     and hours.get(hour(s["t"]), {}).get("price") is not None]
+        except (KeyError, TypeError, ValueError):
+            return True
+        if sell is None or not later:
+            return True
+        return sell >= bat.efficiency * min(later) - 2 * bat.wear
+
     def profile_steps(self, part: str = "battery") -> dict[str, list] | None:
         key = self.profile_key(part)
         if key == "custom" and part == "battery":
@@ -538,7 +557,8 @@ class Controller:
             # A hold only because the sun was to cover the house (nothing bought in the plan): the battery runs as
             # normal - the same in the plan, but when the house uses more than foreseen it comes from the battery,
             # not the grid. Not when the sun's surplus is to be sold instead of stored (below).
-            sells_sun = (step.get("grid") or 0.0) < -0.01 and getattr(self.ov, "sell_sun", lambda: False)() and self.can_block_sun()
+            sells_sun = (step.get("grid") or 0.0) < -0.01 and getattr(self.ov, "sell_sun", lambda: False)() and self.can_block_sun() \
+                and step["action"] == "hold" and self._selling_sun_pays(b["steps"], bat)
             if intent == "hold" and (step.get("grid") or 0.0) <= 0.01 and not sells_sun:
                 intent = "normal"
             slot_h = (b.get("slot_min") or 60) / 60  # the step is one price slot (a quarter of an hour in Europe)
