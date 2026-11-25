@@ -40,6 +40,27 @@ def _norm(x: Any) -> str:
     return re.sub(r"[^a-z0-9]", "", str(x).lower())
 
 
+_ERR_KINDS = (
+    ("rate_limit", r"rate.?limit|too many|429|quota|throttl"),
+    ("auth", r"unauthori[sz]|401|403|forbidden|token|login|credential"),
+    ("timeout", r"time.?out|timed out"),
+    ("car_not_ready", r"not plugged|unplugged|plug|not charging|car is not|vehicle is not|not ready|asleep|sleep"),
+    ("unavailable", r"unavailable|offline|not connected|not available|no connection|unreachable|connect"),
+    ("not_supported", r"not supported|unsupported|not allowed|read.?only|not implemented|cannot be changed"),
+    ("bad_option", r"option|not a valid|invalid choice"),
+    ("bad_value", r"out of range|must be|invalid|value|minimum|maximum|between"),
+    ("no_service", r"service .* not found|action .* not found|unknown service|not found"),
+)
+
+
+def error_kind(err: str) -> str:
+    """A refusal for the developer, without names: the service and what kind of error - "switch.turn_on:rate_limit"."""
+    svc, _, msg = str(err).partition(": ")
+    svc = svc if re.fullmatch(r"[a-z_]+\.[a-z_]+", svc) else "?"
+    kind = next((k for k, pat in _ERR_KINDS if re.search(pat, msg, re.I)), "other")
+    return f"{svc}:{kind}"[:50]
+
+
 def _expect(intent: str, f: dict[str, Any], base: dict[str, Any]) -> bool | None:
     """Is the battery doing what the step asked for? None: there is nothing to tell by."""
     b, g = f.get("battery"), f.get("grid")
@@ -308,7 +329,10 @@ class SelfTest:
                     base: dict[str, Any]) -> None:
         self._save(step={"part": part, "step": intent, "since": time.time()})
         if not calls:  # nothing to send: the profile's controls weren't found - not "no reaction" from the inverter
-            self._result(part, intent, "failed", why="no_controls")
+            # for the developer: which integration the controls came from and how many there were (no names)
+            plat = (getattr(self.ctl, "platforms", None) or {}).get(part) or "?"
+            n = len((getattr(self.ctl, "entities", None) or {}).get(part) or [])
+            self._result(part, intent, "failed", why="no_controls", offline=f"{plat}:{n}"[:50])
             return
         sent = await self.ctl._send(calls, force=True)
         await self._wake(part, intent)
@@ -363,6 +387,8 @@ class SelfTest:
             # using it all - the control worked, selling is just limited here (#61). Not a fault.
             self._result(part, intent, "skipped", why="export_limited", seen={k: f.get(k) for k in ("battery", "grid") if f})
             return
+        if why == "rejected" and err and not offline_kind:
+            offline_kind = error_kind(err)  # for the developer: what kind of refusal (no names)
         rejected = [{"entity": c["data"].get("entity_id"), "value": c["data"].get("option", c["data"].get("value"))}
                     for c in calls if self.ctl._matches(c) is False]
         self._result(part, intent, "failed", why=why, rejected=rejected, error=err,

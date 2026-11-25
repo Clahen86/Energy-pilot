@@ -88,7 +88,7 @@ def failures(tests: list[dict]) -> list[dict]:
         out.append({"title": f"⚡ Test fails: {prof} · {part} · {step} ({why or 'failed'})", "version": last,
                     "body": f"The self-test step **{step}** fails for `{prof}` ({part}) in {n} of {total[(part, prof)]} homes "
                             f"(last 60 days), reason: `{why or '?'}`.\n\n"
-                            + (f"Controls that went offline: {what}\n\n" if what else "")
+                            + (f"Details: {what}\n\n" if what else "")
                             + f"Last seen in version: {last}\n\n"
                             "_Made by the nightly training (training/reports.py). Closed, it comes back only if the fault "
                             "is seen in a newer version._"})
