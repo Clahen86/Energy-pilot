@@ -243,15 +243,25 @@ def make_app(runner: Runner, overview: Overview, password: str | None = None) ->
                                   "curtail": overview.curtail.status() if getattr(overview, "curtail", None) else None})
 
     def car_plugs() -> list:
-        """For Settings > Car > Cars: the sensors a car's own integration has for "plugged in" (or its charging state)."""
+        """For Settings > Car > Cars: the car's own "plugged in" (or charging state) sensors - only from a car's own
+        integration (Tesla, VW, Kia …), never the charger's: the charger already tells that a car is in it."""
         import re as _re
 
+        from .chargers import extras
+        from .detect import CAR_PLATFORMS
+
+        car_platforms = set(CAR_PLATFORMS) - {"ocpp", "evcc_intg"}  # chargers, not cars
         words = _re.compile(r"plug|cable|kabel|connect|charging_state|charge_state|charger_state|charging_status|ladekabel|stik")
+        reg = getattr(overview.controller, "_ent_reg", None) or {}
+        chargers_own = {overview.role("ev_plug")} | {c.get("plug") for c in extras(overview.settings)}
         out = []
         for e, s in runner.ha.states.items():
-            if (e.startswith("binary_sensor.") or e.startswith("sensor.")) and words.search(e):
-                out.append({"entity_id": e, "name": str((s.get("attributes") or {}).get("friendly_name") or e)})
-        return sorted(out, key=lambda x: (not x["entity_id"].startswith("binary_sensor."), x["name"].lower()))[:200]
+            if not (e.startswith("binary_sensor.") or e.startswith("sensor.")) or e in chargers_own or not words.search(e):
+                continue
+            if (reg.get(e) or {}).get("platform") not in car_platforms:
+                continue
+            out.append({"entity_id": e, "name": str((s.get("attributes") or {}).get("friendly_name") or e)})
+        return sorted(out, key=lambda x: (not x["entity_id"].startswith("binary_sensor."), x["name"].lower()))
 
     def charger_devices() -> list:
         """For Settings > Car: the chargers found, each with its power, plug, charged-energy and car-level sensors."""

@@ -2,6 +2,8 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.110.1 – 2026-11-25
+- Cars: the "plugged in" sensor list shows only sensors from the car's own integration (Tesla, VW, Kia …), never the charger's - the charger already tells that a car is in it. A line under the field says to pick None when the car isn't in Home Assistant
 ## 0.110.0 – 2026-11-25
 - More cars than chargers: a list of cars under Settings → Car, each with its own name, battery level and "plugged in" sensor (when the car is in Home Assistant) and battery size. A car without Home Assistant needs only a name and a size
 - Each charger finds the car in it by itself: the car whose own sensor says it is plugged in; else, once each car has 3 charges behind it, by the power it takes (only when the cars charge clearly differently); else the same car as last time
