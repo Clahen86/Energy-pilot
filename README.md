@@ -208,7 +208,7 @@ Two ways of forecasting side by side, and the better one decides:
   by the power it charges with once it knows the cars, else the same car as last time. Pick it with one tap when it
   guesses wrong.
 
-  <img src="docs/cars_en.png" alt="Two chargers, three cars" width="360">
+  ![Two chargers, three cars](docs/cars_en.png)
 
 - **No house sensor needed** – it works the house out from your grid, solar, battery and car meters.
 - **Any solar forecast** – Solcast, Open-Meteo, Forecast.Solar … or its own from the weather and your panels' history.

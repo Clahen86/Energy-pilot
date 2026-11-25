@@ -202,7 +202,7 @@ To slags prognoser side om side, og den bedste bestemmer:
   Assistant skal kun have navn og størrelse). Hver ladeboks finder selv bilen: ud fra bilens egen sensor, ellers ud fra
   den effekt den lader med, når den kender bilerne, ellers samme bil som sidst. Gætter den forkert, vælger du med ét tryk.
 
-  <img src="docs/cars_da.png" alt="To ladebokse, tre biler" width="360">
+  ![To ladebokse, tre biler](docs/cars_da.png)
 
 - **Ingen husforbrug-sensor nødvendig** – den regner huset ud fra net, sol, batteri og bil.
 - **Enhver solprognose** – Solcast, Open-Meteo, Forecast.Solar … eller sin egen ud fra vejret og anlæggets historik.
