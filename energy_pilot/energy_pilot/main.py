@@ -163,7 +163,7 @@ async def main() -> None:
                 await curtail.tick()
                 overview.timeline.add(snapshot(overview, engine, controller))
                 fl, ns = overview.flow() or {}, getattr(engine, "now_slot", None) or {}
-                overview.hourly.add(datetime.now(engine.tz), fl.get("house"), fl.get("pv"), ns.get("price"), ns.get("sell"))
+                overview.hourly.add(datetime.now(engine.tz), fl.get("house"), fl.get("sun", fl.get("pv")), ns.get("price"), ns.get("sell"))
                 await engine.refresh_whatif()
                 await engine.join_power_down()
                 await engine.refresh_tariffs()

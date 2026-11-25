@@ -2,6 +2,11 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.108.0 – 2026-11-25
+
+- New optional role "Other generation (wind, hydro …)" under Sun: power made on the spot that can't be switched, such as a small wind turbine. It counts in the energy balance (house, surplus for the car, savings) and shows in the flow as "SUN · OTHER", but stays out of the solar forecast, solar learning and the shared hours. No forecast for it yet: the plan uses it as it comes
+- English outside the app: the add-on's name, description, sidebar title and docs tab are now in English (Energy Pilot), and the texts on sensor.energipilot follow Home Assistant's language instead of falling back to Danish. The companion device is called Energy Pilot (existing entity ids stay)
+
 ## 0.107.8 – 2026-11-24
 
 - Savings, "Energy Pilot's own part": power bought cheaply and still in the battery at the end of the day no longer counts as a loss. The comparison with the inverter's own control now counts what each battery holds more than the other at what that power cost. Earlier days keep their old figure

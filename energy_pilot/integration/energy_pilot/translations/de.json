@@ -2,11 +2,11 @@
   "config": {
     "step": {
       "confirm": {
-        "title": "Energipilot",
+        "title": "Energy Pilot",
         "description": "Energy Pilots Schalter und Sensoren zu Home Assistant hinzufügen?"
       },
       "user": {
-        "title": "Energipilot",
+        "title": "Energy Pilot",
         "description": "Die Adresse der Energy-Pilot-App (Docker).",
         "data": {
           "url": "Adresse"

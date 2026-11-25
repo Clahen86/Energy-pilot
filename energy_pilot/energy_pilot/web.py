@@ -123,7 +123,7 @@ def make_app(runner: Runner, overview: Overview, password: str | None = None) ->
     app = web.Application(client_max_size=10 * 1024 * 1024, middlewares=[guard(password)])  # "Get help" may carry a few pictures
 
     def lang(req: web.Request) -> str:
-        code = str(req.query.get("lang", overview.settings.get("language") or "da"))[:2].lower()
+        code = str(req.query.get("lang", overview.settings.get("language") or overview.ha.config.get("language") or "en"))[:2].lower()
         code = "nb" if code in ("no", "nn") else code
         return code if code in ("da", "en", "de", "fr", "nl", "sv", "nb") else "en"
 

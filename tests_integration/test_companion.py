@@ -18,9 +18,9 @@ async def test_entities(hass: HomeAssistant, aioclient_mock):
     await hass.async_block_till_done()
     states = {s.entity_id: s.state for s in hass.states.async_all()}
     print(states)
-    assert states["sensor.energipilot_decision"] == "hold"
-    assert states["select.energipilot_style"] == "safe"
-    assert states["time.energipilot_ready_at"] == "07:00:00"
-    await hass.services.async_call("switch", "turn_on", {"entity_id": "switch.energipilot_charge_now"}, blocking=True)
+    assert states["sensor.energy_pilot_decision"] == "hold"
+    assert states["select.energy_pilot_style"] == "safe"
+    assert states["time.energy_pilot_ready_at"] == "07:00:00"
+    await hass.services.async_call("switch", "turn_on", {"entity_id": "switch.energy_pilot_charge_now"}, blocking=True)
     assert any(c[0] == "POST" and str(c[1]).endswith("/api/ev") and c[2] == {"manual": True} for c in aioclient_mock.mock_calls)
-    await hass.services.async_call("button", "press", {"entity_id": "button.energipilot_everything_back_to_shadow"}, blocking=True)
+    await hass.services.async_call("button", "press", {"entity_id": "button.energy_pilot_everything_back_to_shadow"}, blocking=True)

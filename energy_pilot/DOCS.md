@@ -1,8 +1,10 @@
-# Energipilot
+# Energy Pilot
 
-Kører dit energisystem (batteri, sol, bilopladning) som en app. Den starter altid i **skygge**: den regner og viser,
-hvad den ville gøre, men styrer intet. Hver del kan sættes til *Skygge*, *Styrer* eller *Fra* i panelet, og
-**Alt i skygge** stopper al styring med ét tryk.
+Runs your energy system (battery, solar, EV charging) as an app. It always starts in **shadow**: it plans and shows
+what it would do, but controls nothing. Each part can be set to *Shadow*, *Control* or *Off* in the panel, and
+**Everything to shadow** stops all control with one tap.
 
-Første gang kopieres apps'enes egne filer (modeller, logs) fra `seed_from`, så den fortsætter med det, de har lært.
-Den skriver aldrig i AppDaemons mappe.
+Open **Energy Pilot** in the sidebar to set it up. The panel follows your Home Assistant language
+(English, Danish, German, French, Dutch, Swedish, Norwegian).
+
+More: https://github.com/Clahen86/Energy-pilot

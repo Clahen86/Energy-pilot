@@ -508,7 +508,8 @@ class Telemetry:
                     states = self.ov.ha.states
                     volt = volt or skynet.grid_voltage_entity(states)
                     ratio, sn = None, getattr(eng, "sun_now", None)
-                    pv = (self.ov.flow() or {}).get("pv") if hasattr(self.ov, "flow") else None
+                    fl = (self.ov.flow() or {}) if hasattr(self.ov, "flow") else {}
+                    pv = fl.get("sun", fl.get("pv"))  # the panels only - wind says nothing about the clouds
                     if pv is not None and sn and sn[1] >= 0.2:
                         from datetime import datetime
 

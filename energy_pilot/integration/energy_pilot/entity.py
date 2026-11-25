@@ -15,7 +15,7 @@ class PilotEntity(CoordinatorEntity[Pilot]):
         super().__init__(pilot)
         self._attr_translation_key = key
         self._attr_unique_id = f"{DOMAIN}_{key}"
-        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, "pilot")}, name="Energipilot", manufacturer="Energipilot")
+        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, "pilot")}, name="Energy Pilot", manufacturer="Energy Pilot")
 
     @property
     def d(self) -> dict:

@@ -114,12 +114,12 @@ class Cards:
         """sensor.energipilot: the decision as its state; the plan, prices and which sensors are which as attributes.
         Only written when something changed (not every minute), so it doesn't fill the database."""
         o = self.overview
-        snap = o.snapshot(o.settings.get("language") or "da")
+        snap = o.snapshot(str(o.settings.get("language") or o.ha.config.get("language") or "en")[:2])  # Home Assistant's own language
         decision = snap["decision"] or {}
         attrs = {
-            "friendly_name": "Energipilot", "icon": "mdi:lightning-bolt-circle",
+            "friendly_name": "Energy Pilot", "icon": "mdi:lightning-bolt-circle",
             # Several solar arrays: the card adds them up.
-            "roles": {**o.roles(), **{k: v for k in ("pv_power",) if len(v := o.role_all(k)) > 1}}, "decision": decision, "plan": snap["plan"]["hours"],
+            "roles": {**o.roles(), **{k: v for k in ("pv_power", "other_power") if len(v := o.role_all(k)) > 1}}, "decision": decision, "plan": snap["plan"]["hours"],
             "price_min": snap["plan"]["price_min"], "price_max": snap["plan"]["price_max"], "cheapest": snap["plan"]["cheapest"],
             "battery_sign": o.battery_sign(),
             # how long the battery lasts (runtime.py) - to the nearest 10 minutes, so it isn't written every round

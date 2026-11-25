@@ -36,7 +36,7 @@ class EnergyPilotFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
-            return self.async_create_entry(title="Energipilot", data={"url": self._url})
+            return self.async_create_entry(title="Energy Pilot", data={"url": self._url})
         return self.async_show_form(step_id="confirm")
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
@@ -45,7 +45,7 @@ class EnergyPilotFlow(ConfigFlow, domain=DOMAIN):
         errors = {}
         if user_input is not None:
             if await self._ok(user_input["url"]):
-                return self.async_create_entry(title="Energipilot", data={"url": user_input["url"].rstrip("/")})
+                return self.async_create_entry(title="Energy Pilot", data={"url": user_input["url"].rstrip("/")})
             errors["base"] = "cannot_connect"
         return self.async_show_form(step_id="user", data_schema=vol.Schema({vol.Required("url", default="http://homeassistant.local:8099"): str}),
                                     errors=errors)

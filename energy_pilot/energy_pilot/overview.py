@@ -19,6 +19,9 @@ GRID_SELL_PLUS = {"goodwe"}  # integrations whose grid power is plus when sellin
 PRICE_DOMAINS = ("sensor", "input_number", "number", "event")
 ROLES: dict[str, dict[str, Any]] = {
     "pv_power": {"known": ["sensor.growatt_sph_pv_power"], "class": "power", "words": ["pv_power", "solar_power", "sol_effekt", "pv"]},
+    # Other power made on the spot that can't be switched (a small wind turbine, water): in the flow and the balance,
+    # never in the solar forecast or what the panels are learned from. Only when chosen.
+    "other_power": {"known": [], "class": "power", "words": []},
     "house_power": {"known": ["sensor.husets_forbrug_uden_bil"], "class": "power", "words": ["house", "hus", "load", "forbrug", "consumption"]},
     "battery_power": {"known": ["sensor.growatt_sph_battery_power"], "class": "power", "words": ["battery_power", "batteri_effekt"]},
     "battery_soc": {"known": ["sensor.growatt_sph_battery_state_of_charge"], "class": "battery", "words": ["state_of_charge", "soc", "battery_level"]},
@@ -412,7 +415,7 @@ class Overview:
             return None  # the user picked Energy Pilot's own prices
         chosen = (self.settings.get("roles") or {}).get(name)
         states = self.ha.states
-        if name in ("sell_price", "generator_switch", "generator_running") and not chosen:
+        if name in ("sell_price", "generator_switch", "generator_running", "other_power") and not chosen:
             return None  # a changing feed-in price only when the user picks one
         if isinstance(chosen, list):  # several (solar arrays): the first stands for them where only one fits
             chosen = next((e for e in chosen if e in states), None)
@@ -528,6 +531,13 @@ class Overview:
         r, st = self.roles(), self.ha.states
         arrays = [w for e in self.role_all("pv_power") if (w := _watts(st.get(e))) is not None]
         pv = self.scaled("pv_power", sum(arrays) if arrays else None)  # several arrays are added up
+        sun = pv
+        # Other power made on the spot (wind …): counted with the sun everywhere power is added up - "pv" is all that is
+        # made here - while "sun" stays the panels' own, for what is learned about the sun.
+        others = [w for e in self.role_all("other_power") if (w := _watts(st.get(e))) is not None]
+        other = max(0.0, sum(others)) if others else None
+        if other is not None:
+            pv = (pv or 0.0) + other
         house = self.scaled("house_power", _watts(st.get(r["house_power"])) if r["house_power"] else None)
         batt = self.scaled("battery_power", _watts(st.get(r["battery_power"])) if r["battery_power"] else None)
         if (pair := self.battery_pair()) is not None:
@@ -570,7 +580,8 @@ class Overview:
         if house is None and None not in (pv, grid):
             house = max(0.0, (pv or 0) + (grid or 0) - (batt or 0) - (ev or 0))  # what's left is the house
         return {
-            "pv": pv, "house": house, "battery": batt, "soc": soc, "grid": grid, "ev": ev, "plug": plug, "batteries": packs, "cars": cars,
+            "pv": pv, "sun": sun, "other": other, "house": house, "battery": batt, "soc": soc, "grid": grid, "ev": ev, "plug": plug,
+            "batteries": packs, "cars": cars,
             "has": {"pv": pv is not None, "battery": soc is not None or batt is not None, "grid": grid is not None,
                     "ev": r["ev_power"] is not None or r["ev_plug"] is not None},
         }
