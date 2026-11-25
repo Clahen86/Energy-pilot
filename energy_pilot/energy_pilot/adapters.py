@@ -1149,11 +1149,17 @@ def charger_hand_back(platform: str | None, entities: list[str]) -> list[dict[st
 
 def charger_calls(intent: str, entities: list[str], platform: str | None, current: float,
                   device_id: str | None = None, states: dict[str, Any] | None = None,
-                  switch: str | None = None) -> list[dict[str, Any]]:
-    """Start at a current, or stop - by the charger integration's own way where known, else its switch and number."""
+                  switch: str | None = None, chosen: str | None = None) -> list[dict[str, Any]]:
+    """Start at a current, or stop - by the charger integration's own way where known, else its switch and number.
+    A switch the user picked (chosen) is used as well with a known integration: an Easee that waits for a start
+    ("awaiting start") isn't started by "resume", but by the owner's own start/stop switch."""
     ctx = {"current": round(current), "device_id": device_id or ""}
     if platform in CHARGER_SERVICES:
-        return resolve(CHARGER_SERVICES[platform][intent], entities, ctx)
+        calls = resolve(CHARGER_SERVICES[platform][intent], entities, ctx)
+        if chosen and chosen.split(".")[0] in ("switch", "input_boolean"):
+            on = (intent == "charge") != hit(r"pause", chosen)
+            calls.append({"domain": chosen.split(".")[0], "service": "turn_on" if on else "turn_off", "data": {"entity_id": chosen}})
+        return calls
     switch = switch or charger_switch(entities)
     number = next((e for e in entities if hit(CHARGER_CURRENT, e)), None)
     calls = []

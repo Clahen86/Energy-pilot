@@ -319,6 +319,12 @@ class Controller:
             # A known charger integration (Wallbox, Zaptec, Peblar …) keeps its own way even with its switch chosen by
             # hand - the generic way paused a Wallbox and lost Zaptec's services. Else the switch and a current control.
             plat = reg.get("platform") if reg.get("platform") in adapters.CHARGER_SERVICES else None
+            if plat is None and self.platforms.get(part) in adapters.CHARGER_SERVICES:
+                # The owner's own start/stop switch (a template, a script) beside a known charger (Easee): the
+                # charger keeps its own way - current, pause, resume - and the switch is used as well.
+                self.entities[part] = sorted(set(self.entities.get(part) or []) | {sw})
+                self.chosen[part] = sw
+                continue
             kinds = r"(number|select|switch|button)\." if plat else r"(number|select)\."
             own = [e["entity_id"] for e in entities if not e.get("disabled_by") and dev and e.get("device_id") == dev
                    and re.match(kinds, e["entity_id"])]
@@ -731,10 +737,10 @@ class Controller:
         if part.startswith("car") and part != "car":
             return self._phase_call(part, want) + self._clamp(adapters.charger_calls(
                 want["intent"], self.entities.get(part, []), self.platforms.get(part), want["ctx"]["current"],
-                self.car_devices.get(part), self.ha.states, switch=self.auto_switch(part)))
+                self.car_devices.get(part), self.ha.states, switch=self.auto_switch(part), chosen=self.chosen.get(part)))
         calls = self._clamp(adapters.charger_calls(
             want["intent"], self.entities["car"], self.platforms["car"], want["ctx"]["current"],
-            getattr(self, "car_device", None), self.ha.states, switch=self.auto_switch("car")))
+            getattr(self, "car_device", None), self.ha.states, switch=self.auto_switch("car"), chosen=self.chosen.get("car")))
         # The charger test's steps are "start"/"stop" (selftest.py): an option it - or 3 other installations with the
         # same charger - found works is used instead.
         return self._phase_call("car", want) + self._fixed("car", "start" if want["intent"] == "charge" else "stop", calls)

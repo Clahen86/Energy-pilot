@@ -10,12 +10,31 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 import json
+from pathlib import Path
 import sys
 
 DRAFT_HOMES = 2  # an issue to the developer only - two homes are enough to start a profile from
 FAIL_HOMES = 2
 # Built by the user, or firmware for many kinds of devices: no one brand to make a profile for
 HOMEMADE = {"template", "mqtt", "modbus", "rest", "command_line", "esphome"}
+
+
+def _known() -> tuple[set[str], set[str]]:
+    """The integrations Energy Pilot has a profile for, and the ones that are never a home battery (cars, alarms,
+    cameras, heating) - from the app's own lists, so the report follows the app."""
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "energy_pilot"))
+        from energy_pilot import adapters, detect
+
+        profiles = set(adapters.PROFILES) | {p["platform"] for p in adapters.PROFILES.values() if p.get("platform")}
+        never = set(detect.CAR_PLATFORMS) | set(detect.NOT_HOME_BATTERY)
+    except Exception:  # noqa: BLE001 - the report still comes, only less tidy
+        profiles, never = set(), set()
+    never |= {"aarlo", "blink", "skoda", "byd_vehicle", "gwm_ora", "myskoda", "ha_washdata", "netatmo"}
+    return profiles, never - profiles
+
+
+PROFILED, NOT_BATTERY = _known()
 
 
 def drafts(setups: list[dict]) -> list[dict]:
@@ -27,21 +46,29 @@ def drafts(setups: list[dict]) -> list[dict]:
             if d.get("kind") != "battery" or d.get("profile") or not d.get("platform"):
                 continue
             plat = d["platform"]
+            if plat in NOT_BATTERY:
+                continue  # a car's, a camera's or a thermostat's battery - not a home battery
             homes[plat].add(r["home"])
             for e in d.get("entities") or []:
                 if e.get("platform") == plat:  # its own entities only - not a solar forecast or a price beside it
                     ents[plat][(str(e.get("name")), str(e.get("use")), str(e.get("unit") or ""))] += 1
     out = []
     # One overview of every brand without a profile (a single issue, made once) - which ones are worth a profile next
-    brands = sorted(((len(hs), p) for p, hs in homes.items() if p not in HOMEMADE), reverse=True)
-    if brands:
-        table = "\n".join(f"| `{p}` | {n} |" for n, p in brands)
+    brands = sorted(((len(hs), p) for p, hs in homes.items() if p not in HOMEMADE and p not in PROFILED), reverse=True)
+    # A profile exists, but these homes have none picked: read only (a cloud integration), or its controls missing
+    unpicked = sorted(((len(hs), p) for p, hs in homes.items() if p in PROFILED), reverse=True)
+    if brands or unpicked:
+        table = "\n".join(f"| `{p}` | {n} |" for n, p in brands) or "| – | |"
+        table2 = "\n".join(f"| `{p}` | {n} |" for n, p in unpicked) or "| – | |"
         out.append({"title": f"⚡ Integrations without a profile: {len(brands)} brands, {sum(n for n, _ in brands)} homes",
                     "body": "Battery integrations Energy Pilot has no profile for, by homes (last 30 days):\n\n"
                             f"| Integration | Homes |\n|---|---|\n{table}\n\nA draft issue follows by itself when two homes use one.\n\n"
+                            "Has a profile, but these homes have none in use (read only, or its controls are missing):\n\n"
+                            f"| Integration | Homes |\n|---|---|\n{table2}\n\n"
+                            "Cars, cameras and thermostats are left out.\n\n"
                             "_Made by the nightly training (training/reports.py). A new one comes when the list changes._"})
     for plat, hs in homes.items():
-        if len(hs) < DRAFT_HOMES or plat in HOMEMADE:
+        if len(hs) < DRAFT_HOMES or plat in HOMEMADE or plat in PROFILED:
             continue
         common = [(n, u, unit, c) for (n, u, unit), c in ents[plat].most_common() if c >= 2][:40]
         lines = "\n".join(f"| `{n}` | {u} | {unit} | {c} |" for n, u, unit, c in common)

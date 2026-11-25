@@ -266,8 +266,9 @@ READ_ONLY = {
     # Control (its own profile here) charges and discharges it.
     "kostal_plenticore": ("Kostal", "Kostal Plenticore Battery Control",
                           "https://my.home-assistant.io/redirect/hacs_repository/?owner=mbuhansen&repository=kostal_plenticore_battery_control&category=integration"),
-    # The old Solarman integration (StephanJoubert, same domain "solarman") only reads - davidrapan's controls a Deye.
-    "solarman_old": ("Deye", "Solarman (davidrapan)",
+    # The old Solarman integration (StephanJoubert, same domain "solarman") only reads - davidrapan's controls a Deye
+    # or a Sofar (ZCS Azzurro is a Sofar).
+    "solarman_old": ("Deye / Sofar", "Solarman (davidrapan)",
                      "https://my.home-assistant.io/redirect/hacs_repository/?owner=davidrapan&repository=ha-solarman&category=integration"),
 }
 
@@ -282,7 +283,7 @@ def read_only(engine: Any, st: dict[str, Any]) -> list[dict[str, Any]]:
     if plat == "solarman":
         # The same domain for both: the old one makes no controls (no programme SOC, no time of use) - say so, even if a
         # Deye profile was guessed from the model (its steps would find nothing)
-        mine = [e for e, r in reg.items() if (r or {}).get("platform") == "solarman" and re.match(r"(number|select)\..*(program_\d_soc|time_of_use)$", e)]
+        mine = [e for e, r in reg.items() if (r or {}).get("platform") == "solarman" and re.match(r"(number|select)\..*(program_\d_soc|time_of_use|storage_control_mode|passive_(minimum|maximum)_battery_power)$", e)]
         if mine:
             return []
         plat = "solarman_old"

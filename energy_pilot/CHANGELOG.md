@@ -2,6 +2,10 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.110.2 – 2026-11-25
+- Easee (and other known chargers) with your own start/stop switch chosen: the charger keeps its own control of the current, pause and resume, and your switch starts and stops it as well. Before, only the switch was used and the current was lost
+- Sofar (ZCS Azzurro) on the new Solarman integration is no longer called the old, read-only one, and the hint says "Deye / Sofar" instead of "Deye"
+- Self-test: a failed step says why without names (the kind of refusal, or where the controls came from) - so faults can be mended from the data
 ## 0.110.1 – 2026-11-25
 - Cars: the "plugged in" sensor list shows only sensors from the car's own integration (Tesla, VW, Kia …), never the charger's - the charger already tells that a car is in it. A line under the field says to pick None when the car isn't in Home Assistant
 ## 0.110.0 – 2026-11-25
