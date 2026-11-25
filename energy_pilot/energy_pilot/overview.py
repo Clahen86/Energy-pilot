@@ -186,7 +186,7 @@ class Overview:
             if key == "roles":
                 self.settings.setdefault("roles", {}).update({k: v for k, v in value.items() if k in ROLES})
             elif key in ("battery_kwh", "import_limit_kw", "language", "setup_done", "style", "price_area", "tariff", "markup", "price_source", "tou", "vat", "battery_min_soc", "grid_charge",
-                         "sell", "sell_price", "solar_value", "ev_in_house", "battery_sign", "grid_sign", "grid_noise", "ev_follow_sun", "ev_fuse_guard",
+                         "sell", "sell_price", "sell_fee", "solar_value", "ev_in_house", "battery_sign", "grid_sign", "grid_noise", "ev_follow_sun", "ev_fuse_guard",
                          "battery_export", "battery_no_export_cheap", "scene_fx", "battery_wear", "battery_care", "battery_type", "battery_price", "fuse_ok", "own_history", "things", "things_dismissed", "power_tariff_price", "power_tariff_kind", "power_tariff_hours", "battery_grid_max", "export_limit_kw", "agile_region", "restore_values",
                          "offgrid", "reserve_soc", "emergency_soc", "gen_stop_soc", "gen_charge_kw", "gen_min_run_h",
                          "quiet_gen_from", "quiet_gen_to", "battery_charge_kw", "battery_discharge_kw", "ev_mode", "charger_kw", "ev_need_kwh",
@@ -325,7 +325,8 @@ class Overview:
             res = (self.engine.result or {}).get("battery") or {}
             steps, slot = res.get("steps") or [], timedelta(minutes=res.get("slot_min") or 60)
             now = now or datetime.now(ZoneInfo(self.ha.config.get("time_zone") or "UTC"))
-            sells, fixed = self.engine.sell_prices(), float(self.settings.get("sell_price") or 0)
+            fee = self.engine.sell_fee() if hasattr(self.engine, "sell_fee") else 0.0
+            sells, fixed = self.engine.sell_prices(), float(self.settings.get("sell_price") or 0) - fee
             sell_now = self.engine.sell_at(sells, now, fixed)
             hour = {datetime.fromisoformat(h["t"]): h["price"] for h in (plan or {}).get("hours") or [] if h.get("price") is not None}
             use = []  # (start, worth) of every later slot the battery gives power in
@@ -853,7 +854,8 @@ class Overview:
         # For the detailed plan (Plan > Detailed plan): what the battery does, what is bought (+) or sold (-), and the
         # feed-in price that hour - a slot of a quarter hour adds to its hour.
         sells = self.engine.sell_prices() if self.engine and hasattr(self.engine, "sell_prices") else {}
-        fixed_sell = float(self.settings.get("sell_price") or 0) if self.settings.get("sell") else 0.0
+        fixed_sell = (self.engine.sell_fixed() if self.engine and hasattr(self.engine, "sell_fixed")
+                      else float(self.settings.get("sell_price") or 0) if self.settings.get("sell") else 0.0)
         for st in (res.get("battery") or {}).get("steps", []):
             if (h := slot(datetime.fromisoformat(st["t"]))) is not None:
                 h["soc"] = st["soc"]

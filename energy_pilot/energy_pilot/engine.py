@@ -1275,7 +1275,8 @@ class Engine:
                 base = float(st.get("sell_price") or 0) if st.get("sell") else 0.0
             sp = {"default": base, "periods": plan["sell_periods"]}
             day0 = datetime.now(self.tz).replace(hour=0, minute=0, second=0, microsecond=0)
-            return {t: tou_price(sp, t) for t in (day0 + timedelta(minutes=15 * i) for i in range(2 * 96))}
+            fee = self.sell_fee()
+            return {t: tou_price(sp, t) - fee for t in (day0 + timedelta(minutes=15 * i) for i in range(2 * 96))}
         if not e or not (s := self.ha.states.get(e)):
             return {}
         from .pricefeed import companions, parse
@@ -1292,7 +1293,20 @@ class Engine:
             pass
         if out and sorted(out.values())[len(out) // 2] < 0:
             out = {k: -v for k, v in out.items()}  # written as negative when it's paid to you (Amber): earnings are positive here
-        return out
+        fee = self.sell_fee()
+        return {k: round(v - fee, 5) for k, v in out.items()} if fee else out
+
+    def sell_fee(self) -> float:
+        """What selling one kWh costs (the supplier's fee, the grid's feed-in tariff) - taken off every sell price."""
+        try:
+            return float(self.ov.settings.get("sell_fee") or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    def sell_fixed(self) -> float:
+        """The fixed sell price, less the sell fee; 0 when nothing is sold."""
+        st = self.ov.settings
+        return float(st.get("sell_price") or 0) - self.sell_fee() if st.get("sell") else 0.0
 
     def sell_at(self, prices: dict[datetime, float], when: datetime, fixed: float) -> float:
         if not prices:
@@ -1369,8 +1383,7 @@ class Engine:
             return
         from . import tune
 
-        st = self.ov.settings
-        sell = float(st.get("sell_price") or 0) if st.get("sell") else 0.0
+        sell = self.sell_fixed()
         L = self.learning
         try:
             work = {"recent": L.state.get("recent") or {}, "tune": copy.deepcopy(L.state.get("tune") or {"f": 1.0, "m": 0.0, "log": []})}
@@ -1471,7 +1484,7 @@ class Engine:
         wc = self.mixer.common_share("house")
         house = [Mixer.mix3(s, m, c, hw, wc) for s, m, c in zip(simple, ml, common)]
         st = self.ov.settings
-        sell = float(st.get("sell_price") or 0) if st.get("sell") else 0.0  # what exported power earns
+        sell = self.sell_fixed()  # what exported power earns, less the sell fee
         sells = self.sell_prices()  # a changing feed-in price, when one is chosen
         # What it has learned: the sun forecast's usual error (cloudy/clear) and a margin on the house in the dear hours.
         L = self.learning
