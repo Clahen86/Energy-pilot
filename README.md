@@ -187,13 +187,17 @@ Two ways of forecasting side by side, and the better one decides:
 - **Dashboard cards** for the energy flow, battery, car and plan.
 - **Quarter-hour prices** – planned and drawn in 15 or 30 minute slots when your price comes like that, not as the hour's average.
 - **Sensors** for your own automations: the decision now, next battery charge, next car charge, next sale, **cheapest
-  hour** (start the dishwasher then), what the battery saved and what the power in it cost.
-- **Buttons and switches:** *Charge now*, *Ready at*, and *Battery/Car control* (Shadow / Control / Off).
+  hour** (start the dishwasher then), what the battery saved and what the power in it cost, **price level** (cheap /
+  normal / dear), **battery health** (what it holds against its label) and **Problem** (on when something needs a look).
+- **Buttons and switches:** *Charge now*, *Ready at*, *Charge to*, *100 % for next trip* and *Battery/Car control*
+  (Shadow / Control / Off) – and the same for every extra car, plus *Car in charger* when you have more cars than chargers.
 - **A settings check** that explains in plain words when a setting spoils the plan, with a one-tap fix.
 
 <details>
 <summary><b>More – several batteries and chargers, off-grid, power tariffs, odd setups</b></summary>
 
+- **Other generation** – a small wind turbine or hydro: counted in the energy balance, the car's surplus and the
+  savings, but kept out of the solar forecast.
 - **Several home batteries** – a SolarEdge and a Victron, say: planned as one, each controlled through its own inverter
   and put in control on its own.
 - **Several chargers** – each car has its own *charge now*, *ready at* and *at most*, and all stay under the main fuse.
@@ -242,7 +246,7 @@ Everything goes through the device's own Home Assistant integration.<br>
 
 | | |
 |---|---|
-| **Inverter / battery** | ✅ Growatt SPH (SPA) · ✅ Victron (ESS) · ✅ Deye (Solarman) · ✅ GoodWe (ET/EH/BT/BH) · ✅ Alpha ESS · ✅ SolaX (SolaX Modbus) · ✅ Deye (ESPHome) · ✅ EcoFlow PowerStream · ✅ Kostal (Modbus control) · 🧪 GoodWe EMS · 🧪 Growatt MIN/MOD TL-XH · 🧪 Growatt (cloud) · 🧪 Sofar (Solarman or SolaX Modbus) · 🧪 Sigenergy · 🧪 Tesla Powerwall · 🧪 Enphase IQ Battery · 🧪 Megarevo · 🧪 Huawei SUN2000/LUNA2000 · 🧪 Sungrow · 🧪 SolarEdge · 🧪 Fox ESS · 🧪 GivEnergy · 🧪 Solis · 🧪 myenergi libbi · 🧪 Marstek Venus · 🧪 Luxpower · 🧪 E3DC · 🧪 GivEnergy (GivTCP) · 🧪 Anker SOLIX (also Anker's own integration) · 🧪 Kostal Plenticore · 🧪 SolaX Gen2/Gen3 · 🧪 Growatt (SolaX Modbus) · 🧪 Off-grid via ESPHome (Growatt SPF, SRNE, Voltronic/MPP) · 🧪 Luxpower/EG4 (MonitorMySolar) · 🧪 Zendure SolarFlow/Hyper · 🧪 EcoFlow PowerOcean (local Modbus) · 🧪 Marstek Venus (local API) · 🧪 Voltronic/Axpert (MQTT, chosen by hand) · any other with a guide: search its controls and pick an option with one tap |
+| **Inverter / battery** | ✅ Growatt SPH (SPA) · ✅ Victron (ESS) · ✅ Deye (Solarman) · 🧪 Deye / Sunsynk (Sunsynk add-on) · ✅ GoodWe (ET/EH/BT/BH) · ✅ Alpha ESS · ✅ SolaX (SolaX Modbus) · ✅ Deye (ESPHome) · ✅ EcoFlow PowerStream · ✅ Kostal (Modbus control) · 🧪 GoodWe EMS · 🧪 Growatt MIN/MOD TL-XH · 🧪 Growatt (cloud) · 🧪 Sofar (Solarman or SolaX Modbus) · 🧪 Sigenergy · 🧪 Tesla Powerwall · 🧪 Enphase IQ Battery · 🧪 Megarevo · 🧪 Huawei SUN2000/LUNA2000 · 🧪 Sungrow · 🧪 SolarEdge · 🧪 Fox ESS · 🧪 GivEnergy · 🧪 Solis · 🧪 myenergi libbi · 🧪 Marstek Venus · 🧪 Luxpower · 🧪 E3DC · 🧪 GivEnergy (GivTCP) · 🧪 Anker SOLIX (also Anker's own integration) · 🧪 Kostal Plenticore · 🧪 SolaX Gen2/Gen3 · 🧪 Growatt (SolaX Modbus) · 🧪 Off-grid via ESPHome (Growatt SPF, SRNE, Voltronic/MPP) · 🧪 Luxpower/EG4 (MonitorMySolar) · 🧪 Zendure SolarFlow/Hyper · 🧪 EcoFlow PowerOcean (local Modbus) · 🧪 Marstek Venus (local API) · 🧪 Voltronic/Axpert (MQTT, chosen by hand) · any other with a guide: search its controls and pick an option with one tap |
 | **EV charger** | ✅ KEBA · ✅ Easee · 🧪 Zaptec · 🧪 go-e · 🧪 Wallbox · 🧪 Peblar · 🧪 OCPP · 🧪 Alfen · 🧪 Ohme · 🧪 myenergi zappi · 🧪 Hypervolt · 🧪 evcc · any with a switch and a current setting |
 | **Prices** | ✅ Strømligning · ✅ built-in spot prices · ✅ Octopus Energy (Intelligent Go, Agile Outgoing) · 🧪 Octopus Agile import · 🧪 Nord Pool · 🧪 Tibber · 🧪 Energi Data Service · 🧪 ENTSO-E · 🧪 Amber · 🧪 EDF Tempo · 🧪 EnergyZero · 🧪 easyEnergy · 🧪 Frank Energie · 🧪 Zonneplan · tariff plans |
 

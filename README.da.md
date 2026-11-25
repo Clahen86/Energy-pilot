@@ -182,13 +182,17 @@ To slags prognoser side om side, og den bedste bestemmer:
 - Et panel i sidepanelet på 7 sprog, lyst og mørkt – med det rigtige vejr, årstider og højtider i energibilledet.
 - **Dashboard-kort** til energiflow, batteri, bil og plan.
 - **Sensorer** til dine egne automationer: beslutningen nu, næste opladning af batteri og bil, næste salg, **billigste
-  time** (start opvaskeren der), hvad batteriet har sparet, og hvad strømmen i det kostede.
-- **Knapper og kontakter:** *Lad nu*, *Klar kl.* og *Batteri-/Bil-styring* (Skygge / Styrer / Fra).
+  time** (start opvaskeren der), hvad batteriet har sparet, og hvad strømmen i det kostede, **prisniveau** (billig /
+  normal / dyr), **batteriets sundhed** (hvad det rummer mod det, der står på det) og **Problem** (tændt når noget skal ses på).
+- **Knapper og kontakter:** *Lad nu*, *Klar kl.*, *Lad til*, *100 % til næste tur* og *Batteri-/Bil-styring*
+  (Skygge / Styrer / Fra) – og det samme for hver ekstra bil, plus *Bil i laderen* når du har flere biler end ladebokse.
 - **Et indstillingstjek**, der forklarer med almindelige ord, når en indstilling ødelægger planen – med et tryk til at rette den.
 
 <details>
 <summary><b>Mere – flere batterier og ladere, off-grid, effekttarif, særlige opsætninger</b></summary>
 
+- **Anden produktion** – en lille vindmølle eller vandkraft: tæller med i energibalancen, bilens overskud og
+  besparelsen, men holdes ude af solprognosen.
 - **Flere husbatterier** – fx SolarEdge og Victron: planlægges som ét, styres hver gennem sin egen inverter og sættes
   til at styre hver for sig.
 - **Flere ladebokse** – hver bil har sin egen *lad nu*, *klar kl.* og *højst*, og tilsammen holdes de under hovedsikringen.
@@ -234,7 +238,7 @@ Alt går gennem enhedens egen Home Assistant-integration.<br>
 
 | | |
 |---|---|
-| **Inverter / batteri** | ✅ Growatt SPH (SPA) · ✅ Victron (ESS) · ✅ Deye (Solarman) · ✅ GoodWe (ET/EH/BT/BH) · ✅ Alpha ESS · ✅ SolaX (SolaX Modbus) · ✅ Deye (ESPHome) · ✅ EcoFlow PowerStream · ✅ Kostal (Modbus control) · 🧪 GoodWe EMS · 🧪 Growatt MIN/MOD TL-XH · 🧪 Growatt (cloud) · 🧪 Sofar · 🧪 Sigenergy · 🧪 Tesla Powerwall · 🧪 Enphase IQ Battery · 🧪 Megarevo · 🧪 Huawei · 🧪 Sungrow · 🧪 SolarEdge · 🧪 Fox ESS · 🧪 GivEnergy · 🧪 Solis · 🧪 myenergi libbi · 🧪 Marstek Venus · 🧪 Luxpower · 🧪 E3DC · 🧪 GivEnergy (GivTCP) · 🧪 Anker SOLIX (også Ankers egen integration) · 🧪 Kostal Plenticore · 🧪 SolaX Gen2/Gen3 · 🧪 Growatt (SolaX Modbus) · 🧪 Off-grid via ESPHome (Growatt SPF, SRNE, Voltronic/MPP) · 🧪 Luxpower/EG4 (MonitorMySolar) · 🧪 Zendure SolarFlow/Hyper · 🧪 EcoFlow PowerOcean (lokal Modbus) · 🧪 Marstek Venus (lokal API) · 🧪 Voltronic/Axpert (MQTT, vælges selv) · alle andre ved at vælge kontrollerne selv |
+| **Inverter / batteri** | ✅ Growatt SPH (SPA) · ✅ Victron (ESS) · ✅ Deye (Solarman) · 🧪 Deye / Sunsynk (Sunsynk add-on) · ✅ GoodWe (ET/EH/BT/BH) · ✅ Alpha ESS · ✅ SolaX (SolaX Modbus) · ✅ Deye (ESPHome) · ✅ EcoFlow PowerStream · ✅ Kostal (Modbus control) · 🧪 GoodWe EMS · 🧪 Growatt MIN/MOD TL-XH · 🧪 Growatt (cloud) · 🧪 Sofar · 🧪 Sigenergy · 🧪 Tesla Powerwall · 🧪 Enphase IQ Battery · 🧪 Megarevo · 🧪 Huawei · 🧪 Sungrow · 🧪 SolarEdge · 🧪 Fox ESS · 🧪 GivEnergy · 🧪 Solis · 🧪 myenergi libbi · 🧪 Marstek Venus · 🧪 Luxpower · 🧪 E3DC · 🧪 GivEnergy (GivTCP) · 🧪 Anker SOLIX (også Ankers egen integration) · 🧪 Kostal Plenticore · 🧪 SolaX Gen2/Gen3 · 🧪 Growatt (SolaX Modbus) · 🧪 Off-grid via ESPHome (Growatt SPF, SRNE, Voltronic/MPP) · 🧪 Luxpower/EG4 (MonitorMySolar) · 🧪 Zendure SolarFlow/Hyper · 🧪 EcoFlow PowerOcean (lokal Modbus) · 🧪 Marstek Venus (lokal API) · 🧪 Voltronic/Axpert (MQTT, vælges selv) · alle andre ved at vælge kontrollerne selv |
 | **Elbil-lader** | ✅ KEBA · ✅ Easee · 🧪 Zaptec · 🧪 go-e · 🧪 Wallbox · 🧪 Peblar · 🧪 OCPP · 🧪 Alfen · 🧪 Ohme · 🧪 myenergi zappi · 🧪 Hypervolt · alle med en kontakt og en strømindstilling |
 | **Priser** | ✅ Strømligning · ✅ indbyggede spotpriser · ✅ Octopus · 🧪 Nord Pool · 🧪 Tibber · 🧪 Energi Data Service · 🧪 ENTSO-E · 🧪 Amber · 🧪 EDF Tempo · 🧪 EnergyZero · 🧪 easyEnergy · 🧪 Frank Energie · 🧪 Zonneplan · tarifplaner |
 
