@@ -3,7 +3,6 @@
 Newest first. Each version lists what changed since the one before.
 
 ## 0.111.0 – 2026-11-25
-Learned from Predbat's tested setups:
 - Sigenergy: hold no longer charges from the grid ("Command Charging (PV First)" is a grid charge) - it is self-consumption with discharging at 0
 - Tesla Powerwall and Enphase: hold sets the reserve to the level rounded down and turns grid charging off - a reserve above the level made them charge from the grid
 - Huawei: a forced charge is always ended with the integration's stop service - without the "Stop forcible charge" button it ran on into the dear hours
