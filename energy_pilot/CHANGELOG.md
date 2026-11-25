@@ -6,7 +6,7 @@ Newest first. Each version lists what changed since the one before.
 - Sigenergy: hold no longer charges from the grid ("Command Charging (PV First)" is a grid charge) - it is self-consumption with discharging at 0
 - Tesla Powerwall and Enphase: hold sets the reserve to the level rounded down and turns grid charging off - a reserve above the level made them charge from the grid
 - Huawei: a forced charge is always ended with the integration's stop service - without the "Stop forcible charge" button it ran on into the dear hours
-- SolarEdge: "Advanced Power Control" is turned on when there. GivTCP: "Enable charge target" is turned on to charge. Sunsynk add-on: Predbat's entity names (Prog1 charge option, Set SoC timezone1) are found too
+- SolarEdge: "Advanced Power Control" is turned on when there. GivTCP: "Enable charge target" is turned on to charge. Sunsynk add-on: the other entity names (Prog1 charge option, Set SoC timezone1) are found too
 - Luxpower: the settings check no longer offers the level Energy Pilot holds at as your minimum (it could ratchet it up)
 - Ohme and myenergi zappi are handed back to their own mode (smart charge / Eco+) when Energy Pilot lets go
 - New profiles: Victron through Home Assistant's own Victron GX integration, Luxpower (LuxPython), Solis FB00+ (SolaX Modbus), SolaX Gen4+ by remote control (picked by hand) and Canadian Solar EP Cube
