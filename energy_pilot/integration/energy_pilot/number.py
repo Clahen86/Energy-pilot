@@ -5,7 +5,7 @@ from __future__ import annotations
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.const import PERCENTAGE, UnitOfEnergy
 
-from .entity import PilotEntity
+from .entity import CarEntity, PilotEntity, cars
 
 
 async def async_setup_entry(hass, entry, add):
@@ -15,6 +15,7 @@ async def async_setup_entry(hass, entry, add):
         items.append(AtMost(p))
         if (p.data.get("ev") or {}).get("soc_known"):
             items.append(ChargeTo(p))
+    items += [CarTo(p, c) if c.get("soc_known") else CarAtMost(p, c) for c in cars(p)]
     add(items)
 
 
@@ -66,3 +67,35 @@ class ChargeTo(PilotEntity, NumberEntity):
 
     async def async_set_native_value(self, value: float) -> None:
         await self.coordinator.post("/api/ev", {"target": int(value)})
+
+
+class CarAtMost(CarEntity, NumberEntity):
+    _attr_native_min_value, _attr_native_max_value, _attr_native_step = 0, 100, 1
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+    _attr_mode = NumberMode.SLIDER
+
+    def __init__(self, p, car):
+        super().__init__(p, "at_most", car)
+
+    @property
+    def native_value(self):
+        return self.car.get("cap")
+
+    async def async_set_native_value(self, value: float) -> None:
+        await self.send({"cap": value})
+
+
+class CarTo(CarEntity, NumberEntity):
+    _attr_native_min_value, _attr_native_max_value, _attr_native_step = 20, 100, 5
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_mode = NumberMode.SLIDER
+
+    def __init__(self, p, car):
+        super().__init__(p, "charge_to", car)
+
+    @property
+    def native_value(self):
+        return self.car.get("everyday")
+
+    async def async_set_native_value(self, value: float) -> None:
+        await self.send({"target": int(value)})

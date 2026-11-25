@@ -93,6 +93,9 @@
       },
       "battery_health": {
         "name": "Batteriets hälsa"
+      },
+      "car_next_charge": {
+        "name": "{car}: Nästa laddning"
       }
     },
     "switch": {
@@ -101,11 +104,20 @@
       },
       "next_trip": {
         "name": "100 % till nästa resa"
+      },
+      "car_charge_now": {
+        "name": "{car}: Ladda nu"
+      },
+      "car_next_trip": {
+        "name": "{car}: 100 % till nästa resa"
       }
     },
     "time": {
       "ready_at": {
         "name": "Klar kl."
+      },
+      "car_ready_at": {
+        "name": "{car}: Klar kl."
       }
     },
     "number": {
@@ -117,6 +129,12 @@
       },
       "charge_to": {
         "name": "Ladda bilen till"
+      },
+      "car_at_most": {
+        "name": "{car}: Högst"
+      },
+      "car_charge_to": {
+        "name": "{car}: Ladda till"
       }
     },
     "select": {

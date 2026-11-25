@@ -271,9 +271,9 @@ class EnergipilotCard extends HTMLElement {
     const ep = this._hass?.states[SENSOR], t = this.t, v = this._config.view;
     let body;
     if (!ep) body = `<div class="empty">${ic("bolt", 22)}<div>${t.noData}</div></div>`;
-    else body = v === "plan" ? this._planHtml() : v === "car" ? this._carHtml() : v === "battery" ? this._batteryHtml() : v === "flow" ? this._flowHtml()
+    else body = v === "plan" ? this._planHtml() : v === "car" ? this._carHtml() + this._moreCars() : v === "battery" ? this._batteryHtml() : v === "flow" ? this._flowHtml()
       : v === "savings" ? this._savingsHtml() : v === "status" ? this._statusCard()
-      : `${this._flowHtml()}${this._statusHtml()}${this._savingsHtml(true)}${this._batteryHtml(true)}${this._carHtml(true)}${this._planHtml(true)}`;
+      : `${this._flowHtml()}${this._statusHtml()}${this._savingsHtml(true)}${this._batteryHtml(true)}${this._carHtml(true)}${this._moreCars(true)}${this._planHtml(true)}`;
     this.shadowRoot.innerHTML = `<style>${CSS}</style><ha-card>${this._config.title ? `<div class="title">${esc(this._config.title)}</div>` : ""}${body}</ha-card>`;
     if (MAC_APP && !this._macTimes) { this._macTimes = true; macTimes(this.shadowRoot); }
     this._wire();
@@ -494,6 +494,32 @@ class EnergipilotCard extends HTMLElement {
       ${e.ev_cap && !ev.soc_known ? `<div class="ctl"><b>${t.atMost}</b><span class="rg"><input type="range" min="0" max="${this._hass.states[e.ev_cap]?.attributes.max || 100}" value="${this._hass.states[e.ev_cap]?.state}" data-cap="${e.ev_cap}"><i id="capv">${this._n(this._num(e.ev_cap), 0)} kWh</i></span></div>` : ""}
     </div>`;
   }
+  _moreCars(inline = false) {
+    // The extra cars (charger 2, 3 …): like the first car - its level, its planned hours and its buttons (the
+    // companion's entities for that car, found by their ep_car / ep_key).
+    const cars = this._hass.states[SENSOR]?.attributes?.cars || [], t = this.t, c = CAR_T[lang(this._hass)] || CAR_T.en, h = this._hass;
+    const hm = (d) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    return cars.map((cv) => {
+      const id = (k) => Object.keys(h.states).find((x) => h.states[x].attributes?.ep_car === cv.n && h.states[x].attributes?.ep_key === k);
+      const now = id("charge_now"), ready = id("ready_at"), to = id("charge_to"), trip = id("next_trip"), most = id("at_most");
+      const charging = (cv.power || 0) > 100, state = charging ? `${t.charging} ${this._split(cv.power).join(" ")}` : cv.plug ? t.plugged : t.notPlugged;
+      const ts = (cv.hours || []).map((x) => new Date(x)).sort((a, b) => a - b), step = ts.length > 1 ? Math.min(...ts.slice(1).map((x, i) => x - ts[i])) : 3600e3;
+      const left = ts.filter((x) => x.getTime() + step > Date.now());
+      const span = left.length ? `${hm(left[0])}–${hm(new Date(left[left.length - 1].getTime() + step))}` : c.none;
+      const top = cv.soc_known && cv.soc != null
+        ? `<div class="big">${this._n(cv.soc, 0)}<small> %</small></div><div class="evb" style="margin-top:8px"><span style="width:${cv.soc}%"></span><i style="left:${cv.target}%"></i></div>`
+        : `<div class="big" style="font-size:20px">${esc(state)}</div>`;
+      return `<div class="${inline ? "sec" : "pad"}"><div class="eyebrow">${ic("car")} ${esc(cv.name || t.car + " " + cv.n)}<span>${cv.soc_known && cv.soc != null ? esc(state) : cv.session_kwh != null ? `${this._n(cv.session_kwh, 1)} kWh` : ""}${cv.ready ? ` · ${esc(c.ready.replace("{t}", String(cv.ready).slice(0, 5)))}` : ""}</span></div>
+        ${top}
+        ${cv.plug ? `<div class="eyebrow" style="margin-top:12px">${c.hours}<span>${esc(span)}</span></div>` : ""}
+        ${now ? `<div class="ctl"><b>${t.chargeNow}</b><button class="tg ${h.states[now].state === "on" ? "on" : ""}" data-sw="${now}"></button></div>` : ""}
+        ${ready ? `<div class="ctl"><b>${t.readyAt}</b><input type="time" data-ttime="${ready}" value="${esc(String(h.states[ready].state || "").slice(0, 5))}"></div>` : ""}
+        ${to ? `<div class="ctl"><b>${t.evs.to}</b><span class="seg">${[70, 80, 90, 100].map((v) => `<button data-to="${to}" data-v="${v}" class="${!cv.trip && cv.everyday === v ? "on" : ""}">${v}</button>`).join("")}</span></div>` : ""}
+        ${trip ? `<div class="ctl"><b>${t.evs.trip}</b><button class="tg ${cv.trip ? "on" : ""}" data-sw="${trip}"></button></div>` : ""}
+        ${most ? `<div class="ctl"><b>${t.atMost}</b><span class="rg"><input type="range" min="0" max="100" value="${h.states[most].state}" data-num="${most}" data-lbl="capv${cv.n}"><i id="capv${cv.n}">${this._n(this._num(most), 0)} kWh</i></span></div>` : ""}
+      </div>`;
+    }).join("");
+  }
   _evSoc(ev) {
     // The car's level with the target as a mark; the target and the trip through Energy Pilot's own entities.
     const E = this.t.evs, h = this._hass, ids = Object.keys(h.states);
@@ -539,6 +565,8 @@ class EnergipilotCard extends HTMLElement {
     r.querySelectorAll("[data-toggle]").forEach((b) => b.onclick = () => { const on = !b.classList.contains("on"); b.classList.toggle("on", on); h.callService("input_boolean", on ? "turn_on" : "turn_off", { entity_id: b.dataset.toggle }); });
     r.querySelectorAll("[data-to]").forEach((b) => b.onclick = () => h.callService("number", "set_value", { entity_id: b.dataset.to, value: Number(b.dataset.v) }));
     r.querySelectorAll("[data-sw]").forEach((b) => b.onclick = () => { const on = !b.classList.contains("on"); b.classList.toggle("on", on); h.callService("switch", on ? "turn_on" : "turn_off", { entity_id: b.dataset.sw }); });
+    r.querySelectorAll("[data-ttime]").forEach((i) => i.onchange = () => h.callService("time", "set_value", { entity_id: i.dataset.ttime, time: i.value + ":00" }));
+    r.querySelectorAll("[data-num]").forEach((i) => { i.oninput = () => (r.getElementById(i.dataset.lbl).textContent = `${i.value} kWh`); i.onchange = () => h.callService("number", "set_value", { entity_id: i.dataset.num, value: Number(i.value) }); });
     r.querySelectorAll("[data-time]").forEach((i) => i.onchange = () => h.callService("input_datetime", "set_datetime", { entity_id: i.dataset.time, time: i.value + ":00" }));
     r.querySelectorAll("[data-cap]").forEach((i) => { i.oninput = () => (r.getElementById("capv").textContent = `${i.value} kWh`); i.onchange = () => h.callService("input_number", "set_value", { entity_id: i.dataset.cap, value: Number(i.value) }); });
     // The plan opens at the time now, not at midnight. The card is often drawn before Home Assistant shows it

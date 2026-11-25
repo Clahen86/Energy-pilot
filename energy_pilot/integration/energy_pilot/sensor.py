@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.const import PERCENTAGE, UnitOfEnergy
 from homeassistant.util import dt as dt_util
 
-from .entity import PilotEntity
+from .entity import CarEntity, PilotEntity, cars
 
 
 async def async_setup_entry(hass, entry, add):
@@ -20,7 +20,7 @@ async def async_setup_entry(hass, entry, add):
          Cheapest(p), Runtime(p), Energy(p, "house_today", lambda d: d.get("house_today")),
          Energy(p, "solar_forecast_today", lambda d: (d.get("solar") or {}).get("solar_today")),
          Energy(p, "solar_forecast_tomorrow", lambda d: (d.get("solar") or {}).get("solar_tomorrow")),
-         PriceLevel(p), BatteryHealth(p)])
+         PriceLevel(p), BatteryHealth(p)] + [CarNext(p, c) for c in cars(p)])
 
 
 def _hours(d: dict) -> list[tuple[datetime, dict]]:
@@ -305,3 +305,39 @@ class BatteryHealth(PilotEntity, SensorEntity):
     def extra_state_attributes(self):
         h = self.d.get("battery_health") or {}
         return {"learned_kwh": h.get("learned_kwh"), "nominal_kwh": h.get("nominal_kwh")}
+
+
+class CarNext(CarEntity, SensorEntity):
+    """When the plan next charges this car (for your own automations); empty when nothing is planned."""
+
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    def __init__(self, p, car):
+        super().__init__(p, "next_charge", car)
+
+    def _block(self):
+        now = dt_util.now()
+        ts = sorted(t for t in (dt_util.parse_datetime(str(x)) for x in self.car.get("hours") or []) if t)
+        if not ts:
+            return None
+        step = min((b - a for a, b in zip(ts, ts[1:])), default=None) or timedelta(hours=1)
+        ts = [t for t in ts if t + step > now]
+        if not ts:
+            return None
+        end = ts[0]
+        for t in ts[1:]:
+            if t - end > step:
+                break
+            end = t
+        return ts[0], end + step
+
+    @property
+    def native_value(self):
+        b = self._block()
+        return b[0] if b else None
+
+    @property
+    def extra_state_attributes(self):
+        b = self._block()
+        return {**self._attr_extra_state_attributes, "until": b[1].isoformat() if b else None,
+                "need_kwh": self.car.get("need_kwh"), "battery_level": self.car.get("soc")}

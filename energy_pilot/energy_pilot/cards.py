@@ -124,13 +124,13 @@ class Cards:
             "battery_sign": o.battery_sign(),
             # how long the battery lasts (runtime.py) - to the nearest 10 minutes, so it isn't written every round
             "runtime": _runtime(snap.get("runtime")),
-            "solar": snap["solar"], "house_today": snap["house_today"], "ev": snap["ev"], "version": self.version,
+            "solar": snap["solar"], "house_today": snap["house_today"], "ev": snap["ev"], "cars": _cars(snap.get("cars")), "version": self.version,
             # the card dresses its energy picture like the app: only what changes now and then (not the sun's height)
             "scene": {k: (round(v) if k == "outdoor" and isinstance(v, (int, float)) else v) for k, v in (snap.get("scene") or {}).items()
                       if k not in ("elevation", "cloud", "wind")} or None,
         }
         sc = attrs["scene"] or {}
-        key = json.dumps([decision.get("key"), decision.get("target"), attrs["plan"], attrs["ev"], attrs["roles"], attrs["solar"], attrs["runtime"],
+        key = json.dumps([decision.get("key"), decision.get("target"), attrs["plan"], attrs["ev"], attrs["cars"], attrs["roles"], attrs["solar"], attrs["runtime"],
                           sc.get("time"), sc.get("condition"), sc.get("season"), (sc.get("holiday") or {}).get("key"),
                           sc.get("outdoor") is not None and sc["outdoor"] <= 0],
                          sort_keys=True, default=str)
@@ -151,3 +151,8 @@ class Cards:
                 path.write_text(text)
         except Exception:  # noqa: BLE001 - only a hint for other tools
             pass
+
+
+def _cars(cars):
+    """The extra cars for the card - their power to the nearest 100 W, so the sensor isn't written every round."""
+    return [{**c, "power": round(c["power"], -2) if c.get("power") is not None else None} for c in cars] if cars else None

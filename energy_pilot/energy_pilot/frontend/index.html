@@ -2621,6 +2621,8 @@ function chargerList(v, row) {
       ${row(c.power, "", pick(i, "power", "ev_power"))}
       ${row(c.plug, "", pick(i, "plug", "ev_plug"))}
       ${row(c.session, "", pick(i, "session", "ev_session"))}
+      ${row((T.roles || {}).ev_soc || "Car battery (%)", "", pick(i, "soc", "ev_soc"))}
+      ${x.soc ? row(T.y.size, "", `<span class="unitin"><input class="numin" type="number" inputmode="decimal" step="1" data-chgn="${i}:car_kwh" value="${x.car_kwh ?? ""}" placeholder="60"><i>kWh</i></span>`) : ""}
       ${row(T.y.charger, T.y.chargerH, `<span class="unitin"><input class="numin" type="number" inputmode="decimal" step="0.1" data-chgn="${i}:charger_kw" value="${x.charger_kw ?? ""}" placeholder="7.4"><i>kW</i></span>`)}
       ${row(T.sw.t, T.sw.h, swPick(`car${i + 2}`, x.switch || "", `data-chg="${i}:switch"`))}
       <button class="link" data-chgdel="${i}">${c.remove}</button></div>`).join("")}
@@ -2629,17 +2631,29 @@ function chargerList(v, row) {
 function moreCars() {
   const list = data?.flow?.cars || [], plans = data?.engine?.cars || [], conf = data?.settings?.chargers || [], c = T.chg;
   return list.map((x, i) => {
-    const p = plans[i] || {}, cf = conf[i] || {}, charging = (x.power || 0) > 100;
+    const p = plans[i] || {}, cf = conf[i] || {}, cv = (data?.cars || [])[i] || {}, charging = (x.power || 0) > 100;
     const hrs = (p.hours || []).map((t) => clock(t)).filter((v, j, a) => a.indexOf(v) === j);
     return `<div class="card fade"><div class="eyebrow"><span>${esc(x.name || c.car + " " + (i + 2))}</span>${x.session_kwh != null ? `<span>${num(x.session_kwh, 1)} kWh ${T.session}</span>` : ""}</div>
     <div class="car"><span style="color:${charging ? "var(--car)" : "var(--faint)"}">${CAR_ART}</span>
       <div><div class="st">${charging ? `${T.charging} ${kw(x.power)}` : x.plug ? T.plugged : T.notPlugged}</div>
       <div class="muted">${x.plug ? (hrs.length ? c.planned.replace("{x}", hrs.join(", ")) : c.none) : T.xPlugIn}</div></div></div>
+    ${cv.soc_known ? carSocHtml(cv) : ""}
     <div class="ctl"><div class="t"><b>${T.chargeNow}</b><span>${T.xFullSpeed}</span></div><button class="toggle car ${cf.now ? "on" : ""}" data-chgnow="${i}"></button></div>
-    <details class="adv" data-adv="car${i + 2}" ${advOpen.has("car" + (i + 2)) ? "open" : ""}><summary>${T.readyAt} ${cf.ready ? esc(cf.ready) : ""} · ${T.atMost} ${cf.need_kwh ?? 20} kWh</summary>
+    <details class="adv" data-adv="car${i + 2}" ${advOpen.has("car" + (i + 2)) ? "open" : ""}><summary>${T.readyAt} ${cf.ready ? esc(cf.ready) : ""}${cv.soc_known ? "" : ` · ${T.atMost} ${cf.need_kwh ?? 20} kWh`}</summary>
     <div class="ctl"><div class="t"><b>${T.readyAt}</b><span>${T.xChargedBy}</span></div><input type="time" data-chgready="${i}" value="${esc(cf.ready || "")}"></div>
-    <div class="ctl"><div class="t"><b>${T.atMost}</b><span>${T.xPerCharge}</span></div><span class="unitin"><input class="numin" type="number" step="1" data-chgcap="${i}" value="${cf.need_kwh ?? ""}" placeholder="20"><i>kWh</i></span></div></details></div>`;
+    ${cv.soc_known ? "" : `<div class="ctl"><div class="t"><b>${T.atMost}</b><span>${T.xPerCharge}</span></div><span class="unitin"><input class="numin" type="number" step="1" data-chgcap="${i}" value="${cf.need_kwh ?? ""}" placeholder="20"><i>kWh</i></span></div>`}</details></div>`;
   }).join("");
+}
+/** An extra car's level, its target and the next trip - like the first car's (evSocHtml), for charger n. */
+function carSocHtml(cv) {
+  const E = T.evs, soc = cv.soc, tg = cv.target, n = cv.n;
+  const left = soc != null && soc < tg ? E.missing.replace("{x}", num((tg - soc) / 100 * cv.car_kwh / 0.9, 1)) : soc != null ? E.reached : "";
+  return `<div class="ctl evsoc"><div class="t"><b>${E.soc}</b><span>${esc(left)}</span></div><div class="evpct">${soc != null ? num(soc, 0) : "–"}<small>%</small></div></div>
+    <div class="evbar"><span style="width:${soc ?? 0}%"></span><i style="left:${tg}%"></i></div>
+    <div class="ctl"><div class="t"><b>${E.target}</b><span>${E.targetH}</span></div>
+      <div class="seg evt">${[60, 70, 80, 90, 100].map((v) => `<button data-cartarget="${n}:${v}" class="${!cv.trip && cv.everyday === v ? "on" : ""}">${v}</button>`).join("")}</div></div>
+    <div class="ctl"><div class="t"><b>${E.trip}</b><span>${E.tripH}</span></div><button class="toggle car ${cv.trip ? "on" : ""}" data-cartrip="${n}" aria-label="${E.trip}"></button></div>
+    <div class="muted" style="font-size:12px;margin-top:6px">${E.size.replace("{x}", num(cv.car_kwh, 0))}</div>`;
 }
 /** The extra battery's own inverter: found by itself (with what is missing), or picked. */
 function batControl(x, i) {
@@ -3134,9 +3148,13 @@ function wire() {
     l[Number(i)][key] = el.dataset.chgn ? (el.value === "" ? null : Number(el.value.replace(",", "."))) : el.value || null;
     saveChgs(l);
   });
-  document.querySelectorAll("[data-chgnow]").forEach((b) => b.onclick = () => { const l = chgs(), i = Number(b.dataset.chgnow); l[i].now = !l[i].now; saveChgs(l); });
-  document.querySelectorAll("[data-chgready]").forEach((el) => el.onchange = () => { const l = chgs(); l[Number(el.dataset.chgready)].ready = el.value || null; saveChgs(l); });
-  document.querySelectorAll("[data-chgcap]").forEach((el) => el.onchange = () => { const l = chgs(); l[Number(el.dataset.chgcap)].need_kwh = el.value === "" ? null : Number(el.value); saveChgs(l); });
+  // An extra car's buttons: through /api/charger ("n" = its charger's number), so "charge now" acts at once.
+  const carSet = async (n, body) => { await api("/api/charger", { n, ...body }); settings = await api("/api/settings"); await load(); render(); };
+  document.querySelectorAll("[data-chgnow]").forEach((b) => b.onclick = () => { const i = Number(b.dataset.chgnow); carSet(i + 2, { manual: !b.classList.contains("on") }); });
+  document.querySelectorAll("[data-chgready]").forEach((el) => el.onchange = () => carSet(Number(el.dataset.chgready) + 2, { ready: el.value || null }));
+  document.querySelectorAll("[data-chgcap]").forEach((el) => el.onchange = () => { if (el.value !== "") carSet(Number(el.dataset.chgcap) + 2, { cap: Number(el.value) }); });
+  document.querySelectorAll("[data-cartarget]").forEach((b) => b.onclick = () => { const [n, v] = b.dataset.cartarget.split(":").map(Number); carSet(n, { target: v }); });
+  document.querySelectorAll("[data-cartrip]").forEach((b) => b.onclick = () => carSet(Number(b.dataset.cartrip), { trip: !b.classList.contains("on") }));
   document.querySelectorAll("[data-fix]").forEach((b) => b.onclick = async () => { await api("/api/settings", JSON.parse(b.dataset.fix)); settings = await api("/api/settings"); await load(); render(); });
   document.querySelectorAll("[data-goto]").forEach((b) => b.onclick = async () => {
     const g = b.dataset.goto; if (["battery", "car", "grid"].includes(g)) advOpen.add(g);

@@ -2,6 +2,11 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.109.0 – 2026-11-25
+- Extra cars like the first one: pick the car's battery level (and its size) under Settings → Car, and it charges to a target in % instead of a set number of kWh. Its card has the level, the target (60–100 %), 100 % for the next trip (off by itself when the car leaves full), Charge now and Ready at
+- "Charge now" on an extra car acts at once, not at the next round
+- The dashboard card shows every extra car under the first: level, planned hours and buttons
+- Companion 1.2.0: each extra car gets its own entities - Charge now, Ready at, Charge to (or At most), 100 % for next trip and Next charge - named after the car
 ## 0.108.1 – 2026-11-25
 - New profile "Deye / Sunsynk (Sunsynk add-on)": the kellerza Sunsynk add-on's six programmes (Prog1 capacity, Prog1 charge, Use timer). Found by itself - a Deye on the add-on no longer gets the Solarman profile, which has none of its controls
 - Controls with Home Assistant's "_2" at the end (a re-added integration, e.g. select.rc_force_charge_discharge_2 on Solis) are now found by every profile

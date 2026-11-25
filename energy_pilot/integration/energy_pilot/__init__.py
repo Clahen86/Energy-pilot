@@ -107,7 +107,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.runtime_data = pilot
     await _card(hass)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # An extra car added, removed, renamed or given its level in the app: its entities follow (a reload).
+    seen = _cars_key(pilot.data)
+
+    def _check() -> None:
+        if pilot.last_update_success and _cars_key(pilot.data) != seen:
+            hass.config_entries.async_schedule_reload(entry.entry_id)
+
+    entry.async_on_unload(pilot.async_add_listener(_check))
     return True
+
+
+def _cars_key(data: dict[str, Any] | None) -> list:
+    return [(c.get("n"), c.get("name"), bool(c.get("soc_known"))) for c in (data or {}).get("cars") or []]
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

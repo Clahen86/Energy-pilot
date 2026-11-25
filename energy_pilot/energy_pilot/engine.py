@@ -1633,6 +1633,7 @@ class Engine:
         quiet = self.quiet_hours("car")
         prices = {h.start: h.price for h in hours}
         parts = [("car", None)] + [(f"car{i + 2}", c) for i, c in enumerate(chargers.extras(st))]
+        extra_now = (f.get("cars") or [])
         for part, c in parts:
             if (ctl and ctl.mode(part) == "control") or not self.ghosts.wants_plan(part):
                 continue
@@ -1652,6 +1653,9 @@ class Engine:
             else:
                 kw = float(c.get("charger_kw") or 7.4)
                 need = self.ghosts.need(part, float(c.get("need_kwh") or 20))
+                now_c = extra_now[int(part[3:]) - 2] if len(extra_now) > int(part[3:]) - 2 else {}
+                if now_c.get("soc") is not None:
+                    need = chargers.need(c, now_c)
                 ready, mode = chargers.ready_at(c, now), c.get("mode")
             skip = {h.start for h in hours if h.start.hour in quiet}
             chosen = plan_car(hours, max(0.0, need), kw, ready, now, solar_only=mode == "solar", skip=skip)
@@ -1677,7 +1681,7 @@ class Engine:
             kw = float(c.get("charger_kw") or 7.4)
             entry = {"name": c.get("name") or "", "plug": bool(now_c.get("plug")), "hours": [], "need_kwh": 0.0, "slot_min": slot_min}
             if now_c.get("plug"):
-                need = max(0.0, float(c.get("need_kwh") or 20) - float(now_c.get("session_kwh") or 0))
+                need = chargers.need(c, now_c)
                 if c.get("now"):
                     ready = now + timedelta(hours=need / kw + 0.25)  # charge now: straight away, whatever the price
                 else:

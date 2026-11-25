@@ -915,6 +915,29 @@ class Overview:
                 **self._ev_soc(), "charge": self._ev_charge(),
                 "entities": {k: r[k] for k in ("ev_manual", "ev_ready", "ev_cap", "ev_soc")}}
 
+    def cars(self) -> list[dict[str, Any]] | None:
+        """The extra cars (charger 2, 3 …) the way the first car is shown: now, its level, its buttons and its plan -
+        for the dashboard card and the companion's entities."""
+        from . import chargers
+
+        conf = chargers.extras(self.settings)
+        if not conf:
+            return None
+        now = (self.flow() or {}).get("cars") or []
+        plans = ((self.engine.result if self.engine else None) or {}).get("cars") or []
+        out = []
+        for i, c in enumerate(conf):
+            n, p = (now[i] if i < len(now) else {}), (plans[i] if i < len(plans) else {})
+            soc_known = bool(c.get("soc"))
+            out.append({"n": i + 2, "name": c.get("name") or "", "plug": bool(n.get("plug")), "power": n.get("power"),
+                        "session_kwh": n.get("session_kwh"), "soc": n.get("soc"), "soc_known": soc_known,
+                        "target": chargers.target(c), "everyday": chargers.target({**c, "trip": False}), "trip": bool(c.get("trip")),
+                        "car_kwh": chargers.car_kwh(c) if soc_known else None,
+                        "manual": bool(c.get("now")), "ready": c.get("ready"), "cap": c.get("need_kwh") or 20,
+                        "mode": c.get("mode") or "cheapest", "charger_kw": float(c.get("charger_kw") or 7.4),
+                        "hours": p.get("hours") or [], "need_kwh": p.get("need_kwh")})
+        return out
+
     def _ev_charge(self) -> dict[str, Any] | None:
         """This charge so far (while plugged in): kWh, what it cost, and how much of it the sun gave."""
         g = getattr(self.engine, "ghosts", None) if self.engine else None
@@ -951,7 +974,7 @@ class Overview:
                  for k in ("solar_today", "solar_tomorrow")}
         house_e = self.role("house_forecast")
         return {
-            "flow": (fl := self.flow()), "decision": self.decision(lang), "plan": (pl := self.plan()), "ev": self.ev(),
+            "flow": (fl := self.flow()), "decision": self.decision(lang), "plan": (pl := self.plan()), "ev": self.ev(), "cars": self.cars(),
             "runtime": self.runtime(pl, fl),
             "price": {"now": _num(price) if _num(price) is not None else self._price_now_from_rates(),
                       "unit": ((price or {}).get("attributes") or {}).get("unit_of_measurement")},

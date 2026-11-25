@@ -339,6 +339,46 @@ def make_app(runner: Runner, overview: Overview, password: str | None = None) ->
             overview.save({"ev_sun_target": max(20, min(100, int(v))) if v else None})
         return web.json_response({"ok": True})
 
+    async def charger(req: web.Request) -> web.Response:
+        """An extra car's buttons (charger 2, 3 …: "n" is its number): charge now, ready at, at most (kWh), its target
+        (%), the next trip and cheapest/solar - from the app, the dashboard card and the companion."""
+        from . import chargers as _chargers
+
+        body = await req.json()
+        conf = list(overview.settings.get("chargers") or [])
+        extras = _chargers.extras(overview.settings)
+        try:
+            c = extras[int(body["n"]) - 2]
+        except (KeyError, ValueError, TypeError, IndexError):
+            return web.json_response({"error": "no such car"}, status=400)
+        c = dict(c)
+        if "manual" in body:
+            c["now"] = bool(body["manual"])
+        if "ready" in body:
+            c["ready"] = str(body["ready"])[:5] if body["ready"] else None
+        if "cap" in body:
+            c["need_kwh"] = max(0.0, min(200.0, float(body["cap"])))
+        if "target" in body:
+            c["target"] = max(20, min(100, int(body["target"])))
+            c["trip"] = False
+        if "trip" in body:
+            c["trip"] = bool(body["trip"])
+        if body.get("mode") in ("cheapest", "solar"):
+            c["mode"] = body["mode"]
+        conf[conf.index(extras[int(body["n"]) - 2])] = c
+        overview.save({"chargers": conf})
+        if overview.engine:
+            try:
+                overview.engine.run()
+            except Exception:  # noqa: BLE001 - the next round plans it then
+                pass
+        if "manual" in body and overview.controller:  # "charge now" acts at once, not at the next round
+            try:
+                await overview.controller.tick((f"car{int(body['n'])}",))
+            except Exception:  # noqa: BLE001
+                logging.getLogger("energy_pilot.control").warning("Charge now: could not tell charger %s at once", body["n"], exc_info=True)
+        return web.json_response({"ok": True})
+
     async def index(_req: web.Request) -> web.FileResponse:
         return web.FileResponse(FRONTEND / "index.html", headers={"Cache-Control": "no-cache"})
 
@@ -634,6 +674,7 @@ def make_app(runner: Runner, overview: Overview, password: str | None = None) ->
     app.router.add_post("/api/control", control_mode)
     app.router.add_post("/api/control/release", control_release)
     app.router.add_post("/api/ev", ev)
+    app.router.add_post("/api/charger", charger)
     app.router.add_post("/api/things/arm", things_arm)
     app.router.add_post("/api/mode", mode)
     app.router.add_post("/api/shadow_all", stop_all)

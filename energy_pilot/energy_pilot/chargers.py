@@ -1,7 +1,9 @@
 """More than one charger (two KEBA boxes, say) - each car planned on its own, all within the main fuse.
 
 Charger 1 is the one set up as before (its sensors under "What you have", its buttons on the car card); the others
-live in settings["chargers"]: sensors, charger power, and the car's own "charge now", "ready at" and "at most".
+live in settings["chargers"]: sensors, charger power, and the car's own "charge now", "ready at" and "at most" - or,
+with the car's battery level picked ("soc"), a target in % ("target", 100 % for the next trip: "trip") and the car's
+battery size ("car_kwh").
 Each extra charger is a part of its own (car2, car3 …): it starts in shadow and is put in control by itself.
 Charger 1 comes first: the sun's surplus and the room under the main fuse go to it, the others are turned down first.
 """
@@ -83,8 +85,38 @@ def read(states: dict[str, Any], c: dict[str, Any], marks: dict[str, float] | No
         w *= 1000
     # No plug sensor: power tells - but a plain switch (a smart plug) draws nothing while off, so it is taken as plugged in.
     plug = is_plugged((states.get(c["plug"]) or {}).get("state")) if c.get("plug") else bool(c.get("switch")) or (w or 0) > 100
+    from .evsoc import num
+
     return {"name": c.get("name") or "", "power": w, "plug": plug,
-            "session_kwh": session(states, c.get("session"), c.get("plug"), (marks or {}).get(c.get("plug") or ""))}
+            "session_kwh": session(states, c.get("session"), c.get("plug"), (marks or {}).get(c.get("plug") or "")),
+            "soc": num(states.get(c["soc"])) if c.get("soc") else None}
+
+
+def target(c: dict[str, Any]) -> int:
+    """The car's target (%): 100 for the next trip, else its everyday one (80 % spares the battery)."""
+    from .evsoc import target as _target
+
+    return _target({"ev_trip": c.get("trip"), "ev_target": c.get("target")})
+
+
+def car_kwh(c: dict[str, Any]) -> float:
+    from .evsoc import DEFAULT_KWH
+
+    try:
+        v = float(c.get("car_kwh") or 0)
+    except (TypeError, ValueError):
+        v = 0.0
+    return v if 2 <= v <= 220 else DEFAULT_KWH
+
+
+def need(c: dict[str, Any], now_c: dict[str, Any]) -> float:
+    """What this car still needs (kWh from the charger): up to its target when its level is known, else "at most"
+    less what this session has given."""
+    from .evsoc import need_kwh
+
+    if now_c.get("soc") is not None:
+        return need_kwh(now_c["soc"], target(c), car_kwh(c))
+    return max(0.0, float(c.get("need_kwh") or 20) - float(now_c.get("session_kwh") or 0))
 
 
 def ready_at(c: dict[str, Any], now: datetime) -> datetime | None:

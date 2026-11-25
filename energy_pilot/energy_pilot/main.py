@@ -262,6 +262,16 @@ async def main() -> None:
                 if trip_done(st, f.get("plug"), getattr(engine, "_was_plugged", False), ev.get("soc")):
                     overview.save({"ev_trip": False})  # the car left full: back to the everyday target
                 engine._was_plugged = bool(f.get("plug"))
+                # an extra car's trip button the same: off when it leaves full
+                was = getattr(engine, "_was_plugged_extra", {})
+                conf = list(st.get("chargers") or [])
+                from .chargers import extras as _extras
+
+                for i, (c, x) in enumerate(zip(_extras(st), extra)):
+                    if c.get("trip") and was.get(i) and not x.get("plug") and (x.get("soc") is None or x["soc"] >= 95):
+                        conf[conf.index(c)] = {**c, "trip": False}
+                        overview.save({"chargers": conf})
+                engine._was_plugged_extra = {i: bool(x.get("plug")) for i, x in enumerate(extra)}
                 engine.batt_learn.see(f.get("battery"), f.get("soc"), 30 / 3600)
                 engine.batt_learn.see_temp(f.get("battery"), f.get("soc"), engine.battery_temp())
                 engine.grid_peak.see(now, f.get("grid"))

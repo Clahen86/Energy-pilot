@@ -34,7 +34,7 @@ def test_finds_the_second_keba():
 def test_read():
     r = chargers.read(STATES, {"power": "sensor.keba_p30_charging_power_2", "plug": "binary_sensor.keba_p30_plug_2",
                                 "session": "sensor.keba_p30_session_energy_2"})
-    assert r == {"name": "", "power": 3700.0, "plug": True, "session_kwh": 4.0}
+    assert r == {"name": "", "power": 3700.0, "plug": True, "session_kwh": 4.0, "soc": None}
 
 
 def test_second_car_stays_under_the_fuse():
