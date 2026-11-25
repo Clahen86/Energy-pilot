@@ -2,6 +2,10 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.111.1 – 2026-11-25
+- Setup: what was found is shown with its numbers live and in words ("discharging 3.0 kW", "buying 515 W"), with a green "The numbers add up" or a red line when a sensor looks wrong. "Fix" opens just that one choice; all sensors are behind "Show all sensors"
+- No internet: after 15 minutes the app says so (and the Problem sensor turns on) - the plan runs on the last known prices and its own guesses, and everything at home is still controlled. With an inverter controlled through its maker's cloud it says the battery can't be steered until the internet is back
+- Your own setup with scripts: a short example in the app, and a full guide with all four scripts in the Documentation tab
 ## 0.111.0 – 2026-11-25
 - Sigenergy: hold no longer charges from the grid ("Command Charging (PV First)" is a grid charge) - it is self-consumption with discharging at 0
 - Tesla Powerwall and Enphase: hold sets the reserve to the level rounded down and turns grid charging off - a reserve above the level made them charge from the grid

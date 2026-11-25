@@ -504,6 +504,7 @@ const T_ALL = {
       ev_power_other: "Elbilens ladeeffekt kommer fra {e}, som ligner et andet apparat. Vælg laderens egen effektsensor, ellers bliver planen forkert.",
       soc_not_house: "Husbatteriets niveau kommer fra {e}, som hører til en bil eller telefon. Vælg husbatteriets egen sensor, ellers bliver planen forkert.",
       balance_off: "Målerne passer ikke sammen: sol + net giver ikke hus + batteri ({p} % af tiden). En af sensorerne er nok forkert – tjek dem under Sensorer.",
+      offline: "Ingen internet siden {t} – planen kører på de sidste kendte priser og egne gæt. Alt hjemme styres stadig.", offline_cloud: "Ingen internet siden {t} – din inverter styres gennem producentens sky, så batteriet kan ikke styres, før nettet er tilbage.",
       battery_readonly: "Din batteri-integration ({i}) kan kun læse, ikke styre – Energy Pilot planlægger og viser, men styrer ikke batteriet.",
       battery_readonly_alt: "Din batteri-integration ({i}) kan kun læse, ikke styre. Med {alt} kan Energy Pilot styre batteriet.",
       battery_other_ems: "Dit batteri styres allerede af {i} – to systemer på samme batteri modarbejder hinanden, så Energy Pilot styrer det ikke.",
@@ -628,6 +629,7 @@ const T_ALL = {
       ev_power_other: "The car charger's power comes from {e}, which looks like another appliance. Pick the charger's own power sensor, or the plan will be wrong.",
       soc_not_house: "The house battery's level comes from {e}, which belongs to a car or a phone. Pick the house battery's own sensor, or the plan will be wrong.",
       balance_off: "The meters don't add up: sun + grid doesn't make house + battery ({p} % of the time). One of the sensors is probably wrong – check them under Sensors.",
+      offline: "No internet since {t} - the plan runs on the last known prices and its own guesses. Everything at home is still controlled.", offline_cloud: "No internet since {t} - your inverter is controlled through its maker's cloud, so the battery can't be steered until the internet is back.",
       battery_readonly: "Your battery integration ({i}) can only read, not control – Energy Pilot plans and shows, but doesn't control the battery.",
       battery_readonly_alt: "Your battery integration ({i}) can only read, not control. With {alt}, Energy Pilot can control the battery.",
       battery_other_ems: "Your battery is already run by {i} – two systems on one battery work against each other, so Energy Pilot doesn't control it.",
@@ -2984,10 +2986,48 @@ function setupView() {
       <button class="cta" data-g3go>${TF.g3go}</button><button class="link" data-g3skip>${TF.g3skip}</button></div>`;
   const parts = Object.entries(GROUPS).filter(([g]) => g !== "data");
   const foundCount = Object.values(settings.roles).filter(Boolean).length;
+  const all = parts.concat([["data", GROUPS.data]]).map(([g, roles]) => `<div class="group"><h4>${icon(GROUPICON[g])}${T.groups[g]}</h4>${roleRows(roles)}</div>`).join("");
   return `<div class="hero fade"><div class="logo big"><svg viewBox="0 0 24 24" fill="#fff"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></div>
       <h2>${T.g1title}</h2><p class="muted">${T.g1text.replace("{n}", foundCount)}</p></div>
-    <div class="card fade">${parts.concat([["data", GROUPS.data]]).map(([g, roles]) => `<div class="group"><h4>${icon(GROUPICON[g])}${T.groups[g]}</h4>${roleRows(roles)}</div>`).join("")}
-      <button class="cta" data-step="2">${T.looksRight}</button></div>`;
+    ${liveCheck()}
+    ${setupAll ? `<div class="card fade">${all}</div>` : ""}
+    <div class="card fade" style="padding-top:12px"><button class="cta" data-step="2">${T.looksRight}</button>
+      <button class="link" style="display:block;margin:10px auto 0" data-setupall>${(T_SETUP[L] || T_SETUP.en)[setupAll ? "fewer" : "all"]}</button></div>`;
+}
+/* The setup's first look: what was found, with its numbers live and said in words (charging / buying …), and a red
+   line when they don't add up - most wrong setups are a wrong sensor, and a wrong number shows at once. "Fix" opens
+   that one choice right there. */
+let setupAll = false;
+const T_SETUP = {
+  da: { title: "Det fandt vi – passer tallene?", hint: "Se om tallene passer med det, der sker lige nu. Tryk Ret ved det, der ser forkert ud.", charging: "lader", discharging: "aflader", idle: "hviler", buying: "køber", selling: "sælger", uses: "bruger", ok: "Tallene går op ✓", off: "Tallene går ikke op – sol + net giver ikke hus + batteri. En af sensorerne er nok forkert.", fix: "Ret", all: "Vis alle sensorer", fewer: "Vis færre", none: "ikke fundet" },
+  en: { title: "This is what we found – do the numbers fit?", hint: "Check the numbers against what is happening right now. Tap Fix next to anything that looks wrong.", charging: "charging", discharging: "discharging", idle: "resting", buying: "buying", selling: "selling", uses: "using", ok: "The numbers add up ✓", off: "The numbers don't add up – sun + grid doesn't make house + battery. One of the sensors is probably wrong.", fix: "Fix", all: "Show all sensors", fewer: "Show fewer", none: "not found" },
+  de: { title: "Das haben wir gefunden – stimmen die Zahlen?", hint: "Vergleiche die Zahlen mit dem, was gerade passiert. Tippe auf Ändern, wo etwas falsch aussieht.", charging: "lädt", discharging: "entlädt", idle: "ruht", buying: "bezieht", selling: "speist ein", uses: "verbraucht", ok: "Die Zahlen gehen auf ✓", off: "Die Zahlen gehen nicht auf – Sonne + Netz ergeben nicht Haus + Batterie. Ein Sensor ist wohl falsch.", fix: "Ändern", all: "Alle Sensoren zeigen", fewer: "Weniger zeigen", none: "nicht gefunden" },
+  fr: { title: "Voici ce que nous avons trouvé – les chiffres sont-ils justes ?", hint: "Comparez les chiffres avec ce qui se passe maintenant. Touchez Corriger à côté de ce qui semble faux.", charging: "charge", discharging: "décharge", idle: "au repos", buying: "achète", selling: "vend", uses: "consomme", ok: "Les chiffres concordent ✓", off: "Les chiffres ne concordent pas – soleil + réseau ne donnent pas maison + batterie. Un capteur est sans doute faux.", fix: "Corriger", all: "Tous les capteurs", fewer: "Moins", none: "non trouvé" },
+  nl: { title: "Dit hebben we gevonden – kloppen de getallen?", hint: "Vergelijk de getallen met wat er nu gebeurt. Tik op Aanpassen bij wat er fout uitziet.", charging: "laadt", discharging: "ontlaadt", idle: "rust", buying: "koopt", selling: "verkoopt", uses: "verbruikt", ok: "De getallen kloppen ✓", off: "De getallen kloppen niet – zon + net is niet huis + accu. Een van de sensoren is waarschijnlijk fout.", fix: "Aanpassen", all: "Alle sensoren tonen", fewer: "Minder tonen", none: "niet gevonden" },
+  sv: { title: "Det här hittade vi – stämmer siffrorna?", hint: "Jämför siffrorna med det som händer just nu. Tryck Ändra vid det som ser fel ut.", charging: "laddar", discharging: "laddar ur", idle: "vilar", buying: "köper", selling: "säljer", uses: "använder", ok: "Siffrorna går ihop ✓", off: "Siffrorna går inte ihop – sol + nät blir inte hus + batteri. En av sensorerna är nog fel.", fix: "Ändra", all: "Visa alla sensorer", fewer: "Visa färre", none: "hittades inte" },
+  nb: { title: "Dette fant vi – stemmer tallene?", hint: "Sammenlign tallene med det som skjer akkurat nå. Trykk Endre ved det som ser feil ut.", charging: "lader", discharging: "lader ut", idle: "hviler", buying: "kjøper", selling: "selger", uses: "bruker", ok: "Tallene går opp ✓", off: "Tallene går ikke opp – sol + nett blir ikke hus + batteri. En av sensorene er nok feil.", fix: "Endre", all: "Vis alle sensorer", fewer: "Vis færre", none: "ikke funnet" },
+};
+function liveCheck() {
+  const k = T_SETUP[L] || T_SETUP.en, f = data?.flow || {};
+  const dir = (w, pos, neg, zero) => w == null ? "–" : w > 30 ? `${pos} ${kw(w)}` : w < -30 ? `${neg} ${kw(w)}` : zero;
+  const rows = [
+    ["pv_power", "sun", f.pv == null ? null : kw(f.pv)],
+    ["battery_soc", "battery", f.soc == null ? null : `${num(f.soc, 0)} %`],
+    ["battery_power", "battery", f.battery == null ? null : dir(f.battery, k.charging, k.discharging, k.idle)],
+    ["grid_power", "grid", f.grid == null ? null : dir(f.grid, k.buying, k.selling, "0 W")],
+    ["house_power", "house", f.house == null ? null : `${k.uses} ${kw(f.house)}`],
+    ...(settings.roles.ev_power || settings.roles.ev_plug ? [["ev_power", "car", f.ev == null ? null : kw(f.ev)]] : []),
+  ];
+  // sun + grid = house + battery + car (all in W, battery + = charging, grid + = buying)
+  const parts = [f.pv, f.grid, f.house, f.battery];
+  const big = Math.max(300, ...parts.map((x) => Math.abs(x || 0)));
+  const gap = parts.some((x) => x == null) ? null : Math.abs((f.pv || 0) + (f.grid || 0) - (f.house || 0) - (f.battery || 0) - (f.ev || 0));
+  const off = gap != null && gap > Math.max(300, big * 0.25);
+  return `<div class="card fade"><div class="eyebrow"><span>${esc(k.title)}</span></div><div class="muted" style="margin:2px 0 10px">${esc(k.hint)}</div>
+    ${rows.map(([r, ic, v]) => `<div class="ctl"><div class="t"><b>${icon(ic)} ${esc(T.roles[r] || r)}</b><span>${v == null ? esc(k.none) : esc(v)}</span></div>
+      <button class="ghostbtn" style="width:auto;padding:6px 14px" data-roleopen="${r}" data-setupfix="1">${esc(k.fix)}</button></div>
+      ${roleOpen.has(r) ? roleRows([r]) : ""}`).join("")}
+    ${gap == null ? "" : `<div style="margin-top:10px;font-weight:700;color:${off ? "var(--bad)" : "var(--ok)"}">${esc(off ? k.off : k.ok)}</div>`}</div>`;
 }
 
 /* ---------- drawing and updating ---------- */
@@ -3167,6 +3207,7 @@ function wire() {
   const carsL = () => JSON.parse(JSON.stringify((settings?.settings || data.settings).cars || []));
   const saveCars = async (l) => { await api("/api/settings", { cars: l }); settings = await api("/api/settings"); await load(); render(); };
   $("[data-caradd]")?.addEventListener("click", () => saveCars([...carsL(), { name: "" }]));
+  $("[data-setupall]")?.addEventListener("click", () => { setupAll = !setupAll; render(); });
   document.querySelectorAll("[data-cardel]").forEach((x) => x.onclick = () => { const l = carsL(); l.splice(Number(x.dataset.cardel), 1); saveCars(l); });
   document.querySelectorAll("[data-car],[data-carn],[data-cart]").forEach((el) => el.onchange = () => {
     const [i, key] = (el.dataset.car || el.dataset.carn || el.dataset.cart).split(":"), l = carsL();
@@ -3276,6 +3317,7 @@ async function load() { const first = !data; data = await api("/api/overview?lan
     if (document.hidden) return;
     await load();
     if (tab === "home") patch();
+    if (tab === "setup" && step !== 2 && step !== 3 && !document.activeElement?.matches("select,input")) render(true);  // the setup's numbers live
     if (tab === "shadow") { status = await api("/api/status"); control = await api("/api/control"); selftest = await api("/api/selftest").catch(() => selftest); if (!document.querySelector("details[open]") && repState !== "open" && repState !== "sending") render(true); }
   }, 4000);
   setInterval(() => { if (tab === "home" || tab === "plan") render(true); }, 300000);

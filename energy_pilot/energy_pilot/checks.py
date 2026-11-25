@@ -7,6 +7,7 @@ nothing told the user. These checks look at what Energy Pilot has measured and p
 from __future__ import annotations
 
 import re
+import time
 from datetime import datetime
 from typing import Any
 
@@ -169,6 +170,17 @@ def run(engine: Any, hours: list, b: Any, plan: Any, end_value: float) -> list[d
 
     # 3c. Victron's persistent ESS limit "Max inverter power" (/Settings/CGwacs/MaxDischargePower) at 0: the battery can't
     #     discharge whatever Energy Pilot allows through the Hub4 override. Told, never changed.
+    # 3d. No internet: the plan runs on the last known prices and its own guesses - said, so a different plan isn't a
+    #     surprise. An inverter controlled through its maker's cloud can't be steered until it's back.
+    if (off := (engine.offline_for() if hasattr(engine, "offline_for") else None)) is not None and off >= 900:
+        from datetime import datetime as _dt
+        from .selftest import CLOUD
+
+        c = getattr(engine.ov, "controller", None)
+        key = c.profile_key("battery") if c is not None and hasattr(c, "profile_key") else None
+        since = _dt.fromtimestamp(time.time() - off, engine.tz).strftime("%H:%M")
+        out.append({"key": "offline_cloud" if key in CLOUD else "offline", "level": "warn", "vals": {"t": since}})
+
     ctl_ = getattr(engine.ov, "controller", None)
     gx = bool(ctl_ and hasattr(ctl_, "profile_key") and ctl_.profile_key("battery") == "victron_ha")  # its hold is that very limit at 0 - on purpose
     if not gx and (e := victron_limit(getattr(getattr(engine.ov, "ha", None), "states", None) or {})):

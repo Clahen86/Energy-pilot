@@ -1150,10 +1150,13 @@ class Engine:
         from .sources import fetch_prices, price_area, solar_forecast
 
         if self.weather is not None:
+            before = getattr(self.weather, "_at", None)
             try:
                 await self.weather.refresh()
+                if getattr(self.weather, "_at", None) != before:
+                    self.net_ok()  # really fetched (it's kept an hour) - not just the kept copy
             except Exception:  # noqa: BLE001
-                pass
+                self.net_failed()
         st = self.ov.settings
         country = (self.ha.config.get("country") or "").upper()
         from .sources import ZONES, tou_prices
@@ -1173,13 +1176,29 @@ class Engine:
                 self.own_prices = await fetch_prices(self.ha.session, area, self.tz, {**st, "tariff": shared_tariff} if shared_tariff else st,
                                                      self.ha.config.get("currency") or "EUR")
                 self._prices_at = time.time()
+                self.net_ok()
             except Exception:  # noqa: BLE001
                 _LOGGER.info("No prices from Energi Data Service right now")
+                self.net_failed()
         # Its own (learned) forecast is always made: it's used when no forecast in the home gives the sun hour by hour.
         if self.solar_factors and self.weather:
             start = datetime.now(self.tz).replace(minute=0, second=0, microsecond=0)
             self.own_solar = solar_forecast(self.solar_factors, self.weather, [start + timedelta(hours=i) for i in range(48)])
         await self.refresh_ha_solar()
+
+    def net_ok(self) -> None:
+        self.net_down_since = None
+
+    def net_failed(self) -> None:
+        """A fetch from the internet failed (weather, prices): the first time is remembered - the plan then runs on
+        the last known prices, its own price guesses and the house's own history, and the user is told."""
+        if getattr(self, "net_down_since", None) is None:
+            self.net_down_since = time.time()
+
+    def offline_for(self) -> float | None:
+        """Seconds without internet (the weather and prices couldn't be fetched), or None."""
+        t = getattr(self, "net_down_since", None)
+        return time.time() - t if t else None
 
     async def refresh_ha_solar(self) -> None:
         """The solar forecasts set up in Home Assistant's Energy dashboard (Forecast.Solar, Open-Meteo, Solcast …),
