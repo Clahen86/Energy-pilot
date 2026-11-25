@@ -241,7 +241,7 @@ Marketplace (HACS): [energy-pilot-companion](https://github.com/Clahen86/energy-
 ## Brands
 
 Everything goes through the device's own Home Assistant integration. No profile for yours? Pick its controls yourself –
-or your own scripts – for each step under Settings → Control.<br>
+or your own scripts – for each step under Settings → House battery → Inverter control → Chosen by you.<br>
 ✅ runs in real use · 🧪 built from the integration's own code, waiting for a beta tester with the hardware
 
 | | |

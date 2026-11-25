@@ -233,7 +233,7 @@ Marketplace (HACS): [energy-pilot-companion](https://github.com/Clahen86/energy-
 ## Mærker
 
 Alt går gennem enhedens egen Home Assistant-integration. Ingen profil til din? Vælg selv dens kontroller – eller dine
-egne scripts – for hvert trin under Indstillinger → Styring.<br>
+egne scripts – for hvert trin under Indstillinger → Husbatteri → Inverter-styring → Selv valgt.<br>
 ✅ kører i rigtig brug · 🧪 bygget ud fra integrationens egen kode, venter på en betatester med udstyret
 
 | | |
