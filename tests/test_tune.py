@@ -6,12 +6,12 @@ from energy_pilot.learning import Learning
 B = Battery(capacity_kwh=10, max_charge_kw=3, max_discharge_kw=3, min_soc=10, efficiency=0.9)
 
 
-def _rows(dear_real=1.6, flat=False):
+def _rows(dear_real=1.6, flat=False, soc0=20):
     rows = []
     for h in range(24):
         price = 1.0 if flat else (0.5 if h < 6 else 3.0 if 17 <= h < 21 else 1.5)
         real = dear_real if 17 <= h < 21 else 0.45 + 0.01 * (h % 7)  # the evening uses more than forecast, every day
-        rows.append({"h": h, "house": [0.5, real], "sun": [0.0, 0.0], "soc": [None, 20 if h == 0 else None], "price": price})
+        rows.append({"h": h, "house": [0.5, real], "sun": [0.0, 0.0], "soc": [None, soc0 if h == 0 else None], "price": price})
     return rows
 
 
@@ -43,7 +43,9 @@ def test_the_best_already_stays():
 
 
 def test_nothing_to_win_nothing_moves():
-    st = _state(5, flat=True)
+    # Flat prices and the battery at its floor: nothing to gain either way. (From 20 % a factor that keeps the battery
+    # rightly wins: covering the house from it on flat prices only loses the round trip, now that what is left counts.)
+    st = _state(5, flat=True, soc0=10)
     t = tune.nightly(st, B, 0.0, 1.0, 0.0, "2026-11-08")
     assert (t["f"], t["m"]) == (1.0, 0.0) and not t["log"]
 

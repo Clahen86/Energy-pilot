@@ -58,12 +58,14 @@ def usable(rows: list[dict[str, Any]]) -> list[dict[str, Any]] | None:
 
 
 def replay(rows: list[dict[str, Any]], b: Battery, sell: float, end_factor: float, margin: float) -> float:
-    """What the grid would have cost that day with these settings."""
+    """What the grid would have cost that day with these settings - less what the battery holds more at the end than
+    at the start, at what refilling it costs (else the setting that empties the battery always looks cheapest)."""
     real = [(r["house"][1], r["sun"][1] or 0.0) for r in rows]
     exp = [(r["house"][0] if r["house"][0] is not None else r["house"][1],
             r["sun"][0] if r["sun"][0] is not None else (r["sun"][1] or 0.0)) for r in rows]
     price = [float(r["price"]) for r in rows]
     soc, cost = float(rows[0]["soc"][1]), 0.0
+    start = soc
     for i in range(len(rows)):
         ahead = price[i:]
         dear = sorted(ahead)[int(len(ahead) * 0.75)] if len(ahead) > 3 else None
@@ -75,7 +77,8 @@ def replay(rows: list[dict[str, Any]], b: Battery, sell: float, end_factor: floa
         first = plan.steps[0] if plan.steps else None
         soc, grid = step(first.action if first else "discharge", soc, first.soc_end if first else 0, real[i][0], real[i][1], b)
         cost += grid * price[i] if grid > 0 else grid * sell
-    return cost
+    day = [Hour(T0 + timedelta(hours=r["h"]), p, sell, 0.0, 0.0) for r, p in zip(rows, price)]
+    return cost - (soc - start) / 100 * b.capacity_kwh * end_price(day, b)
 
 
 def _clip(f: float, m: float, base_margin: float) -> tuple[float, float]:

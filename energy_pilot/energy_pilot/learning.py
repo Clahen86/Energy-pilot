@@ -26,6 +26,7 @@ from .engine import Battery, Hour, plan_battery
 
 _LOGGER = logging.getLogger(__name__)
 FACTORS = (0.6, 0.75, 0.9, 1.0, 1.1, 1.25)
+END_LEARN = 2  # how the end factor is learned: 2 = with what the battery holds at the day's end (see review)
 
 
 class Learning:
@@ -38,6 +39,14 @@ class Learning:
             self.state.update(json.loads(self.file.read_text()))
         except (OSError, ValueError):
             pass
+        if self.state.get("end_learn") != END_LEARN:
+            # The end value was learned on the day's cost alone - emptying the battery looked free, so it slid towards
+            # the lowest factor. Start again from the neutral value, once; the end factor and the nightly test both.
+            self.state["end_factor"] = 1.0
+            tune = self.state.get("tune")
+            if isinstance(tune, dict):
+                tune.update(f=1.0, log=[])
+            self.state["end_learn"] = END_LEARN
         # Shared knowledge (common.py): the sun's bias other installations like this one have learned. Set by the
         # engine; leaned on while this one has few days of its own.
         self.shared_sun: Any = None
@@ -156,7 +165,15 @@ class Learning:
             from .engine import end_price
 
             base = end_price(hours, battery)
-            costs = {f: plan_battery(hours, soc_start, battery, end_value=base * f).cost for f in FACTORS}
+
+            def scored(f: float) -> float:
+                # The day's cost, with what the battery holds more (or less) at the end at what refilling it costs:
+                # cost alone always picks the lowest factor - emptying the battery looks free.
+                p = plan_battery(hours, soc_start, battery, end_value=base * f)
+                end = p.steps[-1].soc_end if p.steps else soc_start
+                return p.cost - (end - soc_start) / 100 * battery.capacity_kwh * base
+
+            costs = {f: scored(f) for f in FACTORS}
             best = min(costs, key=costs.get)
             self.state["end_factor"] = round(0.75 * self.end_factor + 0.25 * best, 3)
             p = plan_battery(hours, soc_start, battery, end_value=base * self.end_factor)
