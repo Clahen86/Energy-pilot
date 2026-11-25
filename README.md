@@ -25,7 +25,7 @@ One app for Home Assistant that finds what you have, learns your home and gets b
 
 | | |
 |---|---|
-| 🔍 **Set up in two minutes** | It finds your solar, battery, grid, house, car and prices by itself. No YAML, no templates. |
+| 🔍 **Set up in two minutes** | It finds your solar, battery, grid, house, car and prices by itself and shows them with live numbers, so a wrong sensor stands out. No YAML, no templates. |
 | 👻 **Safe from the start** | It always starts in *shadow*: it shows what it would do, but controls nothing until you say so. |
 | 🧠 **Learns your home** | A simple forecast from day one, and ML models trained every night on your own data take over when they hit better. |
 | ⏱️ **Plans in quarter hours** | Uses the market's own slots (15 min in Europe, 30 min on UK Agile), so the cheapest quarters are used. |
@@ -289,7 +289,9 @@ prices (Energi Data Service, energy-charts.info) and exchange rates (ECB).
 
 **What if the internet goes down?**
 
-It keeps planning with the prices and weather it already has, and your inverter keeps running as normal.
+It keeps planning with the prices and weather it already has, and it tells you in the app that it's offline. Inverters
+and chargers on your own network (Modbus, ESPHome, SolarAssistant …) are still controlled; one controlled through its
+maker's cloud waits until the internet is back – the app says so.
 
 **Do I need a battery?**
 
