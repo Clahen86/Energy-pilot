@@ -194,6 +194,11 @@ To slags prognoser side om side, og den bedste bestemmer:
 - **Flere ladebokse** – hver bil har sin egen *lad nu*, *klar kl.* og *højst*, og tilsammen holdes de under hovedsikringen.
 
   ![To batterier og to ladebokse](docs/multi_da.png)
+- **Flere biler end ladebokse** – tilføj bilerne, hver med eget navn, størrelse, mål og klar-tid (en bil uden for Home
+  Assistant skal kun have navn og størrelse). Hver ladeboks finder selv bilen: ud fra bilens egen sensor, ellers ud fra
+  den effekt den lader med, når den kender bilerne, ellers samme bil som sidst. Gætter den forkert, vælger du med ét tryk.
+
+  <img src="docs/cars_da.png" alt="To ladebokse, tre biler" width="360">
 
 - **Ingen husforbrug-sensor nødvendig** – den regner huset ud fra net, sol, batteri og bil.
 - **Enhver solprognose** – Solcast, Open-Meteo, Forecast.Solar … eller sin egen ud fra vejret og anlæggets historik.
