@@ -21,3 +21,17 @@ def test_old_wrong_day_is_repaired_once(tmp_path):
     led = Ledger(tmp_path)
     assert led.state["days"]["2026-11-20"]["saved"] == 0.0
     assert led.state["days"]["2026-11-15"]["saved"] == 2.5
+
+
+def test_sun_and_battery_today_never_below_battery_alone(tmp_path):
+    # Cheap power charged for the evening, a little sun: the battery's "today" counts what is in it at its cost -
+    # sun and battery together must count it too, so it is never the smaller of the two.
+    led = Ledger(tmp_path)
+    t = datetime(2026, 11, 25, 3, 0)
+    for i in range(240):  # 2 hours charging 3 kW from the grid at night
+        led.tick(t + timedelta(seconds=30 * i), {"battery": 3000.0, "pv": 0.0, "house": 300.0, "soc": 40.0, "grid": 3300.0}, 0.9, 0.2, 10.0, 10.0, 0.9)
+    t2 = datetime(2026, 11, 25, 12, 0)
+    for i in range(120):  # an hour of a little sun
+        led.tick(t2 + timedelta(seconds=30 * i), {"battery": 0.0, "pv": 400.0, "house": 500.0, "soc": 90.0, "grid": 100.0}, 2.5, 0.2, 10.0, 10.0, 0.9)
+    s = led.summary(datetime(2026, 11, 25, 13, 0))
+    assert s["all"]["today"] >= s["today_stored"]

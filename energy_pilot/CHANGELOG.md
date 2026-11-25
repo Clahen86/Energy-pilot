@@ -2,6 +2,8 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.110.3 – 2026-11-25
+- Savings: "Sun and battery" today now counts the power still in the battery at what it cost, like "Battery" does - it could show less saved today than the battery alone
 ## 0.110.2 – 2026-11-25
 - Easee (and other known chargers) with your own start/stop switch chosen: the charger keeps its own control of the current, pause and resume, and your switch starts and stops it as well. Before, only the switch was used and the current was lost
 - Sofar (ZCS Azzurro) on the new Solarman integration is no longer called the old, read-only one, and the hint says "Deye / Sofar" instead of "Deye"
