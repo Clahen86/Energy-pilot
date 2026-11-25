@@ -1140,17 +1140,17 @@ const T_TH = {
 };
 const TH = T_TH[L] || T_TH.en;
 const T_HEAT = {  // a water heater: on, rests in the dear hours
-  da: { found: "Fandt din varmtvandsbeholder: {name}. Skal den holde pause i de dyre timer og varme på billig strøm og sol?", kind: "Varmtvand", heat: "tændt", pause: "pause i dyr time", pauseAt: "pause {x}", always: "Står tændt og slukkes kun i op til 4 dyre timer om dagen – så vandet altid er varmt. Tænder du den selv, bliver den tændt." },
-  en: { found: "Found your water heater: {name}. Let it rest in the dear hours and heat on cheap power and sun?", kind: "Hot water", heat: "on", pause: "resting in a dear hour", pauseAt: "rests {x}", always: "Stays on and is only switched off in up to 4 dear hours a day – so the water is always hot. Turn it on yourself and it stays on." },
-  de: { found: "Warmwasserspeicher gefunden: {name}. In teuren Stunden pausieren und mit günstigem Strom und Sonne heizen?", kind: "Warmwasser", heat: "an", pause: "Pause in teurer Stunde", pauseAt: "Pause {x}", always: "Bleibt an und wird nur in bis zu 4 teuren Stunden am Tag ausgeschaltet – das Wasser ist immer warm. Schaltest du ihn selbst ein, bleibt er an." },
-  nl: { found: "Je boiler gevonden: {name}. Laten pauzeren in dure uren en verwarmen met goedkope stroom en zon?", kind: "Warm water", heat: "aan", pause: "pauze in duur uur", pauseAt: "pauze {x}", always: "Blijft aan en gaat alleen uit in maximaal 4 dure uren per dag – zo is het water altijd warm. Zet je hem zelf aan, dan blijft hij aan." },
-  sv: { found: "Hittade din varmvattenberedare: {name}. Pausa de dyra timmarna och värma på billig el och sol?", kind: "Varmvatten", heat: "på", pause: "paus en dyr timme", pauseAt: "paus {x}", always: "Står på och stängs bara av upp till 4 dyra timmar om dagen – så vattnet alltid är varmt." },
-  nb: { found: "Fant varmtvannsberederen: {name}. Pause i de dyre timene og varme på billig strøm og sol?", kind: "Varmtvann", heat: "på", pause: "pause i dyr time", pauseAt: "pause {x}", always: "Står på og slås bare av i opptil 4 dyre timer om dagen – så vannet alltid er varmt." },
-  fr: { found: "Chauffe-eau trouvé : {name}. Le mettre en pause aux heures chères et chauffer au solaire et à bas prix ?", kind: "Eau chaude", heat: "en marche", pause: "pause heure chère", pauseAt: "pause {x}", always: "Reste allumé et n'est coupé que jusqu'à 4 heures chères par jour – l'eau reste toujours chaude." },
+  da: { found: "Fandt din varmtvandsbeholder: {name}. Skal den holde pause i de dyre timer og varme på billig strøm og sol?", kind: "Varmtvand", heat: "tændt", pause: "pause i dyr time", pauseAt: "pause {x}", always: "Står tændt og slukkes kun i op til 4 dyre timer om dagen – så vandet altid er varmt. Tænder du den selv, bliver den tændt. Har den en temperatur i Home Assistant, varmes den 10 °C ekstra, når solen ellers ville blive solgt billigt.", sunBoost: "varmer ekstra på solen" },
+  en: { found: "Found your water heater: {name}. Let it rest in the dear hours and heat on cheap power and sun?", kind: "Hot water", heat: "on", pause: "resting in a dear hour", pauseAt: "rests {x}", always: "Stays on and is only switched off in up to 4 dear hours a day – so the water is always hot. Turn it on yourself and it stays on. With a temperature of its own in Home Assistant, it heats 10 °C extra when the sun would otherwise be sold cheaply.", sunBoost: "heating extra on the sun" },
+  de: { found: "Warmwasserspeicher gefunden: {name}. In teuren Stunden pausieren und mit günstigem Strom und Sonne heizen?", kind: "Warmwasser", heat: "an", pause: "Pause in teurer Stunde", pauseAt: "Pause {x}", always: "Bleibt an und wird nur in bis zu 4 teuren Stunden am Tag ausgeschaltet – das Wasser ist immer warm. Schaltest du ihn selbst ein, bleibt er an. Hat er eine eigene Temperatur in Home Assistant, heizt er 10 °C mehr, wenn die Sonne sonst billig verkauft würde.", sunBoost: "heizt extra mit Sonne" },
+  nl: { found: "Je boiler gevonden: {name}. Laten pauzeren in dure uren en verwarmen met goedkope stroom en zon?", kind: "Warm water", heat: "aan", pause: "pauze in duur uur", pauseAt: "pauze {x}", always: "Blijft aan en gaat alleen uit in maximaal 4 dure uren per dag – zo is het water altijd warm. Zet je hem zelf aan, dan blijft hij aan. Heeft hij een eigen temperatuur in Home Assistant, dan verwarmt hij 10 °C extra als de zon anders goedkoop verkocht zou worden.", sunBoost: "verwarmt extra op de zon" },
+  sv: { found: "Hittade din varmvattenberedare: {name}. Pausa de dyra timmarna och värma på billig el och sol?", kind: "Varmvatten", heat: "på", pause: "paus en dyr timme", pauseAt: "paus {x}", always: "Står på och stängs bara av upp till 4 dyra timmar om dagen – så vattnet alltid är varmt. Har den en egen temperatur i Home Assistant värms den 10 °C extra när solen annars skulle säljas billigt.", sunBoost: "värmer extra på solen" },
+  nb: { found: "Fant varmtvannsberederen: {name}. Pause i de dyre timene og varme på billig strøm og sol?", kind: "Varmtvann", heat: "på", pause: "pause i dyr time", pauseAt: "pause {x}", always: "Står på og slås bare av i opptil 4 dyre timer om dagen – så vannet alltid er varmt. Har den en egen temperatur i Home Assistant, varmes den 10 °C ekstra når solen ellers ville blitt solgt billig.", sunBoost: "varmer ekstra på solen" },
+  fr: { found: "Chauffe-eau trouvé : {name}. Le mettre en pause aux heures chères et chauffer au solaire et à bas prix ?", kind: "Eau chaude", heat: "en marche", pause: "pause heure chère", pauseAt: "pause {x}", always: "Reste allumé et n'est coupé que jusqu'à 4 heures chères par jour – l'eau reste toujours chaude. S’il a sa propre température dans Home Assistant, il chauffe 10 °C de plus quand le soleil serait sinon vendu à bas prix.", sunBoost: "chauffe en plus au soleil" },
 };
 const TH_H = T_HEAT[L] || T_HEAT.en;
 T.chk.heater_found = TH_H.found;
-TH.kinds.heater = TH_H.kind; TH.st.heat = TH_H.heat; TH.st.pause = TH_H.pause;
+TH.kinds.heater = TH_H.kind; TH.st.heat = TH_H.heat; TH.st.pause = TH_H.pause; TH.st.sun_boost = TH_H.sunBoost;
 T.chk.thing_found = TH.found;
 const thAll = new Set();  // pick lists shown in full
 let thOpen = (() => { try { return localStorage.getItem("ep_things_open") === "1"; } catch { return false; } })();
@@ -2842,14 +2842,24 @@ function customEditor(v) {
     return vals.length ? `<div class="ochips">${vals.map((o) => `<button class="ochip ${String(st.value) === String(o) ? "on" : ""}" data-copt="${intent}:${i}" data-v="${esc(o)}">${esc(o)}</button>`).join("")}</div>` : "";
   };
   return `<div class="tou"><datalist id="ctl-ents">${ents.map((e) => `<option value="${e}">`).join("")}</datalist>
-    ${["normal", "hold", "charge"].map((intent) => `<div class="group"><h4>${c.intents[intent]}</h4>
+    ${["normal", "hold", "charge", "export"].map((intent) => `<div class="group"><h4>${c.intents[intent] || (T_SCRIPT[L] || T_SCRIPT.en).export}</h4>
     ${(prof[intent] || []).map((st, i) => {
       return `<div class="period"><input class="pname" list="ctl-ents" data-cent="${intent}:${i}" value="${esc(st.entity || "")}" placeholder="${c.pick}" autocomplete="off">
-        ${st.entity && !st.entity.startsWith("switch.") ? `<input class="pname" data-cval="${intent}:${i}" value="${esc(st.value ?? "")}" placeholder="${c.valueH}">` : ""}
+        ${st.entity && !/^(switch|script|button)\./.test(st.entity) ? `<input class="pname" data-cval="${intent}:${i}" value="${esc(st.value ?? "")}" placeholder="${c.valueH}">` : ""}
         <button class="x" data-cdel="${intent}:${i}">✕</button></div>${st.entity ? chips(intent, i, st) : ""}`;
     }).join("")}<button class="ghostbtn" data-cadd="${intent}">+ ${c.addStep}</button></div>`).join("")}
-    <div class="muted" style="margin-top:8px">${c.customHint}</div></div>`;
+    <div class="muted" style="margin-top:8px">${c.customHint}</div>
+    <div class="muted" style="margin-top:6px">${(T_SCRIPT[L] || T_SCRIPT.en).hint}</div></div>`;
 }
+const T_SCRIPT = {
+  da: { export: "Sælg fra batteriet (valgfri)", hint: "Har din inverter ingen profil? Vælg dit eget script (script.…) til hvert trin. Det køres med variablerne target, soc, min_soc, power_w, power_kw og export_w." },
+  en: { export: "Sell from the battery (optional)", hint: "No profile for your inverter? Pick your own script (script.…) for each step. It runs with the variables target, soc, min_soc, power_w, power_kw and export_w." },
+  de: { export: "Aus der Batterie verkaufen (optional)", hint: "Kein Profil für deinen Wechselrichter? Wähle für jeden Schritt dein eigenes Skript (script.…). Es läuft mit den Variablen target, soc, min_soc, power_w, power_kw und export_w." },
+  fr: { export: "Vendre depuis la batterie (facultatif)", hint: "Pas de profil pour votre onduleur ? Choisissez votre propre script (script.…) pour chaque étape. Il reçoit les variables target, soc, min_soc, power_w, power_kw et export_w." },
+  nl: { export: "Verkopen uit de accu (optioneel)", hint: "Geen profiel voor je omvormer? Kies je eigen script (script.…) voor elke stap. Het draait met de variabelen target, soc, min_soc, power_w, power_kw en export_w." },
+  sv: { export: "Sälj från batteriet (valfritt)", hint: "Ingen profil för din växelriktare? Välj ditt eget skript (script.…) för varje steg. Det körs med variablerna target, soc, min_soc, power_w, power_kw och export_w." },
+  nb: { export: "Selg fra batteriet (valgfritt)", hint: "Ingen profil for vekselretteren din? Velg ditt eget skript (script.…) for hvert trinn. Det kjøres med variablene target, soc, min_soc, power_w, power_kw og export_w." },
+};
 function touEditor(v) {
   const y = T.y, plan = v.tou || { default: 0, periods: [] };
   const days = (p, i) => `<select data-tou-days="${i}">${["all", "weekdays", "weekends"].map((d) => `<option value="${d}" ${p.days === d ? "selected" : ""}>${y.days[d]}</option>`).join("")}</select>`;
@@ -3061,7 +3071,7 @@ function wire() {
   document.querySelectorAll("[data-cadd]").forEach((b) => b.onclick = async () => { const c = cust(); (c[b.dataset.cadd] ||= []).push({ entity: "", kind: "select", value: "" }); await api("/api/settings", { custom_profile: c }); settings = await api("/api/settings"); render(); });
   document.querySelectorAll("[data-cent],[data-cval]").forEach((el) => el.onchange = async () => {
     const c = cust(), [intent, i] = (el.dataset.cent || el.dataset.cval).split(":"), step = c[intent][Number(i)];
-    if (el.dataset.cent) { step.entity = el.value; step.kind = el.value.startsWith("select.") ? "select" : el.value.startsWith("number.") ? "number" : "on"; }
+    if (el.dataset.cent) { step.entity = el.value; step.kind = el.value.startsWith("select.") ? "select" : el.value.startsWith("number.") ? "number" : el.value.startsWith("script.") ? "script" : el.value.startsWith("button.") ? "press" : "on"; }
     else step.value = el.value;
     await api("/api/settings", { custom_profile: c }); settings = await api("/api/settings"); control = await api("/api/control"); render();
   });

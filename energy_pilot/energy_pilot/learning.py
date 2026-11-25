@@ -108,6 +108,15 @@ class Learning:
 
     # ---------- the nightly review ----------
 
+    def sun_low(self) -> float | None:
+        """How low a poor day comes against the forecast (the 10th percentile of the last 30 days' actual/forecast),
+        once 10 days are seen - None before, or when the forecast isn't too high on its poor days."""
+        days = sorted(self.state.get("sun_days") or [])
+        if len(days) < 10:
+            return None
+        low = days[int(len(days) * 0.1)]
+        return low if low < 0.95 else None
+
     def review(self, day: datetime, house: dict[str, float], pv: dict[str, float], battery: Battery,
                prices: dict[str, float], soc_start: float | None, soc: dict[str, float] | None = None) -> dict[str, Any] | None:
         """Yesterday with the real numbers. house/pv/prices: {"YYYY-MM-DDTHH": kWh or price}."""
@@ -131,6 +140,12 @@ class Learning:
                 b = self.state["solar_bias"]
                 b[kind] = round(0.8 * b[kind] * 1 + 0.2 * b[kind] * ratio, 3)  # moves a fifth of the way
                 report[f"sun_{kind}"] = round(ratio, 2)
+        # The day's sun against what was foreseen (whole days) - its poor days give a forecast without Solcast's "poor
+        # day" (pv_estimate10) a poor day of its own (sun_low), as Predbat weighs its PV10 case.
+        f_day = sum((exp[h].get("sun") or 0) for h in exp if h in pv)
+        if f_day >= 1.0:
+            ratios = (self.state.get("sun_days") or []) + [round(min(2.0, sum(pv[h] for h in exp if h in pv) / f_day), 3)]
+            self.state["sun_days"] = ratios[-30:]
         # The panels' shape: the spread over clear hours, and the clear days for which way they face. Never stops the review.
         if pv:
             self._panels(exp, pv, key, day)

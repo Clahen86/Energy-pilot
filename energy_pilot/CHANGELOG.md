@@ -2,6 +2,20 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.111.0 – 2026-11-25
+Learned from Predbat's tested setups:
+- Sigenergy: hold no longer charges from the grid ("Command Charging (PV First)" is a grid charge) - it is self-consumption with discharging at 0
+- Tesla Powerwall and Enphase: hold sets the reserve to the level rounded down and turns grid charging off - a reserve above the level made them charge from the grid
+- Huawei: a forced charge is always ended with the integration's stop service - without the "Stop forcible charge" button it ran on into the dear hours
+- SolarEdge: "Advanced Power Control" is turned on when there. GivTCP: "Enable charge target" is turned on to charge. Sunsynk add-on: Predbat's entity names (Prog1 charge option, Set SoC timezone1) are found too
+- Luxpower: the settings check no longer offers the level Energy Pilot holds at as your minimum (it could ratchet it up)
+- Ohme and myenergi zappi are handed back to their own mode (smart charge / Eco+) when Energy Pilot lets go
+- New profiles: Victron through Home Assistant's own Victron GX integration, Luxpower (LuxPython), Solis FB00+ (SolaX Modbus), SolaX Gen4+ by remote control (picked by hand) and Canadian Solar EP Cube
+- Your own setup can run your own scripts for each step (normal, hold, charge, and an optional sell), with the plan's target, level and power as variables - for any inverter without a profile
+- Self-test: cloud inverters (Fox cloud, Growatt cloud, Anker, EP Cube) get 10 minutes to react, and a nearly full or cold battery is judged more gently
+- The plan knows the inverter's AC power (from its rated-power sensor or its model's name): it doesn't plan to charge from the grid or discharge faster than the inverter can
+- Without Solcast, the plan learns the forecast's own poor days and counts on a little less sun when the forecast is unsure
+- Water heaters with a temperature of their own heat 10 °C extra on sun that would otherwise be sold cheaply, and go back when it's gone
 ## 0.110.3 – 2026-11-25
 - Savings: "Sun and battery" today now counts the power still in the battery at what it cost, like "Battery" does - it could show less saved today than the battery alone
 ## 0.110.2 – 2026-11-25

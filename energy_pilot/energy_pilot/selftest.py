@@ -28,7 +28,9 @@ SAMPLE_S = 10  # how often the battery is looked at
 STEADY_S = 30  # right this long in a row …
 MIN_S = 60  # … and never sooner than this after a command
 WAIT_S = {"local": 120, "cloud": 600, "car": 180}  # a cloud (AlphaESS, Tesla, EcoFlow) can take several minutes
-CLOUD = {"alphaess", "tesla", "ecoflow"}
+# Through a cloud a change can take minutes to show (Anker: about 5) - judged after 2 they failed though they worked.
+# Predbat gives every mode 5 minutes for the same reason ("cloud integrations can take minutes to report it").
+CLOUD = {"alphaess", "tesla", "ecoflow", "foxess", "growatt_server", "anker_solix", "ep_cube"}
 READY_WAIT_S = 900  # an inverter waking up (a profile's "ready" sensor) gets this long before the clock starts
 MAX_TRIES = 5  # other options tried for one step
 # Options never tried: they could take the house off the grid, wipe settings or stop the inverter.
@@ -67,7 +69,7 @@ def _expect(intent: str, f: dict[str, Any], base: dict[str, Any]) -> bool | None
     if b is None:
         return None
     if intent == "charge":
-        return b >= 300
+        return b >= 250  # a quarter of the test's 1 kW, as Predbat judges - a tapering or cold battery takes less
     if intent == "hold":
         return b >= -150  # not discharging (the sun may still charge it)
     if intent == "export":
@@ -370,7 +372,7 @@ class SelfTest:
         if err and ALPHA_PERIOD.search(err):
             why = "alpha_period"  # AlphaESS changes only a period that exists: one has to be made in its app first
         from .checks import victron_limit
-        if intent == "normal" and part == "battery" and why == "no_reaction" and victron_limit(self.ctl.ha.states if hasattr(self.ctl, "ha") else {}):
+        if intent == "normal" and part == "battery" and why == "no_reaction" and self.ctl.profile_key("battery") != "victron_ha" and victron_limit(self.ctl.ha.states if hasattr(self.ctl, "ha") else {}):
             why = "victron_limit"  # the battery may not discharge: Victron's own persistent limit is 0
         if part == "battery" and why == "no_reaction" and self.ctl.profile_key("battery") == "foxess_modbus":
             if intent == "charge" and re.search(r"H3-Pro|P3-Pro|H3-.*Smart|P3-[\d.]+-SH", str(getattr(self.ctl, "model", "") or ""), re.I):
@@ -431,7 +433,8 @@ class SelfTest:
             if intent == "charge" and _adapters().PROFILES.get(key, {}).get("grid_charge") is False:
                 self._result("battery", intent, "skipped", why="no_grid_charge")  # the profile can't charge from the grid
                 continue
-            if intent == "charge" and soc is not None and soc >= 97:
+            # near full a battery tapers to a trickle (and a cold one takes little): no telling by its power then
+            if intent == "charge" and soc is not None and soc >= 92:
                 self._result("battery", intent, "skipped", why="full")
                 continue
             min_soc = float(ctx.get("min_soc") or 10)
@@ -507,7 +510,7 @@ def _ctx_defaults() -> dict[str, Any]:
 
     from . import adapters
 
-    return {"grid_charge": True, "min_soc": 10, "soc": 50, "target": 50, "rate": 10, "power_w": TEST_W, "max_power_w": TEST_W,
+    return {"grid_charge": True, "min_soc": 10, "soc": 50, "soc_floor": 50, "target": 50, "rate": 10, "power_w": TEST_W, "max_power_w": TEST_W,
             "max_charge_w": TEST_W, "power_kw": TEST_W / 1000, "max_charge_kw": TEST_W / 1000, "max_power_kw": TEST_W / 1000,
             "export_w": 800, "house_w": 0, "device_id": "", "serial": "", "charge_a": 20,
             **adapters.alpha_windows(datetime.now())}
@@ -523,6 +526,7 @@ def _limit(ctx: dict[str, Any], soc: float | None) -> dict[str, Any]:
         out["charge_a"] = max(1, min(int(out["charge_a"] or 20), 20))
     if soc is not None:
         out["soc"] = round(soc)
+        out["soc_floor"] = int(soc)
         out["target"] = round(min(100, soc + 5))
     out["_export_target"] = round(max(float(out.get("min_soc") or 10), (soc or 50) - 5))
     return out

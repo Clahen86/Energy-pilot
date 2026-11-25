@@ -148,6 +148,7 @@ class Battery:
     quiet: frozenset = frozenset()  # hours (0-23) the battery must not charge from the grid (the sun still fills it)
     export: bool = False  # may sell from the battery when it pays (off unless the user turns it on)
     wear: float = 0.0  # what one kWh into or out of the battery wears it (money per kWh) - a move must beat it
+    ac_kw: float | None = None  # the inverter's AC power (invpower.py): grid charging and discharging go through it
     export_limit_kw: float | None = None  # what may be sent to the grid
     taper: tuple = ()  # (from level, share of the charge power it really takes) - learned; most slow down near full
     no_discharge: frozenset = frozenset()  # slots the battery must not discharge in (the car charges on cheap power)
@@ -299,6 +300,8 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
                         continue  # more than it takes at this level (it slows down when nearly full)
                     into = delta / eff  # what has to go in
                     from_sun = min(into, max(0.0, h.sun - h.house))
+                    if b.ac_kw is not None and into - from_sun > b.ac_kw * h.length + 1e-9:
+                        continue  # from the grid only as fast as the inverter's AC side (the sun's DC goes in beside it)
                     grid = h.house - h.sun + into
                     if not b.grid_charge and grid > max(0.0, h.house - h.sun) + 1e-9:
                         continue
@@ -313,6 +316,8 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
                     out = -delta * eff  # what comes out to the house
                     if -delta > b.max_discharge_kw * h.length + 1e-9:
                         continue
+                    if b.ac_kw is not None and out > b.ac_kw * h.length + 1e-9:
+                        continue  # never more out than the inverter can turn into AC
                     need = max(0.0, h.house - h.sun)
                     action = "discharge"
                     if out > need + 1e-9:
@@ -736,7 +741,23 @@ class Engine:
             force={k: v for k, v in (s.get("manual") or {}).items() if v in ("charge", "sell", "hold")},
             peak_kw=(pt := self.power_tariff()) and pt["limit_kw"],
             peak_price=pt["price_per_kw"] if pt else 0.0,
+            ac_kw=None if more else self.inverter_ac_kw(ctl),  # one inverter: its own AC power
         )
+
+    def inverter_ac_kw(self, ctl: Any) -> float | None:
+        """The inverter's AC power where it can be read (a rated-power sensor of its integration, or its model's
+        name). Above the battery's own limits it changes nothing."""
+        if ctl is None:
+            return None
+        from . import invpower
+
+        try:
+            plat = (getattr(ctl, "platforms", None) or {}).get("battery")
+            reg = getattr(ctl, "_ent_reg", None) or {}
+            allowed = {e for e, r in reg.items() if plat and (r or {}).get("platform") == plat}
+            return invpower.ac_kw(getattr(ctl, "model", None), self.ov.ha.states, allowed)
+        except Exception:  # noqa: BLE001 - never in the way of the plan
+            return None
 
     def charger_kw(self) -> float:
         """What the plan counts on the (first) car to take in an hour: the charger's power, capped at what the car was
@@ -1455,8 +1476,13 @@ class Engine:
         # An unsure forecast (Solcast's poor day far below the expected): the plan counts on a little less sun, so a
         # cloudier day than foreseen doesn't leave the battery short. A sure one (a clear sky) changes nothing.
         # After the learning above, which keeps comparing with the forecast itself.
+        # Without Solcast's poor day: the forecast's own poor days, learned (learning.sun_low).
+        own_low = L.sun_low() if hasattr(L, "sun_low") else None
         for i, h in enumerate(hours):
-            h.sun = doubt_sun(h.sun, rows[i].get("sun"), rows[i].get("sun10"))
+            raw, low = rows[i].get("sun"), rows[i].get("sun10")
+            if low is None and own_low is not None and raw:
+                low = raw * own_low
+            h.sun = doubt_sun(h.sun, raw, low)
         # Nobody home for a day (away.py): the house only uses what runs by itself until someone is back.
         from . import away as _away
 

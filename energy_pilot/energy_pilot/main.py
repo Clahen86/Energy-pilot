@@ -299,6 +299,7 @@ async def main() -> None:
                 engine.house_hist.see(now, f.get("house"))  # the house's own history (used when HA keeps no statistics)
                 if st.get("things"):
                     # in shadow nothing is switched: the things act only when Energy Pilot controls something
+                    engine.things.registry = getattr(controller, "registry", None) or []  # a water heater's own temperature
                     await engine.things.tick(ha, st, now, price, sell, f.get("grid"), act=any(controller.mode(p) == "control" for p in controller.parts()))
                     if engine.things.replan:  # a machine was just paused: its start time now
                         engine.things.replan = False

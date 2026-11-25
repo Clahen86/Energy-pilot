@@ -5,7 +5,7 @@ from energy_pilot import adapters
 GROWATT = ["select.growatt_sph_work_mode_priority", "number.growatt_sph_load_first_stop_discharge", "select.growatt_sph_battery_first_grid_charge",
            "switch.growatt_sph_battery_first_slot_1_enabled", "select.growatt_sph_battery_first_slot_1_start", "select.growatt_sph_battery_first_slot_1_end",
            "number.growatt_sph_battery_first_charge_rate", "number.growatt_sph_battery_first_stop_charge", "select.growatt_blaeser_adfaerd_ved_taending"]
-CTX = {"min_soc": 10, "soc": 62, "target": 90, "rate": 80, "power_w": 2400, "max_power_w": 3000, "max_charge_w": 3000, "max_charge_kw": 3.0, "max_power_kw": 3.0,
+CTX = {"min_soc": 10, "soc": 62, "soc_floor": 62, "target": 90, "rate": 80, "power_w": 2400, "max_power_w": 3000, "max_charge_w": 3000, "max_charge_kw": 3.0, "max_power_kw": 3.0,
        "lease_from": "11:15", "lease_to": "12:30"}
 
 
@@ -66,8 +66,8 @@ def test_missing_control_is_found_and_never_half():
     h = adapters.PROFILES["huawei_solar"]
     hs = {i: h[i] for i in ("normal", "hold", "charge")}
     found = ["number.batteries_maximum_discharging_power"]
-    assert adapters.missing(adapters.check(hs, found, h["optional"], {"huawei_solar.forcible_charge_soc"})) == []
-    assert adapters.missing(adapters.check(hs, found, h["optional"], set())) == ["huawei_solar.forcible_charge_soc"]
+    assert adapters.missing(adapters.check(hs, found, h["optional"], {"huawei_solar.forcible_charge_soc", "huawei_solar.stop_forcible_charge"})) == []
+    assert set(adapters.missing(adapters.check(hs, found, h["optional"], set()))) == {"huawei_solar.stop_forcible_charge", "huawei_solar.forcible_charge_soc"}
 
 
 def test_deye_solarman_sets_all_six_programmes():
@@ -191,7 +191,7 @@ def test_profiles_from_the_integrations_own_names():
     for key, (ents, intent, entity, want) in cases.items():
         p = adapters.PROFILES[key]
         steps = {i: p[i] for i in ("normal", "hold", "charge")}
-        assert adapters.missing(adapters.check(steps, ents, p.get("optional"), {"huawei_solar.forcible_charge_soc"})) == [], key
+        assert adapters.missing(adapters.check(steps, ents, p.get("optional"), {"huawei_solar.forcible_charge_soc", "huawei_solar.stop_forcible_charge"})) == [], key
         calls = adapters.resolve(p[intent], ents, ctx)
         got = {c["data"].get("entity_id"): c["data"].get("option", c["data"].get("value")) for c in calls}
         assert got.get(entity) == want, (key, got)
@@ -466,3 +466,54 @@ def test_hypervolt_full_power_at_the_current_and_stops_by_activation_mode():
         ("select.hypervolt_charge_mode", "Boost"), ("number.hypervolt_max_current", 16), ("select.hypervolt_activation_mode", "Plug and Charge")]
     stop = adapters.charger_calls("stop", ents, "hypervolt_charger", 16)
     assert [(c["data"]["entity_id"], c["data"]["option"]) for c in stop] == [("select.hypervolt_activation_mode", "Schedule Charge")]
+
+
+def test_predbat_holds():
+    """Holds checked against Predbat: Sigenergy self-consumption with discharging at 0 (not "PV First" - a grid
+    charge), Powerwall reserve rounded down with grid charging off, Huawei's forcible charge ended by its service."""
+    ctx = {**CTX, "soc": 55, "soc_floor": 54, "max_charge_kw": 3.0, "device_id": "d1"}
+    sig = ["switch.sigen_plant_remote_ems_controlled_by_home_assistant", "select.sigen_plant_remote_ems_control_mode",
+           "number.sigen_plant_ess_max_discharging_limit", "number.sigen_plant_ess_max_charging_limit"]
+    got = {c["data"]["entity_id"]: c["data"].get("option", c["data"].get("value")) for c in adapters.resolve(adapters.PROFILES["sigen"]["hold"], sig, ctx)}
+    assert got["select.sigen_plant_remote_ems_control_mode"] == "Maximum Self Consumption"
+    assert got["number.sigen_plant_ess_max_discharging_limit"] == 0
+    tes = ["number.my_home_backup_reserve", "switch.my_home_allow_charging_from_grid", "select.my_home_operation_mode"]
+    calls = adapters.resolve(adapters.PROFILES["tesla"]["hold"], tes, ctx)
+    assert {"domain": "switch", "service": "turn_off", "data": {"entity_id": "switch.my_home_allow_charging_from_grid"}} in calls
+    assert [c for c in calls if c["data"].get("entity_id") == "number.my_home_backup_reserve"][0]["data"]["value"] == 54
+    hua = adapters.resolve(adapters.PROFILES["huawei_solar"]["normal"], ["number.batteries_maximum_discharging_power"], ctx)
+    assert hua[0] == {"domain": "huawei_solar", "service": "stop_forcible_charge", "data": {"device_id": "d1"}}
+
+
+def test_predbat_names_found():
+    """Victron through HA's own GX integration, Sunsynk with Predbat's entity names, SolarEdge's power control on."""
+    gx = ["number.gx_device_ess_max_inverter_power_limit", "number.gx_device_ess_max_charge_power_limit",
+          "select.gx_device_ess_mode", "number.gx_device_ac_power_setpoint"]
+    assert adapters.guess_profile(gx, {"victron_gx"}) == "victron_ha"
+    hold = {c["data"]["entity_id"]: c["data"].get("value", c["data"].get("option")) for c in adapters.resolve(adapters.PROFILES["victron_ha"]["hold"], gx, CTX)}
+    assert hold["number.gx_device_ess_max_inverter_power_limit"] == 0
+    ss = ["select.sunsynk_prog1_charge_option", "number.sunsynk_set_soc_timezone1", "switch.sunsynk_use_timer"]
+    ctx = {**CTX, "hold_soc": 63}
+    got = {c["data"]["entity_id"]: c["data"].get("value", c["data"].get("option")) for c in adapters.resolve(adapters.PROFILES["sunsynk"]["charge"], ss, ctx)}
+    assert got["number.sunsynk_set_soc_timezone1"] == 90 and got["select.sunsynk_prog1_charge_option"] == "re:^allow grid"
+    se = ["switch.solaredge_i1_advanced_power_control", "select.solaredge_i1_storage_control_mode", "number.solaredge_i1_storage_discharge_limit",
+          "select.solaredge_i1_storage_command_mode"]
+    assert any(c["data"].get("entity_id") == "switch.solaredge_i1_advanced_power_control" for c in adapters.resolve(adapters.PROFILES["solaredge_modbus_multi"]["hold"], se, CTX))
+    assert adapters.guess_profile(["select.solax_remotecontrol_power_control", "select.solax_charger_use_mode"], {"solax_modbus"}) != "solax_modbus_rc"
+
+
+def test_new_brands_from_predbat():
+    lux = ["switch.lux_ac_charge_enable", "switch.lux_force_discharge_enable", "number.lux_on_grid_discharge_cut_off_soc",
+           "number.lux_ac_battery_charge_level", "time.lux_ac_charge_start1", "time.lux_ac_charge_end1"]
+    assert adapters.guess_profile(lux, {"luxpower"}) == "luxpython"
+    sol = ["select.solis_inverter_energy_storage_control_switch", "switch.inverter_timed_charge_slot_1_enable",
+           "switch.inverter_timed_discharge_slot_1_enable", "number.solis_inverter_timed_charge_soc", "number.solis_inverter_backup_mode_soc"]
+    assert adapters.guess_profile(sol, {"solax_modbus"}) == "solis_solax_fb00"
+    calls = adapters.resolve(adapters.PROFILES["ep_cube"]["charge"], [], {**CTX})
+    assert calls[-1] == {"domain": "ep_cube", "service": "force_charge", "data": {"duration_minutes": 60, "target_pct": 90}}
+
+
+def test_own_script_step():
+    calls = adapters.resolve([("script.fronius_charge", "script", None)], ["script.fronius_charge"], {**CTX})
+    assert calls == [{"domain": "script", "service": "turn_on", "data": {"entity_id": "script.fronius_charge",
+                      "variables": {"target": 90, "soc": 62, "min_soc": 10, "power_w": 2400, "max_power_w": 3000, "max_charge_w": 3000}}}]

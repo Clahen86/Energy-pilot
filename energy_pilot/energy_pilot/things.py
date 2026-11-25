@@ -11,6 +11,9 @@ The one exception, chosen by the user for a machine that resumes by itself after
 starts on its plug, Energy Pilot switches the plug off at once and on again at the cheapest time - no Ready needed.
 A water heater on a switch is the other way round: it stays on (its own thermostat keeps the water hot) and is only
 switched off in the dearest hours - at most 4 a day, never in sun - so it heats on cheap power and sun instead.
+With a temperature of its own in Home Assistant (a water_heater, or a target-temperature number on its device), a
+water heater also heats extra on the sun: while the house sells sun for little (half the price of buying or less) its
+target goes up 10 °C - the tank stores the sun as heat - and back to the owner's own when the sun is gone.
 How much each thing takes and how long is learned from the runs seen (the median of the last ten, from three runs).
 """
 
@@ -23,6 +26,11 @@ from typing import Any
 
 MODES = ("sun_cheap", "sun", "cheap")
 HEATER_OFF_H = 4  # a water heater is off at most this many hours a day - a tank keeps hot far longer
+BOOST_C = 10  # the tank is heated this much above the owner's own target on the sun's surplus
+BOOST_MAX_C = 75  # never above this (or the control's own maximum)
+BOOST_W = 800  # selling at least this much ...
+BOOST_S = 5 * 60  # ... for this long starts it; buying (or no surplus) this long ends it
+TEMP_WORDS = re.compile(r"(target|set_?point|setpoint|soll|onsket|ønsket|desired|set)_?(water_?)?temp", re.I)
 RUN_W = 15  # a machine above this draws power: it runs
 IDLE_W = 5  # below this it rests
 MACHINE_END_S = 15 * 60  # a machine resting this long has finished (a dishwasher drying can rest a few minutes)
@@ -202,6 +210,7 @@ class Things:
             try:
                 if t.get("kind") == "heater":
                     await self._tick_heater(ha, t, now, act)
+                    await self._sun_boost(ha, t, now, price, sell, grid_w, act)
                 elif t.get("kind") == "machine":
                     await self._tick_machine(ha, t, now, price, sell, grid_w, dt_s, act)
                 else:
@@ -302,6 +311,59 @@ class Things:
         elif want:
             s["off_by_us"] = False
 
+    def temp_control(self, t: dict[str, Any], states: dict[str, Any]) -> str | None:
+        """The water heater's own temperature: a water_heater entity, or a target-temperature number, on its device
+        (the registry is handed over by the controller each round)."""
+        if t.get("temp") and t["temp"] in states:
+            return t["temp"]
+        dev = t.get("device")
+        if not dev:
+            return None
+        ids = [e["entity_id"] for e in (getattr(self, "registry", None) or []) if e.get("device_id") == dev and not e.get("disabled_by")]
+        return next((i for i in ids if i.startswith("water_heater.")), None) or \
+            next((i for i in ids if i.startswith("number.") and TEMP_WORDS.search(i)), None)
+
+    async def _sun_boost(self, ha: Any, t: dict[str, Any], now: datetime, price: float | None, sell: float,
+                         grid_w: float | None, act: bool) -> None:
+        """Heat extra on the sun the house would sell for little: the target 10 °C up, back when the sun is gone."""
+        s, e = self.st(t["id"]), self.temp_control(t, ha.states)
+        if not e or grid_w is None:
+            return
+        st = ha.states.get(e) or {}
+        a = st.get("attributes") or {}
+        heater = e.startswith("water_heater.")
+        try:
+            cur = float(a.get("temperature") if heater else st.get("state"))
+        except (TypeError, ValueError):
+            return
+        cheap = price is not None and sell <= max(0.0, price) * 0.5
+        surplus = grid_w <= -BOOST_W and cheap
+        boosted = s.get("boost_from") is not None
+        if boosted and abs(cur - float(s.get("boost_to") or cur)) > 0.6:
+            s["boost_from"] = s["boost_to"] = None  # the owner changed it meanwhile: theirs now, nothing to put back
+            return
+        key = "boost_since" if (surplus and not boosted) or (not surplus and boosted) else None
+        if key is None:
+            s["boost_since"] = None
+            return
+        since = s.get("boost_since") or now.isoformat()
+        s["boost_since"] = since
+        if (now - datetime.fromisoformat(since)).total_seconds() < BOOST_S or not act:
+            return
+        top = min(BOOST_MAX_C, float(a.get("max_temp") or a.get("max") or BOOST_MAX_C))
+        to = min(top, cur + BOOST_C) if not boosted else float(s["boost_from"])
+        if not boosted and to <= cur + 0.5:
+            return  # already as hot as it may go
+        if heater:
+            await ha.call_service("water_heater", "set_temperature", {"entity_id": e, "temperature": to})
+        else:
+            await ha.call_service("number", "set_value", {"entity_id": e, "value": to})
+        s["boost_since"] = None
+        if boosted:
+            s["boost_from"] = s["boost_to"] = None
+        else:
+            s["boost_from"], s["boost_to"] = cur, to
+
     async def _tick_machine(self, ha: Any, t: dict[str, Any], now: datetime, price: float | None, sell: float,
                             grid_w: float | None, dt_s: float, act: bool = True) -> None:
         """A machine is never switched off: only started when it is ready and the time has come - unless it resumes
@@ -394,7 +456,7 @@ class Things:
             p = self.plans.get(tid) or {}
             kwh, minutes, _ = self.need(t)
             if t.get("kind") == "heater":
-                status = "pause" if self._in_off(tid, now) else "heat"
+                status = "pause" if self._in_off(tid, now) else "sun_boost" if s.get("boost_from") is not None else "heat"
             elif t.get("kind") == "machine":
                 status = "running" if s.get("running") else "waiting_start" if s.get("start_sent") else \
                     "planned" if s.get("armed") and p.get("start") else "armed" if s.get("armed") else \
