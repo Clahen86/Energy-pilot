@@ -193,8 +193,7 @@ Two ways of forecasting side by side, and the better one decides:
   (Shadow / Control / Off) – and the same for every extra car, plus *Car in charger* when you have more cars than chargers.
 - **A settings check** that explains in plain words when a setting spoils the plan, with a one-tap fix.
 
-<details>
-<summary><b>More – several batteries and chargers, off-grid, power tariffs, odd setups</b></summary>
+### 🧩 More setups – several batteries and chargers, off-grid, power tariffs
 
 - **Other generation** – a small wind turbine or hydro: counted in the energy balance, the car's surplus and the
   savings, but kept out of the solar forecast.
@@ -220,7 +219,6 @@ Two ways of forecasting side by side, and the better one decides:
 - **Octopus Agile** – the coming prices come from Agile Predict until the real ones are out.
 - **Your own AppDaemon in shadow** – runs your existing setup unchanged next to its own engine and shows how often they agree.
 
-</details>
 
 ## Dashboard cards
 
@@ -257,12 +255,11 @@ Everything goes through the device's own Home Assistant integration.<br>
 
 ## FAQ
 
-<details><summary><b>Can it run next to the system I use today?</b></summary>
+**Can it run next to the system I use today?**
 
 Yes – that's what shadow is for. It never controls a part another system controls, unless you tell it to.
-</details>
 
-<details><summary><b>Does it send any data?</b></summary>
+**Does it send any data?**
 
 Only to the developer, and only what is listed here. Each install has a random id the app makes itself.
 
@@ -287,24 +284,20 @@ Only to the developer, and only what is listed here. Each install has a random i
 
 Everything else stays in your home – the ML models run there too. It fetches public data: weather (Open-Meteo), spot
 prices (Energi Data Service, energy-charts.info) and exchange rates (ECB).
-</details>
 
-<details><summary><b>What if the internet goes down?</b></summary>
+**What if the internet goes down?**
 
 It keeps planning with the prices and weather it already has, and your inverter keeps running as normal.
-</details>
 
-<details><summary><b>Do I need a battery?</b></summary>
+**Do I need a battery?**
 
 No. With just solar it plans and shows your day. With just a charger it charges the car in the cheapest slots.
-</details>
 
-<details><summary><b>Something looks wrong – what do I do?</b></summary>
+**Something looks wrong – what do I do?**
 
 Run **Test your system** (under Control), then open the **Help** tab – write what's wrong and attach a picture if you
 like. No GitHub account needed. You can also *Download diagnostics* there and attach the file to an
 [issue](https://github.com/Clahen86/Energy-pilot/issues).
-</details>
 
 ## Good to know
 

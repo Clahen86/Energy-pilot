@@ -188,8 +188,7 @@ To slags prognoser side om side, og den bedste bestemmer:
   (Skygge / Styrer / Fra) – og det samme for hver ekstra bil, plus *Bil i laderen* når du har flere biler end ladebokse.
 - **Et indstillingstjek**, der forklarer med almindelige ord, når en indstilling ødelægger planen – med et tryk til at rette den.
 
-<details>
-<summary><b>Mere – flere batterier og ladere, off-grid, effekttarif, særlige opsætninger</b></summary>
+### 🧩 Flere opsætninger – flere batterier og ladere, off-grid, effekttarif
 
 - **Anden produktion** – en lille vindmølle eller vandkraft: tæller med i energibalancen, bilens overskud og
   besparelsen, men holdes ude af solprognosen.
@@ -212,7 +211,6 @@ To slags prognoser side om side, og den bedste bestemmer:
 - **Off-grid** – generatoren bliver "nettet": den starter, før batteriet når reserven, kører længe ad gangen og altid ved nødgrænsen.
 - **Din egen AppDaemon i skygge** – kører din nuværende opsætning uændret ved siden af og viser, hvor tit de er enige.
 
-</details>
 
 ## Dashboard-kort
 
@@ -249,12 +247,11 @@ Alt går gennem enhedens egen Home Assistant-integration.<br>
 
 ## Spørgsmål
 
-<details><summary><b>Kan den køre ved siden af det system, jeg bruger i dag?</b></summary>
+**Kan den køre ved siden af det system, jeg bruger i dag?**
 
 Ja – det er det, skygge er til. Den styrer aldrig en del, som et andet system styrer, medmindre du beder om det.
-</details>
 
-<details><summary><b>Sender den data nogen steder hen?</b></summary>
+**Sender den data nogen steder hen?**
 
 Kun til udvikleren, og kun det, der står her. Hver installation har et tilfældigt id, som appen selv laver.
 
@@ -279,24 +276,20 @@ Kun til udvikleren, og kun det, der står her. Hver installation har et tilfæld
 
 Alt andet bliver hjemme hos dig – ML-modellerne kører også der. Den henter offentlige data: vejr (Open-Meteo),
 spotpriser (Energi Data Service, energy-charts.info) og valutakurser (ECB).
-</details>
 
-<details><summary><b>Hvad hvis internettet går ned?</b></summary>
+**Hvad hvis internettet går ned?**
 
 Den planlægger videre med de priser og det vejr, den allerede har, og inverteren kører som normalt.
-</details>
 
-<details><summary><b>Skal jeg have et batteri?</b></summary>
+**Skal jeg have et batteri?**
 
 Nej. Med kun solceller planlægger og viser den din dag. Med kun en lader lader den bilen i de billigste perioder.
-</details>
 
-<details><summary><b>Noget ser forkert ud – hvad gør jeg?</b></summary>
+**Noget ser forkert ud – hvad gør jeg?**
 
 Kør **Test dit system** (under Styring), og åbn så **Hjælp**-fanen – skriv hvad der er galt, og vedhæft gerne et
 billede. Det kræver ingen GitHub-konto. Du kan også *Hente diagnosefil* dér og vedhæfte den i et
 [issue](https://github.com/Clahen86/Energy-pilot/issues).
-</details>
 
 ## Godt at vide
 
