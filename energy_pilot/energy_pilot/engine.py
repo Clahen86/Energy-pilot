@@ -162,6 +162,7 @@ class Battery:
 
 
 GENTLE = 0.0015  # gentle charging: the extra per kWh is 2 x GENTLE x kW of the typical price (1.8 % at 6 kW)
+STEP_KWH = 0.5  # the largest 2 % step the hourly plan takes (a 25 kWh battery); bigger ones step 1 %
 SUN_DOUBT = 0.15  # share of the way from the expected sun towards the poor day the battery plan counts on
 
 
@@ -260,8 +261,11 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
         return Plan()
     if step_pct is None:
         # Small enough that one step is less than the house uses in a slot - else a quarter hour where the house
-        # takes 0.2 kWh can't use the battery at all (one 2 % step of 13 kWh is 0.26 kWh).
-        step_pct = 2.0 if min(h.length for h in hours) >= 1 else 1.0
+        # takes 0.2 kWh can't use the battery at all (one 2 % step of 13 kWh is 0.26 kWh). A big battery takes 1 %
+        # in hours too: one 2 % step of 45 kWh is 0.9 kWh, and an hour where the house needs 0.5 kWh then throws the
+        # rest of the step away in the plan - so it charged too little at night and ran empty in the dear evening.
+        hourly = min(h.length for h in hours) >= 1
+        step_pct = 2.0 if hourly and b.capacity_kwh * 0.02 <= STEP_KWH else 1.0
     eff = math.sqrt(b.efficiency)
     levels = [round(b.min_soc + i * step_pct, 4) for i in range(int((b.max_soc - b.min_soc) / step_pct) + 1)]
     if levels[-1] < b.max_soc:
