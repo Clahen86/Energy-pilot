@@ -391,9 +391,30 @@ class Controller:
         return adapters.guess_profile(self.entities["battery"], {self.platforms["battery"] or ""}, self.model)
 
     def can_block_sun(self) -> bool:
-        """The inverter's hold sets how much it may charge - then the sun can be kept out of the battery."""
-        hold = str((self.profile_steps() or {}).get("hold") or "")
-        return "{max_charge_w}" in hold or "{max_charge_kw}" in hold
+        """The inverter's hold sets how much it may charge, or it has a hold of its own for selling the sun (Kostal's
+        Block Charge) - then the sun can be kept out of the battery."""
+        steps = self.profile_steps() or {}
+        hold = str(steps.get("hold") or "")
+        return bool(steps.get("hold_sun")) or "{max_charge_w}" in hold or "{max_charge_kw}" in hold
+
+    def _selling_sun_pays(self, steps: list[dict[str, Any]], bat: Any) -> bool:
+        """Does selling the sun's surplus now beat storing it? The plan moves in whole steps of the level (2 % of a big
+        battery is about 1 kWh), so a surplus smaller than a step shows as a hold that sells - not as a choice. A kWh of
+        sun stored saves the cheapest later hour the plan buys for the house in (after the round trip and the wear);
+        selling must beat that, or the sun goes into the battery as before. Nothing bought later: selling it is fine."""
+        plan = getattr(self.ov, "plan", None)
+        try:
+            hours = {datetime.fromisoformat(h["t"]): h for h in ((plan() or {}).get("hours") or [])} if callable(plan) else {}
+            hour = lambda t: datetime.fromisoformat(t).replace(minute=0, second=0, microsecond=0)  # noqa: E731
+            sell = (hours.get(hour(steps[0]["t"])) or {}).get("sell")
+            later = [hours[hour(s["t"])]["price"] for s in steps[1:]
+                     if (s.get("grid") or 0.0) > 0.01 and s.get("action") != "charge_grid"
+                     and hours.get(hour(s["t"]), {}).get("price") is not None]
+        except (KeyError, TypeError, ValueError):
+            return True
+        if sell is None or not later:
+            return True
+        return sell >= bat.efficiency * min(later) - 2 * bat.wear
 
     def profile_steps(self, part: str = "battery") -> dict[str, list] | None:
         key = self.profile_key(part)
@@ -403,7 +424,7 @@ class Controller:
             steps = {i: v for i, v in steps.items() if v or i != "export"}
             return steps if any(steps.values()) else None
         p = adapters.PROFILES.get(key or "")
-        return {i: p[i] for i in ("normal", "hold", "charge", "export") if i in p} if p else None
+        return {i: p[i] for i in ("normal", "hold", "hold_sun", "charge", "export") if i in p} if p else None
 
     def max_power_kw(self, part: str = "battery") -> float | None:
         """The most the inverter lets the battery charge or discharge, in kW - a profile's "max_power" sensor (Kostal
@@ -536,7 +557,8 @@ class Controller:
             # A hold only because the sun was to cover the house (nothing bought in the plan): the battery runs as
             # normal - the same in the plan, but when the house uses more than foreseen it comes from the battery,
             # not the grid. Not when the sun's surplus is to be sold instead of stored (below).
-            sells_sun = (step.get("grid") or 0.0) < -0.01 and getattr(self.ov, "sell_sun", lambda: False)() and self.can_block_sun()
+            sells_sun = (step.get("grid") or 0.0) < -0.01 and getattr(self.ov, "sell_sun", lambda: False)() and self.can_block_sun() \
+                and step["action"] == "hold" and self._selling_sun_pays(b["steps"], bat)
             if intent == "hold" and (step.get("grid") or 0.0) <= 0.01 and not sells_sun:
                 intent = "normal"
             slot_h = (b.get("slot_min") or 60) / 60  # the step is one price slot (a quarter of an hour in Europe)
@@ -741,8 +763,12 @@ class Controller:
             return [{"domain": e.split(".")[0], "service": "turn_on" if want["intent"] == "run" else "turn_off", "data": {"entity_id": e}}]
         if self.is_battery(part):
             steps = self.profile_steps(part) or {}
-            # A profile without a way to sell runs normally instead (the plan doesn't sell then anyway).
-            calls = self._clamp(adapters.resolve(steps.get(want["intent"]) or steps.get("normal", []), self._pool(part), want["ctx"]))
+            # A profile without a way to sell runs normally instead (the plan doesn't sell then anyway). Holding while
+            # the sun is sold: the profile's own hold for that, when it has one (Kostal's Block Charge).
+            key = want["intent"]
+            if key == "hold" and want["ctx"].get("sell_sun") and steps.get("hold_sun"):
+                key = "hold_sun"
+            calls = self._clamp(adapters.resolve(steps.get(key) or steps.get("normal", []), self._pool(part), want["ctx"]))
             return self._fixed(part, want["intent"], calls)
         if part.startswith("car") and part != "car":
             return self._phase_call(part, want) + self._clamp(adapters.charger_calls(
