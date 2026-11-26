@@ -2,6 +2,9 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.113.1 – 2026-11-26
+- Sell fee (Settings → Grid, when selling is on): what selling one kWh costs, such as your supplier's fee - taken off every sell price, so the plan only sells when it still pays. Thanks to @mbuhansen
+- Kostal PLENTICORE L G3: "G3" is the generation, not 3 kW - the plan no longer holds grid charging to 3 kW. Thanks to @mbuhansen
 ## 0.113.0 – 2026-11-26
 - Things that run cheaply: pool pump. Set its hours a day - it runs them every day, on the sun first and the rest in the cheapest hours before midnight. Turned on by hand it stays on and the time counts. A pool pump on a smart plug is found by itself
 ## 0.112.0 – 2026-11-26
