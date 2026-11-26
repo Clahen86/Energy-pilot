@@ -2,6 +2,9 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.111.2 – 2026-11-26
+- Cars: the "plugged in" sensor can be picked from the integration your car's battery level comes from, whatever the brand (Lynk & Co's charger connection status couldn't be picked). "Not plugged in" counts as not plugged in
+- The inverter's own grid limit (peak shaving) set lower than your limit here is found in the settings check - the inverter turned the battery down by itself at that number. "Fix it" sets it to your limit
 ## 0.111.1 – 2026-11-25
 - Setup: what was found is shown with its numbers live and in words ("discharging 3.0 kW", "buying 515 W"), with a green "The numbers add up" or a red line when a sensor looks wrong. "Fix" opens just that one choice; all sensors are behind "Show all sensors"
 - No internet: after 15 minutes the app says so (and the Problem sensor turns on) - the plan runs on the last known prices and its own guesses, and everything at home is still controlled. With an inverter controlled through its maker's cloud it says the battery can't be steered until the internet is back
