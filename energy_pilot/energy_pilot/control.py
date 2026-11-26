@@ -591,8 +591,10 @@ class Controller:
             from .carspeed import decide
 
             st = dict(self.ov.settings)
-            if self.engine and (pt := self.engine.power_tariff()):
-                st["peak_kw"] = pt["limit_kw"]
+            from .powertariff import counts
+
+            if self.engine and (pt := self.engine.power_tariff()) and counts(st, datetime.now(self.engine.tz)):
+                st["peak_kw"] = pt["limit_kw"]  # (a free hour - night, weekend - has no peak to keep under)
             if st.get("ev_follow_sun") is None:
                 st["ev_follow_sun"] = bool(self.ov.role("pv_power"))  # on by default when there is solar
             need = float(car.get("need_kwh") if car.get("need_kwh") is not None else 1.0)

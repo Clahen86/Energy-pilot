@@ -230,7 +230,8 @@ async def main() -> None:
                         overview.selftest.night_check(now)  # only if the user said yes to testing by itself
                     except Exception:  # noqa: BLE001
                         logging.getLogger("energy_pilot.selftest").debug("Night check failed", exc_info=True)
-                prices, _ = collect(ha.states, overview.role("price"), engine.own_prices or [], tz, engine.service_prices or [], overview.price_scale())
+                prices, _ = collect(ha.states, overview.role("price"), engine.own_prices or [], tz, engine.service_prices or [], overview.price_scale(),
+                                     *overview.spot_extra())
                 past = [k for k in prices if k <= now]
                 price = prices[max(past)] if past else None
                 st, b = overview.settings, engine.settings()
@@ -309,9 +310,9 @@ async def main() -> None:
                 bp = controller.last.get("battery") if hasattr(controller, "last") else None
                 engine.follow.see(now, controller.mode("battery"), bp, f,
                                   ha.states, controller.entities.get("battery") or [])
-                from .powertariff import kind as _pt_kind
+                from .powertariff import counts as _pt_counts, kind as _pt_kind
 
-                engine.month_peak.see(now, f.get("grid"), _pt_kind(st, ha.config.get("country"))[0])
+                engine.month_peak.see(now, f.get("grid"), _pt_kind(st, ha.config.get("country"))[0], _pt_counts(st, now))
                 if now.minute % 10 == 0 and now.second < 30:
                     engine.learning.save()
             except Exception:  # noqa: BLE001

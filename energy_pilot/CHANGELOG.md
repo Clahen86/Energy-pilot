@@ -2,6 +2,11 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.112.0 – 2026-11-26
+- Power tariff: "Counts only in" - weekdays, from-to and months. Many grid companies count only daytime hours on weekdays in winter: the month's peak is then measured only in those hours, and the plan charges freely at night and on weekends (up to your import limit)
+- Outside Denmark: one field for taxes and surcharge per kWh (energy tax plus your supplier's surcharge, excl. VAT) instead of the three grid tariff fields - VAT is added by itself. It also shows with Home Assistant's own Nord Pool, whose price is the bare spot price, and is added to it
+- An "Own tariff" chosen but never filled in no longer hides your own price sensor (there were no prices, no plan, and the shadow days never started counting)
+- A change to taxes, tariff or price area is used at once
 ## 0.111.3 – 2026-11-26
 - Savings: today shows what you really paid - power bought for the battery counts when it's bought, and the saving comes when it's used
 ## 0.111.2 – 2026-11-26

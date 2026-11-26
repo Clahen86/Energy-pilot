@@ -100,13 +100,15 @@ def companions(states: dict[str, dict], entity_id: str) -> list[str]:
     return out
 
 
-def now_price(states: dict[str, dict], entity_id: str | None, tz: ZoneInfo, scale: float = 1.0) -> float | None:
+def now_price(states: dict[str, dict], entity_id: str | None, tz: ZoneInfo, scale: float = 1.0,
+              add: float = 0.0, vat: float = 0.0) -> float | None:
     """The price now: the entity's state, or (an event entity like Octopus') the slot now from its rates. scale: a
-    price given in øre/cents is turned into kroner/euros (found by autofix.py)."""
+    price given in øre/cents is turned into kroner/euros (found by autofix.py). add/vat: a bare spot price (Nord Pool
+    in Home Assistant) gets the user's taxes and surcharge, then VAT."""
     if not entity_id or not (s := states.get(entity_id)):
         return None
     try:
-        return float(s.get("state")) * scale
+        return round((float(s.get("state")) * scale + add) * (1 + vat), 5)
     except (TypeError, ValueError):
         pass
     now = datetime.now(tz)
@@ -114,11 +116,12 @@ def now_price(states: dict[str, dict], entity_id: str | None, tz: ZoneInfo, scal
     for e in companions(states, entity_id):
         prices.update(parse((states.get(e) or {}).get("attributes") or {}, tz, now.replace(hour=0, minute=0, second=0, microsecond=0)))
     past = [k for k in prices if k <= now]
-    return prices[max(past)] * scale if past else None
+    return round((prices[max(past)] * scale + add) * (1 + vat), 5) if past else None
 
 
 def collect(states: dict[str, dict], entity_id: str | None, own: list[dict[str, Any]], tz: ZoneInfo,
-            service: list[dict[str, Any]] | None = None, scale: float = 1.0) -> tuple[dict[datetime, float], dict[str, Any]]:
+            service: list[dict[str, Any]] | None = None, scale: float = 1.0, add: float = 0.0,
+            vat: float = 0.0) -> tuple[dict[datetime, float], dict[str, Any]]:
     """All known prices from the integration, with the missing hours filled from Energy Pilot's own prices.
     Returns (prices, info) - info says what was filled and if tomorrow is still missing."""
     now = datetime.now(tz)
@@ -137,8 +140,8 @@ def collect(states: dict[str, dict], entity_id: str | None, own: list[dict[str, 
             if tempo.found(states):
                 prices.update(tempo.prices(states, tz, now))
                 own = []  # spot prices say nothing about tomorrow's colour - don't fill with them
-        if scale != 1.0:
-            prices = {k: v * scale for k, v in prices.items()}
+        if scale != 1.0 or add or vat:
+            prices = {k: round((v * scale + add) * (1 + vat), 5) for k, v in prices.items()}
     mine = {}
     for p in own or []:
         when = _when(p.get("start"), tz)

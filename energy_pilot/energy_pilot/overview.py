@@ -187,7 +187,7 @@ class Overview:
                 self.settings.setdefault("roles", {}).update({k: v for k, v in value.items() if k in ROLES})
             elif key in ("battery_kwh", "import_limit_kw", "language", "setup_done", "style", "price_area", "tariff", "markup", "price_source", "tou", "vat", "battery_min_soc", "grid_charge",
                          "sell", "sell_price", "solar_value", "ev_in_house", "battery_sign", "grid_sign", "grid_noise", "ev_follow_sun", "ev_fuse_guard",
-                         "battery_export", "battery_no_export_cheap", "scene_fx", "battery_wear", "battery_care", "battery_type", "battery_price", "fuse_ok", "own_history", "things", "things_dismissed", "power_tariff_price", "power_tariff_kind", "battery_grid_max", "export_limit_kw", "agile_region", "restore_values",
+                         "battery_export", "battery_no_export_cheap", "scene_fx", "battery_wear", "battery_care", "battery_type", "battery_price", "fuse_ok", "own_history", "things", "things_dismissed", "power_tariff_price", "power_tariff_kind", "power_tariff_hours", "battery_grid_max", "export_limit_kw", "agile_region", "restore_values",
                          "offgrid", "reserve_soc", "emergency_soc", "gen_stop_soc", "gen_charge_kw", "gen_min_run_h",
                          "quiet_gen_from", "quiet_gen_to", "battery_charge_kw", "battery_discharge_kw", "ev_mode", "charger_kw", "ev_need_kwh",
                          "quiet_from", "quiet_to", "quiet_battery", "quiet_car",
@@ -221,7 +221,8 @@ class Overview:
         """An event entity (Octopus' current day rates) has no number as its state: the slot now from its rates."""
         from .pricefeed import now_price
 
-        return now_price(self.ha.states, self.role("price"), ZoneInfo(self.ha.config.get("time_zone") or "UTC"), self.price_scale())
+        return now_price(self.ha.states, self.role("price"), ZoneInfo(self.ha.config.get("time_zone") or "UTC"), self.price_scale(),
+                         *self.spot_extra())
 
     def grid_sign(self) -> int:
         """+1: positive grid power is buying (most meters). -1: positive is selling (Solis/SolaX PCC …). Chosen, or found."""
@@ -270,6 +271,31 @@ class Overview:
         if "sell_sun" in self.settings:
             return bool(self.settings["sell_sun"])
         return str(self.settings.get("first_seen") or "") >= "2026-11-17"
+
+    def bare_spot(self) -> bool:
+        """The chosen price sensor is the bare exchange price (Home Assistant's own Nord Pool): no taxes, surcharge or
+        VAT in it. Outside Denmark those are then added here, as with Energy Pilot's own spot prices. (The HACS Nord
+        Pool has its own VAT and costs - it keeps a raw_today list, and is left as it is.)"""
+        e = self.role("price")
+        if not e or str((getattr(self, "ha", None) and self.ha.config.get("country")) or "").upper() in ("", "DK"):
+            return False
+        reg = getattr(getattr(self, "controller", None), "_ent_reg", None) or {}
+        attrs = (self.ha.states.get(e) or {}).get("attributes") or {}
+        return (reg.get(e) or {}).get("platform") == "nordpool" and "raw_today" not in attrs
+
+    def spot_extra(self) -> tuple[float, float]:
+        """(added per kWh, VAT) for a bare spot price sensor - nothing for any other."""
+        if not self.bare_spot():
+            return 0.0, 0.0
+        from .sources import VAT
+
+        country = str(self.ha.config.get("country") or "").upper()
+        try:
+            add = float(self.settings.get("markup") or 0.0)
+            vat = float(self.settings.get("vat", VAT.get(country, 0.2)))
+        except (TypeError, ValueError):
+            return 0.0, 0.0
+        return add, vat
 
     def price_scale(self) -> float:
         """1, or 0.01 when the price sensor gives øre/cents (found by autofix.py)."""
@@ -413,8 +439,11 @@ class Overview:
             return None
 
     def role(self, name: str) -> str | None:
-        if name == "price" and self.settings.get("price_source") in ("tou", "spot"):
+        src = self.settings.get("price_source")
+        if name == "price" and (src == "spot" or (src == "tou" and self.settings.get("tou"))):
             return None  # the user picked Energy Pilot's own prices
+        # ("Own tariff" tapped but never filled in: no prices at all - the chosen price sensor still counts. A user in
+        # New Zealand had no plan for weeks this way, and the shadow days never started.)
         chosen = (self.settings.get("roles") or {}).get(name)
         states = self.ha.states
         if name in ("sell_price", "generator_switch", "generator_running", "other_power") and not chosen:
@@ -718,7 +747,8 @@ class Overview:
 
         prices, self.price_info = collect(self.ha.states, self.role("price"),
                                           (self.engine.own_prices if self.engine else []) or [], tz,
-                                          (self.engine.service_prices if self.engine else []) or [], self.price_scale())
+                                          (self.engine.service_prices if self.engine else []) or [], self.price_scale(),
+                                          *self.spot_extra())
         self.fine_prices = prices  # quarter/half-hour prices as they come - the engine plans in those slots
         if not prices and not self.settings.get("offgrid"):
             self.price_info["none"] = True  # no prices at all (the market's data is late): the battery runs as normal
@@ -992,7 +1022,7 @@ class Overview:
         return {
             "flow": (fl := self.flow()), "decision": self.decision(lang), "plan": (pl := self.plan()), "ev": self.ev(), "cars": self.cars(),
             "runtime": self.runtime(pl, fl),
-            "price": {"now": _num(price) if _num(price) is not None else self._price_now_from_rates(),
+            "price": {"now": _num(price) if _num(price) is not None and not self.bare_spot() else self._price_now_from_rates(),
                       "unit": ((price or {}).get("attributes") or {}).get("unit_of_measurement")},
             # Home today: the engine's own (what the plan uses); another system's forecast is shown beside it.
             "solar": solar,

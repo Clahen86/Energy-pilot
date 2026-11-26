@@ -15,6 +15,28 @@ PRESETS = {"BE": (15, 1), "NO": (60, 3), "SE": (60, 3)}
 FLOOR_KW = 2.0  # early in the month the peak is low - never plan as if 1 kW were the limit
 
 
+def counts(settings: dict[str, Any], when: datetime) -> bool:
+    """Does this moment count toward the peak? Many Swedish grid companies count only high-tariff hours (weekdays
+    07-20 in winter, say): nights, weekends and summer are free. Nothing set: every hour counts."""
+    w = settings.get("power_tariff_hours") or {}
+    if not isinstance(w, dict) or not w:
+        return True
+    months = w.get("months") or []
+    if months and when.month not in months:
+        return False
+    if w.get("days") == "weekdays" and when.weekday() >= 5:
+        return False
+    try:
+        a = [int(x) for x in str(w.get("from") or "00:00").split(":")[:2]]
+        b = [int(x) for x in str(w.get("to") or "00:00").split(":")[:2]]
+    except ValueError:
+        return True
+    start, end, m = a[0] * 60 + a[1], b[0] * 60 + b[1], when.hour * 60 + when.minute
+    if start == end:
+        return True  # the whole day
+    return start <= m < end if start < end else (m >= start or m < end)
+
+
 def kind(settings: dict[str, Any], country: str | None) -> tuple[int, int]:
     k = settings.get("power_tariff_kind")
     if k == "15min":
@@ -33,7 +55,7 @@ class MonthPeak:
         self.state = state
         self._slot: tuple[datetime, float, int] | None = None  # window start, sum of kW, samples
 
-    def see(self, now: datetime, grid_w: float | None, window_min: int) -> None:
+    def see(self, now: datetime, grid_w: float | None, window_min: int, counted: bool = True) -> None:
         if grid_w is None:
             return
         start = now.replace(minute=now.minute // window_min * window_min if window_min < 60 else 0, second=0, microsecond=0)
@@ -43,6 +65,8 @@ class MonthPeak:
             if n >= 3:
                 self._record(s0, total / n)
             self._slot = None
+        if not counted:
+            return  # a free hour (night, weekend): what is bought now is no peak
         if self._slot is None:
             self._slot = (start, 0.0, 0)
         s0, total, n = self._slot
