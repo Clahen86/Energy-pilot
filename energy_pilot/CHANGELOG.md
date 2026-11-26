@@ -2,6 +2,8 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.114.2 – 2026-11-26
+- Import limit: the battery's grid charge gives way within a minute when the house suddenly uses more than expected (the oven, the kettle), so the house stays under the limit - the car already did this
 ## 0.114.1 – 2026-11-26
 - Big batteries (over 25 kWh) plan in 1 % steps - a 2 % step was more than the house used in an hour, so the plan charged too little at night. Thanks to @mbuhansen
 - The value of what the battery holds at the day's end is learned right: an empty battery no longer looks free (the learned value starts again from neutral, once). Thanks to @mbuhansen

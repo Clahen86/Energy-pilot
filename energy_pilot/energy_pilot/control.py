@@ -18,6 +18,7 @@ import asyncio
 from collections import deque
 from datetime import datetime, timedelta
 import logging
+import math
 import re
 import time
 from typing import Any
@@ -577,6 +578,18 @@ class Controller:
             except (KeyError, TypeError, ValueError):
                 pass
             charge_kw = min(bat.max_charge_kw, max(0.5, (step["soc"] - (f["soc"] or 0)) / 100 * bat.capacity_kwh / left_h))
+            if intent == "charge" and bat.import_limit_kw and f.get("house") is not None:
+                # The plan counted on what the house was expected to use; the oven and the kettle on at once can take
+                # the house over the import limit (the main fuse, a contract's cap) while the battery charges. The
+                # charge gives way to what the house really uses now - the car's charging does the same (carspeed.py).
+                ev_apart = 0.0 if (self.engine and self.engine.ev_in_house()) else float(f.get("ev") or 0.0)
+                use_kw = max(0.0, float(f.get("house") or 0.0) + ev_apart - float(f.get("pv") or 0.0)) / 1000
+                room = bat.import_limit_kw - use_kw - 0.2  # a little margin for the next minute
+                if room < charge_kw:
+                    if room < 0.3:
+                        intent, charge_kw = "hold", 0.5  # no room at all: wait, the plan picks it up again
+                    else:
+                        charge_kw = math.floor(room * 10) / 10  # in 100 W steps, not re-sent at every wobble
             export_w = 0
             if intent == "export":  # the battery's discharge power: the house's share and what is sold
                 charge_kw = min(bat.max_discharge_kw, max(0.5, ((f["soc"] or 0) - step["soc"]) / 100 * bat.capacity_kwh / left_h))

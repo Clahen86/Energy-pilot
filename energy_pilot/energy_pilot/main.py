@@ -204,6 +204,14 @@ async def main() -> None:
         await ha.connected.wait()
         await asyncio.sleep(90)
         while True:
+            try:
+                # A grid charge under an import limit: looked at every minute, so it gives way soon when the house
+                # suddenly takes more (the oven, the kettle) - the plan's own round can be five minutes.
+                last = (controller.last.get("battery") or {}) if hasattr(controller, "last") else {}
+                if last.get("intent") == "charge" and controller.mode("battery") == "control" and engine.settings().import_limit_kw:
+                    await controller.tick(("battery", *controller.bat_parts()))
+            except Exception:  # noqa: BLE001
+                logging.getLogger("energy_pilot.engine").debug("Charge limit check failed", exc_info=True)
             for job in (controller.keep, controller.guard, controller.recheck):
                 try:
                     await job()
