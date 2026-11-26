@@ -34,4 +34,4 @@ def test_sun_and_battery_today_never_below_battery_alone(tmp_path):
     for i in range(120):  # an hour of a little sun
         led.tick(t2 + timedelta(seconds=30 * i), {"battery": 0.0, "pv": 400.0, "house": 500.0, "soc": 90.0, "grid": 100.0}, 2.5, 0.2, 10.0, 10.0, 0.9)
     s = led.summary(datetime(2026, 11, 25, 13, 0))
-    assert s["all"]["today"] >= s["today_stored"]
+    assert s["all"]["today"] >= s["today"]

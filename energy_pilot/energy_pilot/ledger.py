@@ -216,10 +216,8 @@ class Ledger:
             # sun vs grid only once most of what's in it was charged while this was kept
             "sun_share": round(min(1.0, s.get("stored_sun", 0.0) / s["stored_kwh"]), 2)
             if s["stored_kwh"] > 0.2 and s.get("sun_seen", 0.0) >= s["stored_kwh"] * 0.6 else None,
-            # sun and battery together (kept from when this came in)
-            # today the same way as the battery's: the power still in the battery at what it cost (else the battery
-            # alone could show more saved today than sun and battery together)
-            "all": {"today": round(total(d, "all") + s["stored_cost"] - days[d]["stored_start"], 2) if "stored_start" in (days.get(d) or {}) else total(d, "all"),
+            # sun and battery together (kept from when this came in); today as it was really paid, like the battery's
+            "all": {"today": total(d, "all"),
                     "month": total(m, "all"), "year": total(y, "all"),
                     "total": round(total("", "all") + s.get("older_all", 0.0), 2), "since": s.get("all_since")}
             if s.get("all_since") else None,

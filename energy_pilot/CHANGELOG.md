@@ -2,6 +2,8 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.111.3 – 2026-11-26
+- Savings: today shows what you really paid - power bought for the battery counts when it's bought, and the saving comes when it's used
 ## 0.111.2 – 2026-11-26
 - Cars: the "plugged in" sensor can be picked from the integration your car's battery level comes from, whatever the brand (Lynk & Co's charger connection status couldn't be picked). "Not plugged in" counts as not plugged in
 - The inverter's own grid limit (peak shaving) set lower than your limit here is found in the settings check - the inverter turned the battery down by itself at that number. "Fix it" sets it to your limit
