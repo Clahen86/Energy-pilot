@@ -49,3 +49,30 @@ def test_an_end_factor_learned_the_old_way_starts_again_from_neutral(tmp_path):
     L.state["end_factor"] = 0.95
     L.save()
     assert Learning(tmp_path).end_factor == 0.95  # only once: what it learns from now on is kept
+
+
+def test_equal_factors_keep_the_plain_refill_value(tmp_path):
+    # 25 Nov 2026 as it really went: 0.6 to 1.0 all empty the battery the same way and cost the same. A tie took the
+    # lowest factor (0.6) every night, so the end factor slid down for nothing.
+    house = [0.47, 0.59, 0.72, 0.56, 0.94, 0.56, 1.16, 0.9, 0.75, 1.0, 2.53, 3.17, 2.46, 0.51, 2.45, 2.25, 0.95, 2.02,
+             2.02, 1.63, 1.07, 1.12, 0.54, 0.47]
+    price = [2.334, 2.297, 2.238, 2.241, 2.222, 2.238, 2.975, 3.474, 3.707, 3.305, 3.1, 3.135, 3.331, 3.564, 3.613,
+             3.877, 3.697, 4.405, 4.246, 4.07, 3.785, 2.785, 2.616, 2.575]
+    keys = [f"2026-11-25T{h:02d}" for h in range(24)]
+    L = Learning(tmp_path)
+    for k in keys:
+        L.expect([{"t": k + ":00:00+01:00", "house": 1.4, "sun": 0.0, "price": price[int(k[11:])], "cloud": 80}])
+    b = Battery(capacity_kwh=45, max_charge_kw=11.85, max_discharge_kw=11.85, grid_max_soc=95, efficiency=0.904,
+                wear=0.133)
+    rep = L.review(datetime(2026, 11, 25, tzinfo=TZ), dict(zip(keys, house)), {}, b, dict(zip(keys, price)), 30)
+    assert rep["best_factor"] == 1.0
+    assert L.end_factor == 1.0
+
+
+def test_a_tie_reset_keeps_the_nightly_test(tmp_path):
+    import json
+
+    (tmp_path / "energy_pilot_learning.json").write_text(json.dumps(
+        {"end_learn": 2, "end_factor": 0.9, "tune": {"f": 1.0, "m": 0.05, "log": [{"d": "2026-11-24"}]}}))
+    L = Learning(tmp_path)
+    assert L.end_factor == 1.0 and L.state["tune"]["log"] == [{"d": "2026-11-24"}]
