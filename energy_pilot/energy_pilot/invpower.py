@@ -23,7 +23,8 @@ _MODEL = [
     (r"\bsun-(\d+(?:\.\d+)?)k", 1.0),  # Deye / Sunsynk SUN-12K-SG05LP3
     (r"\bh[13]-(?:pro-)?(\d+(?:\.\d+)?)\b", 1.0),  # FoxESS H1-3.7-E, H3-Pro-20.0
     (r"\bgw(\d+(?:\.\d+)?)k", 1.0),  # GoodWe GW10KL-ET
-    (r"\bplenticore\D*?(\d+(?:\.\d+)?)\b", 1.0),  # Kostal PLENTICORE plus 7.0
+    # Kostal PLENTICORE plus 7.0, PLENTICORE G3 L 15 - never the generation: "PLENTICORE L G3" has no size in its name
+    (r"\bplenticore(?:\s+(?:plus|bi|[lms]|g\d))*\s+(\d+(?:\.\d+)?)\b", 1.0),
     (r"\bsmile-?g3-[tb](\d+)\b", 1.0),  # AlphaESS SMILE-G3-T10
     (r"\bsmile(\d+(?:\.\d+)?)\b", 1.0),  # AlphaESS SMILE5
     (r"\bhybrid\s+(\d+(?:\.\d+)?)\b", 1.0),  # Sigenergy Sigen Hybrid 5.0

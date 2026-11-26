@@ -44,3 +44,11 @@ def test_own_poor_day_without_solcast(tmp_path):
     from energy_pilot.engine import doubt_sun
 
     assert doubt_sun(2.0, 2.0, 2.0 * 0.5) < 2.0
+
+
+def test_a_plenticore_generation_is_not_its_size():
+    # "G3" is the generation: read as 3 kW it held a 45 kWh battery to 3 kW from the grid all night
+    assert invpower.from_model("PLENTICORE L G3") is None
+    assert invpower.from_model("PLENTICORE plus 7.0") == 7.0
+    assert invpower.from_model("PLENTICORE G3 L 15") == 15.0
+    assert invpower.from_model("Plenticore BI 10/26") == 10.0
