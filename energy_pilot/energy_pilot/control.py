@@ -390,6 +390,12 @@ class Controller:
             return chosen
         return adapters.guess_profile(self.entities["battery"], {self.platforms["battery"] or ""}, self.model)
 
+    def sun_through_ac(self) -> bool:
+        """A hybrid: the sun goes out through the inverter's AC side with the battery, so both share its AC power.
+        The profile's "sun_ac" is a pattern on the model (an AC-coupled battery inverter of the same make is not)."""
+        pat = (adapters.PROFILES.get(self.profile_key("battery") or "") or {}).get("sun_ac")
+        return bool(pat) and re.search(pat, str(getattr(self, "model", None) or ""), re.I) is not None
+
     def can_block_sun(self) -> bool:
         """The inverter's hold sets how much it may charge - then the sun can be kept out of the battery."""
         hold = str((self.profile_steps() or {}).get("hold") or "")

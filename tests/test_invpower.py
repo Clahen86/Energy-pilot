@@ -52,3 +52,25 @@ def test_a_plenticore_generation_is_not_its_size():
     assert invpower.from_model("PLENTICORE plus 7.0") == 7.0
     assert invpower.from_model("PLENTICORE G3 L 15") == 15.0
     assert invpower.from_model("Plenticore BI 10/26") == 10.0
+
+
+def test_a_hybrids_sun_shares_the_ac_side_when_selling_from_the_battery():
+    # A 10 kW hybrid with 8 kWh of sun in the dear hour: the battery can only add 2 kWh to it on the AC side. An
+    # AC-coupled battery (its own inverter, ac_sun off) still sells its full 10 kW beside the sun.
+    t0 = datetime(2026, 6, 25, 12, 0)
+    hours = [Hour(t0, 1.0, 5.0, 0.0, 8.0), Hour(t0 + timedelta(hours=1), 1.0, 0.0, 0.0, 0.0)]
+    kw = dict(capacity_kwh=40, max_charge_kw=12, max_discharge_kw=12, min_soc=10, efficiency=1.0, export=True, ac_kw=10.0)
+    hybrid = plan_battery(hours, 80, Battery(ac_sun=True, **kw))
+    coupled = plan_battery(hours, 80, Battery(**kw))
+    sold = lambda p: (p.steps[0].soc_start - p.steps[0].soc_end) / 100 * 40  # noqa: E731
+    assert sold(hybrid) <= 2.0 + 1e-6
+    assert sold(coupled) > 2.0
+
+
+def test_two_inverters_on_one_integration_take_the_batterys_own_rating():
+    # Kostal: a Plenticore G3 with the battery and a Plenticore plus on the same integration, each with Inverter Max Power
+    states = {"sensor.plenticore_l_g3_inverter_max_power": {"state": "15000", "attributes": {"unit_of_measurement": "W"}},
+              "sensor.plenticore_plus_7_0_inverter_max_power": {"state": "6999", "attributes": {"unit_of_measurement": "W"}}}
+    allowed = set(states)
+    assert invpower.from_states(states, allowed) is None  # which one is it? not said
+    assert invpower.from_states(states, allowed, {"sensor.plenticore_l_g3_inverter_max_power"}) == 15.0

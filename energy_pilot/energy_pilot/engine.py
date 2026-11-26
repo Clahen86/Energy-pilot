@@ -149,6 +149,7 @@ class Battery:
     export: bool = False  # may sell from the battery when it pays (off unless the user turns it on)
     wear: float = 0.0  # what one kWh into or out of the battery wears it (money per kWh) - a move must beat it
     ac_kw: float | None = None  # the inverter's AC power (invpower.py): grid charging and discharging go through it
+    ac_sun: bool = False  # a hybrid: the sun goes out through the same AC side as the battery (counts against ac_kw)
     export_limit_kw: float | None = None  # what may be sent to the grid
     taper: tuple = ()  # (from level, share of the charge power it really takes) - learned; most slow down near full
     no_discharge: frozenset = frozenset()  # slots the battery must not discharge in (the car charges on cheap power)
@@ -317,7 +318,8 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
                     out = -delta * eff  # what comes out to the house
                     if -delta > b.max_discharge_kw * h.length + 1e-9:
                         continue
-                    if b.ac_kw is not None and out > b.ac_kw * h.length + 1e-9:
+                    sun_ac = max(0.0, h.sun) if b.ac_sun else 0.0  # a hybrid's sun shares the AC side with the battery
+                    if b.ac_kw is not None and out + sun_ac > b.ac_kw * h.length + 1e-9:
                         continue  # never more out than the inverter can turn into AC
                     need = max(0.0, h.house - h.sun)
                     action = "discharge"
@@ -743,6 +745,7 @@ class Engine:
             peak_kw=(pt := self.power_tariff()) and pt["limit_kw"],
             peak_price=pt["price_per_kw"] if pt else 0.0,
             ac_kw=None if more else self.inverter_ac_kw(ctl),  # one inverter: its own AC power
+            ac_sun=not more and bool(ctl and hasattr(ctl, "sun_through_ac") and ctl.sun_through_ac()),
         )
 
     def inverter_ac_kw(self, ctl: Any) -> float | None:
@@ -756,7 +759,11 @@ class Engine:
             plat = (getattr(ctl, "platforms", None) or {}).get("battery")
             reg = getattr(ctl, "_ent_reg", None) or {}
             allowed = {e for e, r in reg.items() if plat and (r or {}).get("platform") == plat}
-            return invpower.ac_kw(getattr(ctl, "model", None), self.ov.ha.states, allowed)
+            # two inverters on one integration (each with its own rated power): the one with the battery's controls
+            ents = (getattr(ctl, "entities", None) or {}).get("battery") or []
+            dev = (reg.get(ents[0]) or {}).get("device_id") if ents else None
+            own = {e for e, r in reg.items() if dev and (r or {}).get("device_id") == dev}
+            return invpower.ac_kw(getattr(ctl, "model", None), self.ov.ha.states, allowed, own)
         except Exception:  # noqa: BLE001 - never in the way of the plan
             return None
 

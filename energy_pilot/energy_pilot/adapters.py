@@ -935,6 +935,9 @@ PROFILES: dict[str, dict[str, Any]] = {
         # The house's main fuse in amps, as set in the integration (its own grid protection uses it): Energy Pilot's
         # import limit is set from it while that is still the 10 kW it starts with (autofix.py).
         "fuse": r"number\..*_house_fuse_size$",
+        # G1-G3 are hybrids: the panels' power goes out through the same AC side as the battery's, so selling from the
+        # battery in the sun is capped by the inverter's AC power (its Inverter Max Power sensor). The BI is AC-coupled.
+        "sun_ac": r"^(?!.*\bbi\b)",
     },
     "alphaess": {
         "name": "Alpha ESS (cloud)",

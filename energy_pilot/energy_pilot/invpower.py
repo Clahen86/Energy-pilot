@@ -45,9 +45,10 @@ def from_model(model: str | None) -> float | None:
     return None
 
 
-def from_states(states: dict[str, Any], allowed: set[str] | None = None) -> float | None:
-    """A rated-power sensor of the inverter's own integration (allowed: its sensors) - only when exactly one."""
-    found = set()
+def from_states(states: dict[str, Any], allowed: set[str] | None = None, own: set[str] | None = None) -> float | None:
+    """A rated-power sensor of the inverter's own integration (allowed: its sensors) - only when exactly one. Two
+    inverters on one integration each have one: then the one on the battery's own device (own) decides."""
+    found: dict[float, set[str]] = {}
     for e, st in states.items():
         if not e.startswith("sensor.") or allowed is None or e not in allowed:
             continue
@@ -62,10 +63,12 @@ def from_states(states: dict[str, Any], allowed: set[str] | None = None) -> floa
             continue
         kw = v / 1000 if unit == "w" else v if unit == "kw" else None
         if kw is not None and LOW_KW <= kw <= HIGH_KW:
-            found.add(round(kw, 2))
-    return found.pop() if len(found) == 1 else None
+            found.setdefault(round(kw, 2), set()).add(e)
+    if len(found) > 1 and own:
+        found = {kw: es for kw, es in found.items() if es & own}
+    return next(iter(found)) if len(found) == 1 else None
 
 
-def ac_kw(model: str | None, states: dict[str, Any], allowed: set[str] | None = None) -> float | None:
+def ac_kw(model: str | None, states: dict[str, Any], allowed: set[str] | None = None, own: set[str] | None = None) -> float | None:
     """The inverter's AC power (kW): a rated-power sensor of its integration first, else the model's name."""
-    return from_states(states, allowed) or from_model(model)
+    return from_states(states, allowed, own) or from_model(model)
