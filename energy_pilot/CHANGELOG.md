@@ -2,6 +2,11 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.114.1 – 2026-11-26
+- Big batteries (over 25 kWh) plan in 1 % steps - a 2 % step was more than the house used in an hour, so the plan charged too little at night. Thanks to @mbuhansen
+- The value of what the battery holds at the day's end is learned right: an empty battery no longer looks free (the learned value starts again from neutral, once). Thanks to @mbuhansen
+- The sun is sold only when selling beats storing it; Kostal holds the battery with Block Charge while the sun is sold. Thanks to @mbuhansen
+- Kostal hybrids: the sun and the battery share the inverter's AC power. Thanks to @mbuhansen
 ## 0.114.0 – 2026-11-26
 - New install: "Would have saved a month" in the savings card the first two weeks - worked out on the home's own last 30 days, the battery on the inverter's own control against Energy Pilot's plan (taken down a little, as the plan knew each day in advance)
 - "Ready to take over?" after three days in shadow with the self-test passed: "Try control for 24 hours" - it goes back to shadow by itself afterwards (also after a restart) and says what the day saved, with "Keep controlling"
