@@ -113,3 +113,8 @@ def test_last_visits_session_is_not_this_one_keba():
     st["sensor.session"] = {"state": "3.2", "last_changed": "2026-11-10T17:40:00+01:00"}
     assert chargers.session(st, "sensor.session", "binary_sensor.plug") == 3.2
     assert chargers.session(st, "sensor.session", None) == 3.2  # no plug sensor: as it says
+
+
+def test_not_plugged_in_is_not_plugged():
+    from energy_pilot.chargers import is_plugged
+    assert not is_plugged("Not plugged in") and not is_plugged("Disconnected") and is_plugged("Connected")

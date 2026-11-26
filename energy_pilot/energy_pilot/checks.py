@@ -262,7 +262,44 @@ def run(engine: Any, hours: list, b: Any, plan: Any, end_value: float) -> list[d
     out += solaredge_storage(engine, st)
     out += alpha_period(engine)
     out += inverter_floor(engine, b)
+    out += peak_shaving(engine, b)
     return out
+
+
+PEAK = re.compile(r"grid_peak_shaving(_power)?$")
+
+
+def peak_shaving(engine: Any, b: Any) -> list[dict[str, Any]]:
+    """The inverter's own "grid peak shaving" below the main fuse set here: the inverter turns the battery's charging
+    down to keep the grid under its own number (a Deye at 10 kW held a 15 kW house there while the car charged).
+    Offered: set it to the limit here, in one tap."""
+    if b is None or not b.import_limit_kw:
+        return []
+    states = getattr(getattr(engine.ov, "ha", None), "states", None) or {}
+    for e in sorted(states):
+        if not e.startswith("number.") or not PEAK.search(e.split(".", 1)[1]):
+            continue
+        sw = states.get("switch." + e.split(".", 1)[1].removesuffix("_power"))
+        if sw is not None and sw.get("state") == "off":
+            continue  # peak shaving turned off: the number does nothing
+        a = (states.get(e) or {}).get("attributes") or {}
+        try:
+            v = float(states[e].get("state"))
+        except (TypeError, ValueError):
+            continue
+        kw = v / 1000 if str(a.get("unit_of_measurement") or "W").lower() == "w" else v
+        want = float(b.import_limit_kw)
+        if 0 < kw < want - 0.5:
+            mx = a.get("max")
+            val = want * 1000 if str(a.get("unit_of_measurement") or "W").lower() == "w" else want
+            if mx is not None:
+                try:
+                    val = min(val, float(mx))
+                except (TypeError, ValueError):
+                    pass
+            return [{"key": "peak_shaving", "level": "warn", "vals": {"inv": round(kw, 1), "ep": round(want, 1)},
+                     "fix": {"_set_number": {"entity_id": e, "value": val}}, "goto": "grid"}]
+    return []
 
 
 # Integrations that can only read the battery - and the one that can control it instead (with a link that opens it).

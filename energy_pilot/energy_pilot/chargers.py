@@ -30,7 +30,7 @@ _UNPLUGGED = ("off", "false", "available", "disconnected", "unplugged", "fault_u
 
 def is_plugged(state: Any) -> bool:
     s = str(state or "").strip().lower().replace(" ", "_")
-    if s in _UNPLUGGED or "unplug" in s or "disconnect" in s or "not_connected" in s or s.startswith("no_"):
+    if s in _UNPLUGGED or "unplug" in s or "disconnect" in s or "not_connected" in s or "not_plug" in s or s.startswith("no_"):
         return False
     return s in ("on", "true", "1") or any(w in s for w in (
         "plug", "connect", "charg", "wait", "paus", "suspend", "prepar", "finish", "complete", "occupied", "ready", "car"))

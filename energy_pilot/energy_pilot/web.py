@@ -250,9 +250,12 @@ def make_app(runner: Runner, overview: Overview, password: str | None = None) ->
         from .chargers import extras
         from .detect import CAR_PLATFORMS
 
-        car_platforms = set(CAR_PLATFORMS) - {"ocpp", "evcc_intg"}  # chargers, not cars
-        words = _re.compile(r"plug|cable|kabel|connect|charging_state|charge_state|charger_state|charging_status|ladekabel|stik")
         reg = getattr(overview.controller, "_ent_reg", None) or {}
+        # The car's own integration is also the one its battery level comes from - any brand, known here or not
+        # (Lynk & Co wasn't on the list, and its "charger connection status" couldn't be picked).
+        socs = {overview.role("ev_soc")} | {c.get("soc") for c in overview.settings.get("cars") or [] if isinstance(c, dict)}
+        car_platforms = (set(CAR_PLATFORMS) | {(reg.get(e) or {}).get("platform") for e in socs if e}) - {"ocpp", "evcc_intg", None}
+        words = _re.compile(r"plug|cable|kabel|connect|charging_state|charge_state|charger_state|charging_status|ladekabel|stik")
         chargers_own = {overview.role("ev_plug")} | {c.get("plug") for c in extras(overview.settings)}
         out = []
         for e, s in runner.ha.states.items():
@@ -297,6 +300,20 @@ def make_app(runner: Runner, overview: Overview, password: str | None = None) ->
 
     async def save_settings(req: web.Request) -> web.Response:
         body = await req.json()
+        if isinstance(body.get("_set_number"), dict):  # a check's fix on the inverter itself (its peak shaving)
+            n = body.pop("_set_number")
+            if str(n.get("entity_id") or "").startswith("number."):
+                try:
+                    await runner.ha.call_service("number", "set_value", {"entity_id": n["entity_id"], "value": float(n["value"])})
+                except Exception:  # noqa: BLE001
+                    pass
+            if not body:
+                if overview.engine:
+                    try:
+                        overview.engine.run()
+                    except Exception:  # noqa: BLE001
+                        pass
+                return web.json_response({"ok": True})
         if isinstance(body.get("cars"), list):  # a new car gets its id here
             from .carlist import new_id
 
