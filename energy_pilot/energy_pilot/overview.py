@@ -211,7 +211,7 @@ class Overview:
                          # which savings the card shows (battery / sun and battery)
                          "saved_view", "report_notes",
                          # "No thanks" on the automatic-updates card (autoupdate.py)
-                         "autoupdate_no"):
+                         "autoupdate_no", "night_update", "night_update_seen", "trial", "trial_done", "trial_done_seen", "ready_no"):
                 self.settings[key] = value
         self.file.write_text(json.dumps(self.settings, indent=2))
 

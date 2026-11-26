@@ -10,6 +10,7 @@ import os
 import secrets
 
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 from aiohttp import web
@@ -187,11 +188,17 @@ def make_app(runner: Runner, overview: Overview, password: str | None = None) ->
             a = eng.agree
             data["engine"] = {"saving": b.get("saving"), "now": b.get("now"), "capacity": b.get("capacity"),
                               "agree": round(100 * a["same"] / a["checks"]) if a["checks"] else None, "checks": a["checks"],
-                              "profile": bool(eng.profile), "car": eng.result.get("car"), "cars": eng.result.get("cars"), "things": eng.things.view(overview.settings, datetime.now(eng.tz)), "generator": eng.result.get("generator"), "sources": eng.sources_used(), "learning": eng.learning.summary(), "blend": eng.blend_info(),
+                              "profile": bool(eng.profile), "car": eng.result.get("car"), "cars": eng.result.get("cars"), "things": eng.things.view(overview.settings, datetime.now(eng.tz)), "generator": eng.result.get("generator"), "sources": eng.sources_used(), "learning": eng.learning.summary(), "blend": eng.blend_info(), "retro": eng.retro_shown(),
                               "decision": overview.engine_decision(lang(req)), "selfcheck": eng.follow.check() + eng.checks + (overview.controller.watch_checks() if overview.controller else []),
                               "fixed": _fixed_lines(overview),
                               "can_sell": bool(eng.can_export()),
                               "tested": _tested(overview)}
+        try:
+            from . import trial
+
+            data["trial"] = trial.view(overview, (_tested(overview) or {}).get("result"), datetime.now(ZoneInfo(runner.ha.config.get("time_zone") or "UTC")))
+        except Exception:  # noqa: BLE001 - only a hint
+            data["trial"] = None
             # For the companion's entities: the battery's health (what it really holds against its label, learned) and
             # whether something needs a look (a warning in the self-check, or Home Assistant not answering)
             try:
@@ -224,7 +231,7 @@ def make_app(runner: Runner, overview: Overview, password: str | None = None) ->
         country = (runner.ha.config.get("country") or "DK").upper()
         area = price_area(float(runner.ha.config.get("latitude") or 56), float(runner.ha.config.get("longitude") or 10), country)
         return web.json_response({"settings": overview.settings, "roles": overview.roles(), "capacity_guess": guess, "area_guess": area,
-                                  "zones": ZONES.get(country, []), "tou_presets": __import__("energy_pilot.sources", fromlist=["TOU_PRESETS"]).TOU_PRESETS, "country": country, "currency": runner.ha.config.get("currency"), "bare_spot": overview.bare_spot(),
+                                  "zones": ZONES.get(country, []), "tou_presets": __import__("energy_pilot.sources", fromlist=["TOU_PRESETS"]).TOU_PRESETS, "country": country, "currency": runner.ha.config.get("currency"), "bare_spot": overview.bare_spot(), "night_update_ok": __import__("energy_pilot.nightupdate", fromlist=["possible"]).possible(),
                                   "sources": {r: overview.source(r) for r in overview.roles()},
                                   "candidates": overview.candidates(),
                                   "phase_ctl": _phase_ctl(),
@@ -498,6 +505,8 @@ def make_app(runner: Runner, overview: Overview, password: str | None = None) ->
         runner.all_to_shadow()
         if overview.controller:
             await overview.controller.release()
+        if overview.settings.get("trial"):
+            overview.save({"trial": None})
         return web.json_response({"ok": True})
 
     def build_diagnostics() -> dict:
@@ -617,8 +626,35 @@ def make_app(runner: Runner, overview: Overview, password: str | None = None) ->
         if body["mode"] != "control":
             await c.hand_back(body["part"])  # leaving control: the inverter back to normal and the owner's settings
         c.set_mode(body["part"], body["mode"])
+        if overview.settings.get("trial"):
+            overview.save({"trial": None})  # chosen by hand: the trial's own end no longer applies
         await c.tick()
         return web.json_response(c.status())
+
+    async def trial_post(req: web.Request) -> web.Response:
+        """"Try control for 24 hours" / "Not now" / "Keep controlling" / "Stop" / "OK" (trial.py)."""
+        from . import trial
+
+        body = await req.json() if req.can_read_body else {}
+        act, now = body.get("action"), datetime.now(ZoneInfo(runner.ha.config.get("time_zone") or "UTC"))
+        c = overview.controller
+        if act == "start":
+            ok = trial.start(overview, now)
+            if ok and c:
+                await c.tick()
+            return web.json_response({"ok": ok})
+        if act == "stop":
+            await trial.end(overview, now)
+        elif act == "keep" and c:  # after the trial: control for good
+            for p in (overview.settings.get("trial_done") or {}).get("parts") or [p for p in ["battery", *c.bat_parts()] if not c.blocked(p)]:
+                c.set_mode(p, "control")
+            overview.save({"trial_done_seen": True})
+            await c.tick()
+        elif act == "no":
+            overview.save({"ready_no": __import__("time").time()})
+        elif act == "seen":
+            overview.save({"trial_done_seen": True})
+        return web.json_response({"ok": True})
 
     async def control_release(_req: web.Request) -> web.Response:
         if overview.controller:
@@ -775,6 +811,7 @@ def make_app(runner: Runner, overview: Overview, password: str | None = None) ->
     app.router.add_get("/api/entity_info", entity_info)
     app.router.add_post("/api/control", control_mode)
     app.router.add_post("/api/control/release", control_release)
+    app.router.add_post("/api/trial", trial_post)
     app.router.add_post("/api/ev", ev)
     app.router.add_post("/api/charger", charger)
     app.router.add_post("/api/car_in", car_in)

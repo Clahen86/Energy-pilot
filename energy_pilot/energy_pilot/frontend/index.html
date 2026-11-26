@@ -259,6 +259,8 @@
   .chk { margin:6px 0 10px; } .chk.bad summary { color:var(--warn); } .chk.good summary { color:var(--ok, #3fb950); }
   .ptable td, .ptable th { white-space:nowrap; font-variant-numeric:tabular-nums; }
   .chk-i { margin-top:8px; } .chk-i table td:first-child { width:18px; } .muted.warn { color:var(--warn); }
+  .shareb { margin-left:6px; padding:0 2px; vertical-align:middle; opacity:.7; }
+  .shareb:hover { opacity:1; }
   .stiles { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:10px; }
   .stile { background:var(--card2, rgba(127,127,127,.08)); border-radius:12px; padding:8px 10px; } .stile span { display:block; font-size:12px; color:var(--muted); }
   .stile b { font-size:17px; } .stile b.bad { color:var(--warn); }
@@ -1146,6 +1148,16 @@ const T_TH = {
     found: "Fant: {name}. Skal EP kjøre den på sol eller i billige timer?" },
 };
 const TH = T_TH[L] || T_TH.en;
+const T_NU = {  // updating by itself at night (nightupdate.py)
+  da: { t: "Opdatér selv om natten", h: "En ny version installeres i en rolig stund mellem kl. 0 og 6, når den har været ude et døgn – aldrig mens batteriet lader fra nettet, sælger eller bilen lader." },
+  en: { t: "Update at night", h: "A new version is installed in a quiet moment between midnight and 6, once it has been out a day – never while the battery charges from the grid, sells or the car charges." },
+  de: { t: "Nachts selbst aktualisieren", h: "Eine neue Version wird in einem ruhigen Moment zwischen 0 und 6 Uhr installiert, wenn sie einen Tag alt ist – nie während die Batterie aus dem Netz lädt, verkauft oder das Auto lädt." },
+  fr: { t: "Mettre à jour la nuit", h: "Une nouvelle version s'installe dans un moment calme entre minuit et 6 h, une fois sortie depuis un jour – jamais pendant que la batterie charge sur le réseau, vend ou que la voiture charge." },
+  nl: { t: "'s Nachts zelf bijwerken", h: "Een nieuwe versie wordt op een rustig moment tussen 0 en 6 uur geïnstalleerd, als hij een dag uit is – nooit terwijl de batterij van het net laadt, verkoopt of de auto laadt." },
+  sv: { t: "Uppdatera själv på natten", h: "En ny version installeras en lugn stund mellan 0 och 6 när den varit ute ett dygn – aldrig medan batteriet laddar från nätet, säljer eller bilen laddar." },
+  nb: { t: "Oppdater selv om natten", h: "En ny versjon installeres i et rolig øyeblikk mellom 0 og 6 når den har vært ute et døgn – aldri mens batteriet lader fra nettet, selger eller bilen lader." },
+};
+const NU = T_NU[L] || T_NU.en;
 const T_HEAT = {  // a water heater: on, rests in the dear hours
   da: { found: "Fandt din varmtvandsbeholder: {name}. Skal den holde pause i de dyre timer og varme på billig strøm og sol?", kind: "Varmtvand", heat: "tændt", pause: "pause i dyr time", pauseAt: "pause {x}", always: "Står tændt og slukkes kun i op til 4 dyre timer om dagen – så vandet altid er varmt. Tænder du den selv, bliver den tændt. Har den en temperatur i Home Assistant, varmes den 10 °C ekstra, når solen ellers ville blive solgt billigt.", sunBoost: "varmer ekstra på solen" },
   en: { found: "Found your water heater: {name}. Let it rest in the dear hours and heat on cheap power and sun?", kind: "Hot water", heat: "on", pause: "resting in a dear hour", pauseAt: "rests {x}", always: "Stays on and is only switched off in up to 4 dear hours a day – so the water is always hot. Turn it on yourself and it stays on. With a temperature of its own in Home Assistant, it heats 10 °C extra when the sun would otherwise be sold cheaply.", sunBoost: "heating extra on the sun" },
@@ -1250,6 +1262,8 @@ function thingsSection(v, row) {
 }
 function wireThings() {
   document.querySelectorAll("[data-thopen]").forEach((b) => b.onclick = () => { thOpen = b.dataset.thopen === "1"; try { localStorage.setItem("ep_things_open", thOpen ? "1" : "0"); } catch {} render(); });
+  document.querySelectorAll("[data-share]").forEach((b) => b.onclick = (e) => { e.preventDefault(); shareMonth(b.dataset.share); });
+  document.querySelectorAll("[data-trial]").forEach((b) => b.onclick = async () => { b.disabled = true; await api("/api/trial", { action: b.dataset.trial }); await load(); render(); });
   document.querySelectorAll("[data-tharm]").forEach((b) => b.onclick = async () => { await api("/api/things/arm", { id: b.dataset.tharm, armed: b.dataset.armed === "1" }); await load(); render(); });
   const ths = () => JSON.parse(JSON.stringify((settings?.settings || data.settings).things || []));
   const save = async (l) => { await api("/api/settings", { things: l }); settings = await api("/api/settings"); await load(); render(); };
@@ -1544,7 +1558,7 @@ function home() {
     d.house_today != null ? metric("house", T.houseToday, num(d.house_today, 1), "kWh",
       d.house_other != null ? `${d.house_other_appdaemon ? (T.xYourAD) : (T.xOtherForecast)}: ${num(d.house_other, 1)}` : (T.xExpected)) : "",
   ].join("");
-  return `${whatsNewCard()}${updateCard()}${autoUpdCard()}${testNudge()}<div class="card flow fade" id="flowcard">${sceneSvg()}<div id="flow">${flowSvg(f)}</div></div>
+  return `${whatsNewCard()}${updateCard()}${autoUpdCard()}${testNudge()}${trialCard()}<div class="card flow fade" id="flowcard">${sceneSvg()}<div id="flow">${flowSvg(f)}</div></div>
     ${dec ? `<div class="card status fade" style="--c:${DECCOL[dec.kind]}"><div class="dotc">${icon(DECICON[dec.kind])}</div>
       <div><h2>${blk ? esc(blk.p) + ": " + esc(dec.text.charAt(0).toLowerCase() + dec.text.slice(1)) : esc(dec.text)}</h2><p>${esc(reason)}</p>${(dec.notes || []).map((n) => `<p class="note">${esc(n)}</p>`).join("")}${dec.engine && dec.saving > 0 ? `<p class="save">${T.saves.replace("{x}", kr(dec.saving))}</p>` : ""}
       ${dec.other ? `<p class="muted">${esc(T.otherSays.replace("{x}", dec.other.text.toLowerCase()))}</p>` : ""}
@@ -1655,15 +1669,79 @@ function whatIfCard() {
     ${line(k.none, w.none, false)}
     <div class="muted" style="margin-top:8px;font-size:12px">${esc(k.hint.replace("{n}", w.days))}</div></div>`;
 }
+const T_RETRO = {  // "what you would have saved" for a new install (retro.py)
+  da: { t: "Havde sparet pr. måned", h: "ca., regnet på dit hus' egne {n} dage – i forhold til batteriet på inverterens egen styring" },
+  en: { t: "Would have saved a month", h: "about, worked out on your home's own last {n} days – against the battery on the inverter's own control" },
+  de: { t: "Hätte pro Monat gespart", h: "ca., berechnet auf den letzten {n} Tagen deines Hauses – gegenüber der Batterie mit der eigenen Steuerung des Wechselrichters" },
+  fr: { t: "Aurait économisé par mois", h: "environ, calculé sur les {n} derniers jours de ta maison – par rapport à la batterie pilotée par l'onduleur seul" },
+  nl: { t: "Had per maand bespaard", h: "ca., berekend op de laatste {n} dagen van je huis – tegenover de batterij op de eigen sturing van de omvormer" },
+  sv: { t: "Hade sparat per månad", h: "ca, räknat på ditt hus senaste {n} dagar – jämfört med batteriet på växelriktarens egen styrning" },
+  nb: { t: "Ville spart per måned", h: "ca., regnet på husets egne siste {n} dager – sammenlignet med batteriet på vekselretterens egen styring" },
+};
+const RTR = T_RETRO[L] || T_RETRO.en;
+const T_TRIAL = {  // "Ready to take over?" and "Try control for 24 hours" (trial.py)
+  da: { ask: "Klar til at styre?", askH: "Skyggen har kørt i 3 dage, og testen er bestået.", saved: "Den ville have sparet dig {x} indtil nu.", perMonth: "Ca. {x} om måneden på dit hus' egen historik.", try: "Prøv styring i 24 timer", no: "Ikke nu", run: "Prøver styring – {h} t tilbage", runH: "Går selv tilbage til skygge bagefter.", stop: "Stop", done: "Prøvedøgnet er slut", doneSaved: "Energy Pilot sparede {x} i forhold til inverterens egen styring.", doneNone: "Den er tilbage i skygge.", keep: "Bliv ved med at styre", ok: "OK" },
+  en: { ask: "Ready to take over?", askH: "Shadow has run for 3 days and the test passed.", saved: "It would have saved you {x} so far.", perMonth: "About {x} a month on your home's own history.", try: "Try control for 24 hours", no: "Not now", run: "Trying control – {h} h left", runH: "Goes back to shadow by itself afterwards.", stop: "Stop", done: "The trial day is over", doneSaved: "Energy Pilot saved {x} against the inverter's own control.", doneNone: "It's back in shadow.", keep: "Keep controlling", ok: "OK" },
+  de: { ask: "Bereit zu übernehmen?", askH: "Der Schatten lief 3 Tage, und der Test ist bestanden.", saved: "Er hätte dir bisher {x} gespart.", perMonth: "Ca. {x} im Monat nach der eigenen Historie deines Hauses.", try: "24 Stunden Steuerung testen", no: "Nicht jetzt", run: "Teste Steuerung – noch {h} h", runH: "Geht danach von selbst zurück in den Schatten.", stop: "Stopp", done: "Der Testtag ist vorbei", doneSaved: "Energy Pilot hat {x} gegenüber der eigenen Steuerung des Wechselrichters gespart.", doneNone: "Er ist zurück im Schatten.", keep: "Weiter steuern", ok: "OK" },
+  fr: { ask: "Prêt à piloter ?", askH: "L'ombre a tourné 3 jours et le test est réussi.", saved: "Il t'aurait fait économiser {x} jusqu'ici.", perMonth: "Environ {x} par mois selon l'historique de ta maison.", try: "Essayer le pilotage 24 heures", no: "Pas maintenant", run: "Essai du pilotage – encore {h} h", runH: "Revient seul en ombre ensuite.", stop: "Arrêter", done: "Le jour d'essai est fini", doneSaved: "Energy Pilot a économisé {x} par rapport au pilotage de l'onduleur seul.", doneNone: "Il est de retour en ombre.", keep: "Continuer à piloter", ok: "OK" },
+  nl: { ask: "Klaar om te sturen?", askH: "De schaduw heeft 3 dagen gedraaid en de test is geslaagd.", saved: "Hij had je tot nu toe {x} bespaard.", perMonth: "Ca. {x} per maand op de eigen geschiedenis van je huis.", try: "24 uur sturing proberen", no: "Niet nu", run: "Sturing proberen – nog {h} u", runH: "Gaat daarna vanzelf terug naar schaduw.", stop: "Stop", done: "De proefdag is voorbij", doneSaved: "Energy Pilot bespaarde {x} tegenover de eigen sturing van de omvormer.", doneNone: "Hij staat weer in schaduw.", keep: "Blijven sturen", ok: "OK" },
+  sv: { ask: "Redo att styra?", askH: "Skuggan har kört i 3 dagar och testet är godkänt.", saved: "Den hade sparat dig {x} hittills.", perMonth: "Ca {x} i månaden på ditt hus egen historik.", try: "Prova styrning i 24 timmar", no: "Inte nu", run: "Provar styrning – {h} h kvar", runH: "Går själv tillbaka till skugga efteråt.", stop: "Stopp", done: "Provdygnet är slut", doneSaved: "Energy Pilot sparade {x} jämfört med växelriktarens egen styrning.", doneNone: "Den är tillbaka i skugga.", keep: "Fortsätt styra", ok: "OK" },
+  nb: { ask: "Klar til å styre?", askH: "Skyggen har kjørt i 3 dager, og testen er bestått.", saved: "Den ville spart deg {x} så langt.", perMonth: "Ca. {x} i måneden på husets egen historikk.", try: "Prøv styring i 24 timer", no: "Ikke nå", run: "Prøver styring – {h} t igjen", runH: "Går selv tilbake til skygge etterpå.", stop: "Stopp", done: "Prøvedøgnet er over", doneSaved: "Energy Pilot sparte {x} sammenlignet med vekselretterens egen styring.", doneNone: "Den er tilbake i skygge.", keep: "Fortsett å styre", ok: "OK" },
+};
+function trialCard() {
+  const x = data.trial, k = T_TRIAL[L] || T_TRIAL.en;
+  if (!x) return "";
+  const btn = (a, label, cls = "") => `<button class="thbtn ${cls}" data-trial="${a}">${esc(label)}</button>`;
+  if (x.running) return `<div class="card fade"><div class="lrow"><span>${esc(k.run.replace("{h}", x.hours_left))}</span><em>${esc(k.runH)}</em>${btn("stop", k.stop, "off")}</div></div>`;
+  if (x.done) return `<div class="card fade"><div class="eyebrow"><span>${esc(k.done)}</span></div><p>${esc(x.saved != null && x.saved > 0 ? k.doneSaved.replace("{x}", kr(x.saved)) : k.doneNone)}</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">${btn("keep", k.keep)}${btn("seen", k.ok, "off")}</div></div>`;
+  const why = [x.saved ? k.saved.replace("{x}", kr(x.saved)) : "", x.per_month ? k.perMonth.replace("{x}", kr(x.per_month)) : ""].filter(Boolean).join(" ");
+  return `<div class="card fade"><div class="eyebrow"><span>${esc(k.ask)}</span></div><p>${esc(k.askH)}${why ? " " + esc(why) : ""}</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">${btn("start", k.try)}${btn("no", k.no, "off")}</div></div>`;
+}
+const T_SHARE = {  // the month's picture to share (no names, no address - the amount and the month only)
+  da: { btn: "Del", bat: "Mit batteri sparede mig", all: "Sol og batteri sparede mig", in: "i {m}" },
+  en: { btn: "Share", bat: "My battery saved me", all: "Sun and battery saved me", in: "in {m}" },
+  de: { btn: "Teilen", bat: "Meine Batterie hat mir gespart", all: "Sonne und Batterie haben mir gespart", in: "im {m}" },
+  fr: { btn: "Partager", bat: "Ma batterie m'a fait économiser", all: "Soleil et batterie m'ont fait économiser", in: "en {m}" },
+  nl: { btn: "Delen", bat: "Mijn batterij bespaarde me", all: "Zon en batterij bespaarden me", in: "in {m}" },
+  sv: { btn: "Dela", bat: "Mitt batteri sparade mig", all: "Sol och batteri sparade mig", in: "i {m}" },
+  nb: { btn: "Del", bat: "Batteriet mitt sparte meg", all: "Sol og batteri sparte meg", in: "i {m}" },
+};
+const SHR = T_SHARE[L] || T_SHARE.en;
+async function shareMonth(view) {
+  const g = data.ledger, v = view === "all" && g.all ? g.all : g, days = ((g.month_days || {})[view === "all" ? "all" : "bat"]) || [];
+  const W = 1080, H = 1080, c = document.createElement("canvas"); c.width = W; c.height = H;
+  const x = c.getContext("2d"), month = new Date().toLocaleDateString(LOCALE, { month: "long" });
+  const bg = x.createLinearGradient(0, 0, W, H); bg.addColorStop(0, "#0f172a"); bg.addColorStop(1, "#14532d");
+  x.fillStyle = bg; x.fillRect(0, 0, W, H);
+  x.fillStyle = "#e2e8f0"; x.font = "600 54px system-ui, sans-serif"; x.textAlign = "center";
+  x.fillText(view === "all" ? SHR.all : SHR.bat, W / 2, 230);
+  x.fillStyle = "#4ade80"; x.font = "800 170px system-ui, sans-serif"; x.fillText(kr(v.month), W / 2, 430);
+  x.fillStyle = "#e2e8f0"; x.font = "500 58px system-ui, sans-serif"; x.fillText(SHR.in.replace("{m}", month), W / 2, 520);
+  if (days.length) {  // the month's days as bars
+    const top = Math.max(...days.map((d) => Math.abs(d)), 1), bw = 760 / Math.max(days.length, 20), x0 = (W - bw * days.length) / 2, base = 860;
+    days.forEach((d, i) => { const h = Math.abs(d) / top * 220; x.fillStyle = d >= 0 ? "#4ade80" : "#f87171"; x.fillRect(x0 + i * bw + 3, base - h, bw - 6, h); });
+  }
+  x.fillStyle = "#94a3b8"; x.font = "600 40px system-ui, sans-serif"; x.fillText("⚡ Energy Pilot", W / 2, 990);
+  const blob = await new Promise((r) => c.toBlob(r, "image/png"));
+  const file = new File([blob], "energy-pilot.png", { type: "image/png" });
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; }
+  } catch (e) { if (e && e.name === "AbortError") return; }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "energy-pilot.png"; document.body.appendChild(a); a.click(); a.remove();
+}
 function savedCard() {
   const g = data.ledger, k = T.ledger, S = T_SAV[L] || T_SAV.en;
   if (!g || !data.flow?.has?.battery) return "";
   const both = !!g.all, view = both && g.view === "all" ? "all" : "bat", v = view === "all" ? g.all : g;
   const since = view === "all" ? g.all.since : g.since;
   const tile = (label, x) => `<div class="stile"><span>${label}</span><b class="${x < 0 ? "bad" : "good"}">${kr(x)}</b></div>`;
-  return `<div class="card fade"><div class="eyebrow"><span>${both ? S.title : k.title}</span>${since ? `<span>${k.since} ${new Date(since).toLocaleDateString(LOCALE, { day: "numeric", month: "short", year: "numeric" })}</span>` : ""}</div>
+  const share = `<button class="link shareb" data-share="${view}" title="${esc(SHR.btn)}" aria-label="${esc(SHR.btn)}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg></button>`;
+  return `<div class="card fade"><div class="eyebrow"><span>${both ? S.title : k.title}${(v.month || 0) > 0 ? " " + share : ""}</span>${since ? `<span>${k.since} ${new Date(since).toLocaleDateString(LOCALE, { day: "numeric", month: "short", year: "numeric" })}</span>` : ""}</div>
     ${both ? `<div class="seg mini" style="margin:2px 0 10px">${["bat", "all"].map((m) => `<button class="${view === m ? "on" : ""}" data-savview="${m}">${S[m]}</button>`).join("")}</div>` : ""}
     <div class="stiles">${tile(k.today, v.today)}${tile(k.month, v.month)}${tile(k.year, v.year)}${tile(k.total, v.total)}</div>
+    ${data.engine?.retro ? `<div class="lrow"><span>${RTR.t}</span><b class="good">${kr(data.engine.retro.per_month)}</b><em>${RTR.h.replace("{n}", data.engine.retro.days)}</em></div>` : ""}
     ${g.pilot ? `<div class="lrow"><span>${S.pilot}</span><b class="${g.pilot.total < 0 ? "bad" : "good"}">${kr(g.pilot.total)}</b><em>${S.pilotH.replace("{d}", kr(g.pilot.today)).replace("{m}", kr(g.pilot.month))}</em></div>` : ""}
     ${g.avg_cost != null ? `<div class="lrow"><span>${k.inBattery}</span><b>${num(g.battery_kwh ?? g.stored_kwh, 1)} kWh</b><em>${k.costs.replace("{p}", kr(g.avg_cost))}${g.avg_source === "other" ? " · " + k.fromOther : ""}</em></div>` : ""}
     <div class="muted" style="margin-top:6px">${view === "all" ? S.hint : k.hint}</div></div>`;
@@ -2985,6 +3063,7 @@ function settingsView() {
   return `${checksCard()}${styleView()}<div class="card fade" id="sec-roles"><div class="eyebrow"><span>${T.setTitle}</span><button class="link" data-redetect>${T.findAgain}</button></div><div class="muted">${T.setHint}</div>
     ${Object.entries(GROUPS).map(([g, roles]) => `<div class="group"><h4>${icon(GROUPICON[g])}${T.groups[g]}</h4>${roleRows(roles)}</div>`).join("")}
     <button class="ghostbtn" data-setup>${T.runGuide}</button></div>${curtailCard()}${stormCard()}
+    ${settings.night_update_ok ? `<div class="card fade"><div class="ctl"><div class="t"><b>${NU.t}</b><span>${NU.h}</span></div><button class="toggle ${(settings.settings.night_update ?? true) ? "on" : ""}" data-bool="night_update" data-def="true"></button></div></div>` : ""}
     <div class="card fade"><div class="ctl" style="margin-bottom:10px"><div class="t"><b>${TF.share}</b><span>${(T_SH[L] || T_SH.en).base}</span></div><button class="toggle ${(settings.settings.share_anonymous ?? true) ? "on" : ""}" data-bool="share_anonymous" data-def="true"></button></div>${(settings.settings.share_anonymous ?? true) ? `<div class="ctl" style="margin-bottom:10px"><div class="t"><b>${(T_SH[L] || T_SH.en).t}</b><span>${(T_SH[L] || T_SH.en).b} ${(T_SH[L] || T_SH.en).g.join(". ")}.</span></div><button class="toggle ${settings.settings.share_hours ? "on" : ""}" data-bool="share_hours" data-def="false"></button></div>${commonLines()}<div class="ctl" style="margin-bottom:10px"><div class="t"><b>${TF.full}</b><span>${TF.fullH}</span></div><button class="toggle ${settings.settings.share_full ? "on" : ""}" data-bool="share_full" data-def="false"></button></div>` : ""}</div><div id="ep-suggest"></div>`;
 }
 // "Fits your home too" and "From the same developer" (suggest.js) under the settings - the same file as in the integrations.

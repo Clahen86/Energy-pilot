@@ -2,6 +2,10 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.114.0 – 2026-11-26
+- New install: "Would have saved a month" in the savings card the first two weeks - worked out on the home's own last 30 days, the battery on the inverter's own control against Energy Pilot's plan (taken down a little, as the plan knew each day in advance)
+- "Ready to take over?" after three days in shadow with the self-test passed: "Try control for 24 hours" - it goes back to shadow by itself afterwards (also after a restart) and says what the day saved, with "Keep controlling"
+- Share: a small icon on the savings makes a picture of the month's amount and its days, for Facebook and the like - no names, no address
 ## 0.113.2 – 2026-11-26
 - Two or more batteries: with no spare sun, none of them may charge on "normal" - one can no longer fill itself from the other (each kept the grid at zero on its own, and power went round in a circle)
 - The house meter is never swapped while a battery's power isn't read - with one battery missing the meters can't add up, and a right house meter was swapped for one that reads 0 W at night

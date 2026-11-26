@@ -325,3 +325,32 @@ def tou_prices(plan: dict[str, Any], tz: ZoneInfo) -> list[dict[str, Any]]:
         t = start + timedelta(minutes=15 * i)
         out.append({"start": t.isoformat(), "end": (t + timedelta(minutes=15)).isoformat(), "price": round(tou_price(plan, t), 4)})
     return out
+
+
+async def fetch_history(session: Any, area: str, tz: ZoneInfo, s: dict[str, Any], currency: str, days: int) -> dict[datetime, float]:
+    """The consumer price per hour for the past days (spot with tax, tariff and VAT on top, as fetch_prices does) -
+    for "what you would have saved" on the first day, before any prices of its own were kept."""
+    end = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
+    start = end - timedelta(days=days)
+    out: dict[datetime, list[float]] = {}
+    if not area.startswith("DK"):
+        rate = await _rate(session, currency)
+        params = {"bzn": area, "start": start.date().isoformat(), "end": end.date().isoformat()}
+        async with session.get(ENERGY_CHARTS, params=params, timeout=60) as resp:
+            resp.raise_for_status()
+            data = await resp.json()
+        for ts, eur in zip(data.get("unix_seconds") or [], data.get("price") or []):
+            if eur is not None:
+                t = datetime.fromtimestamp(ts, tz)
+                out.setdefault(t.replace(minute=0, second=0, microsecond=0), []).append(consumer_price(eur * rate, t.hour, s, country_of(area)))
+    else:
+        params = {"start": start.strftime("%Y-%m-%dT%H:%M"), "end": end.strftime("%Y-%m-%dT%H:%M"),
+                  "filter": f'{{"PriceArea":["{area}"]}}', "sort": "TimeDK asc", "limit": str(days * 24 * 4 + 200)}
+        async with session.get(EDS, params=params, timeout=60) as resp:
+            resp.raise_for_status()
+            data = await resp.json()
+        for r in data.get("records") or []:
+            t = datetime.fromisoformat(r["TimeDK"]).replace(tzinfo=ZoneInfo("Europe/Copenhagen")).astimezone(tz)
+            if (spot := r.get("DayAheadPriceDKK")) is not None:
+                out.setdefault(t.replace(minute=0, second=0, microsecond=0), []).append(consumer_price(spot, t.hour, s, "DK"))
+    return {t: sum(v) / len(v) for t, v in out.items()}

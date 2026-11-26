@@ -224,5 +224,8 @@ class Ledger:
             # what Energy Pilot added against the battery left to itself (the inverter's own house-first way)
             "pilot": {"today": total(d, "pilot"), "month": total(m, "pilot"), "year": total(y, "pilot"), "total": total("", "pilot")}
             if any("pilot" in v for v in days.values()) else None,
+            # this month day by day, for the picture to share (both views)
+            "month_days": {"bat": [round(days[k].get("saved", 0.0), 2) for k in sorted(days) if k.startswith(m)],
+                           "all": [round(days[k].get("all", 0.0), 2) for k in sorted(days) if k.startswith(m)]},
             "since": s.get("since"), "today_detail": {k: round(v, 2) for k, v in (days.get(d) or {}).items()},
         }

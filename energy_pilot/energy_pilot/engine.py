@@ -13,7 +13,7 @@ Pure functions here (testable without Home Assistant); Engine at the bottom coll
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 import asyncio
 import copy
 import logging
@@ -1215,6 +1215,62 @@ class Engine:
         except Exception:  # noqa: BLE001
             return
         self.ha_solar = solar_hours(fc, ids)
+
+    def retro_shown(self) -> dict[str, Any] | None:
+        """"What you would have saved last month" while the own measuring is young (see retro.py)."""
+        from .retro import SHOW_DAYS
+
+        r = self.learning.state.get("retro")
+        first = str(self.ov.settings.get("first_seen") or "")
+        try:
+            young = (datetime.now(self.tz).date() - date.fromisoformat(first)).days < SHOW_DAYS
+        except ValueError:
+            young = False
+        return r if r and r.get("per_month") and young else None
+
+    async def refresh_retro(self) -> None:
+        """Worked out once (and again after 3 days) while the install is young: house, sun and prices of the past
+        30 days, run with the battery on its own and with the plan."""
+        from . import retro
+        from .retro import SHOW_DAYS
+
+        r = self.learning.state.get("retro") or {}
+        first = str(self.ov.settings.get("first_seen") or "")
+        try:
+            if (datetime.now(self.tz).date() - date.fromisoformat(first)).days >= SHOW_DAYS:
+                return
+        except ValueError:
+            return
+        if time.time() - float(r.get("t") or 0) < 3 * 86400 or self.ha.session is None:
+            return
+        self.learning.state["retro"] = {**r, "t": time.time()}  # tried now - not again for 3 days, whatever happens
+        try:
+            b = self.settings()
+            if not b.capacity_kwh:
+                return
+            house = await self._house_rows(30)
+            sun = await self._hourly_sum(self.ov.role_all("pv_power"), 30) if self.ov.role_all("pv_power") else {}
+            prices: dict[datetime, float] = {}
+            if e := self.ov.role("price"):
+                prices = {t.replace(minute=0, second=0, microsecond=0): v * self.ov.price_scale() for t, v in await self._hourly_kw(e, 30)}
+                prices = {t: v * 1000 for t, v in prices.items()}  # _hourly_kw gives a price as if W -> kW: undone
+            if len(prices) < 24 * retro.MIN_DAYS:
+                from .sources import ZONES, fetch_history, price_area
+
+                st, country = self.ov.settings, (self.ha.config.get("country") or "").upper()
+                if country not in ZONES and not st.get("price_area"):
+                    return  # no prices to look back on
+                area = st.get("price_area") or price_area(float(self.ha.config.get("latitude") or 56),
+                                                          float(self.ha.config.get("longitude") or 10), country)
+                prices = await fetch_history(self.ha.session, area, self.tz, st, self.ha.config.get("currency") or "EUR", 30)
+            st = self.ov.settings
+            sell = float(st.get("sell_price") or 0) if st.get("sell") else 0.0
+            res = retro.estimate(retro.build(house, sun, prices, sell), b)
+            if res:
+                self.learning.state["retro"] = {**res, "t": time.time()}
+                self.learning.save()
+        except Exception:  # noqa: BLE001 - only a hint for a new user
+            _LOGGER.debug("Retro estimate failed", exc_info=True)
 
     async def refresh_house_today(self) -> None:
         """What the house has used so far today (whole hours from the statistics, plus this hour's share)."""

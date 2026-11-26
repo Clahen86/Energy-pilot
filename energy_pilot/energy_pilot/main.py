@@ -152,6 +152,7 @@ async def main() -> None:
                 await engine.refresh_service_prices()
                 await engine.refresh_agile_predict()
                 await engine.refresh_house_today()
+                await engine.refresh_retro()  # "what you would have saved" for a new install (once, then every 3 days)
                 # The controls first: the plan asks them whether the battery can sell - planned before they were
                 # found (the first round after a start), it planned without selling and said selling was blocked.
                 if (not controller.discovered or not controller.entities["battery"] and not controller.entities["car"] or int(asyncio.get_running_loop().time()) % 3600 < 300
@@ -194,6 +195,10 @@ async def main() -> None:
 
     asyncio.create_task(run_car())
 
+    from .nightupdate import NightUpdate
+
+    night_update = NightUpdate(overview, ha)
+
     async def run_keep() -> None:
         """Every minute: inverters that forget their settings (Victron) get them again on time (see Controller.keep)."""
         await ha.connected.wait()
@@ -208,6 +213,16 @@ async def main() -> None:
                 overview.autofix.run()
             except Exception:  # noqa: BLE001
                 logging.getLogger("energy_pilot.autofix").debug("Autofix failed", exc_info=True)
+            try:
+                from . import trial as _trial
+
+                await _trial.tick(overview, datetime.now(__import__("zoneinfo").ZoneInfo(ha.config.get("time_zone") or "UTC")))  # 24 h over: shadow again
+            except Exception:  # noqa: BLE001
+                logging.getLogger("energy_pilot.trial").debug("Trial check failed", exc_info=True)
+            try:
+                await night_update.tick(datetime.now(__import__("zoneinfo").ZoneInfo(ha.config.get("time_zone") or "UTC")))  # a waiting version, at night
+            except Exception:  # noqa: BLE001
+                logging.getLogger("energy_pilot.nightupdate").debug("Night update check failed", exc_info=True)
             await asyncio.sleep(60)
 
     asyncio.create_task(run_keep())
