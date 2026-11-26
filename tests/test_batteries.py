@@ -87,3 +87,27 @@ def test_each_battery_has_its_own_profile():
     assert c.bat_parts() == ["bat2"]
     assert c.profile_key("bat2") == "solaredge_modbus_multi" and c.profile_key() == "victron"
     assert c._pool("bat2") == ["number.solaredge_i1_storage_command_mode"]
+
+
+def test_no_battery_charges_from_the_other_without_spare_sun():
+    st = {"battery_charge_kw": 3.7, "battery_discharge_kw": 4.2, "inverter_profile": "victron",
+          "batteries": [{"soc": "sensor.b2", "charge_kw": 5, "discharge_kw": 5, "profile": "solaredge_modbus_multi"}]}
+    c = _ctl(st)
+    ctx = {"min_soc": 10, "soc": 70, "target": 51, "rate": 6, "power_w": 500, "power_kw": 0.5, "max_power_w": 9200,
+           "max_power_kw": 9.2, "max_charge_w": 8700, "max_charge_kw": 8.7, "export_w": 0, "device_id": "", "serial": ""}
+    night = c._share({"intent": "normal", "ctx": dict(ctx)}, {"pv": 0, "house": 3300, "batteries": [{"soc": 99}, {"soc": 43}]})
+    assert night["battery"]["ctx"]["max_charge_w"] == 0 and night["bat2"]["ctx"]["max_charge_w"] == 0
+    assert night["battery"]["ctx"]["max_power_w"] > 0  # discharging is still allowed
+    sunny = c._share({"intent": "normal", "ctx": dict(ctx)}, {"pv": 6000, "house": 1000, "batteries": [{"soc": 60}, {"soc": 43}]})
+    assert sunny["battery"]["ctx"]["max_charge_w"] > 0
+
+
+def test_autofix_never_judges_meters_when_a_battery_is_unread():
+    from types import SimpleNamespace as NS
+    from energy_pilot.autofix import AutoFix
+
+    a = AutoFix.__new__(AutoFix)
+    a.ov = NS(flow=lambda: {"pv": 0, "grid": 5, "house": 3000, "battery": 165, "batteries": [{"power": 165}, {"power": None}]})
+    a.bal = []
+    a.balance({}, {}, 0.0)
+    assert a.bal == []  # nothing collected, nothing judged

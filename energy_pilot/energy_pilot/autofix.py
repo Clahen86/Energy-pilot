@@ -319,6 +319,9 @@ class AutoFix:
             return
         f = self.ov.flow() or {}
         pv, grid, house, ev = f.get("pv"), f.get("grid"), f.get("house"), f.get("ev") or 0.0
+        if any(b.get("power") is None for b in f.get("batteries") or []):
+            return  # a battery whose power isn't read: the meters can't add up, so none of them is judged (one house
+            # meter that was right was swapped for "solar to house", 0 W at night, when a second battery's sensor was gone)
         if pv is None or grid is None or house is None or abs(ev) > 300 or f.get("other") is not None:
             return  # a part missing, the car charging, or other power (wind …) that no single solar sensor has (in the house's sensor or not - not known for sure)
         cands = self._bal_cands(roles)

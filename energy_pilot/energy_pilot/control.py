@@ -633,6 +633,11 @@ class Controller:
         packs = f.get("batteries") or []
         ctx = want["ctx"]
         out = {}
+        # Running on their own, two batteries each keep the grid at zero: one empties into the house while the other
+        # (that sees it as sun - a SolarEdge on a Victron's AC-out) fills up from it, losing power both ways. With no
+        # sun to spare, none of them may charge on "normal" - the house is covered, and nothing goes round in a circle.
+        pv, house = float(f.get("pv") or 0.0), float(f.get("house") or 0.0) + float(f.get("ev") or 0.0)
+        no_spare_sun = want["intent"] == "normal" and pv - house < 100
         for i, part in enumerate(["battery", *self.bat_parts()]):
             cshare, dshare = cs[i] / sum(cs), ds[i] / sum(ds)
             share = dshare if want["intent"] == "export" else cshare
@@ -645,6 +650,8 @@ class Controller:
                  "export_w": int(round(ctx.get("export_w", 0) * dshare / 50) * 50),
                  **({"charge_a": max(1, round(ctx["charge_a"] * cshare))} if "charge_a" in ctx else {}),
                  "device_id": info.get("device") or "", "serial": info.get("serial") or ""}
+            if no_spare_sun:
+                c.update(max_charge_w=0, max_charge_kw=0)
             out[part] = {"intent": want["intent"], "ctx": c}
         return out
 
