@@ -2,6 +2,8 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.113.0 – 2026-11-26
+- Things that run cheaply: pool pump. Set its hours a day - it runs them every day, on the sun first and the rest in the cheapest hours before midnight. Turned on by hand it stays on and the time counts. A pool pump on a smart plug is found by itself
 ## 0.112.0 – 2026-11-26
 - Power tariff: "Counts only in" - weekdays, from-to and months. Many grid companies count only daytime hours on weekdays in winter: the month's peak is then measured only in those hours, and the plan charges freely at night and on weekends (up to your import limit)
 - Outside Denmark: one field for taxes and surcharge per kWh (energy tax plus your supplier's surcharge, excl. VAT) instead of the three grid tariff fields - VAT is added by itself. It also shows with Home Assistant's own Nord Pool, whose price is the bare spot price, and is added to it

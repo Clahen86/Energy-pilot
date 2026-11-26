@@ -9,6 +9,8 @@ charger stops drawing power the battery is full - done for the day. A machine is
 said it is ready, Energy Pilot only starts it (a remote start button or switch), or tells the user when to press start.
 The one exception, chosen by the user for a machine that resumes by itself after a power cut ("resume"): when it
 starts on its plug, Energy Pilot switches the plug off at once and on again at the cheapest time - no Ready needed.
+A pool pump on a switch runs a set number of hours every day (the filter needs it, sun or not): in the sun first, the
+rest in the cheapest hours before midnight. Turned on by hand it is left on; the hours it ran count.
 A water heater on a switch is the other way round: it stays on (its own thermostat keeps the water hot) and is only
 switched off in the dearest hours - at most 4 a day, never in sun - so it heats on cheap power and sun instead.
 With a temperature of its own in Home Assistant (a water_heater, or a target-temperature number on its device), a
@@ -25,6 +27,8 @@ from statistics import median
 from typing import Any
 
 MODES = ("sun_cheap", "sun", "cheap")
+PUMP_H = 6.0  # a pool pump's hours a day when the user didn't say
+PUMP_KW = 0.75  # its power when there is no sensor to learn it from
 HEATER_OFF_H = 4  # a water heater is off at most this many hours a day - a tank keeps hot far longer
 BOOST_C = 10  # the tank is heated this much above the owner's own target on the sun's surplus
 BOOST_MAX_C = 75  # never above this (or the control's own maximum)
@@ -100,6 +104,10 @@ class Things:
     def need(self, t: dict[str, Any]) -> tuple[float, float, float]:
         """(kWh, minutes, kW) one run takes: Appliance Watch's usual programme, else learned here, else the settings,
         else a fair guess."""
+        if t.get("kind") == "pump":
+            kw = float(t.get("kw") or self.st(t["id"]).get("avg_kw") or PUMP_KW)
+            hours = self.pump_hours(t)
+            return round(kw * hours, 2), hours * 60, kw
         lr = self.aw.get(t.get("power") or "") or self.learned(t["id"])
         battery = t.get("kind") != "machine"
         kwh = lr["kwh"] if lr else float(t.get("kwh") or (0.5 if battery else 1.0))
@@ -111,6 +119,18 @@ class Things:
             minutes = 240.0 if battery else 120.0
         minutes = max(10.0, minutes)
         return kwh, minutes, max(0.02, kwh / (minutes / 60))
+
+    @staticmethod
+    def pump_hours(t: dict[str, Any]) -> float:
+        try:
+            return max(0.5, min(24.0, float(t.get("hours_day") or PUMP_H)))
+        except (TypeError, ValueError):
+            return PUMP_H
+
+    def ran_today(self, tid: str, now: datetime) -> float:
+        """A pool pump's minutes on today."""
+        s = self.st(tid)
+        return float(s.get("run_min") or 0) if s.get("run_day") == now.date().isoformat() else 0.0
 
     # ---------- the plan ----------
 
@@ -135,7 +155,21 @@ class Things:
                 return h.sell if mode != "cheap" and sunny(h) else h.price
 
             p: dict[str, Any] = {"id": tid, "hours": [], "start": None, "sun": False}
-            if t.get("kind") == "heater":
+            if t.get("kind") == "pump":
+                midnight = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+                rest_h = max(0.0, self.pump_hours(t) - self.ran_today(tid, now) / 60)
+                today = [h for h in ok if h.start < midnight]
+                use = [h for h in today if mode != "sun" or sunny(h)]
+                chosen, got = [], 0.0
+                for h in sorted(use, key=lambda h: (cost(h), h.start)):
+                    if got >= rest_h - 1e-9:
+                        break
+                    chosen.append(h)
+                    got += h.length
+                p["hours"] = sorted(h.start.isoformat() for h in chosen)
+                p["sun"] = bool(chosen) and all(sunny(h) for h in chosen)
+                p["slot_h"] = chosen[0].length if chosen else None
+            elif t.get("kind") == "heater":
                 p.update(self._heater_off(hours, now, left))
             elif t.get("kind") == "machine":
                 if s.get("armed") and not s.get("running") and not s.get("start_sent"):
@@ -208,7 +242,9 @@ class Things:
         only plan, measure and learn - nothing is switched or started."""
         for t in self.items(settings):
             try:
-                if t.get("kind") == "heater":
+                if t.get("kind") == "pump":
+                    await self._tick_pump(ha, t, now, price, sell, grid_w, dt_s, act)
+                elif t.get("kind") == "heater":
                     await self._tick_heater(ha, t, now, act)
                     await self._sun_boost(ha, t, now, price, sell, grid_w, act)
                 elif t.get("kind") == "machine":
@@ -282,6 +318,36 @@ class Things:
             s["done"] = now.isoformat()  # no power sensor: charged for as long as it takes
             self._finish(s, now)
             want = False
+        if not act:
+            return  # shadow: the plan is shown, nothing is switched
+        if await self._switch(ha, sw, want, now) and want:
+            s["on_by_us"] = True
+
+    async def _tick_pump(self, ha: Any, t: dict[str, Any], now: datetime, price: float | None, sell: float,
+                         grid_w: float | None, dt_s: float, act: bool = True) -> None:
+        """On in its hours until today's hours are run. Turned on by hand: left on (and counted)."""
+        tid, s, sw = t["id"], self.st(t["id"]), t.get("switch")
+        if not sw:
+            return
+        day = now.date().isoformat()
+        if s.get("run_day") != day:
+            if float(s.get("kwh_now") or 0) > 0:
+                self._finish(s, now)  # yesterday's run: kept as the last one
+            s["run_day"], s["run_min"] = day, 0.0
+        on = (ha.states.get(sw) or {}).get("state") == "on"
+        if not on:
+            s["on_by_us"] = False
+        by_hand = on and not s.get("on_by_us")
+        w = _num(ha.states.get(t["power"])) if t.get("power") else None
+        if on:
+            s["run_min"] = round(float(s.get("run_min") or 0) + dt_s / 60, 2)
+            if w is not None and w > IDLE_W:
+                s["avg_kw"] = round(0.95 * float(s.get("avg_kw") or w / 1000) + 0.05 * w / 1000, 3)  # learns its power
+            self._measure(s, w if w is not None else self.need(t)[2] * 1000, now, self._price_now(price, sell, grid_w), dt_s)
+        done = self.ran_today(tid, now) >= self.pump_hours(t) * 60
+        if done and not (s.get("done") or "").startswith(day):
+            s["done"] = now.isoformat()
+        want = by_hand or (self._in_hours(tid, now) and not done)
         if not act:
             return  # shadow: the plan is shown, nothing is switched
         if await self._switch(ha, sw, want, now) and want:
@@ -455,7 +521,10 @@ class Things:
             tid, s = t["id"], self.st(t["id"])
             p = self.plans.get(tid) or {}
             kwh, minutes, _ = self.need(t)
-            if t.get("kind") == "heater":
+            if t.get("kind") == "pump":
+                status = "done" if self.full_today(tid, now) else "running" if self._in_hours(tid, now) else \
+                    "planned" if p.get("hours") else "idle"
+            elif t.get("kind") == "heater":
                 status = "pause" if self._in_off(tid, now) else "sun_boost" if s.get("boost_from") is not None else "heat"
             elif t.get("kind") == "machine":
                 status = "running" if s.get("running") else "waiting_start" if s.get("start_sent") else \
@@ -469,7 +538,8 @@ class Things:
                         "slot_h": p.get("slot_h"), "kwh_now": round(float(s.get("kwh_now") or 0), 2), "need_kwh": round(kwh, 2),
                         "minutes": round(minutes), "learned": self.learned(tid), "last": s.get("last"),
                         "done_at": s.get("done"), "armed": bool(s.get("armed")), "paused": bool(s.get("paused")),
-                        "resume": bool(t.get("resume") and t.get("switch") and t.get("power")), "off": p.get("off") or []})
+                        "resume": bool(t.get("resume") and t.get("switch") and t.get("power")), "off": p.get("off") or [],
+                        "run_h": round(self.ran_today(tid, now) / 60, 1), "need_h": self.pump_hours(t) if t.get("kind") == "pump" else None})
         return out
 
 
@@ -479,6 +549,7 @@ MACHINE_WORDS = re.compile(r"wash|vaske|vask_|dish|opvask|geschirr|spuel|spül|d
                            r"lave.?vaisselle|seche|sèche|vaatwas|wasmachine|droger|tvatt|tvätt|disk|tork|oppvask", re.I)
 BATTERY_WORDS = re.compile(r"mower|plæne|plaene|automower|rasenm|tondeuse|maaier|grasklipp|gräsklipp|gressklipp|e.?bike|"
                            r"elcykel|cykel|bike|fahrrad|velo|vélo|fiets|sykkel|tool|værktøj|vaerktoej|werkzeug|outil|gereedschap|verktyg", re.I)
+POOL_WORDS = re.compile(r"pool|swim|spa_|_spa|jacuzzi|hot.?tub|whirlpool|svømme|svoemme|bassin|schwimm|piscine|zwembad|bassäng|basseng", re.I)
 HEATER_WORDS = re.compile(r"water.?heater|boiler|vvb|varmtvand|varmvand|varmvann|varmvatten|elpatron|immersion|warmwasser|"
                           r"warmwater|chauffe.?eau|ballon|eddi", re.I)
 NOT_THING = re.compile(r"phone|iphone|pixel|galaxy|ipad|tablet|laptop|macbook|watch|_tv|tv_|television|heat.?pump|varmepumpe|"
@@ -532,7 +603,9 @@ def find(registry: list[dict[str, Any]], devices: dict[str, dict[str, Any]], sta
             switch = None  # only a switch that powers something: a smart plug or a relay
         start = next((i for i in ids if i.startswith("button.") and START.search(i)), None) or \
             next((i for i in ids if i.startswith("switch.") and re.search(r"remote_start", i)), None)
-        if HEATER_WORDS.search(text) and switch:
+        if POOL_WORDS.search(text) and switch and not HEATER_WORDS.search(text) and not re.search(r"heat|varme|wärme|chauff|warmte|värme", text):
+            out.append({"device": dev, "kind": "pump", "name": dname or ids[0], "icon": "pool", "switch": switch, "power": power, "hours_day": PUMP_H})
+        elif HEATER_WORDS.search(text) and switch:
             out.append({"device": dev, "kind": "heater", "name": dname or ids[0], "icon": "heater", "switch": switch, "power": power})
         elif MACHINE_WORDS.search(dn + " " + str(d.get("model") or "").lower()) and (start or power):
             out.append({"device": dev, "kind": "machine", "name": dname or ids[0], "icon": icon_for(text), "start": start, "power": power,

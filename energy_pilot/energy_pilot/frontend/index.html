@@ -1066,15 +1066,16 @@ const TH_SVG = {
   dryer: `<rect x="9" y="5" width="30" height="38" rx="4"/><path d="M9 13h30"/><circle cx="15" cy="9" r="1"/><circle cx="24" cy="28" r="10"/><path d="M21 24c-2 2 2 4 0 6M27 24c-2 2 2 4 0 6"/>`,
   plug: `<path d="M18 6v10M30 6v10M12 16h24v8a12 12 0 0 1-24 0z"/><path d="M24 36v8"/>`,
 };
+TH_SVG.pool = `<path d="M6 34c3-2 6-2 9 0s6 2 9 0 6-2 9 0 6 2 9 0M6 41c3-2 6-2 9 0s6 2 9 0 6-2 9 0 6 2 9 0"/><path d="M15 28V10a4 4 0 0 1 8 0M27 28V10a4 4 0 0 1 8 0M15 16h12M15 23h12"/>`;
 TH_SVG.heater = `<rect x="14" y="5" width="20" height="38" rx="9"/><path d="M20 16c0 3 4 3 4 6s-4 3-4 6M28 16c0 3 4 3 4 6s-4 3-4 6" opacity=".8"/>`;
-const TH_COL = { heater: "#f87171", mower: "#3ddc97", bike: "#6ea8fe", tool: "#f5b544", battery: "#a78bfa", dish: "#7c6cff", wash: "#38bdf8", dryer: "#fb923c", plug: "#8b93a3" };
+const TH_COL = { pool: "#22d3ee", heater: "#f87171", mower: "#3ddc97", bike: "#6ea8fe", tool: "#f5b544", battery: "#a78bfa", dish: "#7c6cff", wash: "#38bdf8", dryer: "#fb923c", plug: "#8b93a3" };
 const TH_ICONS = Object.keys(TH_SVG);
 const thIcon = (k, size = 26, sw = 2) => { const n = TH_SVG[k] ? k : "plug"; return `<svg viewBox="0 0 48 48" width="${size}" height="${size}" fill="none" stroke="${TH_COL[n]}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${TH_SVG[n]}</svg>`; };
 function thGuess(name) {
   const t = String(name || "").toLowerCase();
   const m = [["dish", /dish|opvask|geschirr|vaisselle|vaatwas|disk|oppvask|spül/], ["dryer", /dryer|tørre|tumble|trockner|sèche|seche|droger|tork/],
     ["wash", /wash|vask|linge|wasmachine|tvätt/], ["mower", /mower|plæne|rasenm|tondeuse|maaier|klipp/], ["bike", /bike|cykel|fahrrad|vélo|velo|fiets|sykkel/],
-    ["tool", /tool|værktøj|werkzeug|outil|gereedschap|verktyg/]];
+    ["tool", /tool|værktøj|werkzeug|outil|gereedschap|verktyg/], ["pool", /pool|spa|jacuzzi|svømme|bassin|schwimm|piscine|zwembad|bassäng|basseng/]];
   return (m.find(([, r]) => r.test(t)) || ["plug"])[0];
 }
 const T_TH = {
@@ -1154,6 +1155,17 @@ const T_HEAT = {  // a water heater: on, rests in the dear hours
 };
 const TH_H = T_HEAT[L] || T_HEAT.en;
 T.chk.heater_found = TH_H.found;
+const T_PUMP = {  // a pool pump: runs its hours every day, on the sun first
+  da: { kind: "Poolpumpe", hours: "Timer om dagen", hoursH: "Kører så mange timer hver dag – på sol først, resten i de billigste timer før midnat", of: "{a} af {b} t i dag", always: "Kører sine timer hver dag, også uden sol. Tænder du den selv, bliver den tændt, og tiden tæller med." },
+  en: { kind: "Pool pump", hours: "Hours a day", hoursH: "Runs this many hours every day – on the sun first, the rest in the cheapest hours before midnight", of: "{a} of {b} h today", always: "Runs its hours every day, sun or not. Turn it on yourself and it stays on – the time counts." },
+  de: { kind: "Poolpumpe", hours: "Stunden am Tag", hoursH: "Läuft jeden Tag so viele Stunden – zuerst mit Sonne, der Rest in den günstigsten Stunden vor Mitternacht", of: "{a} von {b} h heute", always: "Läuft jeden Tag ihre Stunden, auch ohne Sonne. Schaltest du sie selbst ein, bleibt sie an – die Zeit zählt mit." },
+  fr: { kind: "Pompe de piscine", hours: "Heures par jour", hoursH: "Tourne autant d'heures chaque jour – au soleil d'abord, le reste aux heures les moins chères avant minuit", of: "{a} sur {b} h aujourd'hui", always: "Tourne ses heures chaque jour, avec ou sans soleil. Allumée par toi, elle reste allumée – le temps compte." },
+  nl: { kind: "Zwembadpomp", hours: "Uren per dag", hoursH: "Draait elke dag zoveel uren – eerst op de zon, de rest in de goedkoopste uren voor middernacht", of: "{a} van {b} u vandaag", always: "Draait elke dag zijn uren, ook zonder zon. Zet je hem zelf aan, dan blijft hij aan – de tijd telt mee." },
+  sv: { kind: "Poolpump", hours: "Timmar per dag", hoursH: "Går så många timmar varje dag – på solen först, resten de billigaste timmarna före midnatt", of: "{a} av {b} h i dag", always: "Går sina timmar varje dag, även utan sol. Slår du på den själv står den på – tiden räknas." },
+  nb: { kind: "Bassengpumpe", hours: "Timer per dag", hoursH: "Går så mange timer hver dag – på solen først, resten i de billigste timene før midnatt", of: "{a} av {b} t i dag", always: "Går timene sine hver dag, også uten sol. Slår du den på selv, står den på – tiden teller." },
+};
+const TH_P = T_PUMP[L] || T_PUMP.en;
+TH.kinds.pump = TH_P.kind;
 TH.kinds.heater = TH_H.kind; TH.st.heat = TH_H.heat; TH.st.pause = TH_H.pause; TH.st.sun_boost = TH_H.sunBoost;
 T.chk.thing_found = TH.found;
 const thAll = new Set();  // pick lists shown in full
@@ -1161,6 +1173,7 @@ let thOpen = (() => { try { return localStorage.getItem("ep_things_open") === "1
 const thMin = (m) => m >= 60 ? `${Math.floor(m / 60)} t ${String(Math.round(m % 60)).padStart(2, "0")}`.replace(" t ", L === "en" ? " h " : " t ") : `${Math.round(m)} min`;
 function thStatus(x) {
   const s = TH.st, first = x.hours[0] ? clock(x.hours[0]) : "";
+  if (x.kind === "pump") return x.status === "planned" ? s.plannedM.replace("{x}", first) : s[x.status] || s.idle;
   if (x.kind === "heater") return x.status === "heat" && x.off?.length ? TH_H.pauseAt.replace("{x}", clock(x.off[0])) : s[x.status] || s.idle;
   if (x.kind === "machine") return x.status === "planned" ? s.plannedM.replace("{x}", clock(x.start)) : s[x.status] || s.idle;
   return x.status === "planned" ? s.planned.replace("{x}", first) : s[x.status] || s.idle;
@@ -1170,7 +1183,7 @@ function thColor(x) {
     : ["planned", "armed", "waiting_start"].includes(x.status) ? "#b3aaff" : "var(--faint)";
 }
 function thRing(x) {
-  const r = 23, c = 2 * Math.PI * r, p = ["full", "done"].includes(x.status) ? 1 : x.need_kwh ? Math.min(1, x.kwh_now / x.need_kwh) : 0;
+  const r = 23, c = 2 * Math.PI * r, p = ["full", "done"].includes(x.status) ? 1 : x.need_h ? Math.min(1, x.run_h / x.need_h) : x.need_kwh ? Math.min(1, x.kwh_now / x.need_kwh) : 0;
   const dash = x.kind === "machine" && ["planned", "armed"].includes(x.status) ? `stroke-dasharray="4 6"` : `stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c * (1 - p)).toFixed(1)}"`;
   return `<div class="thring"><svg width="54" height="54" viewBox="0 0 54 54"><circle cx="27" cy="27" r="${r}" stroke="var(--surface2)" stroke-width="5" fill="none"/>
     ${p > 0 || dash.includes("4 6") ? `<circle cx="27" cy="27" r="${r}" stroke="${thColor(x)}" stroke-width="5" fill="none" stroke-linecap="round" ${dash} transform="rotate(-90 27 27)"/>` : ""}</svg><span>${thIcon(x.icon || thGuess(x.name), 26)}</span></div>`;
@@ -1181,7 +1194,7 @@ function thingsCard() {
   const chip = (x) => `<span class="thchip">${thIcon(x.icon || thGuess(x.name), 22)}<b style="color:${thColor(x)}">${["full", "done"].includes(x.status) ? "✓" : x.sun && x.status !== "idle" ? "☀ " + esc(thStatus(x)) : esc(thStatus(x))}</b></span>`;
   if (!thOpen) return `<button class="card fade thline" data-thopen="1"><span class="eyebrow" style="margin:0"><span>${TH.title}</span></span><span class="thchips">${list.map(chip).join("")}</span><span class="thmore">›</span></button>`;
   const tile = (x) => {
-    const sub = x.kind === "machine"
+    const sub = x.kind === "pump" ? TH_P.of.replace("{a}", num(x.run_h, 1)).replace("{b}", num(x.need_h, 1)) : x.kind === "machine"
       ? (x.status === "running" ? TH.of.replace("{a}", num(x.kwh_now, 1)).replace("{b}", num(x.need_kwh, 1)) : x.status === "done" && x.last ? TH.spent.replace("{k}", num(x.last.kwh, 1)).replace("{c}", kr(x.last.cost))
         : x.status === "armed" ? TH.noTime : x.status === "idle" ? (x.resume ? TH.fillRes : TH.fill) : thMin(x.minutes))
       : (x.status === "full" && x.last ? TH.spent.replace("{k}", num(x.last.kwh, 1)).replace("{c}", kr(x.last.cost)) : TH.of.replace("{a}", num(x.kwh_now, 1)).replace("{b}", num(x.need_kwh, 1)));
@@ -1216,13 +1229,15 @@ function thingsSection(v, row) {
     return `<div class="batbox"><h4 class="bathead thhead">${thIcon(ic, 22)} ${esc(x.name || TH.kinds[kind])}</h4>
       ${row(TH.name, "", `<input class="pname" data-tht="${i}:name" value="${esc(x.name || "")}">`)}
       <div class="ctl" style="display:block"><div class="t"><b>${TH.icon}</b></div><div class="thicons">${TH_ICONS.map((k) => `<button class="${ic === k ? "on" : ""}" data-thicon="${i}:${k}">${thIcon(k, 24)}</button>`).join("")}</div></div>
-      ${row(TH.kind, "", `<div class="seg mini">${["battery", "machine", "heater"].map((k) => `<button class="${kind === k ? "on" : ""}" data-thkind="${i}:${k}">${TH.kinds[k]}</button>`).join("")}</div>`)}
+      ${row(TH.kind, "", `<div class="seg mini">${["battery", "machine", "heater", "pump"].map((k) => `<button class="${kind === k ? "on" : ""}" data-thkind="${i}:${k}">${TH.kinds[k]}</button>`).join("")}</div>`)}
       ${kind === "machine" ? row(TH.start, TH.startH, sel(i, "start", o.starts, o.all_switches, x.start)) : row(TH.sw, TH.swH, sel(i, "switch", o.switches, (o.all_switches || []).filter((s) => !s.entity_id.startsWith("button.")), x.switch))}
       ${row(TH.power, TH.powerH, sel(i, "power", o.power, o.all_power, x.power, devOf(kind === "machine" ? x.start : x.switch)))}
+      ${kind === "pump" ? row(TH_P.hours, TH_P.hoursH, `<span class="unitin"><input class="numin" type="number" inputmode="decimal" step="0.5" data-thn="${i}:hours_day" value="${x.hours_day ?? ""}" placeholder="6"><i>h</i></span>`) : ""}
       ${kind === "heater" ? `<div class="muted" style="margin-top:6px">${TH_H.always}</div>` : `<div class="ctl" style="display:block"><div class="t"><b>${TH.mode}</b></div><div class="thmodes">${[["sun_cheap", "☀️"], ["sun", "🌞"], ["cheap", "💸"]].map(([k, e]) =>
         `<button class="${(x.mode || "sun_cheap") === k ? "on" : ""}" data-thmode="${i}:${k}"><span>${e}</span>${TH.modes[k]}</button>`).join("")}</div></div>`}
-      ${kind === "heater" ? "" : row(TH.readyBy, TH.readyByH, `<input type="time" data-tht="${i}:ready" value="${esc(x.ready || "")}">`)}
-      ${kind === "heater" ? "" : row(TH.kwh, lr ? TH.learned.replace("{n}", lr.n).replace("{t}", `${num(lr.kwh, 2)} kWh, ${thMin(lr.min)}`) : TH.kwhH, `<span class="unitin"><input class="numin" type="number" inputmode="decimal" step="0.1" data-thn="${i}:kwh" value="${x.kwh ?? ""}" placeholder="${kind === "machine" ? "1.0" : "0.5"}"><i>kWh</i></span>`)}
+      ${kind === "pump" ? `<div class="muted" style="margin-top:6px">${TH_P.always}</div>` : ""}
+      ${["heater", "pump"].includes(kind) ? "" : row(TH.readyBy, TH.readyByH, `<input type="time" data-tht="${i}:ready" value="${esc(x.ready || "")}">`)}
+      ${["heater", "pump"].includes(kind) ? "" : row(TH.kwh, lr ? TH.learned.replace("{n}", lr.n).replace("{t}", `${num(lr.kwh, 2)} kWh, ${thMin(lr.min)}`) : TH.kwhH, `<span class="unitin"><input class="numin" type="number" inputmode="decimal" step="0.1" data-thn="${i}:kwh" value="${x.kwh ?? ""}" placeholder="${kind === "machine" ? "1.0" : "0.5"}"><i>kWh</i></span>`)}
       ${kind === "machine" ? row(TH.res, TH.resH, `<div class="seg mini">${[[1, TH.on], [0, TH.off]].map(([k, l]) => `<button class="${!!x.resume === !!k ? "on" : ""}" data-thres="${i}:${k}">${l}</button>`).join("")}</div>`) : ""}
       ${kind === "machine" && x.resume ? row(TH.plug, TH.plugH, sel(i, "switch", o.switches, (o.all_switches || []).filter((s) => !s.entity_id.startsWith("button.")), x.switch)) : ""}
       ${kind === "machine" ? `<div class="muted" style="margin-top:6px">${x.resume ? (x.switch && x.power ? TH.resOn : TH.resNeed) : TH.neverOff}</div>` : ""}

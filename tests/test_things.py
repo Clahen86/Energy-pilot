@@ -203,3 +203,38 @@ def test_resume_without_a_time_or_cancelled_runs_now():
     th.arm("d", False)  # Cancel while paused
     asyncio.run(th.tick(ha, st, T0 + timedelta(minutes=1), 2.0, 0.05, 100))
     assert ha.states["switch.d"]["state"] == "on"
+
+
+def test_pool_pump_runs_its_hours_sun_first_then_cheapest():
+    th = Things({})
+    st = {"things": [{"id": "p", "kind": "pump", "switch": "switch.p", "hours_day": 3, "kw": 0.5, "mode": "sun_cheap"}]}
+    hs = hours([2.0] * 24)
+    hs[2] = Hour(hs[2].start, 0.4, 0.05, 0.5, 0)  # cheap at night
+    left = {hs[12].start: 1.0, hs[13].start: 1.0}  # sun for two hours
+    p = th.plan(st, hs, T0, left, {}, None)[0]
+    assert p["hours"] == sorted([hs[2].start.isoformat(), hs[12].start.isoformat(), hs[13].start.isoformat()])
+    # with no sun at all it still runs its hours - the filter needs them
+    assert len(th.plan(st, hs, T0, {}, {}, None)[0]["hours"]) == 3
+
+
+def test_pool_pump_stops_when_todays_hours_are_run():
+    th = Things({})
+    st = {"things": [{"id": "p", "kind": "pump", "switch": "switch.p", "hours_day": 1, "kw": 0.5, "mode": "cheap"}]}
+    hs = hours([1.0] * 24)
+    hs[2] = Hour(hs[2].start, 0.1, 0.05, 0.5, 0)
+    th.plan(st, hs, T0, {}, {}, None)
+    ha = FakeHA({"switch.p": {"state": "off"}})
+    now = T0 + timedelta(hours=2)
+    for i in range(125):  # just over an hour
+        asyncio.run(th.tick(ha, st, now + timedelta(seconds=30 * i), 0.1, 0.05, 100))
+        if i == 0:
+            assert ha.states["switch.p"]["state"] == "on"
+    assert th.full_today("p", now) and th.view(st, now)[0]["status"] == "done"
+
+
+def test_find_offers_a_pool_pump():
+    reg = [{"entity_id": "switch.pool_pump_plug", "device_id": "d1", "platform": "shelly"}]
+    devs = {"d1": {"name": "Pool pump"}}
+    states = {"switch.pool_pump_plug": {"state": "off", "attributes": {}}}
+    c = find(reg, devs, states, set(), [])
+    assert c and c[0]["kind"] == "pump"
