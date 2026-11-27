@@ -679,7 +679,8 @@ class Controller:
             slot = int(car.get("slot_min") or 60)
             hour = now.replace(minute=now.minute // slot * slot if slot < 60 else 0, second=0, microsecond=0)  # the slot now
             planned = {datetime.fromisoformat(t) for t in (car.get("hours") or [])}
-            manual = bool(self.ov.settings.get("ev_now"))
+            # "Charge now" as the panel shows it: the owner's own helper when there is one, else the setting
+            manual = bool((self.ov.ev() or {}).get("manual"))
             from .carspeed import decide
 
             st = dict(self.ov.settings)

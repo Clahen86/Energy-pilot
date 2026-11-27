@@ -2,6 +2,8 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.118.1 – 2026-11-27
+- "Charge now" works again when it's tied to your own helper (an input_boolean): the charger now starts at once, not only the button in the panel
 ## 0.118.0 – 2026-11-27
 - "Car first" with a charger that follows the sun by itself (a Zappi on Eco+ and the like): while the car is plugged in and short of its target, the battery keeps the sun's surplus out, so the charger gets it. If the car takes nothing for 15 minutes, the battery gets the sun again for an hour
 ## 0.117.0 – 2026-11-27
