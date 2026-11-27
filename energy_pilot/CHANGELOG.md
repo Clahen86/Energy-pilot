@@ -2,6 +2,8 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.119.1 – 2026-11-27
+- Faster updates: the large part of the add-on (the maths libraries) is kept between versions, so an update only downloads what changed. The first update after this one still downloads it all once
 ## 0.119.0 – 2026-11-27
 - The car's own hours in the plan: tap an hour and choose "Charge the car here" (always used, the rest filled with the best hours) or "Not the car here" (never used). Each charger has its own choice, kept until the car is plugged in
 ## 0.118.3 – 2026-11-27

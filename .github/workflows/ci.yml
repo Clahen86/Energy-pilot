@@ -37,6 +37,8 @@ jobs:
           file: docker/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
+          cache-from: type=gha,scope=docker
+          cache-to: type=gha,mode=max,scope=docker
           tags: |
             ghcr.io/clahen86/energy-pilot:latest
             ghcr.io/clahen86/energy-pilot:${{ github.ref_name == 'main' && 'edge' || github.ref_name }}
@@ -72,6 +74,9 @@ jobs:
           context: energy_pilot
           platforms: ${{ matrix.platform }}
           push: true
+          # the big layer (pandas, numpy, scikit-learn) is kept between versions: an update only downloads what changed
+          cache-from: type=gha,scope=addon-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=addon-${{ matrix.arch }}
           build-args: BUILD_VERSION=${{ steps.v.outputs.version }}
           labels: |
             io.hass.type=addon
