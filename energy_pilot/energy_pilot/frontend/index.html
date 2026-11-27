@@ -694,6 +694,16 @@ const T_MAN = {  // the user's own hours in the plan
   nl: { charge: "Hier laden", sell: "Hier verkopen", hold: "Stroom bewaren", auto: "Automatisch", set: { charge: "Jouw keuze: laden", sell: "Jouw keuze: verkopen", hold: "Jouw keuze: bewaren" } },
 };
 T.man = T_MAN[L] || T_MAN.en;
+const T_CMAN = {  // the user's own hours for the car in the plan
+  da: { charge: "Lad bilen her", skip: "Ikke bilen her", set: { charge: "Du har valgt: lad bilen", skip: "Du har valgt: ikke bilen" } },
+  en: { charge: "Charge the car here", skip: "Not the car here", set: { charge: "Your choice: charge the car", skip: "Your choice: not the car" } },
+  de: { charge: "Auto hier laden", skip: "Auto nicht hier", set: { charge: "Deine Wahl: Auto laden", skip: "Deine Wahl: Auto nicht" } },
+  fr: { charge: "Charger la voiture ici", skip: "Pas la voiture ici", set: { charge: "Votre choix : charger la voiture", skip: "Votre choix : pas la voiture" } },
+  nl: { charge: "Auto hier laden", skip: "Auto hier niet", set: { charge: "Jouw keuze: auto laden", skip: "Jouw keuze: auto niet" } },
+  sv: { charge: "Ladda bilen här", skip: "Inte bilen här", set: { charge: "Ditt val: ladda bilen", skip: "Ditt val: inte bilen" } },
+  nb: { charge: "Lad bilen her", skip: "Ikke bilen her", set: { charge: "Ditt valg: lad bilen", skip: "Ditt valg: ikke bilen" } },
+};
+T.cman = T_CMAN[L] || T_CMAN.en;
 const T_SW = {
   da: { t: "Styring", h: "Kontakten der starter og stopper laderen", auto: "Find selv", used: "Bruger: {x}", none: "Ingen fundet – vælg kontakten, der tænder laderen", onoff: "Kun tænd/sluk: lader med fuld effekt – på sol kun når der er nok til det hele" },
   en: { t: "Control", h: "The switch that starts and stops the charger", auto: "Find by itself", used: "Using: {x}", none: "None found – pick the switch that turns the charger on", onoff: "On/off only: charges at full power – on sun only when there's enough for all of it" },
@@ -1497,7 +1507,28 @@ function manButtons(h) {
   return `<div class="man">${h.manual ? `<span class="manset">${T.man.set[h.manual]}</span>` : ""}${opts.map((o) =>
     `<button class="chip${h.manual === o ? " on" : ""}" data-man="${o}">${T.man[o]}</button>`).join("")}${h.manual ? `<button class="chip" data-man="">${T.man.auto}</button>` : ""}</div>`;
 }
+// The car's own hour: always charge here, or never - Automatic gives it back to the plan. Each charger its own row.
+function carManButtons(h) {
+  if (new Date(h.t).getTime() + 3600e3 <= Date.now()) return "";
+  const parts = [...(data.ev ? [{ part: "car", name: data.ev.car?.name || "" }] : []),
+    ...(data.cars || []).map((c) => ({ part: `car${c.n}`, name: c.name || "" }))];
+  const many = parts.length > 1;
+  return parts.map(({ part, name }) => {
+    const cur = (h.car_man || {})[part];
+    return `<div class="man">${many && name ? `<span class="manset">${esc(name)}</span>` : ""}${cur ? `<span class="manset">${T.cman.set[cur]}</span>` : ""}${["charge", "skip"].map((o) =>
+      `<button class="chip${cur === o ? " on" : ""}" data-cman="${o}" data-part="${part}">${T.cman[o]}</button>`).join("")}${cur ? `<button class="chip" data-cman="" data-part="${part}">${T.man.auto}</button>` : ""}</div>`;
+  }).join("");
+}
 function wireMan(h) {
+  document.querySelectorAll("#tip [data-cman]").forEach((b) => b.onclick = async (e) => {
+    e.stopPropagation();
+    const key = h.t.slice(0, 13), today = new Date().toISOString().slice(0, 10), all = {};
+    for (const x of data.plan.hours) for (const [p, v] of Object.entries(x.car_man || {}))
+      if (x.t.slice(0, 10) >= today) (all[p] = all[p] || {})[x.t.slice(0, 13)] = v;
+    const own = all[b.dataset.part] = all[b.dataset.part] || {};
+    if (b.dataset.cman) own[key] = b.dataset.cman; else delete own[key];
+    await api("/api/settings", { car_manual: all }); await load(); render();
+  });
   document.querySelectorAll("#tip [data-man]").forEach((b) => b.onclick = async (e) => {
     e.stopPropagation();
     const key = h.t.slice(0, 13), today = new Date().toISOString().slice(0, 10), man = {};
@@ -3240,7 +3271,7 @@ function wire() {
   document.querySelectorAll("[data-pvr-h]").forEach((b) => b.onclick = () => { const h = Number(b.dataset.pvrH); pvrHour = pvrHour === h ? null : h; render(); });
   document.querySelectorAll("[data-h]").forEach((g) => g.onclick = () => {
     const h = data.plan.hours.filter((x) => x.price != null || x.sun != null)[Number(g.dataset.h)];
-    $("#tip").innerHTML = `<b>${clock(h.t)}</b> · ${kr(h.price)}/kWh${h.sun != null ? ` · ${T.legSun} ${num(h.sun, 1)} kWh` : ""}${h.house != null ? ` · ${T.legHouse} ${num(h.house, 1)} kWh` : ""}${h.soc != null ? ` · ${T.battery} ${num(h.soc, 0)} %${data.engine?.capacity ? ` · ${num(h.soc * data.engine.capacity / 100, 1)} kWh` : ""}` : ""}${h.charge ? ` · ${T.legCharge}` : ""}${h.export ? ` · ${T.legExport}` : ""}${h.car ? ` · ${T.legCar}${h.car_kwh ? ` ${num(h.car_kwh, 1)} kWh` : ""}` : ""}` + manButtons(h);
+    $("#tip").innerHTML = `<b>${clock(h.t)}</b> · ${kr(h.price)}/kWh${h.sun != null ? ` · ${T.legSun} ${num(h.sun, 1)} kWh` : ""}${h.house != null ? ` · ${T.legHouse} ${num(h.house, 1)} kWh` : ""}${h.soc != null ? ` · ${T.battery} ${num(h.soc, 0)} %${data.engine?.capacity ? ` · ${num(h.soc * data.engine.capacity / 100, 1)} kWh` : ""}` : ""}${h.charge ? ` · ${T.legCharge}` : ""}${h.export ? ` · ${T.legExport}` : ""}${h.car ? ` · ${T.legCar}${h.car_kwh ? ` ${num(h.car_kwh, 1)} kWh` : ""}` : ""}` + manButtons(h) + carManButtons(h);
     wireMan(h);
   });
   document.querySelectorAll("[data-cmode]").forEach((b) => b.onclick = async () => {

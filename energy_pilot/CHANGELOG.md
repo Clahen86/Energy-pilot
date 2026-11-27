@@ -2,6 +2,8 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.119.0 – 2026-11-27
+- The car's own hours in the plan: tap an hour and choose "Charge the car here" (always used, the rest filled with the best hours) or "Not the car here" (never used). Each charger has its own choice, kept until the car is plugged in
 ## 0.118.3 – 2026-11-27
 - "Charge now" is for one charge: it turns off by itself when the car is unplugged, so the next plug-in follows the plan again. For your own helper, the panel's button and extra chargers alike
 ## 0.118.2 – 2026-11-27

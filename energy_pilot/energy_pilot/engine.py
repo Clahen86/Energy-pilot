@@ -484,23 +484,35 @@ def car_load(hours: list[Hour], planned: set | frozenset, kw: float, now_w: floa
 
 
 def plan_car(hours: list[Hour], need_kwh: float, charger_kw: float, ready: datetime | None, now: datetime,
-             solar_only: bool = False, skip: set | None = None) -> list[datetime]:
+             solar_only: bool = False, skip: set | None = None, pins: dict[str, str] | None = None) -> list[datetime]:
     """The hours to charge in: sun surplus first, then the cheapest - all before 'ready' (or within 24 h).
-    solar_only: only hours with a real surplus. skip: hours not to use (quiet hours, the battery's sun hours)."""
+    solar_only: only hours with a real surplus. skip: hours not to use (quiet hours, the battery's sun hours).
+    pins: the user's own hours in the plan ("YYYY-MM-DDTHH" -> "charge" / "skip"): a "charge" hour is always used, a
+    "skip" hour never - the rest is filled with the best hours as usual."""
     if need_kwh <= 0 or charger_kw <= 0:
         return []
+    pins = pins or {}
+    pin = lambda h: pins.get(h.start.strftime("%Y-%m-%dT%H"))
+    live = [h for h in hours if h.start > now - timedelta(hours=h.length)]
+    chosen = [h.start for h in live if pin(h) == "charge"]
+    got = sum(charger_kw * h.length for h in live if pin(h) == "charge")
     until = ready or now + timedelta(hours=24)
-    usable = [h for h in hours if now - timedelta(hours=h.length) < h.start < until and h.start not in (skip or set())
+    usable = [h for h in live if h.start < until and h.start not in (skip or set()) and not pin(h)
               and (not solar_only or h.sun - h.house >= charger_kw * h.length * 0.5)]
     # A surplus slot costs what the energy would have been sold for; others their price.
     ranked = sorted(usable, key=lambda h: h.sell if h.sun - h.house >= charger_kw * h.length * 0.7 else h.price)
-    chosen, got = [], 0.0
     for h in ranked:
         if got >= need_kwh:
             break
         chosen.append(h.start)
         got += charger_kw * h.length
     return sorted(chosen)
+
+
+def car_pins(settings: dict[str, Any], part: str) -> dict[str, str]:
+    """The user's own hours for one charger's car (settings["car_manual"][part]): "charge" or "skip"."""
+    own = ((settings.get("car_manual") or {}).get(part)) or {}
+    return {k: v for k, v in own.items() if v in ("charge", "skip")} if isinstance(own, dict) else {}
 
 
 # ---------- quarter-hour slots ----------
@@ -1753,17 +1765,18 @@ class Engine:
         if quiet := self.quiet_hours("car"):
             skip = skip | {h.start for h in hours if h.start.hour in quiet}
         kw = car_kw(self)
+        pins = car_pins(st, "car")
         chosen = None
         if pt := self.power_tariff():
             # Power tariff: charge beside the peaks when that still gets the car full - else as usual.
             from .powertariff import counts
 
             over = {h.start for h in hours if h.house / h.length + kw > pt["limit_kw"] and counts(st, h.start)}
-            chosen = plan_car(hours, max(0.0, need), kw, ready, now, solar_only=st.get("ev_mode") == "solar", skip=skip | over)
+            chosen = plan_car(hours, max(0.0, need), kw, ready, now, solar_only=st.get("ev_mode") == "solar", skip=skip | over, pins=pins)
             if sum(h.length for h in hours if h.start in set(chosen)) * kw < max(0.0, need) - 0.5:
                 chosen = None
         if chosen is None:
-            chosen = plan_car(hours, max(0.0, need), kw, ready, now, solar_only=st.get("ev_mode") == "solar", skip=skip)
+            chosen = plan_car(hours, max(0.0, need), kw, ready, now, solar_only=st.get("ev_mode") == "solar", skip=skip, pins=pins)
         return {"hours": [t.isoformat() for t in chosen], "set": set(chosen), "need": round(max(0.0, need), 1)}
 
     def _ghost_plans(self, hours: list[Hour], now: datetime, f: dict[str, Any], slot_min: int) -> None:
@@ -1819,7 +1832,7 @@ class Engine:
                 load[t] = load.get(t, 0.0) + car_kw(self)
         quiet = self.quiet_hours("car")
         out = []
-        for c, now_c in zip(more, f.get("cars") or [{}] * len(more)):
+        for i, (c, now_c) in enumerate(zip(more, f.get("cars") or [{}] * len(more))):
             kw = float(c.get("charger_kw") or 7.4)
             entry = {"name": c.get("name") or "", "plug": bool(now_c.get("plug")), "hours": [], "need_kwh": 0.0, "slot_min": slot_min}
             if now_c.get("plug"):
@@ -1831,7 +1844,8 @@ class Engine:
                 skip = {h.start for h in hours if h.start.hour in quiet}
                 if limit is not None:  # never more than the main fuse: house + the other cars + this one
                     skip |= {h.start for h in hours if h.house / h.length + load.get(h.start, 0.0) + kw > limit + 1e-9}
-                chosen = plan_car(hours, need, kw, ready, now, solar_only=c.get("mode") == "solar", skip=skip)
+                chosen = plan_car(hours, need, kw, ready, now, solar_only=c.get("mode") == "solar", skip=skip,
+                                  pins=car_pins(st, f"car{i + 2}"))
                 for t in chosen:
                     load[t] = load.get(t, 0.0) + kw
                 entry.update(hours=[t.isoformat() for t in chosen], need_kwh=round(need, 1))

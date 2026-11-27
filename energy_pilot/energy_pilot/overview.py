@@ -193,7 +193,7 @@ class Overview:
                          "quiet_from", "quiet_to", "quiet_battery", "quiet_car",
                          "quiet_battery_from", "quiet_battery_to", "quiet_car_from", "quiet_car_to",
                          "control", "inverter_profile", "custom_profile", "battery_takeover", "ev_now", "ev_target", "ev_sun_target", "ev_trip", "ev_battery_kwh", "charger_phases", "ev_ready", "ev_switch", "ev_phase_switch",
-                         "batteries", "battery_dismissed", "chargers", "charger_dismissed", "battery_targets", "manual", "tariff_current", "tariff_show",
+                         "batteries", "battery_dismissed", "chargers", "charger_dismissed", "battery_targets", "manual", "car_manual", "tariff_current", "tariff_show",
                          # more cars than chargers (carlist.py)
                          "cars", "car_in", "car_in_manual", "car_in_sure",
                          # the self-test and what was mended by itself (selftest.py, autofix.py)
@@ -867,6 +867,10 @@ class Overview:
         for k, v in (self.settings.get("manual") or {}).items():
             if k in hours:
                 hours[k]["manual"] = v  # the user's own choice for that hour
+        for part, own in (self.settings.get("car_manual") or {}).items():
+            for k, v in (own or {}).items() if isinstance(own, dict) else ():
+                if k in hours:
+                    hours[k].setdefault("car_man", {})[part] = v  # the user's own choice for a car that hour
         # The plan shows Energy Pilot's own charging; another system's plan (AppDaemon) is only compared.
         res = (self.engine.result if self.engine else None) or {}
         # For the detailed plan (Plan > Detailed plan): what the battery does, what is bought (+) or sold (-), and the
