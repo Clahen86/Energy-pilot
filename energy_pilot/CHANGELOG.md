@@ -2,6 +2,8 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.114.3 – 2026-11-27
+- Car: "Ready at" is back for a car picked from the list that has no ready time yet - the field was hidden, so there was no way to set one
 ## 0.114.2 – 2026-11-26
 - Import limit: the battery's grid charge gives way within a minute when the house suddenly uses more than expected (the oven, the kettle), so the house stays under the limit - the car already did this
 ## 0.114.1 – 2026-11-26

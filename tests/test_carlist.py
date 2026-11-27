@@ -91,6 +91,8 @@ def test_charger_one_shows_the_car_in_it(tmp_path):
         {"roles": {"ev_power": "sensor.p", "ev_plug": "binary_sensor.plug"}, "cars": CARS, "car_in": {"car": "b"}}))
     ev = Overview(HA(), tmp_path).ev()
     assert ev["soc"] is None and not ev["soc_known"] and ev["cap"] == 10 and ev["car"]["name"] == "Passat GTE"
+    # a car without a ready time still shows the field, so one can be set (DK user, 2026-11-27: it was gone)
+    assert ev["ready"] == ""
 
 
 LEARNED = [{"id": "e", "name": "EV", "kw_seen": [10.8, 11.0, 10.9]}, {"id": "h", "name": "PHEV", "kw_seen": [3.6, 3.7, 3.6]}]

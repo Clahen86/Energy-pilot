@@ -943,7 +943,7 @@ class Overview:
         # Without helpers of its own, the car's buttons are Energy Pilot's (its settings); with a list of cars, the
         # ready time and "at most" are the car's in the charger.
         return {"manual": val("ev_manual") == "on" if r["ev_manual"] else bool(self.settings.get("ev_now")),
-                "ready": car.get("ready") if car else self._ready_hm(val("ev_ready")) if r["ev_ready"] else self.settings.get("ev_ready"),
+                "ready": (car.get("ready") or "") if car else self._ready_hm(val("ev_ready")) if r["ev_ready"] else self.settings.get("ev_ready"),
                 "cap": (car.get("need_kwh") or 20) if car else _num(st.get(r["ev_cap"])) if r["ev_cap"] else self.settings.get("ev_need_kwh"),
                 "car": carlist.view(self.settings, "car"),
                 "cap_max": ((st.get(r["ev_cap"]) or {}).get("attributes") or {}).get("max") if r["ev_cap"] else None,
@@ -972,7 +972,7 @@ class Overview:
                         "session_kwh": n.get("session_kwh"), "soc": n.get("soc"), "soc_known": soc_known,
                         "target": chargers.target(c), "everyday": chargers.target({**c, "trip": False}), "trip": bool(c.get("trip")),
                         "car_kwh": chargers.car_kwh(c) if soc_known else None,
-                        "manual": bool(c.get("now")), "ready": c.get("ready"), "cap": c.get("need_kwh") or 20,
+                        "manual": bool(c.get("now")), "ready": c.get("ready") or "", "cap": c.get("need_kwh") or 20,
                         "mode": c.get("mode") or "cheapest", "charger_kw": float(c.get("charger_kw") or 7.4),
                         "hours": p.get("hours") or [], "need_kwh": p.get("need_kwh"), "car": view(self.settings, f"car{i + 2}")})
         return out

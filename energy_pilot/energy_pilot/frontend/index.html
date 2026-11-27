@@ -3415,7 +3415,7 @@ function wire() {
   $("[data-setup]")?.addEventListener("click", () => { step = 1; tab = "setup"; render(); window.scrollTo(0, 0); });
   $("[data-redetect]")?.addEventListener("click", async (e) => { e.target.textContent = "…"; await api("/api/detect", {}); settings = await api("/api/settings"); await load(); render(); });
   $("[data-ev=manual]")?.addEventListener("click", async (e) => { const b = e.currentTarget, on = !b.classList.contains("on"); b.classList.toggle("on", on); await api("/api/ev", { manual: on }); });
-  $("[data-ev=ready]")?.addEventListener("change", (e) => api("/api/ev", { ready: e.target.value + ":00" }));
+  $("[data-ev=ready]")?.addEventListener("change", (e) => api("/api/ev", { ready: e.target.value ? e.target.value + ":00" : "" }));
   document.querySelectorAll("[data-evtarget]").forEach((b) => b.onclick = async () => { await api("/api/ev", { target: Number(b.dataset.evtarget), trip: false }); await load(); render(); });
 document.querySelectorAll("[data-evsun]").forEach((b) => b.onclick = async () => { await api("/api/ev", { sun_target: Number(b.dataset.evsun) }); await load(); render(); });
   $("[data-evtrip]")?.addEventListener("click", async (e) => { const b = e.currentTarget, on = !b.classList.contains("on"); b.classList.toggle("on", on); await api("/api/ev", { trip: on }); await load(); render(); });
