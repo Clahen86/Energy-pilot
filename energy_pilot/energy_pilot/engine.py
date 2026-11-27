@@ -1604,6 +1604,8 @@ class Engine:
 
         if _pd.apply(hours, now, self.ha.states):
             self.notes.append("power_down")
+        if _pd.apply_free(hours, now, self.ha.states):
+            self.notes.append("power_up")
         slot_min = round(hours[0].length * 60) if hours else 60
         self.now_slot = {"price": hours[0].price, "sell": hours[0].sell, "sun_f": hours[0].sun, "house_f": hours[0].house} if hours else {}
         f = self.ov.flow()
@@ -1628,7 +1630,11 @@ class Engine:
             if not car_plan:
                 pre = self._car(hours, now, f, set()) if f.get("plug") else None
                 need = pre["need"] if pre else self.habits.need(float(st.get("ev_need_kwh") or 20))
-                load = car_load(hours, (pre or {}).get("set") or set(), car_kw(self),
+                # A car in shadow is charged by something else (Monta, the car's own app): the slots Energy Pilot
+                # would pick won't happen, so only what it draws now counts - the live guard handles the rest.
+                ctl = getattr(self.ov, "controller", None)
+                ours = bool(ctl and ctl.mode("car") == "control")
+                load = car_load(hours, ((pre or {}).get("set") or set()) if ours else set(), car_kw(self),
                                 float(f.get("ev") or 0.0), need, now)
                 if load:
                     bh = [replace(h, house=h.house + load.get(h.start, 0.0)) for h in hours]

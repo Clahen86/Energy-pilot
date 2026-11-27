@@ -2,6 +2,9 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.117.0 – 2026-11-27
+- Octopus free electricity (Power Up) sessions are found by itself through the Octopus Energy integration and planned as free power, so the battery and the car charge in them - the price sensor doesn't show them
+- A car charged by something else (the charger's own app or schedule): the battery's grid charge no longer keeps room under the import limit for car slots Energy Pilot only guessed. Only what the car really draws counts, and the battery still turns down within a minute when the car starts
 ## 0.116.0 – 2026-11-27
 - Main fuse per phase: a meter with a current per phase (SlimmeLezer, HomeWizard P1 and the like) is found by itself, and "Main fuse per phase (A)" shows under Grid. The battery's grid charge and the car turn down within a minute before the busiest phase reaches the fuse - the house can draw unevenly, under the kW limit as a whole but over the fuse on one phase
 ## 0.115.1 – 2026-11-27
