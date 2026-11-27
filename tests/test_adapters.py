@@ -201,7 +201,8 @@ def test_profiles_from_the_integrations_own_names():
 
 def test_givenergy_solis_alphaess_from_their_code():
     ctx = {**CTX, "device_id": "dev9", "serial": "AL123"}
-    ge = ["select.givenergy_ce123_battery_pause_mode", "number.givenergy_ce123_battery_charge_power_limit"]
+    ge = ["select.givenergy_ce123_battery_pause_mode", "number.givenergy_ce123_battery_charge_power_limit",
+          "number.givenergy_ce123_battery_discharge_power_limit"]
     p = adapters.PROFILES["givenergy_local"]
     charge = adapters.resolve(p["charge"], ge, ctx)
     svc = [c for c in charge if c["domain"] == "givenergy_local"][0]
@@ -517,3 +518,18 @@ def test_own_script_step():
     calls = adapters.resolve([("script.fronius_charge", "script", None)], ["script.fronius_charge"], {**CTX})
     assert calls == [{"domain": "script", "service": "turn_on", "data": {"entity_id": "script.fronius_charge",
                       "variables": {"target": 90, "soc": 62, "min_soc": 10, "power_w": 2400, "max_power_w": 3000, "max_charge_w": 3000}}}]
+
+
+def test_givenergy_without_pause_mode_holds_with_the_discharge_limit():
+    """Older GivEnergy firmware has no battery pause mode (#92): the discharge limit at 0 W holds instead."""
+    p = adapters.PROFILES["givenergy_local"]
+    ge = ["number.givenergy_ce123_battery_charge_power_limit", "number.givenergy_ce123_battery_discharge_power_limit"]
+    assert adapters.missing(adapters.check({i: p[i] for i in ("normal", "hold", "charge", "export")}, ge, p["optional"])) == []
+    ctx = {**CTX, "device_id": "dev9"}
+    lim = lambda intent: {c["data"]["entity_id"]: c["data"]["value"] for c in adapters.resolve(p[intent], ge, ctx)
+                          if c["data"].get("entity_id", "").endswith("discharge_power_limit")}
+    assert lim("hold") == {"number.givenergy_ce123_battery_discharge_power_limit": 0}
+    assert lim("normal")["number.givenergy_ce123_battery_discharge_power_limit"] > 0
+    assert lim("export")["number.givenergy_ce123_battery_discharge_power_limit"] > 0
+    # without the discharge limit it isn't controlled at all - never half a hold
+    assert adapters.missing(adapters.check({i: p[i] for i in ("normal", "hold", "charge")}, ge[:1], p["optional"]))

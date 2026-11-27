@@ -836,15 +836,17 @@ PROFILES: dict[str, dict[str, Any]] = {
                    (r"select\..*battery_pause_mode$", "select", "Not Paused"), (r"number\..*battery_charge_power_limit$", "number", "{max_charge_w}"),
                    (r"number\..*battery_discharge_power_limit$", "number", "{max_power_w}")],
         "hold": [("givenergy_local.activate_mode_eco", "service", {"device_id": "{device_id}"}), ("givenergy_local.disable_timed_charge", "service", {"device_id": "{device_id}"}),
-                 (r"select\..*battery_pause_mode$", "select", "Pause Discharge"), (r"number\..*battery_charge_power_limit$", "number", "{max_charge_w}")],
+                 (r"select\..*battery_pause_mode$", "select", "Pause Discharge"), (r"number\..*battery_charge_power_limit$", "number", "{max_charge_w}"),
+                 (r"number\..*battery_discharge_power_limit$", "number", "0")],  # no pause mode on older firmware: the limit at 0 holds
         "charge": [(r"select\..*battery_pause_mode$", "select", "Not Paused"),
                    (r"number\..*battery_charge_power_limit$", "number", "{power_w}"),
                    ("givenergy_local.enable_timed_charge", "service",
                     {"device_id": "{device_id}", "start_time": "{lease_from}", "end_time": "{lease_to}", "charge_target": "{target}"})],
         # Selling from the battery (only when the user turns it on): checked in the integration's source.
-        "export": [(r"select\..*battery_pause_mode$", "select", "Not Paused"),
+        "export": [(r"select\..*battery_pause_mode$", "select", "Not Paused"), (r"number\..*battery_discharge_power_limit$", "number", "{max_power_w}"),
                    ("givenergy_local.activate_mode_timed_export", "service", {"device_id": "{device_id}", "start_time": "{lease_from}", "end_time": "{lease_to}"})],
-        "optional": [r"number\..*battery_charge_power_limit$", r"number\..*battery_discharge_power_limit$"],
+        # The pause mode only comes with firmware that has it (#92); the power limits always come
+        "optional": [r"number\..*battery_charge_power_limit$", r"select\..*battery_pause_mode$"],
     },
     # Solis (Pho3niX90/solis_modbus): remote-control force charge with its power and timeout (1-30 min, so it is
     # re-sent every 10 minutes); hold is a force charge at 0 W, which stops discharging.

@@ -2,6 +2,8 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.118.2 – 2026-11-27
+- GivEnergy (GivEnergy Local) without the battery pause mode (older firmware) is now controlled: keeping the power sets the discharge limit to 0 W, and normal and selling put it back to full (#92)
 ## 0.118.1 – 2026-11-27
 - "Charge now" works again when it's tied to your own helper (an input_boolean): the charger now starts at once, not only the button in the panel
 ## 0.118.0 – 2026-11-27
