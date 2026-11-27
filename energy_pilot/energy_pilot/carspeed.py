@@ -85,6 +85,15 @@ def decide(flow: dict[str, Any], s: dict[str, Any], planned: bool, manual: bool,
             return {"charge": False, "current": max_a, "sun": False, "why": "fuse", "phases": None}
         if fit < amps:
             amps, why = fit, why + "+fuse"
+    # The main fuse per phase (phases.py): amps left on the busiest phase. The car's own current is in the meter's
+    # reading already, so it comes back on top; on one phase it may be the busiest one, on three it is on all.
+    if charge and s.get("phase_room_a") is not None:
+        car_now_a = max(0.0, flow.get("ev") or 0.0) / per_a
+        fit = int(float(s["phase_room_a"]) + car_now_a)
+        if fit < lo:
+            return {"charge": False, "current": max_a, "sun": False, "why": "fuse", "phases": None}
+        if fit < amps:
+            amps, why = fit, why + "+fuse"
     # Power tariff: keep under the month's peak so far by turning down - but never stopping for it.
     peak = s.get("peak_kw")
     if charge and peak and not manual and house is not None:

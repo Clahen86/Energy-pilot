@@ -593,6 +593,19 @@ class Controller:
                         intent, charge_kw = "hold", 0.5  # no room at all: wait, the plan picks it up again
                     else:
                         charge_kw = math.floor(room * 10) / 10  # in 100 W steps, not re-sent at every wobble
+            if intent == "charge" and (ra := getattr(self.ov, "phase_room_a", lambda: None)()) is not None:
+                # The main fuse per phase (phases.py): the busiest phase stays under it. The meter already counts what
+                # the battery takes now, so that comes back on top of the room left.
+                from .phases import VOLT, battery_phases
+
+                ph = battery_phases(bat.max_charge_kw)
+                now_a = max(0.0, float(f.get("battery") or 0.0)) / (VOLT * ph)
+                fit_kw = (ra + now_a) * VOLT * ph / 1000
+                if fit_kw < charge_kw:
+                    if fit_kw < 0.3:
+                        intent, charge_kw = "hold", 0.5
+                    else:
+                        charge_kw = math.floor(fit_kw * 10) / 10
             export_w = 0
             if intent == "export":  # the battery's discharge power: the house's share and what is sold
                 charge_kw = min(bat.max_discharge_kw, max(0.5, ((f["soc"] or 0) - step["soc"]) / 100 * bat.capacity_kwh / left_h))
@@ -655,6 +668,7 @@ class Controller:
                 bat = self.engine.settings()
                 if not bat.grid_charge and f["soc"] < bat.max_soc - 1:
                     st["batt_sun_w"] = bat.max_charge_kw * 1000  # only the sun can fill it: it gets the sun first
+            st["phase_room_a"] = getattr(self.ov, "phase_room_a", lambda: None)()  # the main fuse per phase (carspeed.py)
             st["min_a"] = adapters.lowest_amps(getattr(self, "entities", {}).get("car", []), getattr(getattr(self, "ha", None), "states", {}))
             st.update(self._phase_settings("car", st))
             d = decide(f, st, hour in planned, manual, need, self._sun_on)

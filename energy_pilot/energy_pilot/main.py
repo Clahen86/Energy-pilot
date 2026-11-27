@@ -208,7 +208,7 @@ async def main() -> None:
                 # A grid charge under an import limit: looked at every minute, so it gives way soon when the house
                 # suddenly takes more (the oven, the kettle) - the plan's own round can be five minutes.
                 last = (controller.last.get("battery") or {}) if hasattr(controller, "last") else {}
-                if last.get("intent") == "charge" and controller.mode("battery") == "control" and engine.settings().import_limit_kw:
+                if last.get("intent") == "charge" and controller.mode("battery") == "control" and (engine.settings().import_limit_kw or overview.settings.get("fuse_a")):
                     await controller.tick(("battery", *controller.bat_parts()))
             except Exception:  # noqa: BLE001
                 logging.getLogger("energy_pilot.engine").debug("Charge limit check failed", exc_info=True)

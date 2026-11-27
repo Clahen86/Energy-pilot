@@ -2,6 +2,8 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.116.0 – 2026-11-27
+- Main fuse per phase: a meter with a current per phase (SlimmeLezer, HomeWizard P1 and the like) is found by itself, and "Main fuse per phase (A)" shows under Grid. The battery's grid charge and the car turn down within a minute before the busiest phase reaches the fuse - the house can draw unevenly, under the kW limit as a whole but over the fuse on one phase
 ## 0.115.1 – 2026-11-27
 - Battery charge power changed while it charges from the grid: the new power is sent to the inverter at once - before, a charge at full speed stayed at the old current until the next stop
 ## 0.115.0 – 2026-11-27

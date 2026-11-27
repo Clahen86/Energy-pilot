@@ -1961,6 +1961,16 @@ function blendRows() {
     ${curveCard(b.curve)}
     ${data.ev ? `<div class="lrow"><span>${k.car}</span><b>${days ? k.carDays.replace("{n}", days) : k.carNone}</b><em>${car.need_seen ? k.carNeed.replace("{n}", car.need_seen) : ""}</em></div>` : ""}`;
 }
+// The main fuse per phase (phases.py) - shown only when the meter gives a current per phase
+const T_FUSEPH = {
+  da: { t: "Hovedsikring pr. fase", h: "Din måler viser hver fase: batteri og bil skruer ned, før en fase når sikringen" },
+  en: { t: "Main fuse per phase", h: "Your meter shows each phase: the battery and the car turn down before a phase reaches the fuse" },
+  de: { t: "Hauptsicherung pro Phase", h: "Dein Zähler zeigt jede Phase: Batterie und Auto regeln herunter, bevor eine Phase die Sicherung erreicht" },
+  fr: { t: "Disjoncteur par phase", h: "Votre compteur montre chaque phase : la batterie et la voiture baissent avant qu'une phase atteigne le disjoncteur" },
+  nl: { t: "Hoofdzekering per fase", h: "Je meter toont elke fase: batterij en auto schakelen terug voordat een fase de zekering bereikt" },
+  sv: { t: "Huvudsäkring per fas", h: "Din mätare visar varje fas: batteriet och bilen drar ner innan en fas når säkringen" },
+  nb: { t: "Hovedsikring per fase", h: "Måleren din viser hver fase: batteriet og bilen skrur ned før en fase når sikringen" },
+};
 // The round trip measured on the grid (acsteps.py) - shown only, the plan doesn't use it yet
 const T_AC = {
   da: { t: "Målt på nettet", h: "Bruges ikke i planen endnu", wait: "måler … {a} af {n} spring" },
@@ -2931,6 +2941,7 @@ function styleView() {
         ${quietRow("gen")}
         ${roleRows(["generator_switch", "generator_running"])}` : ""}`)}
     ${section("grid", y.secGrid, y.secGridH, `${row(y.fuse, y.fuseH, numIn("import_limit_kw", 10, "1", "kW"))}
+      ${settings.phase_meters ? row((T_FUSEPH[L] || T_FUSEPH.en).t, (T_FUSEPH[L] || T_FUSEPH.en).h, numIn("fuse_a", 25, "1", "A")) : ""}
       ${row(T.pt.title, ptHint(), numIn("power_tariff_price", "", "0.5", SYM() + "/kW"))}
       ${v.power_tariff_price ? row(T.pt.kind, "", `<div class="seg mini">${["auto", "hour", "top3", "15min"].map((k) => `<button class="${(v.power_tariff_kind || "auto") === k ? "on" : ""}" data-ptkind="${k}">${T.pt.kinds[k]}</button>`).join("")}</div>`) + ptHours(v) : ""}
       ${adv("grid", `${v.sell ? row(y.sellPrice, settings.roles.sell_price ? y.sellFromSensor : "", numIn("sell_price", "0.5", "0.05", SYM())) : ""}

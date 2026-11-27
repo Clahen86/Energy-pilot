@@ -185,7 +185,7 @@ class Overview:
         for key, value in changes.items():
             if key == "roles":
                 self.settings.setdefault("roles", {}).update({k: v for k, v in value.items() if k in ROLES})
-            elif key in ("battery_kwh", "import_limit_kw", "language", "setup_done", "style", "price_area", "tariff", "markup", "price_source", "tou", "vat", "battery_min_soc", "grid_charge",
+            elif key in ("battery_kwh", "import_limit_kw", "fuse_a", "language", "setup_done", "style", "price_area", "tariff", "markup", "price_source", "tou", "vat", "battery_min_soc", "grid_charge",
                          "sell", "sell_price", "sell_fee", "solar_value", "ev_in_house", "battery_sign", "grid_sign", "grid_noise", "ev_follow_sun", "ev_fuse_guard",
                          "battery_export", "battery_no_export_cheap", "scene_fx", "battery_wear", "battery_care", "battery_type", "battery_price", "fuse_ok", "own_history", "things", "things_dismissed", "power_tariff_price", "power_tariff_kind", "power_tariff_hours", "battery_grid_max", "export_limit_kw", "agile_region", "restore_values",
                          "offgrid", "reserve_soc", "emergency_soc", "gen_stop_soc", "gen_charge_kw", "gen_min_run_h",
@@ -271,6 +271,24 @@ class Overview:
         if "sell_sun" in self.settings:
             return bool(self.settings["sell_sun"])
         return str(self.settings.get("first_seen") or "") >= "2026-11-17"
+
+    def phase_meters(self) -> list[str] | None:
+        """The grid meter's three phase currents, found by themselves (phases.py) - looked up again every 10 minutes."""
+        import time as _t
+
+        from . import phases
+
+        at, got = getattr(self, "_phase_meters", (0.0, None))
+        if _t.time() - at > 600:
+            got = phases.find(self.ha.states)
+            self._phase_meters = (_t.time(), got)
+        return got
+
+    def phase_room_a(self) -> float | None:
+        """Amps left on the busiest phase before the main fuse (fuse_a), or None."""
+        from . import phases
+
+        return phases.room_a(self.ha.states, self.phase_meters(), self.settings.get("fuse_a"))
 
     def bare_spot(self) -> bool:
         """The chosen price sensor is the bare exchange price (Home Assistant's own Nord Pool): no taxes, surcharge or
