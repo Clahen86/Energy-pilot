@@ -79,6 +79,8 @@ def safe_shared_fix(intent: str, frm: str, to: str) -> bool:
         return False
     return True
 
+NOT_TAKEN = 3  # rounds in a row the inverter didn't take the commands: the user is told
+
 class Controller:
     def __init__(self, ha: Any, overview: Any, engine: Any) -> None:
         self.ha, self.ov, self.engine = ha, overview, engine
@@ -145,14 +147,28 @@ class Controller:
         if self.mode(part) != "control" or self.blocked(part):
             return
         if part.startswith("car"):
+            self._leaving_parts().add(part)
             if calls := self._charger_hand_back(part):
                 await self._send(self._clamp(calls))
             return
         if not self.is_battery(part):
             return
-        want = self.intents().get(part)
-        if want:
-            await self._send(self.calls(part, {**want, "intent": "normal"}) + self._restore(part, "normal"))
+        # Marked as leaving before anything is sent: a round already writing (or about to) gives way, and the
+        # hand-back waits for it to finish - so the last word on the inverter is "normal", never the old order.
+        self._leaving_parts().add(part)
+        async with self._lock():
+            want = self.intents().get(part)
+            if want:
+                await self._send(self.calls(part, {**want, "intent": "normal"}) + self._restore(part, "normal"))
+
+    def _leaving_parts(self) -> set[str]:
+        if getattr(self, "_leaving", None) is None:
+            self._leaving = set()
+        return self._leaving
+
+    def _leaves(self, part: str) -> bool:
+        """Is this part on its way out of control (a hand-back, the end of a trial)? Then nothing more is written."""
+        return part in self._leaving_parts() or self.mode(part) != "control"
 
     def _charger_hand_back(self, part: str) -> list[dict[str, Any]]:
         return adapters.charger_hand_back(self.platforms.get(part), self.entities.get(part, []))
@@ -161,6 +177,7 @@ class Controller:
         modes = dict(self.ov.settings.get("control") or {})
         modes[part] = mode
         self.ov.save({"control": modes})
+        self._leaving_parts().discard(part)  # the mode is now what it is: no longer on its way out
         self.last.pop(part, None)  # act again at once
 
     def blocked(self, part: str) -> str | None:
@@ -579,13 +596,35 @@ class Controller:
             blk = self._block = (act, adapters.window_start(now))
         return adapters.alpha_windows(now, blk[1], end if act in ("charge_grid", "export") else None)
 
+    @staticmethod
+    def _live_steps(b: dict[str, Any]) -> list[dict[str, Any]]:
+        """The plan's steps whose slot hasn't ended yet (a step without a readable time is kept)."""
+        slot = timedelta(minutes=b.get("slot_min") or 60)
+        out = []
+        for s in b.get("steps") or []:
+            try:
+                t = datetime.fromisoformat(s["t"])
+                if t.tzinfo is not None and t + slot <= datetime.now(t.tzinfo):
+                    continue
+            except (KeyError, TypeError, ValueError):
+                pass
+            out.append(s)
+        return out
+
     def intents(self) -> dict[str, dict[str, Any]]:
         res = (self.engine.result or {}) if self.engine else {}
         out: dict[str, dict[str, Any]] = {}
         f = self.ov.flow()
         b = res.get("battery")
-        if not (b and b.get("steps")) and self.engine and (getattr(self.ov, "price_info", None) or {}).get("none") \
-                and f.get("soc") is not None:
+        expired = False
+        if b and b.get("steps"):
+            # Only the steps not yet over: a plan that ran out (the planning stopped, an error) never drives the
+            # inverter on from its last order - the battery runs as normal until a new plan is there.
+            live = self._live_steps(b)
+            expired = not live
+            b = {**b, "steps": live}
+        if (expired or (not (b and b.get("steps")) and (getattr(self.ov, "price_info", None) or {}).get("none"))) \
+                and self.engine and f.get("soc") is not None:
             # No prices anywhere, so no plan: the battery isn't left in its last order (a grid charge would run on
             # without a price) - it runs as normal, the house first, until the prices are back and the plan takes over.
             b = {"steps": [{"t": datetime.now(ZoneInfo(self.ha.config.get("time_zone") or "UTC")).isoformat(), "action": "normal",
@@ -628,7 +667,7 @@ class Controller:
                 # the battery takes now, so that comes back on top of the room left.
                 from .phases import VOLT, battery_phases
 
-                ph = battery_phases(bat.max_charge_kw)
+                ph = battery_phases(bat.max_charge_kw, (getattr(self, "entities", None) or {}).get("battery"))
                 now_a = max(0.0, float(f.get("battery") or 0.0)) / (VOLT * ph)
                 fit_kw = (ra + now_a) * VOLT * ph / 1000
                 if fit_kw < charge_kw:
@@ -936,9 +975,16 @@ class Controller:
                 force = self._forced(prof) and self.is_battery(part)
                 if self.is_battery(part):
                     async with self._lock():
+                        if self._leaves(part):
+                            continue  # shadow was chosen while this round waited: the hand-back has the last word
                         entry["result"] = await self._send_kept(prof, calls, force)
                 else:
+                    if self._leaves(part):
+                        continue
                     entry["result"] = await self._send(calls)
+                # Not taken several rounds in a row: the user is told (the self-check), not only the developer's view.
+                fails = self.__dict__.setdefault("fails", {})
+                fails[part] = 0 if entry["result"] == "ok" else fails.get(part, 0) + 1
                 if entry["result"] != "ok":  # what failed, for the developer's view of the brand (setupinfo.py)
                     errs = getattr(self, "part_errors", None)
                     if errs is None:
@@ -1143,6 +1189,8 @@ class Controller:
             if why == "back":
                 _LOGGER.info("%s controls are back (%s) - set again", part, ", ".join(sorted(back)))
             async with self._lock():
+                if self._leaves(part):
+                    continue
                 if why == "due":
                     prev["result"] = await self._send_kept(prof, prev["calls"], self._forced(prof))
                 else:
@@ -1312,6 +1360,10 @@ class Controller:
                 out.append({"key": "other_control", "level": "warn", "vals": {"list": names}, "goto": "battery"})
         if now_t < getattr(self, "safe_until", {}).get("battery", 0):
             out.append({"key": "acting_wrong", "level": "warn", "vals": {"intent": getattr(self, "safe_why", "")}, "goto": "battery"})
+        for part, n in (getattr(self, "fails", None) or {}).items():
+            if n >= NOT_TAKEN and self.mode(part) == "control" and self.is_battery(part):
+                out.append({"key": "not_taken", "level": "warn", "vals": {}, "goto": "battery"})
+                break
         if getattr(self, "car_stuck", {}).get("car"):
             out.append({"key": "charger_stuck", "level": "info", "vals": {}, "goto": "car"})
         pm = str((self.ha.states.get("select.predbat_mode") or {}).get("state") or "")
@@ -1350,15 +1402,19 @@ class Controller:
     async def release(self) -> None:
         """Back to shadow: the battery is put back to normal first. A charger is left as it is - unless it has its own
         planning (evcc), which it gets back."""
-        wants = self.intents()
-        for part in ["battery", *self.bat_parts()]:
-            if self.mode(part) == "control" and not self.blocked(part) and (want := wants.get(part)):
-                await self._send(self.calls(part, {**want, "intent": "normal"}) + self._restore(part, "normal"))
+        leaving = {p for p in self.parts() if self.mode(p) == "control"}
+        self._leaving_parts().update(leaving)  # a round writing now gives way (see hand_back)
+        async with self._lock():
+            wants = self.intents()
+            for part in ["battery", *self.bat_parts()]:
+                if part in leaving and not self.blocked(part) and (want := wants.get(part)):
+                    await self._send(self.calls(part, {**want, "intent": "normal"}) + self._restore(part, "normal"))
         for part in ["car", *self.car_parts()]:
-            if self.mode(part) == "control" and not self.blocked(part) and (calls := self._charger_hand_back(part)):
+            if part in leaving and not self.blocked(part) and (calls := self._charger_hand_back(part)):
                 await self._send(self._clamp(calls))
         modes = {p: "shadow" for p in self.parts()}
         self.ov.save({"control": modes})
+        self._leaving_parts().clear()
         self.last.clear()
 
     def status(self) -> dict[str, Any]:
@@ -1402,9 +1458,10 @@ class Controller:
 
 def _num(v: Any) -> float | None:
     try:
-        return float(v)
+        f = float(v)
     except (TypeError, ValueError):
         return None
+    return f if math.isfinite(f) else None
 
 
 def _negative(entity: str, value: Any) -> bool:

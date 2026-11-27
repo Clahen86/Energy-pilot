@@ -342,6 +342,11 @@ async def main() -> None:
                 from .powertariff import counts as _pt_counts, kind as _pt_kind
 
                 engine.month_peak.see(now, f.get("grid"), _pt_kind(st, ha.config.get("country"))[0], _pt_counts(st, now))
+                # The sun held back now - selling stopped, or what goes out sits at the export limit: not learned from.
+                lim_kw = float(st["export_limit_kw"]) if st.get("export_limit_kw") else engine.export_cap.kw()
+                if (st.get("curtail_saved") is not None and (f.get("pv") or 0) > 100) or (
+                        lim_kw and f.get("grid") is not None and -f["grid"] >= 0.95 * lim_kw * 1000):
+                    engine.learning.mark_limited(now)
                 if now.minute % 10 == 0 and now.second < 30:
                     engine.learning.save()
             except Exception:  # noqa: BLE001

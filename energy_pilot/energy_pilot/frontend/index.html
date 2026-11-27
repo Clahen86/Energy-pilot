@@ -726,6 +726,8 @@ const kw = (w) => w == null ? "–" : Math.abs(w) >= 1000 ? `${num(Math.abs(w) /
 const CUR = () => (data && data.currency) || "DKK";
 const SYM = () => ({ DKK: "kr", SEK: "kr", NOK: "kr", EUR: "€", GBP: "£", CHF: "CHF", PLN: "zł", CZK: "Kč", HUF: "Ft" }[CUR()] || CUR());
 const kr = (v) => v == null ? "–" : ["€", "£"].includes(SYM()) ? `${SYM()}${num(v, 2)}` : `${num(v, 2)} ${SYM()}`;
+// A saving with its unsure part (ledger.py): "280–340 kr" - one figure when the range is under one unit.
+const span = (v, lo, hi) => lo == null || hi == null || hi - lo < 1 ? kr(v) : ["€", "£"].includes(SYM()) ? `${SYM()}${num(Math.round(lo), 0)}–${num(Math.round(hi), 0)}` : `${num(Math.round(lo), 0)}–${num(Math.round(hi), 0)} ${SYM()}`;
 const krR = (v) => v == null ? "–" : ["€", "£"].includes(SYM()) ? `${SYM()}${num(Math.round(v), 0)}` : `${num(Math.round(v), 0)} ${SYM()}`;  // whole money: a month's cost
 const api = (p, body) => fetch(p.replace(/^\//, ""), body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}).then((r) => r.json());
 const clock = (iso) => { const d = new Date(iso); return `${String(d.getHours()).padStart(2, "0")}:00`; };
@@ -1773,7 +1775,7 @@ function savedCard() {
     ${both ? `<div class="seg mini" style="margin:2px 0 10px">${["bat", "all"].map((m) => `<button class="${view === m ? "on" : ""}" data-savview="${m}">${S[m]}</button>`).join("")}</div>` : ""}
     <div class="stiles">${tile(k.today, v.today)}${tile(k.month, v.month)}${tile(k.year, v.year)}${tile(k.total, v.total)}</div>
     ${data.engine?.retro ? `<div class="lrow"><span>${RTR.t}</span><b class="good">${kr(data.engine.retro.per_month)}</b><em>${RTR.h.replace("{n}", data.engine.retro.days)}</em></div>` : ""}
-    ${g.pilot ? `<div class="lrow"><span>${S.pilot}</span><b class="${g.pilot.total < 0 ? "bad" : "good"}">${kr(g.pilot.total)}</b><em>${S.pilotH.replace("{d}", kr(g.pilot.today)).replace("{m}", kr(g.pilot.month))}</em></div>` : ""}
+    ${g.pilot ? `<div class="lrow"><span>${S.pilot}</span><b class="${g.pilot.total < 0 ? "bad" : "good"}">${span(g.pilot.total, g.pilot.total_lo, g.pilot.total_hi)}</b><em>${S.pilotH.replace("{d}", kr(g.pilot.today)).replace("{m}", span(g.pilot.month, g.pilot.month_lo, g.pilot.month_hi))}</em></div>` : ""}
     ${g.avg_cost != null ? `<div class="lrow"><span>${k.inBattery}</span><b>${num(g.battery_kwh ?? g.stored_kwh, 1)} kWh</b><em>${k.costs.replace("{p}", kr(g.avg_cost))}${g.avg_source === "other" ? " · " + k.fromOther : ""}</em></div>` : ""}
     <div class="muted" style="margin-top:6px">${view === "all" ? S.hint : k.hint}</div></div>`;
 }
@@ -2307,7 +2309,7 @@ const T_FIX = {
     what: { community: "Fra fællesskabet: {intent} «{from}» → «{to}»", fuse_inv: "Hovedsikring {from} → {to} kW (fra inverterens sikringsstørrelse)", fuse: "Hovedsikring {from} → {to} kW (var skrevet i ampere)", soc_scale: "Batteriprocent læses nu som 0–100", kw_scale: "{role} læses nu i kW",
       price_scale: "Prisen var i øre – læses nu i kr", renamed: "{role}: {from} fik nyt navn → {to}", stuck: "{role}: {from} stod stille → {to}", gone: "{role}: {from} svarede ikke → {to}", balance: "{role}: {from} passede ikke med de andre målere → {to}", balance_sign: "{role} læses nu den anden vej (målerne passede ikke sammen)" },
     roles: { pv_power: "Solens effekt", battery_power: "Batteriets effekt", grid_power: "Nettets effekt", house_power: "Husets forbrug", ev_power: "Bilens effekt", battery_soc: "Batteriprocent" },
-    chk: { acting_wrong: "Batteriet gjorde det modsatte af det, det fik besked på – det kører normalt i en time. Kør testen under Styring for at finde fejlen.",
+    chk: { acting_wrong: "Batteriet gjorde det modsatte af det, det fik besked på – det kører normalt i en time. Kør testen under Styring for at finde fejlen.", not_taken: "Inverteren tager ikke imod Energipilots kommandoer (3 gange i træk). Tjek forbindelsen, eller kør testen under Styring.",
       charger_stuck: "Bilen tager ikke strøm, selv om laderen er startet – den kan være fuld eller vente på sin egen timer." },
     nudge: "Test dit system, før du slår Styrer til. Det tager ca. 10 min, og alt sættes tilbage bagefter.", nudgeGo: "Test nu", skip: "Spring over",
     failed: "Testen fandt noget, der ikke virker.", ready: "Systemet testet",
@@ -2318,7 +2320,7 @@ const T_FIX = {
     what: { community: "From the community: {intent} “{from}” → “{to}”", fuse_inv: "Main fuse {from} → {to} kW (from the inverter's fuse size)", fuse: "Main fuse {from} → {to} kW (it was written in amps)", soc_scale: "Battery level now read as 0–100", kw_scale: "{role} now read in kW",
       price_scale: "The price was in cents – now read in full units", renamed: "{role}: {from} was renamed → {to}", stuck: "{role}: {from} stood still → {to}", gone: "{role}: {from} stopped answering → {to}", balance: "{role}: {from} didn't add up with the other meters → {to}", balance_sign: "{role} now read the other way round (the meters didn't add up)" },
     roles: { pv_power: "Solar power", battery_power: "Battery power", grid_power: "Grid power", house_power: "House use", ev_power: "Car power", battery_soc: "Battery level" },
-    chk: { acting_wrong: "The battery did the opposite of what it was told – it runs normally for an hour. Run the test under Control to find out why.",
+    chk: { acting_wrong: "The battery did the opposite of what it was told – it runs normally for an hour. Run the test under Control to find out why.", not_taken: "The inverter isn't taking Energy Pilot's commands (3 times in a row). Check the connection, or run the test under Control.",
       charger_stuck: "The car takes no power although the charger was started – it may be full or wait for its own timer." },
     nudge: "Test your system before you turn on Control. It takes about 10 min, and everything is put back afterwards.", nudgeGo: "Test now", skip: "Skip",
     failed: "The test found something that doesn't work.", ready: "System tested",
@@ -2329,7 +2331,7 @@ const T_FIX = {
     what: { community: "Aus der Community: {intent} „{from}“ → „{to}“", fuse_inv: "Hauptsicherung {from} → {to} kW (aus der Sicherungsgröße des Wechselrichters)", fuse: "Hauptsicherung {from} → {to} kW (war in Ampere eingetragen)", soc_scale: "Batteriestand wird jetzt als 0–100 gelesen", kw_scale: "{role} wird jetzt in kW gelesen",
       price_scale: "Der Preis war in Cent – wird jetzt in Euro gelesen", renamed: "{role}: {from} wurde umbenannt → {to}", stuck: "{role}: {from} stand still → {to}", gone: "{role}: {from} antwortete nicht mehr → {to}", balance: "{role}: {from} passte nicht zu den anderen Zählern → {to}", balance_sign: "{role} wird jetzt andersherum gelesen (die Zähler passten nicht zusammen)" },
     roles: { pv_power: "Solarleistung", battery_power: "Batterieleistung", grid_power: "Netzleistung", house_power: "Hausverbrauch", ev_power: "Autoleistung", battery_soc: "Batteriestand" },
-    chk: { acting_wrong: "Die Batterie hat das Gegenteil getan – sie läuft eine Stunde normal. Starte den Test unter Steuerung.", charger_stuck: "Das Auto nimmt keinen Strom – vielleicht voll oder es wartet auf seinen eigenen Timer." },
+    chk: { acting_wrong: "Die Batterie hat das Gegenteil getan – sie läuft eine Stunde normal. Starte den Test unter Steuerung.", not_taken: "Der Wechselrichter nimmt die Befehle nicht an (3-mal in Folge). Prüfe die Verbindung oder starte den Test unter Steuerung.", charger_stuck: "Das Auto nimmt keinen Strom – vielleicht voll oder es wartet auf seinen eigenen Timer." },
     nudge: "Teste dein System, bevor du Steuern einschaltest. Ca. 10 Min, danach wird alles zurückgesetzt.", nudgeGo: "Jetzt testen", skip: "Überspringen",
     failed: "Der Test hat etwas gefunden, das nicht funktioniert.", ready: "System getestet",
     g3title: "System testen", g3text: "Energy Pilot kann prüfen, ob es Batterie und Wallbox steuern kann – bevor es wirklich steuert.",
@@ -2339,7 +2341,7 @@ const T_FIX = {
     what: { community: "De la communauté : {intent} « {from} » → « {to} »", fuse_inv: "Disjoncteur {from} → {to} kW (selon le calibre de l'onduleur)", fuse: "Disjoncteur {from} → {to} kW (saisi en ampères)", soc_scale: "Niveau de batterie lu en 0–100", kw_scale: "{role} lu en kW",
       price_scale: "Le prix était en centimes – lu en euros", renamed: "{role} : {from} renommé → {to}", stuck: "{role} : {from} figé → {to}", gone: "{role} : {from} ne répondait plus → {to}", balance: "{role} : {from} ne concordait pas avec les autres compteurs → {to}", balance_sign: "{role} est maintenant lu dans l'autre sens (les compteurs ne concordaient pas)" },
     roles: { pv_power: "Puissance solaire", battery_power: "Puissance batterie", grid_power: "Puissance réseau", house_power: "Consommation maison", ev_power: "Puissance voiture", battery_soc: "Niveau batterie" },
-    chk: { acting_wrong: "La batterie a fait l'inverse de ce qui était demandé – elle fonctionne normalement pendant une heure. Lancez le test sous Pilotage.", charger_stuck: "La voiture ne prend pas de courant – elle est peut-être pleine ou attend sa propre minuterie." },
+    chk: { acting_wrong: "La batterie a fait l'inverse de ce qui était demandé – elle fonctionne normalement pendant une heure. Lancez le test sous Pilotage.", not_taken: "L'onduleur n'accepte pas les commandes (3 fois de suite). Vérifiez la connexion ou lancez le test sous Pilotage.", charger_stuck: "La voiture ne prend pas de courant – elle est peut-être pleine ou attend sa propre minuterie." },
     nudge: "Testez votre système avant d'activer le pilotage. Env. 10 min, tout est remis ensuite.", nudgeGo: "Tester", skip: "Passer",
     failed: "Le test a trouvé quelque chose qui ne marche pas.", ready: "Système testé",
     g3title: "Tester votre système", g3text: "Energy Pilot peut vérifier qu'il sait piloter votre batterie et votre borne – avant de piloter pour de vrai.",
@@ -2349,7 +2351,7 @@ const T_FIX = {
     what: { community: "Van de community: {intent} “{from}” → “{to}”", fuse_inv: "Hoofdzekering {from} → {to} kW (uit de zekering van de omvormer)", fuse: "Hoofdzekering {from} → {to} kW (stond in ampère)", soc_scale: "Batterijniveau nu gelezen als 0–100", kw_scale: "{role} nu gelezen in kW",
       price_scale: "De prijs was in centen – nu in euro", renamed: "{role}: {from} hernoemd → {to}", stuck: "{role}: {from} stond stil → {to}", gone: "{role}: {from} reageerde niet meer → {to}", balance: "{role}: {from} klopte niet met de andere meters → {to}", balance_sign: "{role} wordt nu andersom gelezen (de meters klopten niet)" },
     roles: { pv_power: "Zonnevermogen", battery_power: "Batterijvermogen", grid_power: "Netvermogen", house_power: "Huisverbruik", ev_power: "Autovermogen", battery_soc: "Batterijniveau" },
-    chk: { acting_wrong: "De batterij deed het tegenovergestelde – ze draait een uur normaal. Start de test onder Sturing.", charger_stuck: "De auto neemt geen stroom – misschien vol of wacht op zijn eigen timer." },
+    chk: { acting_wrong: "De batterij deed het tegenovergestelde – ze draait een uur normaal. Start de test onder Sturing.", not_taken: "De omvormer neemt de opdrachten niet aan (3 keer op rij). Controleer de verbinding of start de test onder Sturing.", charger_stuck: "De auto neemt geen stroom – misschien vol of wacht op zijn eigen timer." },
     nudge: "Test je systeem voordat je Sturen aanzet. Ca. 10 min, daarna wordt alles teruggezet.", nudgeGo: "Nu testen", skip: "Overslaan",
     failed: "De test vond iets dat niet werkt.", ready: "Systeem getest",
     g3title: "Test je systeem", g3text: "Energy Pilot kan controleren of hij je batterij en laadpaal kan sturen – voordat hij echt stuurt.",
@@ -2359,7 +2361,7 @@ const T_FIX = {
     what: { community: "Från gemenskapen: {intent} ”{from}” → ”{to}”", fuse_inv: "Huvudsäkring {from} → {to} kW (från växelriktarens säkringsstorlek)", fuse: "Huvudsäkring {from} → {to} kW (var angiven i ampere)", soc_scale: "Batterinivå läses nu som 0–100", kw_scale: "{role} läses nu i kW",
       price_scale: "Priset var i öre – läses nu i kronor", renamed: "{role}: {from} bytte namn → {to}", stuck: "{role}: {from} stod still → {to}", gone: "{role}: {from} svarade inte → {to}", balance: "{role}: {from} stämde inte med de andra mätarna → {to}", balance_sign: "{role} läses nu åt andra hållet (mätarna stämde inte)" },
     roles: { pv_power: "Soleffekt", battery_power: "Batterieffekt", grid_power: "Näteffekt", house_power: "Husets förbrukning", ev_power: "Bilens effekt", battery_soc: "Batterinivå" },
-    chk: { acting_wrong: "Batteriet gjorde motsatsen – det körs normalt i en timme. Kör testet under Styrning.", charger_stuck: "Bilen tar ingen ström – den kan vara full eller vänta på sin egen timer." },
+    chk: { acting_wrong: "Batteriet gjorde motsatsen – det körs normalt i en timme. Kör testet under Styrning.", not_taken: "Växelriktaren tar inte emot kommandona (3 gånger i rad). Kontrollera anslutningen eller kör testet under Styrning.", charger_stuck: "Bilen tar ingen ström – den kan vara full eller vänta på sin egen timer." },
     nudge: "Testa ditt system innan du slår på Styr. Ca 10 min, allt återställs efteråt.", nudgeGo: "Testa nu", skip: "Hoppa över",
     failed: "Testet hittade något som inte fungerar.", ready: "Systemet testat",
     g3title: "Testa ditt system", g3text: "Energy Pilot kan kontrollera att den kan styra ditt batteri och din laddbox – innan den styr på riktigt.",
@@ -2369,7 +2371,7 @@ const T_FIX = {
     what: { community: "Fra fellesskapet: {intent} «{from}» → «{to}»", fuse_inv: "Hovedsikring {from} → {to} kW (fra vekselretterens sikringsstørrelse)", fuse: "Hovedsikring {from} → {to} kW (var skrevet i ampere)", soc_scale: "Batterinivå leses nå som 0–100", kw_scale: "{role} leses nå i kW",
       price_scale: "Prisen var i øre – leses nå i kroner", renamed: "{role}: {from} fikk nytt navn → {to}", stuck: "{role}: {from} sto stille → {to}", gone: "{role}: {from} svarte ikke → {to}", balance: "{role}: {from} stemte ikke med de andre målerne → {to}", balance_sign: "{role} leses nå andre veien (målerne stemte ikke)" },
     roles: { pv_power: "Soleffekt", battery_power: "Batterieffekt", grid_power: "Netteffekt", house_power: "Husets forbruk", ev_power: "Bilens effekt", battery_soc: "Batterinivå" },
-    chk: { acting_wrong: "Batteriet gjorde det motsatte – det går normalt i en time. Kjør testen under Styring.", charger_stuck: "Bilen tar ikke strøm – den kan være full eller vente på sin egen timer." },
+    chk: { acting_wrong: "Batteriet gjorde det motsatte – det går normalt i en time. Kjør testen under Styring.", not_taken: "Vekselretteren tar ikke imot kommandoene (3 ganger på rad). Sjekk tilkoblingen eller kjør testen under Styring.", charger_stuck: "Bilen tar ikke strøm – den kan være full eller vente på sin egen timer." },
     nudge: "Test systemet før du slår på Styrer. Ca. 10 min, alt settes tilbake etterpå.", nudgeGo: "Test nå", skip: "Hopp over",
     failed: "Testen fant noe som ikke virker.", ready: "Systemet testet",
     g3title: "Test systemet ditt", g3text: "Energy Pilot kan sjekke at den kan styre batteriet og laderen din – før den styrer på ordentlig.",

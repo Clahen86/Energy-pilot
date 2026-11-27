@@ -140,6 +140,16 @@ class Things:
         the battery and the cars; load: what the cars draw per slot (kW), for the main fuse."""
         out = []
         self.plans = {}
+        # Each thing planned takes its share before the next is planned: two of them never count on the same sun or
+        # the same room under the main fuse.
+        left, load = dict(left), dict(load)
+
+        def take(starts: list[datetime], kw: float) -> None:
+            for h in hours:
+                if h.start in starts:
+                    left[h.start] = max(0.0, left.get(h.start, 0.0) - kw * h.length)
+                    load[h.start] = load.get(h.start, 0.0) + kw
+
         for t in self.items(settings):
             tid, s = t["id"], self.st(t["id"])
             kwh, minutes, kw = self.need(t)
@@ -169,11 +179,16 @@ class Things:
                 p["hours"] = sorted(h.start.isoformat() for h in chosen)
                 p["sun"] = bool(chosen) and all(sunny(h) for h in chosen)
                 p["slot_h"] = chosen[0].length if chosen else None
+                take([h.start for h in chosen], kw)
             elif t.get("kind") == "heater":
                 p.update(self._heater_off(hours, now, left))
             elif t.get("kind") == "machine":
                 if s.get("armed") and not s.get("running") and not s.get("start_sent"):
                     p.update(self._machine_start(ok, now, until, minutes, kw, mode, sunny, cost))
+                    if p.get("start"):
+                        a = datetime.fromisoformat(p["start"])
+                        b = a + timedelta(minutes=minutes or 60)
+                        take([h.start for h in hours if h.start < b and h.start + timedelta(hours=h.length) > a], kw)
             elif not self.full_today(tid, now):
                 rest = max(0.0, kwh - float(s.get("kwh_now") or 0))
                 use = [h for h in ok if mode != "sun" or sunny(h)]
@@ -186,6 +201,7 @@ class Things:
                 p["hours"] = sorted(h.start.isoformat() for h in chosen)
                 p["sun"] = bool(chosen) and all(sunny(h) for h in chosen)
                 p["slot_h"] = chosen[0].length if chosen else None
+                take([h.start for h in chosen], kw)
             self.plans[tid] = p
             out.append(p)
         return out

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 import json
+import math
 import re
 from pathlib import Path
 from typing import Any
@@ -129,9 +130,10 @@ def _num(state: dict | None) -> float | None:
     if not state:
         return None
     try:
-        return float(state.get("state"))
+        v = float(state.get("state"))
     except (TypeError, ValueError):
         return None
+    return v if math.isfinite(v) else None  # "nan"/"inf" (a template or MQTT sensor) isn't a reading
 
 
 def _watts(state: dict | None) -> float | None:

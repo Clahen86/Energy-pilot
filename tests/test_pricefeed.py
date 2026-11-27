@@ -151,3 +151,24 @@ def test_prices_from_an_integrations_action():
     service = [{"start": iso(DAY0 + timedelta(hours=h)), "price": 0.3 + h / 100} for h in range(48)]
     prices, info = collect(states, "sensor.nord_pool_dk1_current_price", [], TZ, service)
     assert len(prices) == 48 and prices[T1 + timedelta(hours=2)] == 0.3 + 26 / 100 and not info["tomorrow_missing"]
+
+
+def test_bare_lists_on_the_days_the_clocks_change():
+    # Nord Pool's bare "today" list: 25 hours when the clocks go back, 23 when they go forward - every price on its
+    # own hour, not spread over 24 wall-clock hours (57.6 minutes apart, which also looked like quarter-hours).
+    from datetime import datetime as _dt
+    from zoneinfo import ZoneInfo as _Z
+
+    from energy_pilot.engine import resolution
+    from energy_pilot.pricefeed import parse as _parse
+
+    cph = _Z("Europe/Copenhagen")
+    back = _parse({"today": [float(i) for i in range(25)]}, cph, _dt(2026, 10, 25, tzinfo=cph))
+    assert all(k.minute == 0 for k in back) and back[_dt(2026, 10, 25, 23, tzinfo=cph)] == 24.0
+    assert back[_dt(2026, 10, 25, 1, tzinfo=cph)] == 1.0 and back[_dt(2026, 10, 25, 3, tzinfo=cph)] == 4.0
+    assert resolution(back, _dt(2026, 10, 25, tzinfo=cph)) == 60
+    fwd = _parse({"today": [float(i) for i in range(23)]}, cph, _dt(2026, 3, 29, tzinfo=cph))
+    assert len(fwd) == 23 and all(k.minute == 0 for k in fwd)
+    assert fwd[_dt(2026, 3, 29, 3, tzinfo=cph)] == 2.0 and fwd[_dt(2026, 3, 29, 23, tzinfo=cph)] == 22.0
+    q = _parse({"today": [float(i) for i in range(100)]}, cph, _dt(2026, 10, 25, tzinfo=cph))
+    assert all(k.minute in (0, 15, 30, 45) for k in q) and q[_dt(2026, 10, 25, 23, 45, tzinfo=cph)] == 99.0

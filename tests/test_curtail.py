@@ -132,3 +132,41 @@ def test_test_failed(monkeypatch):
 def test_test_no_sun(monkeypatch):
     res, ha, _ = _tested(300, 300, monkeypatch)
     assert res["result"] == "no_sun" and ha.calls == []
+
+
+class _FlakyHA(HA):
+    fail = False
+
+    async def call_service(self, dom, svc, data):
+        if self.fail:
+            raise ConnectionError("disconnected")
+        await super().call_service(dom, svc, data)
+
+
+def test_a_failed_put_back_is_tried_again():
+    # The link drops just as the price turns positive: the owner's 100 isn't forgotten, it's written next round -
+    # and the next stop doesn't save the 0 as the owner's value.
+    ha, sell = _FlakyHA(), [0.0]
+    ov = Ov(ha, sell)
+    c = Curtail(ha, ov, SimpleNamespace(mode=lambda p: "control"))
+    sell[0] = -0.1
+    asyncio.run(c.tick())
+    assert ha.states["number.growatt_export_limit"]["state"] == "0"
+    sell[0], ha.fail = 0.3, True
+    asyncio.run(c.tick())
+    assert ov.settings["curtail_saved"] == {"number.growatt_export_limit": "100"}
+    ha.fail = False
+    asyncio.run(c.tick())
+    assert ha.states["number.growatt_export_limit"]["state"] == "100" and ov.settings["curtail_saved"] is None
+
+
+def test_put_back_when_control_ends():
+    ha, sell = HA(), [-0.1]
+    ov = Ov(ha, sell)
+    mode = ["control"]
+    c = Curtail(ha, ov, SimpleNamespace(mode=lambda p: mode[0]))
+    asyncio.run(c.tick())
+    assert ha.states["number.growatt_export_limit"]["state"] == "0"
+    mode[0] = "shadow"
+    asyncio.run(c.tick())
+    assert ha.states["number.growatt_export_limit"]["state"] == "100" and ov.settings["curtail_saved"] is None

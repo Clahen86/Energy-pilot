@@ -13,7 +13,7 @@ the user's own prices, so the plan always reaches as far as anything is known.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -46,9 +46,12 @@ def parse(attrs: dict[str, Any], tz: ZoneInfo, day0: datetime) -> dict[datetime,
         # A bare list of numbers (Nord Pool "today"/"tomorrow", one per hour or quarter).
         if all(isinstance(x, (int, float)) for x in items):
             base = day0 + timedelta(days=1 if "tomorrow" in key else 0)
-            step = timedelta(hours=24 / len(items)) if len(items) in (24, 23, 25, 96, 92, 100) else timedelta(hours=1)
+            # Counted in real time from the local midnight: the day the clocks go back has 25 hours (100 quarters) and
+            # the day they go forward 23 (92) - spread over 24 wall-clock hours every price that day was off.
+            step = timedelta(minutes=15) if len(items) in (92, 96, 100) else timedelta(hours=1)
+            base_utc = base.replace(tzinfo=tz).astimezone(timezone.utc) if base.tzinfo is None else base.astimezone(timezone.utc)
             for i, v in enumerate(items):
-                out[base + i * step] = float(v) / (1000 if per_mwh else 1)
+                out[(base_utc + i * step).astimezone(tz)] = float(v) / (1000 if per_mwh else 1)
             continue
         for item in items:
             if not isinstance(item, dict):

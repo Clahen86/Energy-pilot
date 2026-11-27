@@ -28,6 +28,8 @@ MAX_GAP_H = 0.1  # a longer gap (restart) isn't counted as one long step
 MAX_BATT_W = 50_000  # a home battery never moves more - a reading above it is a wrong unit, not power
 
 
+STORED_DOUBT = 0.5  # the power left in the battery at the day's end: worth its cost, give or take a half
+
 class Ledger:
     def __init__(self, data_dir: Path) -> None:
         self.file = data_dir / "energy_pilot_ledger.json"
@@ -169,6 +171,9 @@ class Ledger:
             extra -= s.get("selfuse_off", 0.0)
             value = s["stored_cost"] / s["stored_kwh"] if s.get("stored_kwh", 0) > 0.5 else price
             day["pilot"] = day["selfuse"] - day["cost_p"] + extra * value
+            # The unsure part: what the power one battery holds more than the other at the end is really worth - used
+            # in a dear hour later, or a cheap one. Taken as half its cost either way, so the saving is shown as a range.
+            day["pilot_spread"] = round(abs(extra * value) * STORED_DOUBT, 4)
         if now.timestamp() - self._saved_at > 300:
             self._trim(now)
             self.save()
@@ -222,7 +227,11 @@ class Ledger:
                     "total": round(total("", "all") + s.get("older_all", 0.0), 2), "since": s.get("all_since")}
             if s.get("all_since") else None,
             # what Energy Pilot added against the battery left to itself (the inverter's own house-first way)
-            "pilot": {"today": total(d, "pilot"), "month": total(m, "pilot"), "year": total(y, "pilot"), "total": total("", "pilot")}
+            "pilot": {"today": total(d, "pilot"), "month": total(m, "pilot"), "year": total(y, "pilot"), "total": total("", "pilot"),
+                      "month_lo": round(total(m, "pilot") - total(m, "pilot_spread"), 2),
+                      "month_hi": round(total(m, "pilot") + total(m, "pilot_spread"), 2),
+                      "total_lo": round(total("", "pilot") - total("", "pilot_spread"), 2),
+                      "total_hi": round(total("", "pilot") + total("", "pilot_spread"), 2)}
             if any("pilot" in v for v in days.values()) else None,
             # this month day by day, for the picture to share (both views)
             "month_days": {"bat": [round(days[k].get("saved", 0.0), 2) for k in sorted(days) if k.startswith(m)],

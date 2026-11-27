@@ -52,14 +52,28 @@ def test_the_car_turns_down_on_the_busiest_phase():
     assert not _car(3.0)["charge"]  # not charging yet, only 3 A left: not started
 
 
-def test_the_battery_spreads_on_three_phases_when_big():
-    assert phases.battery_phases(6) == 3 and phases.battery_phases(3) == 1
+def test_the_battery_spreads_on_three_phases_only_when_the_inverter_shows_them():
+    three = ["sensor.inverter_l1_current", "sensor.inverter_l2_current", "sensor.inverter_l3_current"]
+    assert phases.battery_phases(6, three) == 3 and phases.battery_phases(3, three) == 1
+    # A big single-phase hybrid (Deye SG01LP1, Growatt SPH): one phase - the careful guess
+    assert phases.battery_phases(8, ["sensor.growatt_sph_battery_power", "number.growatt_charge_rate"]) == 1
+    assert phases.battery_phases(6) == 1
+
+
+def test_nan_or_inf_on_a_phase_is_not_read():
+    ents = ["sensor.l1", "sensor.l2", "sensor.l3"]
+    for bad in ("nan", "inf", "-inf"):
+        for i in range(3):
+            st = {e: {"state": "5"} for e in ents}
+            st[ents[i]] = {"state": bad}
+            assert phases.worst(st, ents) is None and phases.room_a(st, ents, 25) is None
 
 
 def test_the_battery_charge_gives_way_on_the_busiest_phase():
     from test_import_limit_live import _ctl
 
     c = _ctl(1000, limit=None)
+    c.entities = {"battery": ["sensor.inverter_l1_power", "sensor.inverter_l2_power", "sensor.inverter_l3_power"]}
     c.ov.flow = lambda: {"soc": 40, "house": 1000, "pv": 0, "ev": 0, "battery": 4000}
     c.ov.phase_room_a = lambda: -2.0  # 2 A over, the battery takes 4000 / 690 = 5.8 A a phase now: 3.8 A fits
     assert c.intents()["battery"]["ctx"]["power_w"] == 2600  # 3.8 A x 690 V = 2.62 kW, in 100 W steps
@@ -67,3 +81,33 @@ def test_the_battery_charge_gives_way_on_the_busiest_phase():
     assert c.intents()["battery"]["ctx"]["power_w"] == 5000
     c.ov.phase_room_a = lambda: -6.0
     assert c.intents()["battery"]["intent"] == "hold"
+
+
+def test_a_single_phase_battery_is_held_to_one_phase():
+    from test_import_limit_live import _ctl
+
+    c = _ctl(1000, limit=None)  # no L2/L3 on the inverter: all of the charge is on the busiest phase
+    c.ov.flow = lambda: {"soc": 40, "house": 1000, "pv": 0, "ev": 0, "battery": 0}
+    c.ov.phase_room_a = lambda: 10.0  # 10 A left: 2.3 kW, not 6.9
+    assert c.intents()["battery"]["ctx"]["power_w"] == 2300
+
+
+def test_nan_is_no_reading_anywhere():
+    from energy_pilot import control, overview
+
+    for bad in ("nan", "inf", "-inf"):
+        assert overview._num({"state": bad}) is None and control._num(bad) is None
+    assert overview._num({"state": "4.5"}) == 4.5 and control._num("4.5") == 4.5
+
+
+def test_a_frozen_meter_is_not_read():
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime(2026, 11, 28, 12, tzinfo=timezone.utc)
+    ents = ["sensor.l1", "sensor.l2", "sensor.l3"]
+    old = (now - timedelta(minutes=20)).isoformat()
+    fresh = (now - timedelta(minutes=1)).isoformat()
+    st = {e: {"state": "8", "last_updated": old} for e in ents}
+    assert phases.worst(st, ents, now.timestamp()) is None  # the dongle stopped: all three frozen
+    st["sensor.l2"] = {"state": "9", "last_updated": fresh}
+    assert phases.worst(st, ents, now.timestamp()) == 9.0  # one phase steady (nothing on it) is fine

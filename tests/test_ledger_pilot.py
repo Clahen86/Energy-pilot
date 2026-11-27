@@ -48,3 +48,14 @@ def test_power_kept_for_tomorrow_is_not_a_loss_for_energy_pilot(tmp_path):
         lg.tick(t, dict(cheap[1], soc=50 + 30 * i / 12), 1.0, 0.5, 10.0, 10, 0.9)
     day = lg.state["days"]["2026-11-21"]
     assert abs(day["pilot"]) < 0.5
+
+
+def test_the_saving_is_a_range_around_the_power_left_in_the_battery(tmp_path):
+    # Charged for the evening: what the extra kWh in the battery are worth is the unsure part - a range around it.
+    cheap = (1.0, {"battery": 3000, "pv": 0, "house": 500, "ev": 0, "soc": 50, "grid": 3500})
+    p = _run(tmp_path, [cheap] * 12)["pilot"]
+    assert p["month_lo"] < p["month"] < p["month_hi"] and p["total_lo"] < p["total"] < p["total_hi"]
+    # The same as self-use: nothing unsure, one figure.
+    steps = [(2.0, {"battery": -500, "pv": 0, "house": 500, "ev": 0, "soc": 60 - 0.439 * (i + 1), "grid": 0}) for i in range(24)]
+    q = _run(tmp_path / "b", steps)["pilot"] if (tmp_path / "b").mkdir() is None else None
+    assert q["month_hi"] - q["month_lo"] < 0.05

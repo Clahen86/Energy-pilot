@@ -256,10 +256,40 @@ def cheap_slots(hours: list[Hour], share: float = 0.25) -> frozenset:
     return frozenset(h.start for h in hours if h.price <= cut + 1e-9)
 
 
+PEAK_STEPS_KW = (0.0, 1.0, 2.0)  # power tariff: the new peaks tried above the month's so far
+
+
 def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float | None = None, step_pct: float | None = None) -> Plan:
-    """The cheapest way through the hours, starting at soc_now (%)."""
+    """The cheapest way through the hours, starting at soc_now (%).
+
+    A power tariff is paid once for the month's peak, not for every slot over it - so the plan can't simply add a cost
+    per slot (three slots over the peak were paid three times, and one big peak looked cheaper than a few small ones).
+    Instead the plan is made with the peak held at a few levels (the month's so far, a little above, no limit), each
+    is priced with its own peak paid once, and the cheapest wins."""
     if not hours:
         return Plan()
+    if b.peak_kw is None or not b.peak_price:
+        return _plan_battery(hours, soc_now, b, end_value, step_pct, None)[0]
+    free = _plan_battery(hours, soc_now, b, end_value, step_pct, None)
+    top = max((s.grid_kwh / h.length for s, h in zip(free[0].steps, hours) if h.start not in b.peak_free and h.length), default=0.0)
+    if top <= b.peak_kw + 1e-9:
+        return free[0]  # no new peak even without holding it: nothing to weigh (most hours - one plan, as fast as before)
+    tries = [free] + [_plan_battery(hours, soc_now, b, end_value, step_pct, b.peak_kw + up)
+                      for up in PEAK_STEPS_KW if b.peak_kw + up < top - 1e-9]
+    return min(tries, key=lambda t: t[1])[0]
+
+
+def _peak_cost(hours: list[Hour], grids: list[float], b: Battery) -> float:
+    """What the plan's highest slot over the month's peak so far adds to the bill - once (per kW, the price already
+    shared out over the days counted: Norway and Sweden take the average of three)."""
+    top = max((g / h.length for h, g in zip(hours, grids) if h.start not in b.peak_free and h.length), default=0.0)
+    return max(0.0, top - (b.peak_kw or 0.0)) * b.peak_price
+
+
+def _plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float | None, step_pct: float | None,
+                  cap: float | None) -> tuple[Plan, float]:
+    """One plan, and what it really costs in all (the end value and the power tariff's peak paid once included).
+    cap: the power tariff's peak held here - buying above it in a slot is steered away from (not counted as the bill)."""
     if step_pct is None:
         # Small enough that one step is less than the house uses in a slot - else a quarter hour where the house
         # takes 0.2 kWh can't use the battery at all (one 2 % step of 13 kWh is 0.26 kWh). A big battery takes 1 %
@@ -284,7 +314,7 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
     forced = [b.force.get(h.start.strftime("%Y-%m-%dT%H")) for h in hours]
     push = 5 * max(1.0, max(abs(h.price) for h in hours))
     best = [[INF] * m for _ in range(n + 1)]
-    choice: list[list[tuple[int, str, float, float]]] = [[(0, "hold", 0.0, 0.0)] * m for _ in range(n)]
+    choice: list[list[tuple[int, str, float, float, float]]] = [[(0, "hold", 0.0, 0.0, 0.0)] * m for _ in range(n)]
     req = target_levels(hours, b.targets, b.at)
     pen = TARGET_PENALTY * max(1.0, max(h.price for h in hours))
     for j, lv in enumerate(levels):
@@ -352,8 +382,11 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
                 else:
                     cost = grid * h.price if grid > 0 else grid * h.sell
                 cost += abs(delta) * b.wear  # every kWh in or out wears the battery: a move must pay for that too
-                if b.peak_kw is not None and b.peak_price and h.start not in b.peak_free and grid / h.length > b.peak_kw:
-                    cost += (grid / h.length - b.peak_kw) * b.peak_price  # a new peak raises the month's power tariff
+                # The peak held (power tariff): buying above it is steered away from - priced as a kW over it in every
+                # such slot. Only steering: the bill's peak is paid once, after (_peak_cost).
+                soft = 0.0
+                if cap is not None and b.peak_price and h.start not in b.peak_free and grid / h.length > cap:
+                    soft = (grid / h.length - cap) * b.peak_price
                 # Equal prices (a night tariff): charge in the first slots, not the last - a battery that slows down
                 # near full, or a slot the supplier moves, then still leaves it full. Far too small to change a choice
                 # where prices differ (at most 0.0002 per kWh over two days of quarter hours).
@@ -366,29 +399,37 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
                     early += gentle * kw_grid * kw_grid * h.length
                 if forced[i] == "charge" and delta > 0 or forced[i] == "sell" and action == "export":
                     early -= abs(delta) * push  # as much as it can in the user's hour
-                total = cost + early + best[i + 1][k]
+                total = cost + soft + early + best[i + 1][k]
                 if total < best[i][j] - 1e-12:
                     best[i][j] = total
-                    choice[i][j] = (k, action, grid, cost)
+                    choice[i][j] = (k, action, grid, cost, soft)
         if i in req and i > 0:
             for j, lv in enumerate(levels):
                 if lv < req[i]:
                     best[i][j] += (req[i] - lv) * pen  # short of what the user wants at this time
     j = min(range(m), key=lambda x: abs(levels[x] - soc_now))
+    total = best[0][j]
     plan = Plan()
+    grids, bases, steered = [], [], 0.0
     for i, h in enumerate(hours):
-        k, action, grid, cost = choice[i][j]
+        k, action, grid, cost, soft = choice[i][j]
         plan.steps.append(Step(h.start, action, levels[j], levels[k], round(grid, 3), round(cost, 3)))
         plan.cost += cost
+        steered += soft
+        grids.append(grid)
         base = h.house - h.sun
         if base < 0 and b.export_limit_kw is not None:
             base = max(base, -b.export_limit_kw * h.length)  # without a battery the sun over the limit is lost too
         plan.cost_without += base * h.price if base > 0 else base * h.sell
-        if b.peak_kw is not None and b.peak_price and h.start not in b.peak_free and base / h.length > b.peak_kw:
-            plan.cost_without += (base / h.length - b.peak_kw) * b.peak_price
+        bases.append(base)
         j = k
+    peak = 0.0
+    if b.peak_kw is not None and b.peak_price:
+        peak = _peak_cost(hours, grids, b)
+        plan.cost += peak
+        plan.cost_without += _peak_cost(hours, bases, b)
     plan.cost, plan.cost_without = round(plan.cost, 2), round(plan.cost_without, 2)
-    return plan
+    return plan, total - steered + peak
 
 
 def inverter_limits(min_soc: float, grid_max: float, low: float | None, high: float | None) -> tuple[float, float, float]:
@@ -499,8 +540,13 @@ def plan_car(hours: list[Hour], need_kwh: float, charger_kw: float, ready: datet
     until = ready or now + timedelta(hours=24)
     usable = [h for h in live if h.start < until and h.start not in (skip or set()) and not pin(h)
               and (not solar_only or h.sun - h.house >= charger_kw * h.length * 0.5)]
-    # A surplus slot costs what the energy would have been sold for; others their price.
-    ranked = sorted(usable, key=lambda h: h.sell if h.sun - h.house >= charger_kw * h.length * 0.7 else h.price)
+    # What a kWh in the slot really costs: the share the sun's surplus covers at what it would have sold for, the rest
+    # bought at the price (a slot 70 % sun was counted as all sun - and chosen over a cheaper grid slot).
+    def cost(h: Hour) -> float:
+        share = min(1.0, max(0.0, (h.sun - h.house) / (charger_kw * h.length))) if h.length else 0.0
+        return share * h.sell + (1 - share) * h.price
+
+    ranked = sorted(usable, key=cost)
     for h in ranked:
         if got >= need_kwh:
             break
@@ -1075,7 +1121,7 @@ class Engine:
             except Exception:  # noqa: BLE001 - the profile is used instead
                 _LOGGER.warning("House model failed", exc_info=True)
         if self.ov.role_all("pv_power") and self.weather and self.weather.hours:
-            pv = await self._hourly_sum(self.ov.role_all("pv_power"), 60)
+            pv = self.learning.unlimited(await self._hourly_sum(self.ov.role_all("pv_power"), 60))  # not the held-back hours
             self.solar_factors = learn_solar(pv, self.weather)
             try:
                 self.solar_model.train(pv, self.weather)
@@ -1555,6 +1601,7 @@ class Engine:
                 h.setdefault("price", 0.0)  # no grid, no prices: the battery and the generator are all there is
         rows = [h for h in plan["hours"] if "price" in h and datetime.fromisoformat(h["t"]) >= start]
         if not rows:
+            self.result = None  # no prices: the last plan isn't kept - the battery isn't left in its old orders
             return None
         times = [datetime.fromisoformat(h["t"]) for h in rows]
         from .blend import Mixer

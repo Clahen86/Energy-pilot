@@ -1,5 +1,11 @@
 """Sell the sun instead of storing it: a hold with a planned surplus keeps the sun out of the battery."""
 
+from datetime import datetime, timedelta, timezone
+
+# The step began 58 minutes ago: still running, with the 5-minute floor on the time left (a plan that ran out
+# is no longer followed - control._live_steps).
+T0 = (datetime.now(timezone.utc) - timedelta(minutes=58)).isoformat()
+T9 = (datetime.fromisoformat(T0) + timedelta(hours=9)).isoformat()
 from types import SimpleNamespace
 
 from energy_pilot import control as C
@@ -9,7 +15,7 @@ from energy_pilot.engine import Battery
 def _ctl(sell_sun=True, grid=-0.8, action="hold", profile="victron"):
     c = C.Controller.__new__(C.Controller)
     bat = Battery(capacity_kwh=10, max_charge_kw=5, max_discharge_kw=5, min_soc=10)
-    c.engine = SimpleNamespace(result={"battery": {"steps": [{"t": "2026-11-17T12:00:00+00:00", "action": action, "soc": 50, "grid": grid}],
+    c.engine = SimpleNamespace(result={"battery": {"steps": [{"t": T0, "action": action, "soc": 50, "grid": grid}],
                                                    "slot_min": 60, "target": 50}}, settings=lambda: bat)
     settings = {"sell_sun": sell_sun, "inverter_profile": profile}
     c.ov = SimpleNamespace(flow=lambda: {"soc": 50, "house": 400, "pv": 1500}, settings=settings, sell_sun=lambda: sell_sun,
@@ -87,9 +93,10 @@ def _with_hours(c, sell_now, later_price, later_grid=0.6):
     # Thursday 13:00 in the user's plan: a surplus smaller than one 2 % step shows as a hold that sells; the plan buys
     # later in the evening.
     c.engine.result["battery"]["steps"].append(
-        {"t": "2026-11-17T21:00:00+00:00", "action": "discharge", "soc": 10, "grid": later_grid})
-    c.ov.plan = lambda: {"hours": [{"t": "2026-11-17T12:00:00+00:00", "price": 3.1, "sell": sell_now},
-                                   {"t": "2026-11-17T21:00:00+00:00", "price": later_price, "sell": 1.8}]}
+        {"t": T9, "action": "discharge", "soc": 10, "grid": later_grid})
+    hr = lambda t: datetime.fromisoformat(t).replace(minute=0, second=0, microsecond=0).isoformat()  # noqa: E731
+    c.ov.plan = lambda: {"hours": [{"t": hr(T0), "price": 3.1, "sell": sell_now},
+                                   {"t": hr(T9), "price": later_price, "sell": 1.8}]}
     return c
 
 

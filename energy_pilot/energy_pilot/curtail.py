@@ -78,6 +78,10 @@ class Curtail:
         sells = eng.sell_prices()
         if sells:
             return eng.sell_at(sells, now, 0.0)
+        if self.ov.settings.get("sell") and hasattr(eng, "sell_fixed"):
+            # A fixed feed-in price (less its fee) is what selling earns - not the buying price: paid 0.6 a kWh while
+            # buying is below 0 isn't a reason to stop, and a fee above the price is (every kWh sold costs).
+            return eng.sell_fixed()
         rows = [h for h in (self.ov.plan() or {}).get("hours") or [] if h.get("t") and h.get("price") is not None]
         past = [h for h in rows if datetime.fromisoformat(h["t"]) <= now]
         price = past[-1]["price"] if past else None
@@ -121,6 +125,8 @@ class Curtail:
         saved = self.ov.settings.get("curtail_saved")
         self.last = {"want": want, "sell": sell, "mode": mode, "active": saved is not None, "t": time.time()}
         if mode != "control":
+            if saved is not None:  # left stopped when control ended: the owner's values back (tried again until done)
+                self.ov.save({"curtail_saved": await self._put_back(saved) or None})
             return
         # The battery is selling, or the test drives it: the same setting (a Deye's limit mode) is the battery's now.
         busy = self.ctl and ("battery" in getattr(self.ctl, "testing", set())
@@ -138,16 +144,24 @@ class Curtail:
                 _LOGGER.info("Selling stopped - the price is %s", sell)
                 self.ov.save({"curtail": {**c, "_t": time.time()}})
         elif saved is not None:
-            await self._put_back(saved)
-            self.ov.save({"curtail_saved": None})
+            # Only what was put back is forgotten: a value that couldn't be written (the link was down) is kept and
+            # tried again next round - else the export limit stayed at 0 for good, and the next stop would even save
+            # that 0 as the owner's own value.
+            self.ov.save({"curtail_saved": await self._put_back(saved) or None})
 
-    async def _put_back(self, saved: dict[str, Any]) -> None:
+    async def _put_back(self, saved: dict[str, Any]) -> dict[str, Any]:
+        """The owner's values back. Returns those that couldn't be written."""
         if "entity" in saved and "value" in saved and len(saved) == 2:
             saved = {saved["entity"]: saved["value"]}  # (an older version kept one)
+        failed = {}
         for e, v in saved.items():
-            if v is not None:
-                await self._set(e, str(v))
+            if v is None:
+                continue
+            if await self._set(e, str(v)):
                 _LOGGER.info("Selling allowed again - %s back to %s", e, v)
+            else:
+                failed[e] = v
+        return failed
 
     async def test(self) -> dict[str, Any]:
         """The guide's test: stop selling for up to 2 minutes and see the export fall to (nearly) 0 - then put it back."""
@@ -181,7 +195,8 @@ class Curtail:
                             break
                 res["states_after"] = {e: (self.ha.states.get(e) or {}).get("state") for e, _v in self.targets()}
             finally:
-                await self._put_back(saved)
+                if failed := await self._put_back(saved):
+                    self.ov.save({"curtail_saved": failed})  # tried again by the next rounds (tick)
                 self.testing = False
         self.ov.save({"curtail_test": res})
         _LOGGER.info("Stop-selling test: %s", res["result"])

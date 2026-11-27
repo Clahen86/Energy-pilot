@@ -2,6 +2,20 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.120.0 – 2026-11-28
+- Safer control: a plan that has run out (no prices, or the planning stopped) is never followed on - the battery runs as normal until a new plan is there. Before, an old grid charge could go on at full power
+- Choosing shadow (or the end of a 24-hour trial) while a command is being sent: Energy Pilot waits for it and then puts the inverter back to normal, so the old order is never written again afterwards
+- Stop-selling: if the export limit can't be put back (the connection drops), it is tried again until it works - it no longer stays at 0. It is also put back when you switch to shadow while selling is stopped
+- A fixed sell price is now used by stop-selling: paid to sell means selling goes on, a fee above the price means it stops
+- Main fuse per phase: a sensor showing "nan" or "inf" is no longer read as a value, and a meter whose three phases have all stood still for 15 minutes (a P1 dongle gone) is no longer trusted
+- A battery is only counted as three-phase when the inverter shows its own L2 and L3 - a big single-phase hybrid was counted as three-phase, so the fuse guard allowed too much on one phase
+- Days when the clocks change: each price is on its own hour (Nord Pool lists of 23 or 25 prices were spread over 24 hours)
+- Power tariff (Belgium, Norway, Sweden): the new peak is counted once, as on the bill, not for every hour over it - plans are less over-careful and never choose one big peak over a few small ones
+- Car: an hour with some sun is priced as what it really costs (the sun's share plus the bought rest), so a cheaper grid hour is no longer passed over
+- Small batteries and machines: each one takes its share of the sun and of the room under the main fuse before the next is planned
+- The solar forecast no longer learns from hours where the sun was held back (selling stopped, or at the export limit) - those looked like cloudy hours and pulled the forecast down
+- "Energy Pilot's own part" is shown as a range (e.g. 280–340), since what the power left in the battery is worth isn't certain
+- New warning when the inverter refuses Energy Pilot's commands three times in a row
 ## 0.119.1 – 2026-11-27
 - Faster updates: the large part of the add-on (the maths libraries) is kept between versions, so an update only downloads what changed. The first update after this one still downloads it all once
 ## 0.119.0 – 2026-11-27

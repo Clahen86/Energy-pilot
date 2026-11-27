@@ -143,6 +143,8 @@ class Learning:
             report["house_error"] = round(mean(h_err), 3)
             margin = sorted(h_err)[int(len(h_err) * 0.7)] if len(h_err) > 3 else mean(h_err)
             self.state["house_margin"] = round(0.8 * self.margin + 0.2 * margin, 3)
+        # Hours the sun was held back (selling stopped, the export limit reached): what came is no measure of the sun.
+        real_pv, pv = pv, self.unlimited(pv)
         for kind in ("cloudy", "clear"):
             pairs = [(exp[h]["sun"], pv[h]) for h in exp if h in pv and (exp[h].get("sun") or 0) > 0.2
                      and ((exp[h].get("cloud") or 0) >= 60) == (kind == "cloudy")]
@@ -155,12 +157,13 @@ class Learning:
         # The day's sun against what was foreseen (whole days) - its poor days give a forecast without Solcast's "poor
         # day" (pv_estimate10) a poor day of its own (sun_low), as Predbat weighs its PV10 case.
         f_day = sum((exp[h].get("sun") or 0) for h in exp if h in pv)
-        if f_day >= 1.0:
+        if f_day >= 1.0 and len(pv) == len(real_pv):  # a day held back in some hours isn't one of the sun's poor days
             ratios = (self.state.get("sun_days") or []) + [round(min(2.0, sum(pv[h] for h in exp if h in pv) / f_day), 3)]
             self.state["sun_days"] = ratios[-30:]
         # The panels' shape: the spread over clear hours, and the clear days for which way they face. Never stops the review.
         if pv:
             self._panels(exp, pv, key, day)
+        pv = real_pv  # what really came, for the rest (the day replayed, plan against real)
         # What would each end value have cost, planning yesterday with the real numbers?
         hours = [Hour(datetime.fromisoformat(h + ":00:00").replace(tzinfo=day.tzinfo), prices[h], 0.0, house[h], pv.get(h, 0.0))
                  for h in sorted(house) if h in prices]
@@ -183,7 +186,7 @@ class Learning:
             p = plan_battery(hours, soc_start, battery, end_value=base * self.end_factor)
             report.update(saving=p.saving, cost=p.cost, cost_without=p.cost_without, best_factor=best)
         # Both ways of forecasting, each against what really happened (for the blend).
-        for kind, real in (("house", house), ("sun", pv)):
+        for kind, real in (("house", house), ("sun", self.unlimited(pv))):
             for way, col in (("simple", f"{kind}_s"), ("ml", f"{kind}_m")) + ((("common", "house_c"),) if kind == "house" else ()):
                 pairs = [(exp[h][col], real[h]) for h in exp if h in real and exp[h].get(col) is not None
                          and (kind == "house" or (exp[h].get("sun_s") or 0) > 0.05 or real[h] > 0.05)]
@@ -223,6 +226,27 @@ class Learning:
         from . import tune
 
         return tune.info(self.state, self.tuned())
+
+    LIMITED_DAYS = 70  # as far back as the solar models learn
+
+    def mark_limited(self, when: datetime) -> None:
+        """This hour the sun was held back - selling stopped (curtail.py) or the export limit reached: the solar models
+        don't learn from it (a sunny hour cut to the limit looked like a cloudy one, and the forecast sank)."""
+        lim = self.state.setdefault("limited", {})
+        key = when.strftime("%Y-%m-%dT%H")
+        if key not in lim:
+            lim[key] = 1
+            cut = (when - timedelta(days=self.LIMITED_DAYS)).strftime("%Y-%m-%dT%H")
+            for k in [k for k in lim if k < cut]:
+                lim.pop(k)
+
+    def unlimited(self, pv: dict[Any, float]) -> dict[Any, float]:
+        """The production hours the sun wasn't held back in (keys "YYYY-MM-DDTHH" or datetimes)."""
+        lim = self.state.get("limited") or {}
+        if not lim:
+            return pv
+        key = lambda k: k.strftime("%Y-%m-%dT%H") if isinstance(k, datetime) else str(k)[:13]  # noqa: E731
+        return {k: v for k, v in pv.items() if key(k) not in lim}
 
     def _trim(self, day: datetime) -> None:
         """Keep two weeks of expectations."""
