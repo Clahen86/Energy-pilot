@@ -577,6 +577,9 @@ class Engine:
 
         self.things = Things(self.learning.state)
         self.batt_learn = BatteryLearner(self.learning.state)
+        from .acsteps import AcSteps
+
+        self.ac_steps = AcSteps(self.learning.state)  # the real round trip, from the grid (shown, not used yet)
         from .checks import GridPeak
 
         self.grid_peak = GridPeak(self.learning.state)  # the most the house has really bought
@@ -1507,6 +1510,7 @@ class Engine:
 
         return {"house": self.mixer.info("house"), "sun": self.mixer.info("sun"), "price": self.mixer.info("price"),
                 "battery": self.batt_learn.info(0.92), "car": self.habits.info(),
+                "ac": self.ac_steps.info(self.batt_learn._medians()),
                 "curve": self._curve_info(),
                 "common": self._common_info(common),
                 "sky": self.sky.info(self.home()),

@@ -1957,8 +1957,25 @@ function blendRows() {
     ${who(b.house, "house", "kWh/t")}${who(b.sun, "sun", "kWh/t")}${who(b.price, "price", SYM() + "/kWh")}
     ${b.battery.capacity ? `<div class="lrow"><span>${k.cap}</span><b>${num(b.battery.capacity, 1)} kWh</b><em>${k.capH}</em></div>` : ""}
     <div class="lrow"><span>${k.eff}</span><b>${Math.round(b.battery.efficiency * 100)} %</b><em>${b.battery.seen ? k.effSeen.replace("{n}", b.battery.seen) : k.datasheet}</em></div>
+    ${acRow(b.ac)}
     ${curveCard(b.curve)}
     ${data.ev ? `<div class="lrow"><span>${k.car}</span><b>${days ? k.carDays.replace("{n}", days) : k.carNone}</b><em>${car.need_seen ? k.carNeed.replace("{n}", car.need_seen) : ""}</em></div>` : ""}`;
+}
+// The round trip measured on the grid (acsteps.py) - shown only, the plan doesn't use it yet
+const T_AC = {
+  da: { t: "Målt på nettet", h: "Bruges ikke i planen endnu", wait: "måler … {a} af {n} spring" },
+  en: { t: "Measured on the grid", h: "Not used by the plan yet", wait: "measuring … {a} of {n} jumps" },
+  de: { t: "Am Netz gemessen", h: "Wird vom Plan noch nicht genutzt", wait: "misst … {a} von {n} Sprüngen" },
+  fr: { t: "Mesuré sur le réseau", h: "Pas encore utilisé par le plan", wait: "mesure … {a} sur {n} sauts" },
+  nl: { t: "Gemeten op het net", h: "Wordt nog niet door het plan gebruikt", wait: "meet … {a} van {n} sprongen" },
+  sv: { t: "Uppmätt på nätet", h: "Används inte av planen än", wait: "mäter … {a} av {n} hopp" },
+  nb: { t: "Målt på nettet", h: "Brukes ikke av planen ennå", wait: "måler … {a} av {n} hopp" },
+};
+function acRow(ac) {
+  if (!ac || !(ac.in || ac.out)) return "";
+  const k = T_AC[L] || T_AC.en, got = Math.min(ac.in, ac.out);
+  const val = ac.round_trip != null ? `${Math.round(ac.round_trip * 100)} %` : k.wait.replace("{a}", Math.min(got, ac.need)).replace("{n}", ac.need);
+  return `<div class="lrow"><span>${k.t}</span><b>${val}</b><em>${k.h}</em></div>`;
 }
 const T_CURVE = {
   da: { title: "Batteriets ladekurve", hint: "Hvor hurtigt det lader ved hvert niveau – lært af dit eget batteri", shared: "Lært af batterier som dit, indtil dit eget er lært", warm: "Varmt", cold: "Koldt (under 5 °C)", cool: "Køligt (5–15 °C)", now: "Batteriet er {t} °C nu", level: "Batteriniveau", speed: "Ladefart" },

@@ -2,6 +2,8 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.115.0 – 2026-11-27
+- Battery efficiency measured on the grid: each time the battery starts or stops, the jump on the grid meter shows what it really takes and gives, the inverter's own loss included. Shown under "What it has learned" - the plan doesn't use it yet
 ## 0.114.3 – 2026-11-27
 - Car: "Ready at" is back for a car picked from the list that has no ready time yet - the field was hidden, so there was no way to set one
 ## 0.114.2 – 2026-11-26

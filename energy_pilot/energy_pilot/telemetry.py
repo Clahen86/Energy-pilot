@@ -154,6 +154,12 @@ class Telemetry:
                 if m and m[2] >= 5:
                     learned["eff"] = round(min(0.95, max(0.7, m[1] / m[0])), 2)
                     learned["battery_type"] = eng.battery_type()["type"]
+                if (ac := getattr(eng, "ac_steps", None)) is not None:  # the round trip measured on the grid (acsteps.py)
+                    ai = ac.info(m)
+                    if ai["in"] or ai["out"]:
+                        learned["ac"] = {k: v for k, v in ai.items() if k != "need"}
+                        if m:
+                            learned["ac"]["raw"] = round(m[1] / m[0], 3)  # what the battery's own numbers say, uncapped
                 if (lc := eng.batt_learn.capacity()) and s.get("battery_kwh"):  # the battery's health (common.py)
                     learned["cap"], learned["nominal"] = round(float(lc), 1), round(float(s["battery_kwh"]), 1)
                 tf, home = s.get("tariff"), eng.home()

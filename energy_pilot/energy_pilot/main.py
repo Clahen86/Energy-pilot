@@ -316,6 +316,7 @@ async def main() -> None:
                             overview.save({"chargers": conf})
                 engine._was_plugged_extra = {i: bool(x.get("plug")) for i, x in enumerate(extra)}
                 engine.batt_learn.see(f.get("battery"), f.get("soc"), 30 / 3600)
+                engine.ac_steps.see(__import__("time").time(), f)
                 engine.batt_learn.see_temp(f.get("battery"), f.get("soc"), engine.battery_temp())
                 engine.grid_peak.see(now, f.get("grid"))
                 engine.export_cap.see(now, f.get("grid"))
