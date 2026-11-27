@@ -2,6 +2,8 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.118.0 – 2026-11-27
+- "Car first" with a charger that follows the sun by itself (a Zappi on Eco+ and the like): while the car is plugged in and short of its target, the battery keeps the sun's surplus out, so the charger gets it. If the car takes nothing for 15 minutes, the battery gets the sun again for an hour
 ## 0.117.0 – 2026-11-27
 - Octopus free electricity (Power Up) sessions are found by itself through the Octopus Energy integration and planned as free power, so the battery and the car charge in them - the price sensor doesn't show them
 - A car charged by something else (the charger's own app or schedule): the battery's grid charge no longer keeps room under the import limit for car slots Energy Pilot only guessed. Only what the car really draws counts, and the battery still turns down within a minute when the car starts

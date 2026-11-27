@@ -407,6 +407,36 @@ class Controller:
         hold = str(steps.get("hold") or "")
         return bool(steps.get("hold_sun")) or "{max_charge_w}" in hold or "{max_charge_kw}" in hold
 
+    SUN_CAR_MIN_W = 1400  # a charger's least (6 A on one phase)
+    SUN_CAR_WAIT_S = 15 * 60  # held back this long and the car takes nothing: it is full, or the charger won't
+    SUN_CAR_REST_S = 60 * 60
+
+    def _sun_to_car(self, f: dict[str, Any], now: float | None = None) -> bool:
+        """Keep the sun out of the battery for the car? Only with "Car first", a charger Energy Pilot doesn't run
+        (it follows the sun by itself), the car plugged in and short of its target, and a surplus it can use."""
+        import time as _time
+
+        now = _time.time() if now is None else now
+        st = self.ov.settings
+        s = self.__dict__.setdefault("_suncar", {"since": None, "rest": 0.0})
+        ev = self.ov.ev() or {}
+        surplus = (f.get("pv") or 0.0) - (f.get("house") or 0.0) + max(0.0, f.get("ev") or 0.0)
+        soc, target = ev.get("soc"), ev.get("target")
+        want = (st.get("style") == "car_first" and self.mode("car") != "control" and bool(f.get("plug"))
+                and self.can_block_sun() and surplus >= self.SUN_CAR_MIN_W and now >= s["rest"]
+                and not (soc is not None and target is not None and float(soc) >= float(target)))
+        if not want:
+            s["since"] = None
+            return False
+        if (f.get("ev") or 0.0) > 300:
+            s["since"] = now  # the car takes it: keep going
+        elif s["since"] is None:
+            s["since"] = now
+        elif now - s["since"] > self.SUN_CAR_WAIT_S:
+            s["since"], s["rest"] = None, now + self.SUN_CAR_REST_S  # nothing taken: the battery gets the sun again
+            return False
+        return True
+
     def _selling_sun_pays(self, steps: list[dict[str, Any]], bat: Any) -> bool:
         """Does selling the sun's surplus now beat storing it? The plan moves in whole steps of the level (2 % of a big
         battery is about 1 kWh), so a surplus smaller than a step shows as a hold that sells - not as a choice. A kWh of
@@ -630,6 +660,11 @@ class Controller:
             # hold still takes the sun). Only inverters whose hold sets the charge limit can do this.
             if intent == "hold" and sells_sun:
                 out["battery"]["ctx"].update(max_charge_w=0, max_charge_kw=0, sell_sun=True)
+            # "Car first" with a charger that follows the sun by itself (a Zappi on Eco+, a car's own solar mode):
+            # the battery holds the sun back, so the surplus shows on the grid and the charger takes it.
+            if intent in ("normal", "hold") and self._sun_to_car(f):
+                out["battery"]["intent"] = "hold"
+                out["battery"]["ctx"].update(max_charge_w=0, max_charge_kw=0, sun_car=True)
         # The car charging: the battery plan has its charge in (engine.car_load) and decides itself whether the
         # battery helps it or holds - no fixed rule here.
         if out.get("battery") and self.bat_parts():
