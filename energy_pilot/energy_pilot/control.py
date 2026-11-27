@@ -43,7 +43,10 @@ def steady(prev: dict | None, want: dict) -> dict:
         return want
     old, new = prev.get("ctx") or {}, dict(want.get("ctx") or {})
     try:
-        if abs(float(new["rate"]) - float(old["rate"])) < RATE_BAND:
+        # The rate is a share of the battery's top power: a new top (set by the user) at the same share is a new power
+        # all the same, and goes through (DK Deye, 2026-11-27: 7 kW -> 5 kW at 100 % kept the old current).
+        same_top = old.get("max_charge_w") == new.get("max_charge_w")
+        if same_top and abs(float(new["rate"]) - float(old["rate"])) < RATE_BAND:
             for k in ("rate", "power_w", "power_kw", "charge_a"):
                 if k in old:
                     new[k] = old[k]

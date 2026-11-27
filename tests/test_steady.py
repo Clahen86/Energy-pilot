@@ -24,6 +24,16 @@ def test_small_steps_are_kept_back():
     assert w["ctx"]["target"] == 27  # close to the old stop level: it would stop too early, so the new one
 
 
+def test_a_new_top_power_goes_through():
+    # the user turned the battery's charge power down from 7 to 5 kW while it charged at full: the rate stayed 100 %
+    prev = _charge(30, 95, 100)
+    prev["ctx"].update(max_charge_w=7000, power_w=7000, charge_a=140)
+    new = _charge(31, 95, 100)
+    new["ctx"].update(max_charge_w=5000, power_w=5000, charge_a=100)
+    w = C.steady(prev, new)
+    assert w["ctx"]["power_w"] == 5000 and w["ctx"]["charge_a"] == 100
+
+
 def test_only_while_charging_on_and_on():
     prev = _charge(30, 95, 100)
     hold = {"intent": "hold", "ctx": {"soc": 31, "target": 93, "rate": 97}}
