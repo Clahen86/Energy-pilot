@@ -300,6 +300,12 @@ async def main() -> None:
                 if trip_done({"ev_trip": car1.get("trip")} if car1 else st, f.get("plug"), getattr(engine, "_was_plugged", False), ev.get("soc")):
                     # the car left full: back to the everyday target
                     overview.save(carlist.update_car(st, car1["id"], {"trip": False}) if car1 else {"ev_trip": False})
+                try:
+                    from .evsoc import end_charge_now
+
+                    await end_charge_now(overview, ha, getattr(engine, "_was_plugged", False), getattr(engine, "_was_plugged_extra", {}))
+                except Exception:  # noqa: BLE001 - tried again when it is plugged in and out next time
+                    logging.getLogger("energy_pilot.engine").warning("Could not turn off charge now", exc_info=True)
                 engine._was_plugged = bool(f.get("plug"))
                 # an extra car's trip button the same: off when it leaves full
                 was = getattr(engine, "_was_plugged_extra", {})

@@ -2,6 +2,8 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.118.3 – 2026-11-27
+- "Charge now" is for one charge: it turns off by itself when the car is unplugged, so the next plug-in follows the plan again. For your own helper, the panel's button and extra chargers alike
 ## 0.118.2 – 2026-11-27
 - GivEnergy (GivEnergy Local) without the battery pause mode (older firmware) is now controlled: keeping the power sets the discharge limit to 0 W, and normal and selling put it back to full (#92)
 ## 0.118.1 – 2026-11-27

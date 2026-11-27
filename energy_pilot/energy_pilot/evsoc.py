@@ -147,3 +147,33 @@ class CarSize:
 def trip_done(settings: dict[str, Any], plug: bool | None, was_plugged: bool, soc: float | None) -> bool:
     """The trip button goes off by itself when the car leaves full (unplugged at 95 % or more)."""
     return bool(settings.get("ev_trip")) and was_plugged and not plug and (soc is None or soc >= 95)
+
+
+def unplugged(state: Any) -> bool:
+    """The plug sensor says the car is out - not merely unavailable or unknown for a moment."""
+    from .chargers import is_plugged
+
+    s = str(state or "").strip().lower()
+    return s not in ("", "unavailable", "unknown", "none") and not is_plugged(state)
+
+
+async def end_charge_now(ov: Any, ha: Any, was: bool, was_extra: dict[int, bool]) -> None:
+    """"Charge now" is for one charge: off when the car is unplugged, so the next plug-in follows the plan again."""
+    from .chargers import extras
+
+    st, states = ov.settings, ha.states
+    pe = ov.role("ev_plug")
+    if was and pe and unplugged((states.get(pe) or {}).get("state")):
+        me = ov.role("ev_manual")
+        if me:
+            if (states.get(me) or {}).get("state") == "on":
+                await ha.call_service(me.split(".")[0], "turn_off", {"entity_id": me})
+        elif st.get("ev_now"):
+            ov.save({"ev_now": False})
+    conf, changed = list(st.get("chargers") or []), False
+    for i, c in enumerate(extras(st)):
+        if c.get("now") and was_extra.get(i) and c.get("plug") and unplugged((states.get(c["plug"]) or {}).get("state")):
+            conf[conf.index(c)] = {**c, "now": False}
+            changed = True
+    if changed:
+        ov.save({"chargers": conf})
