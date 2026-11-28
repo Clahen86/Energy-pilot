@@ -50,7 +50,7 @@ def quiet(steps: list[dict[str, Any]], now: datetime, minutes: int = QUIET_MIN) 
 
 
 def due(now: datetime, installed: str | None, latest: str | None, seen_t: float | None, steps: list[dict[str, Any]],
-        ev_w: float = 0.0, enabled: bool = True, ha_auto: bool | None = None) -> bool:
+        ev_w: float | None = 0.0, enabled: bool = True, ha_auto: bool | None = None, controlling: bool = False) -> bool:
     """Is now the moment to install the waiting version?"""
     if not enabled or ha_auto:
         return False
@@ -61,7 +61,9 @@ def due(now: datetime, installed: str | None, latest: str | None, seen_t: float 
         return False
     if seen_t is None or now.timestamp() - seen_t < AGE_H * 3600:
         return False
-    if ev_w > 100:
+    if controlling and (not steps or ev_w is None):
+        return False  # in control, but no plan or no reading of the car: not known to be quiet - not now
+    if (ev_w or 0.0) > 100:
         return False  # the car charging: its session isn't cut by a restart
     return quiet(steps, now)
 
@@ -98,8 +100,15 @@ class NightUpdate:
 
         res = ((getattr(getattr(self.ov, "engine", None), "result", None) or {}).get("battery") or {})
         flow = self.ov.flow() if callable(getattr(self.ov, "flow", None)) else {}
-        if not due(now, installed, latest, seen.get("t"), res.get("steps") or [], float((flow or {}).get("ev") or 0.0),
-                   bool(self.ov.settings.get("night_update", True)), await autoupdate.state()):
+        ctl = getattr(self.ov, "controller", None)
+        try:
+            controlling = bool(ctl) and any(ctl.mode(p) == "control" for p in ctl.parts())
+        except Exception:  # noqa: BLE001
+            controlling = False
+        ev = (flow or {}).get("ev")
+        ev_w = None if ev is None and ctl is not None and controlling and self.ov.ev() is not None else float(ev or 0.0)
+        if not due(now, installed, latest, seen.get("t"), res.get("steps") or [], ev_w,
+                   bool(self.ov.settings.get("night_update", True)), await autoupdate.state(), controlling):
             return
         self._sent = latest
         _LOG.info("Updating to %s now, in a quiet moment of the night", latest)

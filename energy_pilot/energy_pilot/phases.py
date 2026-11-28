@@ -82,11 +82,13 @@ def room_a(states: dict[str, Any], ents: list[str] | None, fuse_a: float | None)
     return None if w is None else float(fuse_a) - MARGIN_A - w
 
 
-THREE = re.compile(r"(?i)(?:^|[._])(?:l2|l3|phase_?[23bc]|[st]_phase)(?:[._]|$)")
+L2 = re.compile(r"(?i)(?:^|[._])(?:l2|phase_?[2b]|s_phase)(?:[._]|$)")
+L3 = re.compile(r"(?i)(?:^|[._])(?:l3|phase_?[3c]|t_phase)(?:[._]|$)")
 
 
 def battery_phases(max_charge_kw: float, ents: list[str] | None = None) -> int:
     """How many phases the battery's charging is spread on: three only when the inverter shows its own second and
-    third phase (L2/L3 entities) - a big battery alone says nothing (single-phase hybrids go to 6-8 kW). When in
-    doubt one: the guard is then too careful at worst, never too bold."""
-    return 3 if max_charge_kw > 3.7 and any(THREE.search(e) for e in ents or []) else 1
+    third phase (both an L2 and an L3 entity - one alone proves nothing) - a big battery alone says nothing either
+    (single-phase hybrids go to 6-8 kW). When in doubt one: the guard is then too careful at worst, never too bold."""
+    ents = ents or []
+    return 3 if max_charge_kw > 3.7 and any(L2.search(e) for e in ents) and any(L3.search(e) for e in ents) else 1

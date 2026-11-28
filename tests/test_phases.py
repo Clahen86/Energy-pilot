@@ -58,6 +58,7 @@ def test_the_battery_spreads_on_three_phases_only_when_the_inverter_shows_them()
     # A big single-phase hybrid (Deye SG01LP1, Growatt SPH): one phase - the careful guess
     assert phases.battery_phases(8, ["sensor.growatt_sph_battery_power", "number.growatt_charge_rate"]) == 1
     assert phases.battery_phases(6) == 1
+    assert phases.battery_phases(6, ["sensor.inverter_l2_voltage"]) == 1  # one L2 alone proves nothing
 
 
 def test_nan_or_inf_on_a_phase_is_not_read():

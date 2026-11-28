@@ -266,6 +266,10 @@ def plan_battery(hours: list[Hour], soc_now: float, b: Battery, end_value: float
     per slot (three slots over the peak were paid three times, and one big peak looked cheaper than a few small ones).
     Instead the plan is made with the peak held at a few levels (the month's so far, a little above, no limit), each
     is priced with its own peak paid once, and the cheapest wins."""
+    # Every slot with real numbers only: a "nan" or an infinite price, use or sun made the whole plan meaningless (a
+    # slot without a finite way through took the first choice by default). Such a slot is left out - not followed.
+    hours = [h for h in hours if h.length and h.length > 0 and all(
+        isinstance(v, (int, float)) and math.isfinite(v) for v in (h.price, h.sell, h.house, h.sun))]
     if not hours:
         return Plan()
     if b.peak_kw is None or not b.peak_price:

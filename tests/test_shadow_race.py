@@ -50,7 +50,7 @@ async def test_hand_back_during_a_round_ends_normal(monkeypatch):
     await c.tick()
     await t
     assert states["select.mode"]["state"] == "load_first" and states["number.rate"]["state"] == "0"
-    assert log[-1] == ("number.rate", 0)
+    assert ("number.rate", 100) not in log  # the round stopped: its second value was never written
 
 
 @pytest.mark.asyncio
@@ -81,3 +81,27 @@ async def test_release_during_a_round_ends_normal(monkeypatch):
     await c.release()
     await t
     assert states["select.mode"]["state"] == "load_first" and c.mode("battery") == "shadow"
+
+
+@pytest.mark.asyncio
+async def test_a_car_command_in_flight_stops_at_shadow(monkeypatch):
+    # The car's round is writing (two calls, then a read-back retry) when shadow is chosen: nothing more of it is
+    # written afterwards.
+    real_sleep = asyncio.sleep
+    monkeypatch.setattr(C.asyncio, "sleep", lambda s: real_sleep(s / 100))
+    states = {"switch.a": {"state": "off"}, "number.amps": {"state": "6"}}
+    log = []
+    c = _ctl(states, log)
+    c.ov.settings["control"] = {"car": "control"}
+    c.intents = lambda: {"car": {"intent": "charge", "ctx": {}}}
+    c.is_battery = lambda p: False
+    c.parts = lambda: ["car"]
+    c._charger_hand_back = lambda p: []
+    c.calls = lambda part, w: [{"domain": "switch", "service": "turn_on", "data": {"entity_id": "switch.a"}},
+                               {"domain": "number", "service": "set_value", "data": {"entity_id": "number.amps", "value": 16}}]
+    t = asyncio.create_task(c.tick())
+    await real_sleep(0.005)  # after the first call
+    await c.hand_back("car")
+    c.set_mode("car", "shadow")
+    await t
+    assert ("number.amps", 16) not in log

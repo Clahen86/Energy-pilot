@@ -10,6 +10,7 @@ OV = {"decision": {"kind": "hold", "text": "Gemmer", "target": 60}, "price": {"n
 async def test_entities(hass: HomeAssistant, aioclient_mock):
     aioclient_mock.get(f"{URL}/api/overview", json=OV)
     aioclient_mock.get(f"{URL}/api/settings", json={"settings": {"style": "safe", "battery_min_soc": 30}})
+    aioclient_mock.get(f"{URL}/api/control", json={})
     aioclient_mock.post(f"{URL}/api/ev", json={"ok": True})
     aioclient_mock.post(f"{URL}/api/shadow_all", json={"ok": True})
     e = MockConfigEntry(domain="energy_pilot", data={"url": URL}, unique_id="energy_pilot")

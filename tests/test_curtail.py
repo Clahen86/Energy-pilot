@@ -170,3 +170,37 @@ def test_put_back_when_control_ends():
     mode[0] = "shadow"
     asyncio.run(c.tick())
     assert ha.states["number.growatt_export_limit"]["state"] == "100" and ov.settings["curtail_saved"] is None
+
+
+class _DeafHA(HA):
+    """Home Assistant says "done" but the inverter keeps its value."""
+
+    async def call_service(self, dom, svc, data):
+        return None
+
+
+def test_put_back_is_kept_until_the_value_shows():
+    ha, sell = HA(), [-0.1]
+    ov = Ov(ha, sell)
+    c = Curtail(ha, ov, SimpleNamespace(mode=lambda p: "control"))
+    asyncio.run(c.tick())  # stopped: 100 saved, limit at 0
+    deaf = _DeafHA()
+    deaf.states = ha.states
+    c.ha = deaf
+    sell[0] = 0.3
+    asyncio.run(c.tick())
+    assert ov.settings["curtail_saved"] == {"number.growatt_export_limit": "100"}  # "done", but still 0: kept
+    deaf.states["number.growatt_export_limit"] = {"state": "100.0"}  # it shows now
+    asyncio.run(c.tick())
+    assert ov.settings["curtail_saved"] is None
+
+
+def test_put_back_when_turned_off():
+    ha, sell = HA(), [-0.1]
+    ov = Ov(ha, sell)
+    c = Curtail(ha, ov, SimpleNamespace(mode=lambda p: "control"))
+    asyncio.run(c.tick())
+    assert ha.states["number.growatt_export_limit"]["state"] == "0"
+    ov.settings["curtail"] = {**ov.settings["curtail"], "on": False}
+    asyncio.run(c.tick())
+    assert ha.states["number.growatt_export_limit"]["state"] == "100" and ov.settings["curtail_saved"] is None

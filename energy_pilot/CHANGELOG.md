@@ -2,6 +2,15 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.122.0 – 2026-11-28
+- After a gap in the prices, the next step in the plan isn't followed before its time - the battery runs as normal until it begins
+- Choosing shadow while a command to the car or the battery is being sent: the rest of that command is no longer written
+- Stop-selling: the export limit only counts as put back once it really shows the old value (not just when Home Assistant says done), and it is also put back when stop-selling is turned off
+- A battery is only counted as three-phase when the inverter shows both an L2 and an L3 - one alone isn't enough
+- "nan" or infinite prices, use or sun never reach the plan
+- The night update waits when Energy Pilot controls something but has no plan or no reading of the car
+- The night the clocks go back: both prices for 02:00 are kept (one was lost)
+- The ledger no longer stops on 29 February, and "Energy Pilot's own part" in all keeps the oldest days
 ## 0.121.0 – 2026-11-28
 - A last check before every battery command: the power is kept within the battery and the export limit, and a command that breaks a rule (grid charging off, quiet hours, at the lowest or grid limit level, over the main fuse already, the level unknown) runs the battery as normal instead - whatever the plan says
 - "Car first" with a charger Energy Pilot switches itself: the car now gets the sun while the battery is charging, instead of waiting until the battery is full

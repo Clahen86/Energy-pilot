@@ -41,6 +41,8 @@ def candidates(states: dict[str, Any]) -> list[dict[str, Any]]:
     return sorted(out, key=lambda c: (not c["entity_id"].startswith("number."), c["name"]))
 
 
+PUT_BACK_TRIES = 10  # rounds the owner's value is written again until the entity shows it
+
 class Curtail:
     def __init__(self, ha: Any, ov: Any, controller: Any) -> None:
         self.ha, self.ov, self.ctl = ha, ov, controller
@@ -115,6 +117,9 @@ class Curtail:
         if c.get("on") and not c.get("entity") and (sg := self.suggest()):
             self.ov.save({"curtail": {**c, **sg}})  # turned on: chosen from the brand (it can be changed)
             c = self.cfg
+        if not self.testing and not c.get("on") and (left := self.ov.settings.get("curtail_saved")) is not None:
+            # Turned off while selling was stopped: the owner's values still go back (they were left at 0 before).
+            self.ov.save({"curtail_saved": await self._put_back(left) or None})
         if self.testing or not c.get("on") or not self.targets():
             if not c.get("on"):
                 self.last = {}
@@ -149,19 +154,41 @@ class Curtail:
             # that 0 as the owner's own value.
             self.ov.save({"curtail_saved": await self._put_back(saved) or None})
 
+    def _shows(self, e: str, v: Any) -> bool | None:
+        """Does the entity show this value now? None: it can't tell (gone, unknown)."""
+        st = (self.ha.states.get(e) or {}).get("state")
+        if st in (None, "unknown", "unavailable"):
+            return None
+        try:
+            return abs(float(st) - float(v)) < 0.01
+        except (TypeError, ValueError):
+            return str(st) == str(v)
+
     async def _put_back(self, saved: dict[str, Any]) -> dict[str, Any]:
-        """The owner's values back. Returns those that couldn't be written."""
+        """The owner's values back. Returns those not back yet: written, but only forgotten once the entity really
+        shows the value (Home Assistant saying "done" while the inverter kept 0 isn't enough) - at most a few rounds
+        for one that never shows it (a write-only control)."""
         if "entity" in saved and "value" in saved and len(saved) == 2:
             saved = {saved["entity"]: saved["value"]}  # (an older version kept one)
-        failed = {}
+        tries = dict(self.ov.settings.get("curtail_tries") or {})
+        left = {}
         for e, v in saved.items():
-            if v is None:
-                continue
+            if v is None or self._shows(e, v):
+                tries.pop(e, None)
+                continue  # back: done
+            tries[e] = tries.get(e, 0) + 1
             if await self._set(e, str(v)):
                 _LOGGER.info("Selling allowed again - %s back to %s", e, v)
+                if self._shows(e, v):
+                    tries.pop(e, None)
+                    continue  # already seen back
+            if tries[e] < PUT_BACK_TRIES:
+                left[e] = v
             else:
-                failed[e] = v
-        return failed
+                _LOGGER.warning("Could not see %s back at %s after %d tries - left as it is", e, v, tries[e])
+                tries.pop(e, None)
+        self.ov.save({"curtail_tries": tries})
+        return left
 
     async def test(self) -> dict[str, Any]:
         """The guide's test: stop selling for up to 2 minutes and see the export fall to (nearly) 0 - then put it back."""

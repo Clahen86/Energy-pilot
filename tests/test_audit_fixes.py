@@ -119,3 +119,23 @@ def test_the_user_is_told_when_the_inverter_keeps_refusing():
     assert not [w for w in c.watch_checks() if w["key"] == "not_taken"]
     c.fails["battery"] = 3
     assert [w for w in c.watch_checks() if w["key"] == "not_taken"]
+
+
+def test_nan_or_infinite_prices_never_reach_the_plan():
+    from zoneinfo import ZoneInfo as _Z
+
+    from energy_pilot.engine import Battery, plan_battery
+    from energy_pilot.pricefeed import parse
+
+    cph = _Z("Europe/Copenhagen")
+    got = parse({"today": [1.0, float("nan"), float("inf")] + [1.0] * 21}, cph, datetime(2026, 11, 28, tzinfo=cph))
+    assert len(got) == 22
+    got = parse({"prices": [{"start": "2026-11-28T00:00:00+01:00", "price": float("nan")},
+                            {"start": "2026-11-28T01:00:00+01:00", "price": 2.0}]}, cph, datetime(2026, 11, 28, tzinfo=cph))
+    assert list(got.values()) == [2.0]
+    t0 = datetime(2026, 11, 28, tzinfo=cph)
+    b = Battery(capacity_kwh=10, max_charge_kw=5, max_discharge_kw=5, min_soc=10)
+    hs = [Hour(t0, float("inf"), 0.0, 1.0, 0.0), Hour(t0 + timedelta(hours=1), 1.0, 0.0, float("nan"), 0.0),
+          Hour(t0 + timedelta(hours=2), 1.0, 0.0, 1.0, 0.0)]
+    p = plan_battery(hs, 50, b)
+    assert [s.start for s in p.steps] == [hs[2].start] and p.cost == p.cost  # finite, only the sound slot

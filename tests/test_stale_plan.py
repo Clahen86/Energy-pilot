@@ -47,3 +47,14 @@ def test_a_plan_that_ran_out_runs_as_normal_even_with_prices():
 def test_the_running_step_is_still_followed():
     e = SimpleNamespace(result=_old_plan(hours_ago=0))
     assert _ctl(e, price_none=False).intents()["battery"]["intent"] == "charge"
+
+
+def test_a_step_ahead_after_a_gap_waits_for_its_time():
+    # The prices have a gap: the next step (a grid charge) begins in two hours - it isn't followed now.
+    t = (datetime.now(ZoneInfo("UTC")) + timedelta(hours=2)).replace(minute=0, second=0, microsecond=0)
+    e = SimpleNamespace(result={"battery": {"steps": [{"t": t.isoformat(), "action": "charge_grid", "soc": 90, "grid": 4.0}],
+                                            "slot_min": 60, "target": 90}})
+    assert _ctl(e, price_none=False).intents()["battery"]["intent"] == "normal"
+    bad = SimpleNamespace(result={"battery": {"steps": [{"t": "not a time", "action": "charge_grid", "soc": 90}],
+                                              "slot_min": 60, "target": 90}})
+    assert _ctl(bad, price_none=False).intents()["battery"]["intent"] == "normal"

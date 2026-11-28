@@ -30,3 +30,17 @@ def test_not_by_day_not_too_new_not_off_and_not_dev():
     assert not due(N, "0.113.1", "0.113.2", DAY_AGO, [], ha_auto=True)  # Home Assistant updates it itself
     assert not due(N, "dev", "0.113.2", DAY_AGO, [])
     assert not due(N, "0.113.2", "0.113.2", DAY_AGO, [])
+
+
+def test_not_quiet_when_in_control_without_a_plan_or_a_car_reading():
+    from datetime import datetime as _dt, timezone as _tz
+
+    from energy_pilot.nightupdate import due as _due
+
+    now = _dt(2026, 11, 28, 3, 0, tzinfo=_tz.utc)
+    old = now.timestamp() - 3 * 86400
+    step = [{"t": now.isoformat(), "action": "hold"}]
+    assert _due(now, "0.1.0", "0.2.0", old, [], 0.0)  # nothing controlled: no plan is fine
+    assert not _due(now, "0.1.0", "0.2.0", old, [], 0.0, controlling=True)  # in control, no plan: not now
+    assert not _due(now, "0.1.0", "0.2.0", old, step, None, controlling=True)  # the car not read: not now
+    assert _due(now, "0.1.0", "0.2.0", old, step, 0.0, controlling=True)

@@ -18,7 +18,7 @@ all are measured on what was really bought and sold.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import math
 from pathlib import Path
@@ -196,12 +196,15 @@ class Ledger:
 
     def _trim(self, now: datetime) -> None:
         """Days older than two years are summed into one."""
-        cut = now.date().replace(year=now.year - 2).isoformat()
+        cut = (now.date() - timedelta(days=730)).isoformat()  # (not year - 2: there is no 29 February two years back)
         old = [d for d in self.state["days"] if d < cut]
         if old:
             gone = [self.state["days"].pop(d) for d in old]
             self.state["older"] = round(self.state.get("older", 0.0) + sum(g["saved"] for g in gone), 2)
             self.state["older_all"] = round(self.state.get("older_all", 0.0) + sum(g.get("all", 0.0) for g in gone), 2)
+            # Energy Pilot's own part too, with its range - its "total" kept them out once the days were gone
+            self.state["older_pilot"] = round(self.state.get("older_pilot", 0.0) + sum(g.get("pilot", 0.0) for g in gone), 2)
+            self.state["older_spread"] = round(self.state.get("older_spread", 0.0) + sum(g.get("pilot_spread", 0.0) for g in gone), 2)
 
     def summary(self, now: datetime, other_avg: float | None = None) -> dict[str, Any]:
         s, days = self.state, self.state["days"]
@@ -211,6 +214,8 @@ class Ledger:
             return round(sum(v.get(key, 0.0) for k, v in days.items() if k.startswith(prefix)), 2)
 
         avg = s["stored_cost"] / s["stored_kwh"] if s["stored_kwh"] > 0.05 else None
+        p_all = total("", "pilot") + s.get("older_pilot", 0.0)
+        p_spread = total("", "pilot_spread") + s.get("older_spread", 0.0)
         return {
             "stored_kwh": round(s["stored_kwh"], 2), "avg_cost": round(other_avg if other_avg is not None else avg, 3) if (other_avg or avg) is not None else None,
             "avg_source": "other" if other_avg is not None else "own",
@@ -227,11 +232,10 @@ class Ledger:
                     "total": round(total("", "all") + s.get("older_all", 0.0), 2), "since": s.get("all_since")}
             if s.get("all_since") else None,
             # what Energy Pilot added against the battery left to itself (the inverter's own house-first way)
-            "pilot": {"today": total(d, "pilot"), "month": total(m, "pilot"), "year": total(y, "pilot"), "total": total("", "pilot"),
+            "pilot": {"today": total(d, "pilot"), "month": total(m, "pilot"), "year": total(y, "pilot"), "total": round(p_all, 2),
                       "month_lo": round(total(m, "pilot") - total(m, "pilot_spread"), 2),
                       "month_hi": round(total(m, "pilot") + total(m, "pilot_spread"), 2),
-                      "total_lo": round(total("", "pilot") - total("", "pilot_spread"), 2),
-                      "total_hi": round(total("", "pilot") + total("", "pilot_spread"), 2)}
+                      "total_lo": round(p_all - p_spread, 2), "total_hi": round(p_all + p_spread, 2)}
             if any("pilot" in v for v in days.values()) else None,
             # this month day by day, for the picture to share (both views)
             "month_days": {"bat": [round(days[k].get("saved", 0.0), 2) for k in sorted(days) if k.startswith(m)],

@@ -36,6 +36,13 @@ def _when(value: Any, tz: ZoneInfo) -> datetime | None:
     return None
 
 
+def _key(dt: datetime, tz: ZoneInfo) -> datetime:
+    """A price's start as the local time with its own fixed offset: the two 02:00 of the night the clocks go back are
+    two keys (with the zone itself they count as equal - one of the two prices was lost)."""
+    loc = dt.astimezone(tz)
+    return loc.replace(tzinfo=timezone(loc.utcoffset() or timedelta(0)))
+
+
 def parse(attrs: dict[str, Any], tz: ZoneInfo, day0: datetime) -> dict[datetime, float]:
     """{start: price per kWh} from one entity's attributes, whatever the shape."""
     per_mwh = str(attrs.get("unit_of_measurement") or "").lower().endswith("/mwh")
@@ -52,21 +59,22 @@ def parse(attrs: dict[str, Any], tz: ZoneInfo, day0: datetime) -> dict[datetime,
             step = timedelta(minutes=15) if len(items) in (92, 96, 100) else timedelta(hours=1)
             base_utc = base.replace(tzinfo=tz).astimezone(timezone.utc) if base.tzinfo is None else base.astimezone(timezone.utc)
             for i, v in enumerate(items):
-                out[(base_utc + i * step).astimezone(tz)] = float(v) / (1000 if per_mwh else 1)
+                if math.isfinite(float(v)):  # a "nan"/"inf" in the list isn't a price
+                    out[_key(base_utc + i * step, tz)] = float(v) / (1000 if per_mwh else 1)
             continue
         for item in items:
             if not isinstance(item, dict):
                 continue
             start = _when(next((item[k] for k in TIME_KEYS if k in item), None), tz)
             value = next((item[k] for k in VALUE_KEYS if isinstance(item.get(k), (int, float))), None)
-            if start is None or value is None:
+            if start is None or value is None or not math.isfinite(float(value)):
                 continue
             used = next((k for k in VALUE_KEYS if k in item), "")
             if used.endswith("ct_per_kwh"):  # cents (not "ct" inside "electricity")
                 value = value / 100
             elif used == "electricity_price" and abs(value) > 100:
                 value = value / 10_000_000  # Zonneplan gives tenths of a micro-euro
-            out[start.astimezone(tz)] = float(value) / (1000 if per_mwh else 1)
+            out[_key(start, tz)] = float(value) / (1000 if per_mwh else 1)
     return out
 
 
@@ -144,11 +152,11 @@ def collect(states: dict[str, dict], entity_id: str | None, own: list[dict[str, 
                 flat = None
             if flat is not None and math.isfinite(flat):
                 base = day0.astimezone(timezone.utc)
-                prices = {(base + timedelta(hours=i)).astimezone(tz): flat for i in range(48)}
+                prices = {_key(base + timedelta(hours=i), tz): flat for i in range(48)}
         for p in service or []:  # prices an integration gives through its action
             when = _when(p.get("start"), tz)
-            if when is not None:
-                prices[when.astimezone(tz)] = float(p["price"])
+            if when is not None and isinstance(p.get("price"), (int, float)) and math.isfinite(float(p["price"])):
+                prices[_key(when, tz)] = float(p["price"])
         if "tempo" in entity_id:
             from . import tempo  # EDF Tempo: the prices come from the day colours
 
@@ -160,8 +168,8 @@ def collect(states: dict[str, dict], entity_id: str | None, own: list[dict[str, 
     mine = {}
     for p in own or []:
         when = _when(p.get("start"), tz)
-        if when is not None and isinstance(p.get("price"), (int, float)):
-            mine[when.astimezone(tz)] = float(p["price"])
+        if when is not None and isinstance(p.get("price"), (int, float)) and math.isfinite(float(p["price"])):
+            mine[_key(when, tz)] = float(p["price"])
     filled = 0
     shown_until = day0 + timedelta(days=2)  # the plan shows today and tomorrow
     if prices and mine:

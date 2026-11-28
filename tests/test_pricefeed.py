@@ -167,11 +167,16 @@ def test_bare_lists_on_the_days_the_clocks_change():
     assert all(k.minute == 0 for k in back) and back[_dt(2026, 10, 25, 23, tzinfo=cph)] == 24.0
     assert back[_dt(2026, 10, 25, 1, tzinfo=cph)] == 1.0 and back[_dt(2026, 10, 25, 3, tzinfo=cph)] == 4.0
     assert resolution(back, _dt(2026, 10, 25, tzinfo=cph)) == 60
+    assert len(back) == 25 and len({k.timestamp() for k in back}) == 25  # both 02:00 kept, each its own hour
     fwd = _parse({"today": [float(i) for i in range(23)]}, cph, _dt(2026, 3, 29, tzinfo=cph))
     assert len(fwd) == 23 and all(k.minute == 0 for k in fwd)
     assert fwd[_dt(2026, 3, 29, 3, tzinfo=cph)] == 2.0 and fwd[_dt(2026, 3, 29, 23, tzinfo=cph)] == 22.0
     q = _parse({"today": [float(i) for i in range(100)]}, cph, _dt(2026, 10, 25, tzinfo=cph))
     assert all(k.minute in (0, 15, 30, 45) for k in q) and q[_dt(2026, 10, 25, 23, 45, tzinfo=cph)] == 99.0
+    assert len(q) == 100
+    stamped = _parse({"prices": [{"start": f"2026-10-25T02:00:00+0{o}:00", "price": float(o)} for o in (2, 1)]}, cph,
+                     _dt(2026, 10, 25, tzinfo=cph))
+    assert sorted(stamped.values()) == [1.0, 2.0]  # the same two from a list with times
 
 
 def test_a_fixed_price_counts_for_every_hour():

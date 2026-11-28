@@ -59,3 +59,13 @@ def test_the_saving_is_a_range_around_the_power_left_in_the_battery(tmp_path):
     steps = [(2.0, {"battery": -500, "pv": 0, "house": 500, "ev": 0, "soc": 60 - 0.439 * (i + 1), "grid": 0}) for i in range(24)]
     q = _run(tmp_path / "b", steps)["pilot"] if (tmp_path / "b").mkdir() is None else None
     assert q["month_hi"] - q["month_lo"] < 0.05
+
+
+def test_leap_day_and_old_days_keep_energy_pilot_s_part(tmp_path):
+    lg = Ledger(tmp_path)
+    lg.state["days"]["2025-01-10"] = {"saved": 1.0, "all": 2.0, "pilot": 3.0, "pilot_spread": 0.5}
+    lg._trim(datetime(2028, 2, 29, 12, 0))  # no 29 February in 2026: this raised before
+    assert "2025-01-10" not in lg.state["days"]
+    p = lg.summary(datetime(2028, 2, 29, 12, 0))["pilot"]
+    assert p is None or p["total"] == 3.0
+    assert lg.state["older_pilot"] == 3.0 and lg.state["older_spread"] == 0.5

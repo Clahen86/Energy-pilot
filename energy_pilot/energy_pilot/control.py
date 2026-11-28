@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import asyncio
 from collections import deque
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 import math
 import re
@@ -653,17 +653,21 @@ class Controller:
 
     @staticmethod
     def _live_steps(b: dict[str, Any]) -> list[dict[str, Any]]:
-        """The plan's steps whose slot hasn't ended yet (a step without a readable time is kept)."""
+        """The plan's steps whose slot hasn't ended yet - and only when the first of them has begun: after a gap in the
+        prices the next step lies ahead, and its order isn't followed before its time. A step without a readable time
+        (or without a time zone) isn't followed at all."""
         slot = timedelta(minutes=b.get("slot_min") or 60)
         out = []
         for s in b.get("steps") or []:
             try:
                 t = datetime.fromisoformat(s["t"])
-                if t.tzinfo is not None and t + slot <= datetime.now(t.tzinfo):
-                    continue
             except (KeyError, TypeError, ValueError):
-                pass
+                continue
+            if t.tzinfo is None or t + slot <= datetime.now(t.tzinfo):
+                continue
             out.append(s)
+        if out and datetime.fromisoformat(out[0]["t"]) > datetime.now(timezone.utc) + timedelta(minutes=1):
+            return []  # nothing runs now: the battery as normal until the next step begins
         return out
 
     def intents(self) -> dict[str, dict[str, Any]]:
@@ -1032,15 +1036,16 @@ class Controller:
                     async with self._lock():
                         if self._leaves(part):
                             continue  # shadow was chosen while this round waited: the hand-back has the last word
-                        entry["result"] = await self._send_kept(prof, calls, force)
+                        entry["result"] = await self._send_kept(prof, calls, force, part)
                 else:
                     if self._leaves(part):
                         continue
-                    entry["result"] = await self._send(calls)
+                    entry["result"] = await self._send(calls, part=part)
                 # Not taken several rounds in a row: the user is told (the self-check), not only the developer's view.
                 fails = self.__dict__.setdefault("fails", {})
-                fails[part] = 0 if entry["result"] == "ok" else fails.get(part, 0) + 1
-                if entry["result"] != "ok":  # what failed, for the developer's view of the brand (setupinfo.py)
+                if entry["result"] != "stopped":
+                    fails[part] = 0 if entry["result"] == "ok" else fails.get(part, 0) + 1
+                if entry["result"] not in ("ok", "stopped"):  # what failed, for the developer's view of the brand (setupinfo.py)
                     errs = getattr(self, "part_errors", None)
                     if errs is None:
                         errs = self.part_errors = {}
@@ -1247,24 +1252,24 @@ class Controller:
                 if self._leaves(part):
                     continue
                 if why == "due":
-                    prev["result"] = await self._send_kept(prof, prev["calls"], self._forced(prof))
+                    prev["result"] = await self._send_kept(prof, prev["calls"], self._forced(prof), part)
                 else:
-                    prev["result"] = await self._send(prev["calls"], force=True)
+                    prev["result"] = await self._send(prev["calls"], force=True, part=part)
             prev["t"] = time.time()
             self._note_resent(part, why)
 
-    async def _send_kept(self, prof: dict[str, Any], calls: list[dict[str, Any]], force: bool) -> str:
+    async def _send_kept(self, prof: dict[str, Any], calls: list[dict[str, Any]], force: bool, part: str | None = None) -> str:
         """Forced writes limited to the profile's "keepalive_only" (SolarEdge: the timer and the command) - the rest sits
         in the inverter's flash and is written only when it changed."""
         only = prof.get("keepalive_only")
         if not force or not only:
-            return await self._send(calls, force=force)
+            return await self._send(calls, force=force, part=part)
         hit = lambda c: any(re.search(r, str((c.get("data") or {}).get("entity_id") or "")) for r in only)  # noqa: E731
-        rest = await self._send([c for c in calls if not hit(c)])
-        kept = await self._send([c for c in calls if hit(c)], force=True)
+        rest = await self._send([c for c in calls if not hit(c)], part=part)
+        kept = await self._send([c for c in calls if hit(c)], force=True, part=part)
         return kept if rest == "ok" else rest
 
-    async def _send(self, calls: list[dict[str, Any]], force: bool = False) -> str:
+    async def _send(self, calls: list[dict[str, Any]], force: bool = False, part: str | None = None) -> str:
         """Send the calls - only those whose value isn't already set (some links, like Solarman, drop writes now
         and then, so fewer writes is safer), or all of them when forced. A value that didn't stick is sent once more."""
         todo = list(calls) if force else [c for c in calls if not self._matches(c)]
@@ -1272,6 +1277,8 @@ class Controller:
         for attempt in range(2):
             raised = []
             for c in todo:
+                if part and self._leaves(part):
+                    return "stopped"  # shadow chosen meanwhile: nothing more of this round is written (the hand-back has the last word)
                 try:
                     await self.ha.call_service(c["domain"], c["service"], dict(c["data"]))
                     await asyncio.sleep(1.5)  # inverters take one change at a time
@@ -1284,6 +1291,8 @@ class Controller:
             if not todo:
                 return "ok"
             await asyncio.sleep(15)
+            if part and self._leaves(part):
+                return "stopped"
             # A call that raised is tried once more - a service can't be read back, so it would otherwise count as done.
             todo = [c for c in calls if self._matches(c) is False or c in raised]
             if not todo:
