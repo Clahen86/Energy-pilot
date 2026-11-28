@@ -24,7 +24,9 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.14"  # the newest Home Assistant test harness needs 3.14
-      - run: pip install pytest-homeassistant-custom-component home-assistant-frontend hassil home-assistant-intents  # frontend for the panel; hassil + intents for the AI tools (conversation)
+      - run: pip install pytest-homeassistant-custom-component home-assistant-frontend  # the integration needs frontend
+      # The AI tools' test sets up Home Assistant's conversation: whatever its manifest needs in this version
+      - run: pip install $(python -c "import json, homeassistant.components.conversation as c, pathlib; print(' '.join(json.loads((pathlib.Path(c.__file__).parent / 'manifest.json').read_text()).get('requirements', [])))")
       - run: mkdir -p custom_components && cp -r energy_pilot/integration/energy_pilot custom_components/ && touch custom_components/__init__.py
       - run: python -m pytest -q tests_integration -c /dev/null --rootdir . -o asyncio_mode=auto
 
