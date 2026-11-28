@@ -334,7 +334,7 @@ def read_only(engine: Any, st: dict[str, Any]) -> list[dict[str, Any]]:
     if plat == "solarman":
         # The same domain for both: the old one makes no controls (no programme SOC, no time of use) - say so, even if a
         # Deye profile was guessed from the model (its steps would find nothing)
-        mine = [e for e, r in reg.items() if (r or {}).get("platform") == "solarman" and re.match(r"(number|select)\..*(program_\d_soc|time_of_use|storage_control_mode|passive_(minimum|maximum)_battery_power)$", e)]
+        mine = [e for e, r in reg.items() if (r or {}).get("platform") == "solarman" and re.match(r"(number|select)\..*(program_\d_soc|time_of_use|storage_control_mode|passive_(minimum|maximum)_battery_power|timed_charge_power|work_mode)$", e)]
         if mine:
             return []
         plat = "solarman_old"

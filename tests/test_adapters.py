@@ -533,3 +533,22 @@ def test_givenergy_without_pause_mode_holds_with_the_discharge_limit():
     assert lim("export")["number.givenergy_ce123_battery_discharge_power_limit"] > 0
     # without the discharge limit it isn't controlled at all - never half a hold
     assert adapters.missing(adapters.check({i: p[i] for i in ("normal", "hold", "charge")}, ge[:1], p["optional"]))
+
+
+def test_sofar_me3000_zcs_through_solarman():
+    # ZCS Azzurro 3000SP = Sofar ME 3000-SP (davidrapan's sofar_hybrid): Work Mode and one timed window, no passive power.
+    ents = ["select.zcs_work_mode", "time.zcs_timed_charge_start", "time.zcs_timed_charge_end", "time.zcs_timed_discharge_start",
+            "time.zcs_timed_discharge_end", "number.zcs_timed_charge_power", "number.zcs_timed_discharge_power"]
+    assert adapters.guess_profile(ents, {"solarman"}, "sofar_hybrid") == "sofar_me"
+    p = adapters.PROFILES["sofar_me"]
+    ctx = {**CTX, "now_from": "02:00", "now_to": "05:00"}
+    charge = {c["data"]["entity_id"]: c["data"] for c in adapters.resolve(p["charge"], ents, ctx)}
+    assert charge["number.zcs_timed_charge_power"]["value"] == 2400
+    assert charge["time.zcs_timed_charge_start"]["time"] == "02:00:00" and charge["time.zcs_timed_charge_end"]["time"] == "05:00:00"
+    assert charge["select.zcs_work_mode"]["option"] == "Timed"
+    order = [c["data"]["entity_id"] for c in adapters.resolve(p["charge"], ents, ctx)]
+    assert order[-1] == "select.zcs_work_mode" and order.index("time.zcs_timed_charge_end") < order.index("number.zcs_timed_charge_power")
+    assert charge["number.zcs_timed_discharge_power"]["value"] == 0
+    hold = {c["data"]["entity_id"]: c["data"] for c in adapters.resolve(p["hold"], ents, ctx)}
+    assert hold["number.zcs_timed_discharge_power"]["value"] == 0 and hold["time.zcs_timed_charge_end"]["time"] == "00:00:00"
+    assert adapters.resolve(p["normal"], ents, ctx)[0]["data"]["option"] == "Auto"

@@ -212,7 +212,7 @@ async def main() -> None:
                     await controller.tick(("battery", *controller.bat_parts()))
             except Exception:  # noqa: BLE001
                 logging.getLogger("energy_pilot.engine").debug("Charge limit check failed", exc_info=True)
-            for job in (controller.keep, controller.guard, controller.recheck):
+            for job in (controller.keep, controller.guard, controller.recheck, controller.finish_hand_back):
                 try:
                     await job()
                 except Exception:  # noqa: BLE001

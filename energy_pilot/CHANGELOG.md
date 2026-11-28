@@ -2,6 +2,13 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.123.0 – 2026-11-28
+- When Energy Pilot lets go of the battery and the inverter doesn't confirm it's back to normal, it tries again every minute - also after a restart - until it takes. You're told if it keeps failing
+- While Energy Pilot controls the battery, a sensor you chose that disappears from Home Assistant is no longer swapped for a guess: the battery runs as normal and you're told which sensor is missing
+- If the battery's level becomes unknown during a grid charge, the battery goes back to normal instead of keeping the last order
+- New profile: Sofar ME 3000-SP / HYD-ES and ZCS Azzurro 3000SP through Solarman (davidrapan), using Work Mode and the timed charge window. Not yet tested on a real inverter - run the test under Control
+- Setup no longer asks you to install Solarman when you already have it on one of these inverters
+
 ## 0.122.0 – 2026-11-28
 - After a gap in the prices, the next step in the plan isn't followed before its time - the battery runs as normal until it begins
 - Choosing shadow while a command to the car or the battery is being sent: the rest of that command is no longer written

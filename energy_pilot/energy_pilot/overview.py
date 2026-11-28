@@ -18,6 +18,9 @@ from zoneinfo import ZoneInfo
 GRID_SELL_PLUS = {"goodwe"}  # integrations whose grid power is plus when selling
 # Where a price can live: a sensor, a helper, Octopus' rate events - never an update, a button or a switch.
 PRICE_DOMAINS = ("sensor", "input_number", "number", "event")
+# The meters the battery is steered by: a chosen one that is gone isn't replaced by a guess while Energy Pilot controls.
+GUARDED_ROLES = ("battery_soc", "battery_power", "grid_power", "house_power", "pv_power")
+
 ROLES: dict[str, dict[str, Any]] = {
     "pv_power": {"known": ["sensor.growatt_sph_pv_power"], "class": "power", "words": ["pv_power", "solar_power", "sol_effekt", "pv"]},
     # Other power made on the spot that can't be switched (a small wind turbine, water): in the flow and the balance,
@@ -189,7 +192,7 @@ class Overview:
                 self.settings.setdefault("roles", {}).update({k: v for k, v in value.items() if k in ROLES})
             elif key in ("battery_kwh", "import_limit_kw", "fuse_a", "language", "setup_done", "style", "price_area", "tariff", "markup", "price_source", "tou", "vat", "battery_min_soc", "grid_charge",
                          "sell", "sell_price", "sell_fee", "solar_value", "ev_in_house", "battery_sign", "grid_sign", "grid_noise", "ev_follow_sun", "ev_fuse_guard",
-                         "battery_export", "battery_no_export_cheap", "scene_fx", "battery_wear", "battery_care", "battery_type", "battery_price", "fuse_ok", "own_history", "things", "things_dismissed", "power_tariff_price", "power_tariff_kind", "power_tariff_hours", "battery_grid_max", "export_limit_kw", "agile_region", "restore_values",
+                         "battery_export", "battery_no_export_cheap", "scene_fx", "battery_wear", "battery_care", "battery_type", "battery_price", "fuse_ok", "own_history", "things", "things_dismissed", "power_tariff_price", "power_tariff_kind", "power_tariff_hours", "battery_grid_max", "export_limit_kw", "agile_region", "restore_values", "hand_back_due",
                          "offgrid", "reserve_soc", "emergency_soc", "gen_stop_soc", "gen_charge_kw", "gen_min_run_h",
                          "quiet_gen_from", "quiet_gen_to", "battery_charge_kw", "battery_discharge_kw", "ev_mode", "charger_kw", "ev_need_kwh",
                          "quiet_from", "quiet_to", "quiet_battery", "quiet_car",
@@ -477,6 +480,35 @@ class Overview:
             chosen = None  # a phone's battery is never the house battery (one was picked, and nothing was controlled)
         if chosen and chosen in states and not (name in ("price", "sell_price") and chosen.split(".")[0] not in PRICE_DOMAINS):
             return chosen  # (a price is never an update, a button or a switch - such a pick is passed over)
+        if name in GUARDED_ROLES and self._gone(name) and self._controlling():
+            # The user's own sensor is gone (renamed, removed): while Energy Pilot steers the battery it doesn't guess
+            # another meter - the battery runs as normal until the sensor is back or chosen again (control._guard).
+            return None
+        return self.role_found(name)
+
+    def _gone(self, name: str) -> list[str]:
+        """The sensor(s) the user chose for this role when none of them is in Home Assistant any more ([] otherwise)."""
+        chosen = (self.settings.get("roles") or {}).get(name)
+        ids = [e for e in (chosen if isinstance(chosen, list) else [chosen]) if isinstance(e, str) and e]
+        return ids if ids and not any(e in self.ha.states for e in ids) else []
+
+    def gone_roles(self) -> dict[str, list[str]]:
+        """The battery's own sensors the user chose that are gone from Home Assistant: role -> the chosen ids."""
+        return {n: g for n in GUARDED_ROLES if (g := self._gone(n))}
+
+    def _controlling(self) -> bool:
+        """Does Energy Pilot steer a battery now (not shadow)?"""
+        ctl = getattr(self, "controller", None)
+        if ctl is None:
+            return False
+        try:
+            return any(ctl.mode(p) == "control" for p in ["battery", *ctl.bat_parts()])
+        except Exception:  # noqa: BLE001 - unknown: as in shadow
+            return False
+
+    def role_found(self, name: str) -> str | None:
+        """The sensor Energy Pilot finds by itself for a role (a known one, or detected)."""
+        states = self.ha.states
         spec = ROLES[name]
         for e in spec["known"]:
             if e in states and states[e].get("state") not in ("unavailable", "unknown", None):

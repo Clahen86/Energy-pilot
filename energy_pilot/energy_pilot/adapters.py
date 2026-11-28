@@ -191,6 +191,30 @@ PROFILES: dict[str, dict[str, Any]] = {
                    (r"number\..*passive_maximum_battery_power$", "number", "-{power_w}"),
                    (r"select\..*storage_control_mode$", "select", "Passive")],
     },
+    # Sofar HYD-ES / ME 3000-SP (= ZCS Azzurro 3000SP) through davidrapan/ha-solarman's sofar_hybrid: no passive power
+    # controls, only "Work Mode" (register 0x1200: Auto / Time of Use / Timed / Passive / Peak Shaving) and one timed
+    # charge and discharge window with its power (max 3000 W). A grid charge is a timed charge window over the plan's
+    # block (it ends by itself); hold is Timed with both windows shut. Not yet tested on a real inverter - the
+    # self-test shows whether Timed with shut windows really stands still on this firmware.
+    "sofar_me": {
+        "name": "Sofar ME 3000-SP / HYD-ES / ZCS 3000SP (Solarman)",
+        "match": r"timed_charge_power|timed_discharge_power",
+        "models": r"sofar|zcs|azzurro|\bME ?3000|HYD.*ES",
+        # Normal is the inverter's own Auto: the timed windows Energy Pilot left are ignored there.
+        "normal": [(r"select\..*(?<!energy_pattern_)work_mode$", "select", "Auto")],
+        "hold": [(r"number\..*timed_charge_power$", "number", "0"),
+                 (r"number\..*timed_discharge_power$", "number", "0"),
+                 (r"time\..*timed_charge_start$", "time", "00:00"), (r"time\..*timed_charge_end$", "time", "00:00"),
+                 (r"time\..*timed_discharge_start$", "time", "00:00"), (r"time\..*timed_discharge_end$", "time", "00:00"),
+                 (r"select\..*(?<!energy_pattern_)work_mode$", "select", "Timed")],
+        # The windows first, then the powers, the mode last: an inverter already in Timed never charges at a new
+        # power in an old window, and no discharge window or power is left over from before.
+        "charge": [(r"number\..*timed_discharge_power$", "number", "0"),
+                   (r"time\..*timed_discharge_start$", "time", "00:00"), (r"time\..*timed_discharge_end$", "time", "00:00"),
+                   (r"time\..*timed_charge_start$", "time", "{now_from}"), (r"time\..*timed_charge_end$", "time", "{now_to}"),
+                   (r"number\..*timed_charge_power$", "number", "{power_w}"),
+                   (r"select\..*(?<!energy_pattern_)work_mode$", "select", "Timed")],
+    },
     # Sigenergy (TypQxQ/Sigenergy-Local-Modbus): Remote EMS on, then its control mode; limits in kW.
     "sigen": {
         "name": "Sigenergy (local Modbus)",

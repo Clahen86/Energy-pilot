@@ -159,7 +159,56 @@ class Controller:
         async with self._lock():
             want = self.intents().get(part)
             if want:
-                await self._send(self.calls(part, {**want, "intent": "normal"}) + self._restore(part, "normal"))
+                await self._hand_back_send(part, self.calls(part, {**want, "intent": "normal"}) + self._restore(part, "normal"))
+
+    # ---------- a hand-back that didn't take ----------
+
+    HAND_BACK_GIVE_UP_S = 24 * 3600
+
+    async def _hand_back_send(self, part: str, calls: list[dict[str, Any]]) -> str:
+        """Send a battery's way back to normal. When the inverter doesn't take it (Solarman drops a write, the link
+        is down) it's kept - also over a restart - and tried again every minute (finish_hand_back): a battery is never
+        left charging from the grid or selling after Energy Pilot let go."""
+        res = await self._send(calls)
+        if res == "ok":
+            self._due_set(part, None)
+        elif calls:
+            _LOGGER.warning("%s: back to normal not confirmed (%s) - tried again every minute", part, res)
+            self._due_set(part, {"calls": calls, "since": time.time(), "tries": 1, "next": time.time() + 60})
+        return res
+
+    async def finish_hand_back(self) -> None:
+        """Every minute: a battery whose way back to normal wasn't confirmed gets it again - until it takes, Energy
+        Pilot controls it again, or a day has gone (then the owner has had the warning that long)."""
+        for part in list((self.ov.settings.get("hand_back_due") or {}).keys()):
+            if part in self._leaving_parts():
+                continue  # a hand-back or release is on its way right now: it has the word
+            async with self._lock():
+                d = (self.ov.settings.get("hand_back_due") or {}).get(part)  # read again: it may have changed meanwhile
+                now_t = time.time()
+                if (not isinstance(d, dict) or not d.get("calls") or self.mode(part) == "control"
+                        or now_t - float(d.get("since") or 0) > self.HAND_BACK_GIVE_UP_S):
+                    self._due_set(part, None)  # controlled again (its round sets it), or given up after a day
+                    continue
+                if part in getattr(self, "testing", set()) or part in self._leaving_parts() or now_t < float(d.get("next") or 0):
+                    continue
+                res = await self._send(d["calls"])
+                if res == "ok":
+                    _LOGGER.info("%s: back to normal now confirmed", part)
+                    self._due_set(part, None)
+                else:
+                    tries = int(d.get("tries") or 0) + 1
+                    self._due_set(part, {**d, "tries": tries, "next": time.time() + (60 if tries < 10 else 600)})
+
+    def _due_set(self, part: str, entry: dict[str, Any] | None) -> None:
+        """Change one battery's entry only - the others are read fresh, so one battery never wipes another's."""
+        due = dict(self.ov.settings.get("hand_back_due") or {})
+        if entry is None:
+            if due.pop(part, None) is None:
+                return
+        else:
+            due[part] = entry
+        self.ov.save({"hand_back_due": due})
 
     def _guard(self, part: str, want: dict[str, Any]) -> dict[str, Any]:
         """The last check before anything is written to a battery - apart from the plan, so a mistake in the plan (or
@@ -175,8 +224,11 @@ class Controller:
         soc = _num(f.get("soc"))
         eng = getattr(self, "engine", None)
         bat = eng.settings() if eng and part == "battery" else None
+        gone = getattr(self.ov, "gone_roles", lambda: {})() if hasattr(self.ov, "gone_roles") else {}
         if intent not in ("hold", "charge", "export"):
             why = f"unknown order {intent!r}"
+        elif gone:
+            why = "a chosen sensor is gone: " + ", ".join(e for ids in gone.values() for e in ids)
         elif soc is None:
             why = "the battery's level is unknown"
         elif bat is not None:
@@ -231,7 +283,11 @@ class Controller:
     def set_mode(self, part: str, mode: str) -> None:
         modes = dict(self.ov.settings.get("control") or {})
         modes[part] = mode
-        self.ov.save({"control": modes})
+        due = dict(self.ov.settings.get("hand_back_due") or {})
+        if mode == "control" and due.pop(part, None) is not None:
+            self.ov.save({"control": modes, "hand_back_due": due})  # controlled again: its round sets the battery
+        else:
+            self.ov.save({"control": modes})
         self._leaving_parts().discard(part)  # the mode is now what it is: no longer on its way out
         self.last.pop(part, None)  # act again at once
 
@@ -682,12 +738,16 @@ class Controller:
             live = self._live_steps(b)
             expired = not live
             b = {**b, "steps": live}
-        if (expired or (not (b and b.get("steps")) and (getattr(self.ov, "price_info", None) or {}).get("none"))) \
-                and self.engine and f.get("soc") is not None:
+        no_plan = not (b and b.get("steps"))
+        if (expired or (no_plan and (getattr(self.ov, "price_info", None) or {}).get("none"))
+                or (no_plan and f.get("soc") is None and ((getattr(self, "last", None) or {}).get("battery") or {}).get("intent") not in (None, "normal"))) \
+                and self.engine:
             # No prices anywhere, so no plan: the battery isn't left in its last order (a grid charge would run on
             # without a price) - it runs as normal, the house first, until the prices are back and the plan takes over.
+            # The same when the plan is gone because the battery's level is unknown (its sensor gone or unavailable).
+            soc = f["soc"] if f.get("soc") is not None else self.engine.settings().min_soc
             b = {"steps": [{"t": datetime.now(ZoneInfo(self.ha.config.get("time_zone") or "UTC")).isoformat(), "action": "normal",
-                            "soc": f["soc"], "grid": 0.0}], "slot_min": 60, "target": f["soc"]}
+                            "soc": soc, "grid": 0.0}], "slot_min": 60, "target": soc}
         if b and b.get("steps"):
             step = b["steps"][0]
             bat = self.engine.settings()
@@ -1232,6 +1292,8 @@ class Controller:
             if (not prof.get("reassert_s") or not prev or prev.get("mode") != "control" or "result" not in prev
                     or self.mode(part) != "control" or self.blocked(part) or self._lock().locked()):
                 continue
+            if prev.get("intent") not in (None, "normal") and hasattr(self.ov, "gone_roles") and self.ov.gone_roles():
+                continue  # a chosen sensor is gone: the round puts the battery to normal (_guard), the old order isn't kept
             ids = {c["data"].get("entity_id") for c in prev["calls"] if isinstance(c["data"].get("entity_id"), str)}
             state = {e: (self.ha.states.get(e) or {}).get("state") for e in ids}
             down = {e for e, v in state.items() if v == "unavailable"}
@@ -1428,6 +1490,13 @@ class Controller:
             if n >= NOT_TAKEN and self.mode(part) == "control" and self.is_battery(part):
                 out.append({"key": "not_taken", "level": "warn", "vals": {}, "goto": "battery"})
                 break
+        due = (self.ov.settings.get("hand_back_due") or {}) if isinstance(getattr(self.ov, "settings", None), dict) else {}
+        if any(isinstance(d, dict) and int(d.get("tries") or 0) >= 2 for d in due.values()):
+            out.append({"key": "hand_back_open", "level": "warn", "vals": {}, "goto": "battery"})
+        gone = getattr(self.ov, "gone_roles", lambda: {})() if hasattr(self.ov, "gone_roles") else {}
+        if gone and any(self.mode(p) == "control" for p in ["battery", *self.bat_parts()]):
+            out.append({"key": "sensor_gone", "level": "warn", "goto": "battery",
+                        "vals": {"list": ", ".join(e for ids in gone.values() for e in ids)}})
         if getattr(self, "car_stuck", {}).get("car"):
             out.append({"key": "charger_stuck", "level": "info", "vals": {}, "goto": "car"})
         pm = str((self.ha.states.get("select.predbat_mode") or {}).get("state") or "")
@@ -1472,7 +1541,7 @@ class Controller:
             wants = self.intents()
             for part in ["battery", *self.bat_parts()]:
                 if part in leaving and not self.blocked(part) and (want := wants.get(part)):
-                    await self._send(self.calls(part, {**want, "intent": "normal"}) + self._restore(part, "normal"))
+                    await self._hand_back_send(part, self.calls(part, {**want, "intent": "normal"}) + self._restore(part, "normal"))
         for part in ["car", *self.car_parts()]:
             if part in leaving and not self.blocked(part) and (calls := self._charger_hand_back(part)):
                 await self._send(self._clamp(calls))

@@ -248,7 +248,7 @@ class AutoFix:
                 continue
             key = f"renamed:{role}"
             since = self.gone_since.setdefault(key, now)
-            found = self.ov.role(role)  # the one found in its place
+            found = self.ov.role_found(role) if hasattr(self.ov, "role_found") else self.ov.role(role)  # the one found in its place
             if now - since >= GONE_S and found and found != e and not self._ignored(key):
                 self._done(key, "renamed", e, found, {"roles": {**chosen, role: found}})
 
