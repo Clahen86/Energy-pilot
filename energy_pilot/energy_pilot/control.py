@@ -24,7 +24,7 @@ import time
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from . import adapters
+from . import adapters, registers
 
 # Platforms that hold anything (helpers, sums, MQTT): their entities never belong to one inverter or charger.
 GENERIC_PLATFORMS = ("mqtt", "template", "group", "min_max", "integration", "utility_meter", "statistics", "filter",
@@ -82,12 +82,21 @@ def safe_shared_fix(intent: str, frm: str, to: str) -> bool:
 NOT_TAKEN = 3  # rounds in a row the inverter didn't take the commands: the user is told
 
 class Controller:
+    # (also on the class: tests build a Controller without __init__)
+    regs: dict[str, dict[str, Any]] = {}
+    service_fields: dict[str, set[str]] = {}
+
     def __init__(self, ha: Any, overview: Any, engine: Any) -> None:
         self.ha, self.ov, self.engine = ha, overview, engine
         self.entities: dict[str, list[str]] = {"battery": [], "car": []}
         self.platforms: dict[str, str | None] = {"battery": None, "car": None}
         self.model: str | None = None
         self.services: set[str] | None = None
+        self.service_fields: dict[str, set[str]] = {}
+        # Profiles whose missing controls were found in the inverter's own registers (registers.py): key -> what
+        # resolve() needs ("controls", "raw", "device", "field"). Read again at most every half hour.
+        self.regs: dict[str, dict[str, Any]] = {}
+        self._regs_at: dict[tuple[str, str], tuple[float, dict[str, Any] | None]] = {}
         self.last: dict[str, dict[str, Any]] = {}
         self.log: dict[str, deque] = {"battery": deque(maxlen=60), "car": deque(maxlen=60), "generator": deque(maxlen=60)}
         self.car_devices: dict[str, str | None] = {}  # the extra chargers' devices (car2, car3 …)
@@ -335,6 +344,8 @@ class Controller:
         try:
             svc = await self.ha.command({"type": "get_services"})
             self.services = {f"{d}.{n}" for d, names in svc.items() for n in names}
+            self.service_fields = {f"{d}.{n}": set((v or {}).get("fields") or {}) for d, names in svc.items()
+                                   for n, v in names.items() if isinstance(names, dict) and isinstance(v, dict)}
         except Exception:  # noqa: BLE001
             self.services = None
         for part, role in (("battery", "battery_soc"), ("car", "ev_power")):
@@ -388,6 +399,7 @@ class Controller:
                 d = (devices or {}).get(dev or "") if "devices" in dir() else None
                 self.battery_serial = (d or {}).get("serial_number") or ""  # Alpha ESS wants the serial
 
+        await self._read_registers()
         self._mend_wrong_profile()
 
         # The extra chargers: the controls on the device of their power (or plug) sensor.
@@ -493,19 +505,145 @@ class Controller:
         i = self.bat_parts().index(part) if part in self.bat_parts() else -1
         return more[i] if 0 <= i < len(more) else {}
 
+    async def _read_registers(self) -> None:
+        """A Solarman inverter whose definition file lacks the profile's controls (a personalized or older YAML): its
+        registers read, and each profile they fit can write them itself (registers.py). Read at most every half hour."""
+        found: dict[str, dict[str, Any]] = {}
+        dev, model = getattr(self, "battery_device", None), str(self.model or "")
+        svc = self.services or set()
+        if self.platforms.get("battery") == "solarman" and dev and registers.SOLARMAN_WRITE in svc and registers.SOLARMAN_READ in svc:
+            fields = self.service_fields.get(registers.SOLARMAN_WRITE) or set()
+            field = "address" if "address" in fields or not fields else "register" if "register" in fields else "address"
+            rfields = self.service_fields.get(registers.SOLARMAN_READ) or set()
+            rfield = "address" if "address" in rfields or not rfields else "register"
+            pool = self.entities.get("battery") or []
+            whole = adapters.guess_profile(pool, {"solarman"}, self.model)
+            wp = adapters.PROFILES.get(whole or "") or {}
+            if whole and not adapters.missing(adapters.check({i: wp[i] for i in ("normal", "hold", "charge") if i in wp},
+                                                             pool, wp.get("optional") or [], svc)):
+                self.regs = {}  # a profile has all its controls as entities (a Sofar G3): its registers are never read
+                return
+            for key in registers.MAPS:
+                p = adapters.PROFILES.get(key) or {}
+                if not p.get("models") or not re.search(p["models"], model, re.I):
+                    continue  # only the profiles made for this inverter's model
+                steps = {i: p[i] for i in ("normal", "hold", "charge") if i in p}
+                if not adapters.missing(adapters.check(steps, pool, p.get("optional") or [], svc)):
+                    continue  # its integration has every control: nothing to write by register
+                cache = self.__dict__.setdefault("_regs_at", {})
+                at, got = cache.get((dev, key), (0.0, None))
+                if time.time() - at > 1800:
+                    got = await self._probe(key, dev, rfield)
+                    cache[(dev, key)] = (time.time(), got)
+                if got:
+                    found[key] = {**got, "device": dev, "field": field}
+        self.regs = found
+
+    async def _probe(self, key: str, dev: str, rfield: str) -> dict[str, Any] | None:
+        """Each variant of the profile in turn: its identity read first (Deye's type register, Sofar's serial number),
+        then only its own registers - the first whose identity and every value fit."""
+        raw: dict[int, int] = {}
+        domain, service = registers.SOLARMAN_READ.split(".", 1)
+
+        async def read(addrs: list[int]) -> bool:
+            for start, count in registers.blocks([a for a in addrs if a not in raw]):
+                try:
+                    res = await self.ha.call_service(domain, service, {"device": dev, rfield: start, "count": count}, response=True)
+                except Exception:  # noqa: BLE001 - asleep, offline, or not this variant's registers
+                    _LOGGER.debug("Could not read registers %s+%s", start, count, exc_info=True)
+                    return False
+                data = (res or {}).get("response", res) if isinstance(res, dict) else None
+                for k, v in (data or {}).items():
+                    try:
+                        raw[int(k)] = int(v)
+                    except (TypeError, ValueError):
+                        continue
+            return True
+
+        known = getattr(self, "battery_serial", "") or None
+        for variant in registers.MAPS[key]:
+            ident = variant.get("identify")
+            first = [ident[0]] if ident else list(range(variant["serial"][0], variant["serial"][0] + variant["serial"][1]))
+            if not await read(first) or not registers.identified(variant, raw, known):
+                continue
+            if not await read(registers.addresses(variant)):
+                continue
+            if registers.pick(key, raw, known) is variant:
+                _LOGGER.info("%s's missing controls are written to its registers (%s)", key, variant["definition"])
+                return {"controls": variant["controls"], "raw": raw, "definition": variant["definition"]}
+        _LOGGER.info("The registers don't look like %s - not written by register", key)
+        return None
+
+    def missing_help(self, part: str = "battery") -> dict[str, Any] | None:
+        """What is missing, said plainly: the profile made for this inverter's model (also when another one is
+        chosen), the controls it lacks in words, and - on Solarman - the definition file that has them."""
+        key = self.profile_key(part)
+        chk = self.check(part)
+        if chk and not adapters.missing(chk):
+            return None  # the profile in use has all it needs
+        model = str(self.model or "")
+        made_for = next((k for k, p in adapters.PROFILES.items() if not p.get("manual_only") and p.get("models")
+                         and re.search(p["models"], model, re.I) and (k in registers.MAPS or k == key)), None) if model else None
+        use = made_for or key
+        p = adapters.PROFILES.get(use or "") or {}
+        if not p or use == "custom":
+            return None
+        steps = {i: p[i] for i in ("normal", "hold", "charge") if i in p}
+        miss = adapters.missing(adapters.check(steps, self._pool(part), p.get("optional") or [], self.services, self.regs.get(use or "")))
+        if not miss:
+            return None
+        out: dict[str, Any] = {"name": p.get("name") or use, "missing": sorted({registers.nice(m) for m in miss}),
+                               "other": bool(made_for and made_for != key)}
+        if self.platforms.get(part) == "solarman" and use in registers.MAPS:
+            out["definition"] = " / ".join(dict.fromkeys(v["definition"] for v in registers.MAPS[use]))
+        return out
+
+    async def _fresh_bits(self, calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """A register shared with other settings (a single-phase Deye programme's charge source is its two lowest
+        bits): read just before it is written, so the other bits are kept as the inverter has them now."""
+        if not self.regs or not any(c.get("domain") == "solarman" for c in calls):
+            return calls
+        regs = self.regs_for("battery")
+        masked = {c["addr"]: c["mask"] for c in (regs or {}).get("controls", {}).values() if c.get("mask")}
+        if not masked:
+            return calls
+        out = []
+        domain, service = registers.SOLARMAN_READ.split(".", 1)
+        rfields = self.service_fields.get(registers.SOLARMAN_READ) or set()
+        rfield = "address" if "address" in rfields or not rfields else "register"
+        for c in calls:
+            d = c.get("data") or {}
+            addr = d.get(regs.get("field") or "address")
+            if c.get("domain") == "solarman" and addr in masked and d.get("values"):
+                try:
+                    res = await self.ha.call_service(domain, service, {"device": d["device"], rfield: addr, "count": 1}, response=True)
+                    now = int(((res or {}).get("response", res) or {})[str(addr)])
+                except Exception:  # noqa: BLE001 - not read: not written either (never old bits back)
+                    _LOGGER.warning("Could not read register %s before writing it - left as it is", addr)
+                    continue
+                word = (now & ~masked[addr]) | (int(d["values"][0]) & masked[addr])
+                regs["raw"][addr] = word
+                c = {**c, "data": {**d, "values": [word]}}
+            out.append(c)
+        return out
+
+    def regs_for(self, part: str = "battery") -> dict[str, Any] | None:
+        return self.regs.get(self.profile_key(part) or "") if part == "battery" else None
+
     def _mend_wrong_profile(self) -> None:
         """A profile chosen by hand that finds none of its controls, while another one fits (Fox ESS Modbus with the
         cloud profile chosen): the one that fits is taken - saved, so the choice shows it and the change log says who."""
         chosen = self.ov.settings.get("inverter_profile")
         p = adapters.PROFILES.get(chosen or "")
         ents = self.entities.get("battery") or []
-        if not p or not ents:
+        if not p or not (ents or self.regs):
             return
         need = [s[0] for steps in (p["normal"], p["hold"], p["charge"]) for s in steps
                 if s[1] not in ("service", "grid") and s[0] not in (p.get("optional") or [])]
         if not need or any(adapters.hit(pat, e) for pat in need for e in ents):
             return
-        guess = adapters.guess_profile(ents, {self.platforms.get("battery") or ""}, self.model)
+        # (with the profiles whose controls are in the inverter's registers: #60, a ZCS 3000SP kept on Sofar G3)
+        guess = adapters.guess_profile(ents, {self.platforms.get("battery") or ""}, self.model, set(self.regs))
         if guess and guess != chosen:
             _LOGGER.warning("Profile %s finds none of its controls here - %s fits, and is used instead", chosen, guess)
             self.ov.save({"inverter_profile": guess}, "energy_pilot")
@@ -520,7 +658,7 @@ class Controller:
         chosen = self.ov.settings.get("inverter_profile")
         if chosen:
             return chosen
-        return adapters.guess_profile(self.entities["battery"], {self.platforms["battery"] or ""}, self.model)
+        return adapters.guess_profile(self.entities["battery"], {self.platforms["battery"] or ""}, self.model, set(self.regs))
 
     def sun_through_ac(self) -> bool:
         """A hybrid: the sun goes out through the inverter's AC side with the battery, so both share its AC power.
@@ -666,13 +804,17 @@ class Controller:
         steps = self.profile_steps(part) or {}
         key = self.profile_key(part)
         optional = (adapters.PROFILES.get(key or "") or {}).get("optional") or []
-        return adapters.check(steps, self._pool(part), optional, self.services) if steps else {}
+        return adapters.check(steps, self._pool(part), optional, self.services, self.regs_for(part)) if steps else {}
 
     def _pool(self, part: str = "battery") -> list[str]:
         """Built-in profiles look only at the inverter's own controls; a custom one may pick any entity. A profile
         with distinctive names (Victron's ess_…) also finds its controls on another device."""
         own = self.entities.get(part, []) if part != "battery" else self.entities["battery"]
         key = self.profile_key(part)
+        if part == "battery" and self.regs.get(key or "") and getattr(self, "battery_device", None):
+            # Written by register to this inverter: its other controls from this inverter too, never a second one's
+            reg = getattr(self, "_ent_reg", None) or {}
+            return [e for e in own if (reg.get(e) or {}).get("device_id") == self.battery_device]
         if part == "battery" and key == "custom":
             return own + list(self.ha.states)
         prof = adapters.PROFILES.get(key or "") or {}
@@ -998,7 +1140,7 @@ class Controller:
             key = want["intent"]
             if key == "hold" and want["ctx"].get("sell_sun") and steps.get("hold_sun"):
                 key = "hold_sun"
-            calls = self._clamp(adapters.resolve(steps.get(key) or steps.get("normal", []), self._pool(part), want["ctx"]))
+            calls = self._clamp(adapters.resolve(steps.get(key) or steps.get("normal", []), self._pool(part), want["ctx"], self.regs_for(part)))
             return self._fixed(part, want["intent"], calls)
         if part.startswith("car") and part != "car":
             return self._phase_call(part, want) + self._clamp(adapters.charger_calls(
@@ -1335,6 +1477,7 @@ class Controller:
         """Send the calls - only those whose value isn't already set (some links, like Solarman, drop writes now
         and then, so fewer writes is safer), or all of them when forced. A value that didn't stick is sent once more."""
         todo = list(calls) if force else [c for c in calls if not self._matches(c)]
+        todo = await self._fresh_bits(todo)
         self.last_send_error = None
         for attempt in range(2):
             raised = []
@@ -1579,6 +1722,7 @@ class Controller:
                           "choices": {k: p["name"] for k, p in sorted(adapters.PROFILES.items(), key=lambda kv: kv[1]["name"].lower())},
                           "tested_keys": [k for k, p in adapters.PROFILES.items() if p.get("tested")],
                           "model": self.model, "tested": bool(prof.get("tested")) if key != "custom" else None, "check": self.check(),
+                          "help": self.missing_help(), "registers": (self.regs_for() or {}).get("definition"),
                           # how many other installations with this profile have run the self-test (telemetry.py)
                           "community": ((self.ov.settings.get("community") or {}).get("tested") or {}).get(key or "")}
         # For "Chosen by you": every control in Home Assistant - the inverter's own first - not only the device

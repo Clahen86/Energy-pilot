@@ -2,6 +2,11 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.125.0 – 2026-11-28
+- Works even when your inverter's integration lacks some controls: with the Solarman integration (davidrapan), a Sofar ME 3000-SP / HYD-ES / ZCS 3000SP or a Deye hybrid whose definition file is older or hand-made gets the missing controls written straight to the inverter's registers – the same values the controls would write. Only after reading the registers and checking that they really are that inverter's (its type or serial number, and values that fit); run the test first
+- When controls are missing, the app now says which inverter it looks like, which controls are missing in plain words, and on Solarman which definition file has them
+- A profile picked by an older version that misses its controls is replaced by the one made for your inverter's model
+
 ## 0.124.0 – 2026-11-28
 - Ask your AI about Energy Pilot in your own words: "can I start the dishwasher now?", "why isn't the battery charging?", "when does the car charge?", "how much did we save this month?". The Energy Pilot integration (1.4.0) gives Home Assistant's AI assistants (Google, ChatGPT, Claude or a local one) tools to look it up – turn on "Energy Pilot" once in the assistant's settings. Only reads, never controls; without an AI nothing changes
 - When is it cheapest to start an appliance: counted for the whole run, with the share your own spare sun covers, never across a gap in the prices

@@ -1147,8 +1147,9 @@ def _find(pattern: str, entities: list[str]) -> str | None:
 
 
 def check(steps: dict[str, list], entities: list[str], optional: list[str] | None = None,
-          services: set[str] | None = None) -> dict[str, dict[str, Any]]:
-    """For each intent: the controls found, and the required ones that are missing."""
+          services: set[str] | None = None, regs: dict[str, Any] | None = None) -> dict[str, dict[str, Any]]:
+    """For each intent: the controls found, and the required ones that are missing. regs: the inverter's registers
+    for controls its integration has no entity for (registers.py) - found too, as "register 0x1200"."""
     out = {}
     for intent, items in steps.items():
         found, missing = [], []
@@ -1158,6 +1159,8 @@ def check(steps: dict[str, list], entities: list[str], optional: list[str] | Non
                 (found if ok else missing).append({"control": pattern, "entity": pattern if ok else None, "optional": False})
                 continue
             entity = _find(pattern, entities)
+            if entity is None and regs and (spec := regs["controls"].get(pattern)):
+                entity = f"register {spec['addr']:#06x}"
             opt = pattern in (optional or [])
             row = {"control": pattern, "entity": entity, "optional": opt}
             (found if entity or opt else missing).append(row)
@@ -1171,8 +1174,11 @@ def missing(result: dict[str, dict[str, Any]]) -> list[str]:
     return [m["control"] for intent, r in result.items() if intent != "export" for m in r["missing"]]
 
 
-def resolve(steps: list, entities: list[str], ctx: dict[str, Any]) -> list[dict[str, Any]]:
-    """The service calls a list of steps means for these entities (steps whose control isn't there are left out)."""
+def resolve(steps: list, entities: list[str], ctx: dict[str, Any], regs: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    """The service calls a list of steps means for these entities (steps whose control isn't there are left out).
+    regs: a control without an entity is written to the inverter's register instead (registers.py)."""
+    from . import registers
+
     calls = []
     for pattern, kind, value in steps:
         if kind == "service":
@@ -1184,6 +1190,19 @@ def resolve(steps: list, entities: list[str], ctx: dict[str, Any]) -> list[dict[
             continue
         entity = _find(pattern, entities)
         if entity is None:
+            spec = regs["controls"].get(pattern) if regs else None
+            if spec is not None and regs.get("device"):
+                try:
+                    want = fill(value, ctx)
+                except KeyError:
+                    continue
+                if kind == "time" and isinstance(want, str) and want.count(":") == 2:
+                    want = want.rsplit(":", 1)[0]
+                word = registers.encode(spec, kind, want, ctx, (regs.get("raw") or {}).get(spec["addr"]))
+                if word is not None:
+                    domain, service = registers.SOLARMAN_WRITE.split(".", 1)
+                    calls.append({"domain": domain, "service": service,
+                                  "data": {"device": regs["device"], regs.get("field") or "address": spec["addr"], "values": [word]}})
             continue
         domain = entity.split(".")[0]
         if kind == "select":
@@ -1216,11 +1235,16 @@ def resolve(steps: list, entities: list[str], ctx: dict[str, Any]) -> list[dict[
     return calls
 
 
-def guess_profile(entities: list[str], platforms: set[str], model: str | None = None) -> str | None:
-    """The built-in profile for the inverter in this home: its model first, then its integration or entity names."""
+def guess_profile(entities: list[str], platforms: set[str], model: str | None = None,
+                  by_register: set[str] | None = None) -> str | None:
+    """The built-in profile for the inverter in this home: its model first, then its integration or entity names.
+    by_register: profiles whose controls were found in the inverter's own registers (registers.py) - they fit."""
     auto = {k: p for k, p in PROFILES.items() if not p.get("manual_only")}  # some are only ever picked by hand
+    regs_ok = by_register or set()
 
     def fits(p: dict) -> bool:
+        if any(PROFILES.get(k) is p for k in regs_ok):
+            return True
         hits = [s for steps in (p["normal"], p["hold"], p["charge"]) for s in steps if s[1] != "service"]
         if not hits:
             return True  # all by services (Alpha ESS): the integration's name is all there is
@@ -1229,6 +1253,9 @@ def guess_profile(entities: list[str], platforms: set[str], model: str | None = 
     if model:
         # The model only counts when the profile's controls are there too: a Deye through deye_modbus or Solar
         # Assistant (MQTT) has none of Solarman's programme controls (#62-64)
+        for key in regs_ok:  # read and checked in its own registers: that one, before a profile that only half fits
+            if key in auto and auto[key].get("models") and re.search(auto[key]["models"], model, re.I):
+                return key
         for key, p in auto.items():
             if p.get("models") and re.search(p["models"], model, re.I) and fits(p) and \
                     (any(re.search(p["match"], e) for e in entities) or key.split("_")[0] in platforms or any(key.startswith(x) for x in platforms if x)):
