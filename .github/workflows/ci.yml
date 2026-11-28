@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.13"
+          python-version: "3.14"  # the newest Home Assistant test harness needs 3.14
       - run: pip install pytest-homeassistant-custom-component home-assistant-frontend  # the integration needs frontend
       - run: mkdir -p custom_components && cp -r energy_pilot/integration/energy_pilot custom_components/ && touch custom_components/__init__.py
       - run: python -m pytest -q tests_integration -c /dev/null --rootdir . -o asyncio_mode=auto
