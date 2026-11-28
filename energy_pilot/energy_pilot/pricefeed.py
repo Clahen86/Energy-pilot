@@ -12,6 +12,7 @@ the user's own prices, so the plan always reaches as far as anything is known.
 
 from __future__ import annotations
 
+import math
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -133,6 +134,17 @@ def collect(states: dict[str, dict], entity_id: str | None, own: list[dict[str, 
     if entity_id:
         for e in companions(states, entity_id):
             prices.update(parse((states.get(e) or {}).get("attributes") or {}, tz, day0))
+        if not prices and not service and not own and "tempo" not in entity_id:
+            # A fixed price (an input_number, a template with one figure), nothing coming and no spot prices of its own
+            # to fill with (outside the markets Energy Pilot knows): the same price every hour
+            # of today and tomorrow - else there were no prices at all, and so no plan.
+            try:
+                flat = float((states.get(entity_id) or {}).get("state"))
+            except (TypeError, ValueError):
+                flat = None
+            if flat is not None and math.isfinite(flat):
+                base = day0.astimezone(timezone.utc)
+                prices = {(base + timedelta(hours=i)).astimezone(tz): flat for i in range(48)}
         for p in service or []:  # prices an integration gives through its action
             when = _when(p.get("start"), tz)
             if when is not None:

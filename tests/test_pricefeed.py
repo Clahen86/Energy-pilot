@@ -172,3 +172,20 @@ def test_bare_lists_on_the_days_the_clocks_change():
     assert fwd[_dt(2026, 3, 29, 3, tzinfo=cph)] == 2.0 and fwd[_dt(2026, 3, 29, 23, tzinfo=cph)] == 22.0
     q = _parse({"today": [float(i) for i in range(100)]}, cph, _dt(2026, 10, 25, tzinfo=cph))
     assert all(k.minute in (0, 15, 30, 45) for k in q) and q[_dt(2026, 10, 25, 23, 45, tzinfo=cph)] == 99.0
+
+
+def test_a_fixed_price_counts_for_every_hour():
+    # An input_number with one price and no list (and no spot prices to fill with): the same price for today and
+    # tomorrow, so there is a plan - before there were no prices at all.
+    from zoneinfo import ZoneInfo as _Z
+
+    from energy_pilot.pricefeed import collect
+
+    states = {"input_number.energy_buy_price": {"state": "0.5", "attributes": {"min": 0, "max": 100}}}
+    prices, info = collect(states, "input_number.energy_buy_price", [], _Z("Pacific/Auckland"))
+    assert len(prices) == 48 and set(prices.values()) == {0.5} and not info["tomorrow_missing"]
+    assert collect({"input_number.p": {"state": "unknown"}}, "input_number.p", [], _Z("UTC"))[0] == {}
+    # Spot prices of its own to fill with: those, not a flat line
+    own = [{"start": "2026-11-28T00:00:00+00:00", "price": 1.0}]
+    p2, _ = collect({"sensor.p": {"state": "0.5", "attributes": {}}}, "sensor.p", own, _Z("UTC"))
+    assert set(p2.values()) == {1.0}

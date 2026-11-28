@@ -63,3 +63,18 @@ def test_battery_without_grid_charging_gets_the_sun_first():
     on_off = decide(f(pv=8000, house=600), {**sf, "onoff": True}, planned=True, manual=False, need_kwh=20, sun_was_on=False)
     assert on_off["current"] == 16  # a charger that can't be turned down isn't touched
     assert decide(f(house=500), sf, planned=True, manual=False, need_kwh=20, sun_was_on=False)["current"] == 16  # no sun
+
+
+def test_car_first_gets_the_sun_the_battery_was_taking():
+    # The battery soaks up the whole surplus (grid 0): with "Car first" the car starts on it anyway - before, it waited
+    # until the battery was full. Without "Car first" the battery keeps it, as before.
+    from energy_pilot.carspeed import decide as _decide
+
+    flow = {"plug": True, "pv": 3500.0, "house": 600.0, "battery": 2900.0, "grid": 0.0, "ev": 0.0}
+    s = {"charger_kw": 1.6, "onoff": True, "ev_follow_sun": True}
+    assert not _decide(flow, s, planned=False, manual=False, need_kwh=10, sun_was_on=False)["charge"]
+    d = _decide(flow, {**s, "style": "car_first"}, planned=False, manual=False, need_kwh=10, sun_was_on=False)
+    assert d["charge"] and d["why"] == "sun"
+    # Not enough sun for the car even with all of it: it waits
+    weak = {**flow, "pv": 1500.0, "battery": 900.0}
+    assert not _decide(weak, {**s, "style": "car_first"}, planned=False, manual=False, need_kwh=10, sun_was_on=False)["charge"]

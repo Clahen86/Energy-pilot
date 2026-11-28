@@ -161,6 +161,61 @@ class Controller:
             if want:
                 await self._send(self.calls(part, {**want, "intent": "normal"}) + self._restore(part, "normal"))
 
+    def _guard(self, part: str, want: dict[str, Any]) -> dict[str, Any]:
+        """The last check before anything is written to a battery - apart from the plan, so a mistake in the plan (or
+        anything that comes later) can't send an order outside the battery's own limits. The power is kept within what
+        the battery and the grid connection allow; an order that breaks a rule (grid charging turned off, quiet hours,
+        selling from the battery off, at its lowest or highest level, the battery's level unknown, over the main fuse
+        already) becomes "normal" - the inverter's own way - and the reason is logged."""
+        intent, ctx = want.get("intent"), dict(want.get("ctx") or {})
+        if intent == "normal":
+            return want
+        why = None
+        f = self.ov.flow() or {}
+        soc = _num(f.get("soc"))
+        eng = getattr(self, "engine", None)
+        bat = eng.settings() if eng and part == "battery" else None
+        if intent not in ("hold", "charge", "export"):
+            why = f"unknown order {intent!r}"
+        elif soc is None:
+            why = "the battery's level is unknown"
+        elif bat is not None:
+            tz = ZoneInfo(self.ha.config.get("time_zone") or "UTC")
+            if intent == "charge":
+                ra = getattr(self.ov, "phase_room_a", lambda: None)()
+                from .phases import VOLT, battery_phases
+
+                now_a = max(0.0, _num(f.get("battery")) or 0.0) / (VOLT * battery_phases(bat.max_charge_kw, (getattr(self, "entities", None) or {}).get("battery")))
+                if not bat.grid_charge:
+                    why = "charging from the grid is turned off"
+                elif datetime.now(tz).hour in bat.quiet:
+                    why = "quiet hours"
+                elif soc >= bat.grid_max_soc + 1:
+                    why = "already above the grid charging limit"
+                elif ra is not None and ra + now_a < 0:
+                    why = "the busiest phase is over the main fuse even without the battery"
+            elif intent == "export":
+                if not bat.export:
+                    why = "selling from the battery is turned off"
+                elif soc <= bat.min_soc:
+                    why = "at its lowest level"
+            if why is None:
+                cap_kw = bat.max_charge_kw if intent == "charge" else bat.max_discharge_kw
+                if (pw := _num(ctx.get("power_w"))) is not None:
+                    ctx["power_w"] = round(min(max(pw, 0.0), cap_kw * 1000))
+                if (r := _num(ctx.get("rate"))) is not None:
+                    ctx["rate"] = round(min(max(r, 0.0), 100.0))
+                if (ew := _num(ctx.get("export_w"))) is not None:
+                    lim = bat.export_limit_kw * 1000 if bat.export_limit_kw else cap_kw * 1000
+                    ctx["export_w"] = int(min(max(ew, 0.0), lim))
+        if why is None:
+            return {**want, "ctx": ctx}
+        seen = self.__dict__.setdefault("guarded", {})
+        if seen.get(part, (None, None))[1] != why:
+            _LOGGER.warning("%s: %s not sent - %s; the battery runs as normal", part, intent, why)
+        seen[part] = (time.time(), why)
+        return {**want, "intent": "normal", "ctx": ctx}
+
     def _leaving_parts(self) -> set[str]:
         if getattr(self, "_leaving", None) is None:
             self._leaving = set()
@@ -941,7 +996,7 @@ class Controller:
                 continue
             prev = self.last.get(part)
             if self.is_battery(part):
-                want = steady(prev, want)
+                want = self._guard(part, steady(prev, want))
             calls = self.calls(part, want)
             prof = self._prof(part)
             # Changed when something else would be written: the level or a clock in the context that no call uses

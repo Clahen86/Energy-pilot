@@ -29,7 +29,7 @@ def ctl_with(ha, key="growatt"):
     c.is_battery = lambda part: True
     c._restore = lambda part, intent: []
     c._pool = lambda part="battery": ["select.mode"]
-    c.ov = type("O", (), {"settings": {}})()
+    c.ov = type("O", (), {"settings": {}, "flow": lambda self: {"soc": 50}})()
     return c
 
 

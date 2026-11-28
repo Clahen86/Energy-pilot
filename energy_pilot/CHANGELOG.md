@@ -2,6 +2,10 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.121.0 – 2026-11-28
+- A last check before every battery command: the power is kept within the battery and the export limit, and a command that breaks a rule (grid charging off, quiet hours, at the lowest or grid limit level, over the main fuse already, the level unknown) runs the battery as normal instead - whatever the plan says
+- "Car first" with a charger Energy Pilot switches itself: the car now gets the sun while the battery is charging, instead of waiting until the battery is full
+- A fixed price (an input_number or a sensor with one figure, no hourly list) is used for every hour, so there is a plan - before there were no prices and no plan at all
 ## 0.120.0 – 2026-11-28
 - Safer control: a plan that has run out (no prices, or the planning stopped) is never followed on - the battery runs as normal until a new plan is there. Before, an old grid charge could go on at full power
 - Choosing shadow (or the end of a 24-hour trial) while a command is being sent: Energy Pilot waits for it and then puts the inverter back to normal, so the old order is never written again afterwards

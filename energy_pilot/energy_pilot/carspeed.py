@@ -36,10 +36,14 @@ def decide(flow: dict[str, Any], s: dict[str, Any], planned: bool, manual: bool,
     if not plug or (need_kwh <= 0 and not manual):
         return {"charge": False, "current": max_a, "sun": False, "why": "no_need" if plug else "not_plugged", "phases": None}
     pv, house = flow.get("pv"), flow.get("house")
-    batt_in = max(0.0, flow.get("battery") or 0.0)  # the house battery charging takes the sun first
+    # The house battery charging takes the sun first - unless the style is "Car first": then what goes into the battery
+    # is the car's to take (the inverter gives the battery less as the car starts), so a battery soaking up the whole
+    # surplus no longer keeps the car waiting until it's full.
+    car_first = s.get("style") == "car_first"
+    batt_in = 0.0 if car_first else max(0.0, flow.get("battery") or 0.0)
     follow = s.get("ev_follow_sun", True) and pv is not None and house is not None
     surplus = (pv - house - batt_in) if follow else 0.0
-    sun_first = s.get("batt_sun_w") and pv is not None and house is not None
+    sun_first = s.get("batt_sun_w") and pv is not None and house is not None and not car_first
     if follow and sun_first:
         # The house battery may not charge from the grid: the sun fills it first, the car gets what is left.
         surplus = pv - house - max(batt_in, float(s["batt_sun_w"]))

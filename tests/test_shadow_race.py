@@ -15,7 +15,7 @@ def _ctl(states, log):
 
     c = C.Controller.__new__(C.Controller)
     c.ha = SimpleNamespace(states=states, call_service=call_service, config={"time_zone": "UTC"})
-    c.ov = SimpleNamespace(settings={"control": {"battery": "control"}}, role=lambda r: None)
+    c.ov = SimpleNamespace(settings={"control": {"battery": "control"}}, role=lambda r: None, flow=lambda: {"soc": 50})
     c.ov.save = lambda d: c.ov.settings.update(d)
     c.intents = lambda: {"battery": {"intent": "charge", "ctx": {}}}
 
