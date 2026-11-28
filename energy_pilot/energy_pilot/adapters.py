@@ -134,14 +134,14 @@ PROFILES: dict[str, dict[str, Any]] = {
     "sunsynk": {
         "name": "Deye / Sunsynk (Sunsynk add-on)",
         "match": r"prog\d_(capacity|charge)(_option)?$|set_soc_timezone\d$",
-        "normal": [(r"switch\..*use_timer$", "on", None), (r"switch\..*grid_charge_enabled$", "grid", None)]
+        "normal": [(r"switch\..*(use_timer|prog_time_of_use_enabled)$", "on", None), (r"switch\..*grid_charge_enabled$", "grid", None)]
         + [(rf"number\..*(prog{n}_capacity|set_soc_timezone{n})$", "number", "{min_soc}") for n in range(1, 7)]
         + [(rf"select\..*prog{n}_charge(_option)?$", "select", "re:^no grid") for n in range(1, 7)],
         # 1 % above the level now, as Solarman: a single-phase Deye discharges until it is below the programme's level
-        "hold": [(r"switch\..*use_timer$", "on", None), (r"switch\..*grid_charge_enabled$", "grid", None)]
+        "hold": [(r"switch\..*(use_timer|prog_time_of_use_enabled)$", "on", None), (r"switch\..*grid_charge_enabled$", "grid", None)]
         + [(rf"number\..*(prog{n}_capacity|set_soc_timezone{n})$", "number", "{hold_soc}") for n in range(1, 7)]
         + [(rf"select\..*prog{n}_charge(_option)?$", "select", "re:^no grid") for n in range(1, 7)],
-        "charge": [(r"switch\..*use_timer$", "on", None), (r"switch\..*grid_charge_enabled$", "grid", None)]
+        "charge": [(r"switch\..*(use_timer|prog_time_of_use_enabled)$", "on", None), (r"switch\..*grid_charge_enabled$", "grid", None)]
         + [(rf"number\..*(prog{n}_capacity|set_soc_timezone{n})$", "number", "{target}") for n in range(1, 7)]
         + [(rf"select\..*prog{n}_charge(_option)?$", "select", "re:^allow grid") for n in range(1, 7)],
     },
@@ -154,7 +154,7 @@ PROFILES: dict[str, dict[str, Any]] = {
         + [(rf"number\..*time_point_{n}_capacity$", "number", "{min_soc}") for n in range(1, 7)]
         + [(rf"switch\..*time_point_{n}_charge_enable$", "off", None) for n in range(1, 7)],
         "hold": [(r"switch\..*time_of_use$", "on", None), (r"switch\..*grid_charge$", "grid", None)]
-        + [(rf"number\..*time_point_{n}_capacity$", "number", "{soc}") for n in range(1, 7)]
+        + [(rf"number\..*time_point_{n}_capacity$", "number", "{hold_soc}") for n in range(1, 7)]
         + [(rf"switch\..*time_point_{n}_charge_enable$", "off", None) for n in range(1, 7)],
         "charge": [(r"switch\..*time_of_use$", "on", None), (r"switch\..*grid_charge$", "grid", None)]
         + [(rf"number\..*time_point_{n}_capacity$", "number", "{target}") for n in range(1, 7)]
@@ -218,7 +218,8 @@ PROFILES: dict[str, dict[str, Any]] = {
     # Sigenergy (TypQxQ/Sigenergy-Local-Modbus): Remote EMS on, then its control mode; limits in kW.
     "sigen": {
         "name": "Sigenergy (local Modbus)",
-        "optional": [r"number\..*ess_max_discharging_limit$", r"number\..*ess_max_charging_limit$"],
+        # The discharge limit is what holds (it is off by default in the integration: then the app says to turn it on)
+        "optional": [r"number\..*ess_max_charging_limit$"],
         "match": r"sigen",
         "source": "integration",
         "normal": [(r"number\..*ess_max_discharging_limit$", "number", "{max_power_kw}"), (r"number\..*ess_max_charging_limit$", "number", "{max_charge_kw}"),
@@ -242,16 +243,21 @@ PROFILES: dict[str, dict[str, Any]] = {
         "match": r"sofar|energy_storage_mode",
         "source": "integration",
         "normal": [(r"select\..*energy_storage_mode$", "select", "Self Use")],
-        "hold": [(r"number\..*passive_mode_battery_power_min$", "number", "0"),
-                 (r"number\..*passive_mode_battery_power_max$", "number", "{max_charge_w}"),
-                 (r"select\..*energy_storage_mode$", "select", "Passive Mode")],
-        "charge": [(r"number\..*passive_mode_battery_power_max$", "number", "{power_w}"),
-                   (r"number\..*passive_mode_battery_power_min$", "number", "{power_w}"),
-                   (r"select\..*energy_storage_mode$", "select", "Passive Mode")],
+        "hold": [(r"number\..*passive_(mode_battery_power_min|minimum_battery_power)$", "number", "0"),
+                 (r"number\..*passive_(mode_battery_power_max|maximum_battery_power)$", "number", "{max_charge_w}"),
+                 (r"number\..*passive_(mode|desired)_grid_power$", "number", "0"),
+                 (r"select\..*energy_storage_mode$", "select", "Passive Mode"), (r"button\..*passive_(mode_battery_charge_discharge|update_battery_charge_?discharge)$", "press", None)],
+        "charge": [(r"number\..*passive_(mode_battery_power_max|maximum_battery_power)$", "number", "{power_w}"),
+                   (r"number\..*passive_(mode_battery_power_min|minimum_battery_power)$", "number", "{power_w}"),
+                   (r"number\..*passive_(mode|desired)_grid_power$", "number", "0"),
+                 (r"select\..*energy_storage_mode$", "select", "Passive Mode"), (r"button\..*passive_(mode_battery_charge_discharge|update_battery_charge_?discharge)$", "press", None)],
         # Selling from the battery (only when the user turns it on): checked in the integration's source.
-        "export": [(r"number\..*passive_mode_battery_power_min$", "number", "-{power_w}"),
-                   (r"number\..*passive_mode_battery_power_max$", "number", "-{power_w}"),
-                   (r"select\..*energy_storage_mode$", "select", "Passive Mode")],
+        "export": [(r"number\..*passive_(mode_battery_power_min|minimum_battery_power)$", "number", "-{power_w}"),
+                   (r"number\..*passive_(mode_battery_power_max|maximum_battery_power)$", "number", "-{power_w}"),
+                   (r"number\..*passive_(mode|desired)_grid_power$", "number", "0"),
+                 (r"select\..*energy_storage_mode$", "select", "Passive Mode"), (r"button\..*passive_(mode_battery_charge_discharge|update_battery_charge_?discharge)$", "press", None)],
+        # The numbers are kept in SolaX Modbus until "Passive: Update Battery Charge/Discharge" sends them to 0x1187
+        "optional": [r"number\..*passive_(mode|desired)_grid_power$"],
     },
     # Tesla Powerwall (Teslemetry / Tesla Fleet): charging is done by raising the backup reserve with grid charging
     # allowed; hold keeps the reserve at today's level.
@@ -259,15 +265,15 @@ PROFILES: dict[str, dict[str, Any]] = {
         "name": "Tesla Powerwall (Teslemetry / Fleet)",
         "match": r"powerwall|backup_reserve",
         "source": "integration",
-        "normal": [(r"switch\..*(allow_charging_from_grid|grid_charging)$", "off", None), (r"number\..*backup_reserve$", "number", "{min_soc}"),
-                   (r"select\..*operation_mode$", "select", "self_consumption")],
+        "normal": [(r"switch\..*(allow_charging_from_grid|grid_charging)$", "off", None), (r"number\..*backup_reserve(_percent)?$", "number", "{min_soc}"),
+                   (r"select\..*(operation_mode|default_real_mode)$", "select", "self_consumption")],
         # Hold: the reserve at the level rounded down, and grid charging off - a Powerwall charges from the grid up to a
         # reserve above its level (Predbat, "How Predbat holds a Powerwall").
-        "hold": [(r"switch\..*(allow_charging_from_grid|grid_charging)$", "off", None), (r"number\..*backup_reserve$", "number", "{soc_floor}"),
-                 (r"select\..*operation_mode$", "select", "self_consumption")],
-        "charge": [(r"switch\..*(allow_charging_from_grid|grid_charging)$", "on", None), (r"number\..*backup_reserve$", "number", "{target}"),
-                   (r"select\..*operation_mode$", "select", "self_consumption")],
-        "optional": [r"select\..*operation_mode$"],
+        "hold": [(r"switch\..*(allow_charging_from_grid|grid_charging)$", "off", None), (r"number\..*backup_reserve(_percent)?$", "number", "{soc_floor}"),
+                 (r"select\..*(operation_mode|default_real_mode)$", "select", "self_consumption")],
+        "charge": [(r"switch\..*(allow_charging_from_grid|grid_charging)$", "on", None), (r"number\..*backup_reserve(_percent)?$", "number", "{target}"),
+                   (r"select\..*(operation_mode|default_real_mode)$", "select", "self_consumption")],
+        "optional": [r"select\..*(operation_mode|default_real_mode)$"],
     },
     # Enphase IQ Battery (Envoy, built-in integration): storage mode, reserve level and "Charge from grid".
     "enphase_envoy": {
@@ -319,23 +325,23 @@ PROFILES: dict[str, dict[str, Any]] = {
     # Dynamic ESS must be off, or two optimisers fight over the same settings.
     "victron_ha": {
         "name": "Victron (Home Assistant's Victron GX)",
-        "match": r"gx_device_ess",
+        "match": r"gx_device_ess|system_ess_batterylife_state",
         "models": r"victron|multiplus|quattro|cerbo|venus|gx device|\bgx\b",
         "anywhere": True,
         "reassert_s": 240,
-        "normal": [(r"select\..*gx_device_ess_mode$", "select", "optimized_no_battery_life"),
-                   (r"number\..*gx_device_ess_max_inverter_power_limit$", "number", "{max_power_w}"),
-                   (r"number\..*gx_device_ess_max_charge_power_limit$", "number", "{max_charge_w}")],
-        "hold": [(r"select\..*gx_device_ess_mode$", "select", "optimized_no_battery_life"),
-                 (r"number\..*gx_device_ess_max_inverter_power_limit$", "number", "0"),
-                 (r"number\..*gx_device_ess_max_charge_power_limit$", "number", "{max_charge_w}")],
-        "charge": [(r"number\..*gx_device_ess_max_charge_power_limit$", "number", "{power_w}"),
-                   (r"select\..*gx_device_ess_mode$", "select", "keep_batteries_charged")],
+        "normal": [(r"select\..*(gx_device_ess_mode|system_ess_batterylife_state)$", "select", "optimized_no_battery_life"),
+                   (r"number\..*(gx_device_ess_max_inverter_power_limit|system_ess_max_inverter_power_limit)$", "number", "{max_power_w}"),
+                   (r"number\..*(gx_device_ess_max_charge_power_limit|system_ess_max_charge_power)$", "number", "{max_charge_w}")],
+        "hold": [(r"select\..*(gx_device_ess_mode|system_ess_batterylife_state)$", "select", "optimized_no_battery_life"),
+                 (r"number\..*(gx_device_ess_max_inverter_power_limit|system_ess_max_inverter_power_limit)$", "number", "0"),
+                 (r"number\..*(gx_device_ess_max_charge_power_limit|system_ess_max_charge_power)$", "number", "{max_charge_w}")],
+        "charge": [(r"number\..*(gx_device_ess_max_charge_power_limit|system_ess_max_charge_power)$", "number", "{power_w}"),
+                   (r"select\..*(gx_device_ess_mode|system_ess_batterylife_state)$", "select", "keep_batteries_charged")],
         # Selling from the battery (only when the user turns it on): the grid setpoint below zero.
-        "export": [(r"select\..*gx_device_ess_mode$", "select", "optimized_no_battery_life"),
-                   (r"number\..*gx_device_ess_max_inverter_power_limit$", "number", "{max_power_w}"),
-                   (r"number\..*gx_device_ac_power_setpoint$", "number", "-{export_w}")],
-        "restore": [r"number\..*gx_device_ac_power_setpoint$"],
+        "export": [(r"select\..*(gx_device_ess_mode|system_ess_batterylife_state)$", "select", "optimized_no_battery_life"),
+                   (r"number\..*(gx_device_ess_max_inverter_power_limit|system_ess_max_inverter_power_limit)$", "number", "{max_power_w}"),
+                   (r"number\..*(gx_device_ac_power_setpoint|system_ac_power_set_point)$", "number", "-{export_w}")],
+        "restore": [r"number\..*(gx_device_ac_power_setpoint|system_ac_power_set_point)$"],
     },
     # Megarevo (R-series hybrid) through SolarAssistant's MQTT: the inverter's own "Work mode" - Self Consumption,
     # Peak Shift or Battery Priority (Megarevo's manual). SolarAssistant shows only the discharge slots of Peak Shift,
@@ -356,6 +362,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     "ecoflow": {
         "name": "EcoFlow PowerStream",
         "match": r"powerstream|ecoflow",
+        "platform": "ecoflow_cloud",  # a PowerStream named "Balkon" has neither word in its entities
         "models": r"powerstream|ecoflow",
         "grid_charge": False,
         "normal": [(r"number\..*custom_load_power.*$", "number", "{house_w}"),
@@ -389,17 +396,17 @@ PROFILES: dict[str, dict[str, Any]] = {
         # A forcible charge only takes power from the grid when "Charge from grid" is on (its wiki; services.py writes
         # only the charge itself) - with little sun it got nothing (self-test). The grid charge cut-off and power can
         # block it too. All three are the owner's: remembered before, put back after (restore_charge).
-        "charge": [(r"switch\..*charge_from_grid$", "on", None),
-                   (r"number\..*grid_charge_cutoff_soc$", "number", "100"),
-                   (r"number\..*grid_charge_maximum_power$", "number", "{power_w}"),
+        "charge": [(r"switch\..*(charge_from_grid|storage_charge_from_grid_function)$", "on", None),
+                   (r"number\..*(grid_charge_cutoff_soc|storage_grid_charge_cutoff_state_of_charge)$", "number", "100"),
+                   (r"number\..*(grid_charge_maximum_power|storage_power_of_charge_from_grid)$", "number", "{power_w}"),
                    (r"number\..*maximum_discharging_power$", "number", "{max_power_w}"),
                    ("huawei_solar.forcible_charge_soc", "service", {"device_id": "{device_id}", "target_soc": "{target}", "power": "{power_w}"})],
-        "restore_charge": [r"switch\..*charge_from_grid$", r"number\..*grid_charge_cutoff_soc$", r"number\..*grid_charge_maximum_power$"],
+        "restore_charge": [r"switch\..*(charge_from_grid|storage_charge_from_grid_function)$", r"number\..*(grid_charge_cutoff_soc|storage_grid_charge_cutoff_state_of_charge)$", r"number\..*(grid_charge_maximum_power|storage_power_of_charge_from_grid)$"],
         # Selling from the battery (only when the user turns it on): checked in the integration's source.
         "export": [(r"number\..*maximum_discharging_power$", "number", "{max_power_w}"),
                    ("huawei_solar.forcible_discharge_soc", "service", {"device_id": "{device_id}", "target_soc": "{target}", "power": "{power_w}"})],
         "optional": [r"number\..*maximum_charging_power$", r"select\..*(?<!emma_)working_mode(_settings)?$",
-                     r"switch\..*charge_from_grid$", r"number\..*grid_charge_cutoff_soc$", r"number\..*grid_charge_maximum_power$"],
+                     r"switch\..*(charge_from_grid|storage_charge_from_grid_function)$", r"number\..*(grid_charge_cutoff_soc|storage_grid_charge_cutoff_state_of_charge)$", r"number\..*(grid_charge_maximum_power|storage_power_of_charge_from_grid)$"],
     },
     # SolaX Gen4+ by remote control (SolaX Modbus "Mode 1", as Predbat does): the planned power is used, and hold
     # ("Enabled No Discharge") lets the sun charge. Its remotecontrol_* entities are off by default in the integration
@@ -411,16 +418,16 @@ PROFILES: dict[str, dict[str, Any]] = {
         "manual_only": True,
         "reassert_s": 1800,
         "keepalive": True,
-        "normal": [(r"select\..*remotecontrol_power_control$", "select", "Disabled"), (r"button\..*remotecontrol_trigger$", "press", None)],
-        "hold": [(r"number\..*remotecontrol_active_power$", "number", "0"), (r"number\..*remotecontrol_duration$", "number", "60"),
-                 (r"number\..*remotecontrol_autorepeat_duration$", "number", "3600"),
-                 (r"select\..*remotecontrol_power_control$", "select", "Enabled No Discharge"), (r"button\..*remotecontrol_trigger$", "press", None)],
-        "charge": [(r"number\..*remotecontrol_active_power$", "number", "{power_w}"), (r"number\..*remotecontrol_duration$", "number", "60"),
-                   (r"number\..*remotecontrol_autorepeat_duration$", "number", "3600"),
-                   (r"select\..*remotecontrol_power_control$", "select", "Enabled Battery Control"), (r"button\..*remotecontrol_trigger$", "press", None)],
-        "export": [(r"number\..*remotecontrol_active_power$", "number", "-{power_w}"), (r"number\..*remotecontrol_duration$", "number", "60"),
-                   (r"number\..*remotecontrol_autorepeat_duration$", "number", "3600"),
-                   (r"select\..*remotecontrol_power_control$", "select", "Enabled Battery Control"), (r"button\..*remotecontrol_trigger$", "press", None)],
+        "normal": [(r"select\..*remotecontrol_power_control(_mode_[\d_]+)?$", "select", "Disabled"), (r"button\..*remotecontrol_trigger(_mode_[\d_]+)?$", "press", None)],
+        "hold": [(r"number\..*remotecontrol_active_power(_mode_[\d_]+)?$", "number", "0"), (r"number\..*remotecontrol_duration(_mode_[\d_]+)?$", "number", "60"),
+                 (r"number\..*remotecontrol_autorepeat_duration(_mode_[\d_]+)?$", "number", "3600"),
+                 (r"select\..*remotecontrol_power_control(_mode_[\d_]+)?$", "select", "Enabled No Discharge"), (r"button\..*remotecontrol_trigger(_mode_[\d_]+)?$", "press", None)],
+        "charge": [(r"number\..*remotecontrol_active_power(_mode_[\d_]+)?$", "number", "{power_w}"), (r"number\..*remotecontrol_duration(_mode_[\d_]+)?$", "number", "60"),
+                   (r"number\..*remotecontrol_autorepeat_duration(_mode_[\d_]+)?$", "number", "3600"),
+                   (r"select\..*remotecontrol_power_control(_mode_[\d_]+)?$", "select", "Enabled Battery Control"), (r"button\..*remotecontrol_trigger(_mode_[\d_]+)?$", "press", None)],
+        "export": [(r"number\..*remotecontrol_active_power(_mode_[\d_]+)?$", "number", "-{power_w}"), (r"number\..*remotecontrol_duration(_mode_[\d_]+)?$", "number", "60"),
+                   (r"number\..*remotecontrol_autorepeat_duration(_mode_[\d_]+)?$", "number", "3600"),
+                   (r"select\..*remotecontrol_power_control(_mode_[\d_]+)?$", "select", "Enabled Battery Control"), (r"button\..*remotecontrol_trigger(_mode_[\d_]+)?$", "press", None)],
     },
     "solax_modbus": {
         "name": "SolaX (Modbus)",
@@ -458,7 +465,7 @@ PROFILES: dict[str, dict[str, Any]] = {
         "match": r"battery_mode|forced_dispatch_duration",
         "normal": [(r"select\..*battery_mode$", "select", "re:self.?consumption")],
         "hold": [(r"number\..*charge_discharge_power$", "number", "0"), (r"number\..*forced_dispatch_duration$", "number", "30"),
-                 (r"select\..*battery_mode$", "select", "re:force.?charge")],
+                 (r"select\..*battery_mode$", "select", "re:^stop$||force.?charge")],  # newer: Stop is standby
         "charge": [(r"number\..*charge_discharge_power$", "number", "{power_w}"), (r"number\..*forced_dispatch_duration$", "number", "30"),
                    (r"select\..*battery_mode$", "select", "re:force.?charge")],
         "export": [(r"number\..*charge_discharge_power$", "number", "{power_w}"), (r"number\..*forced_dispatch_duration$", "number", "30"),
@@ -513,7 +520,8 @@ PROFILES: dict[str, dict[str, Any]] = {
                  (r"switch\..*timed_charge_slot_1_enable$", "off", None), (r"switch\..*timed_discharge_slot_1_enable$", "off", None),
                  (r"number\..*backup_mode_soc$", "number", "{soc}"),
                  (r"button\..*update_charge_times$", "press", None), (r"button\..*update_discharge_times$", "press", None)],
-        "charge": [(r"select\..*energy_storage_control_switch$", "select", "re:backup"), (r"switch\..*timed_discharge_slot_1_enable$", "off", None),
+        # "Backup/Reserve" itself: "Backup/Reserve - No Grid Charging" comes first in the list and would block the charge
+        "charge": [(r"select\..*energy_storage_control_switch$", "select", "re:^backup/reserve$||backup(?!.*no grid)"), (r"switch\..*timed_discharge_slot_1_enable$", "off", None),
                    (r"number\..*timed_charge_start_hours$", "number", "{lease_from_h}"), (r"number\..*timed_charge_start_minutes$", "number", "{lease_from_m}"),
                    (r"number\..*timed_charge_end_hours$", "number", "{lease_to_h}"), (r"number\..*timed_charge_end_minutes$", "number", "{lease_to_m}"),
                    (r"number\..*timed_charge_soc$", "number", "{target}"), (r"number\..*timed_charge_current$", "number", "{charge_a}"),
@@ -524,7 +532,8 @@ PROFILES: dict[str, dict[str, Any]] = {
                    (r"number\..*timed_discharge_end_hours$", "number", "{lease_to_h}"), (r"number\..*timed_discharge_end_minutes$", "number", "{lease_to_m}"),
                    (r"number\..*timed_discharge_current$", "number", "{charge_a}"),
                    (r"switch\..*timed_discharge_slot_1_enable$", "on", None), (r"button\..*update_discharge_times$", "press", None)],
-        "optional": [r"button\..*update_charge_times$", r"button\..*update_discharge_times$", r"number\..*timed_charge_current$",
+        # The times are only sent to the inverter by their "Update … Times" button: never optional
+        "optional": [r"number\..*timed_charge_current$",
                      r"number\..*timed_discharge_current$"],
     },
     # Canadian Solar EP Cube (SkiLtY/ha-ep-cube, the vendor's cloud - no local control): its own force_charge /
@@ -536,9 +545,9 @@ PROFILES: dict[str, dict[str, Any]] = {
         "source": "integration",
         "reassert_s": 1800,
         "normal": [("ep_cube.force_charge_stop", "service", {}), ("ep_cube.force_export_stop", "service", {}),
-                   (r"number\..*ep_cube_self_consumption_reserve$", "number", "{min_soc}")],
+                   (r"number\..*self_consumption_reserve$", "number", "{min_soc}")],
         "hold": [("ep_cube.force_charge_stop", "service", {}), ("ep_cube.force_export_stop", "service", {}),
-                 (r"number\..*ep_cube_self_consumption_reserve$", "number", "{soc}")],
+                 (r"number\..*self_consumption_reserve$", "number", "{soc}")],
         "charge": [("ep_cube.force_export_stop", "service", {}),
                    ("ep_cube.force_charge", "service", {"duration_minutes": 60, "target_pct": "{target}"})],
         "export": [("ep_cube.force_charge_stop", "service", {}),
@@ -546,20 +555,20 @@ PROFILES: dict[str, dict[str, Any]] = {
     },
     "luxpython": {
         "name": "Luxpower (LuxPython)",
-        "match": r"lux_ac_charge_enable|lux_force_discharge_enable",
+        "match": r"lux_(?:\w+_)?(ac_charge_enable|force_discharge_enable)",
         "source": "integration",
-        "normal": [(r"switch\..*lux_ac_charge_enable$", "off", None), (r"switch\..*lux_force_discharge_enable$", "off", None),
-                   (r"number\..*lux_on_grid_discharge_cut_off_soc$", "number", "{min_soc}")],
-        "hold": [(r"switch\..*lux_ac_charge_enable$", "off", None), (r"switch\..*lux_force_discharge_enable$", "off", None),
-                 (r"number\..*lux_on_grid_discharge_cut_off_soc$", "number", "{soc}")],
-        "charge": [(r"switch\..*lux_force_discharge_enable$", "off", None),
-                   (r"time\..*lux_ac_charge_start1$", "time", "{lease_from}"), (r"time\..*lux_ac_charge_end1$", "time", "{lease_to}"),
-                   (r"number\..*lux_ac_battery_charge_level$", "number", "{target}"), (r"switch\..*lux_ac_charge_enable$", "on", None)],
+        "normal": [(r"switch\..*lux_(?:\w+_)?ac_charge_enable$", "off", None), (r"switch\..*lux_(?:\w+_)?force_discharge_enable$", "off", None),
+                   (r"number\..*lux_(?:\w+_)?on_grid_discharge_cut_off_soc$", "number", "{min_soc}")],
+        "hold": [(r"switch\..*lux_(?:\w+_)?ac_charge_enable$", "off", None), (r"switch\..*lux_(?:\w+_)?force_discharge_enable$", "off", None),
+                 (r"number\..*lux_(?:\w+_)?on_grid_discharge_cut_off_soc$", "number", "{soc}")],
+        "charge": [(r"switch\..*lux_(?:\w+_)?force_discharge_enable$", "off", None),
+                   (r"time\..*lux_(?:\w+_)?ac_charge_start1$", "time", "{lease_from}"), (r"time\..*lux_(?:\w+_)?ac_charge_end1$", "time", "{lease_to}"),
+                   (r"number\..*lux_(?:\w+_)?ac_battery_charge_level$", "number", "{target}"), (r"switch\..*lux_(?:\w+_)?ac_charge_enable$", "on", None)],
         # Selling from the battery (only when the user turns it on): forced discharge slot 1 down to the target.
-        "export": [(r"switch\..*lux_ac_charge_enable$", "off", None),
-                   (r"time\..*lux_force_discharge_start1$", "time", "{lease_from}"), (r"time\..*lux_force_discharge_end1$", "time", "{lease_to}"),
-                   (r"number\..*lux_forced_discharge_battery_level$", "number", "{target}"),
-                   (r"number\..*lux_on_grid_discharge_cut_off_soc$", "number", "{min_soc}"), (r"switch\..*lux_force_discharge_enable$", "on", None)],
+        "export": [(r"switch\..*lux_(?:\w+_)?ac_charge_enable$", "off", None),
+                   (r"time\..*lux_(?:\w+_)?force_discharge_start1$", "time", "{lease_from}"), (r"time\..*lux_(?:\w+_)?force_discharge_end1$", "time", "{lease_to}"),
+                   (r"number\..*lux_(?:\w+_)?forced_discharge_battery_level$", "number", "{target}"),
+                   (r"number\..*lux_(?:\w+_)?on_grid_discharge_cut_off_soc$", "number", "{min_soc}"), (r"switch\..*lux_(?:\w+_)?force_discharge_enable$", "on", None)],
     },
     "luxpower": {
         "name": "Luxpower (lxp_modbus)",
@@ -578,10 +587,10 @@ PROFILES: dict[str, dict[str, Any]] = {
     "e3dc_rscp": {
         "name": "E3DC (RSCP)",
         "match": r"e3dc",
-        "normal": [("e3dc_rscp.set_power_mode", "service", {"device_id": "{device_id}", "power_mode": "0"})],
-        "hold": [("e3dc_rscp.set_power_mode", "service", {"device_id": "{device_id}", "power_mode": "1"})],
-        "charge": [("e3dc_rscp.set_power_mode", "service", {"device_id": "{device_id}", "power_mode": "4", "power_value": "{power_w}"})],
-        "export": [("e3dc_rscp.set_power_mode", "service", {"device_id": "{device_id}", "power_mode": "2", "power_value": "{power_w}"})],
+        "normal": [("e3dc_rscp.set_power_mode", "service", {"device_id": "{device_id}", "power_mode": "txt:0"})],
+        "hold": [("e3dc_rscp.set_power_mode", "service", {"device_id": "{device_id}", "power_mode": "txt:1"})],
+        "charge": [("e3dc_rscp.set_power_mode", "service", {"device_id": "{device_id}", "power_mode": "txt:4", "power_value": "{power_w}"})],
+        "export": [("e3dc_rscp.set_power_mode", "service", {"device_id": "{device_id}", "power_mode": "txt:2", "power_value": "{power_w}"})],
     },
     "solaredge_modbus_multi": {
         "name": "SolarEdge (Modbus Multi)",
@@ -661,13 +670,13 @@ PROFILES: dict[str, dict[str, Any]] = {
         "name": "Growatt (cloud, growatt_server)",
         "match": r"battery_discharge_soc_limit_on_grid|charge_from_grid",
         "normal": [(r"number\..*battery_discharge_soc_limit_on_grid$", "number", "{min_soc}"),
-                   (r"number\..*battery_charge_soc_limit$", "number", "100"), (r"switch\..*charge_from_grid$", "off", None),
+                   (r"number\..*battery_charge_soc_limit$", "number", "100"), (r"switch\..*(charge_from_grid|ac_charge)$", "off", None),
                    (r"number\..*battery_discharge_power_limit$", "number", "100"), (r"number\..*battery_charge_power_limit$", "number", "100")],
         "hold": [(r"number\..*battery_discharge_soc_limit_on_grid$", "number", "{soc}"),
-                 (r"number\..*battery_charge_soc_limit$", "number", "100"), (r"switch\..*charge_from_grid$", "off", None),
+                 (r"number\..*battery_charge_soc_limit$", "number", "100"), (r"switch\..*(charge_from_grid|ac_charge)$", "off", None),
                  (r"number\..*battery_charge_power_limit$", "number", "100")],
         "charge": [(r"number\..*battery_charge_soc_limit$", "number", "{target}"),
-                   (r"number\..*battery_charge_power_limit$", "number", "{rate}"), (r"switch\..*charge_from_grid$", "on", None)],
+                   (r"number\..*battery_charge_power_limit$", "number", "{rate}"), (r"switch\..*(charge_from_grid|ac_charge)$", "on", None)],
         "optional": [r"number\..*battery_discharge_power_limit$", r"number\..*battery_charge_power_limit$"],
     },
     # Anker SOLIX Solarbank 2/3/4 and Max AC (thomluther/ha-anker-solix, the cloud), checked in its source (3.9.2).
@@ -687,13 +696,14 @@ PROFILES: dict[str, dict[str, Any]] = {
                    (r"select\..*export_duration$", "select", "Default")],
         "hold": [(r"select\..*charger_use_mode$", "select", "Self Use Mode"),
                  (r"select\..*allow_grid_charge$", "select", "Both Forbidden"),
-                 (r"number\..*battery_minimum_capacity$", "number", "{hold_soc}")],
+                 (r"number\..*battery_minimum_capacity$", "number", "{hold_soc}"),
+                 (r"select\..*export_duration$", "select", "Default")],  # a sale's 60 minutes never run on
         "charge": [(r"number\..*battery_minimum_capacity$", "number", "{min_soc}"),
                    (r"number\..*forcetime_period_1_max_capacity$", "number", "{target}"),
                    (r"time\..*charge_start_1$", "time", "{lease_from}"),
                    (r"time\..*charge_end_1$", "time", "{lease_to}"),
                    (r"select\..*allow_grid_charge$", "select", "Period 1 Allowed"),
-                   (r"select\..*charger_use_mode$", "select", "Force Time Use")],
+                   (r"select\..*charger_use_mode$", "select", "Force Time Use"), (r"select\..*export_duration$", "select", "Default")],
         "export": [(r"number\..*battery_minimum_capacity_grid_?tied$", "number", "{min_soc}"),
                    (r"select\..*export_duration$", "select", "60 Minutes"),
                    (r"number\..*grid_export_limit$", "number", "-{power_w}"),
@@ -744,6 +754,7 @@ PROFILES: dict[str, dict[str, Any]] = {
                    (r"switch\.(.*_)?feedingrid$", "on", None), (r"number\.(.*_)?forceddischgsoclimit$", "number", "{target}"),
                    (r"switch\.(.*_)?forceddischg$", "on", None)],
         "optional": [r"switch\.(.*_)?feedingrid$"],
+        "restore": [r"switch\.(.*_)?feedingrid$"],  # the owner's own feed-in setting, back after selling
     },
     # Voltronic / Axpert through docker-voltronic-homeassistant (MQTT): no entities to set - raw commands on its topic
     # (its README). Can't be found by itself (no controls to see): chosen by hand.
@@ -817,10 +828,10 @@ PROFILES: dict[str, dict[str, Any]] = {
         "name": "Anker SOLIX (Solarbank)",
         "match": r"solarbank|anker_solix",
         "source": "integration",
-        "normal": [(r"select\..*_usage_mode$", "select", "re:^smart(meter)?$")],
-        "hold": [(r"select\..*_usage_mode$", "select", "manual"), (r"number\..*_system_load_preset$", "number", "0")],
-        "charge": [(r"select\..*_usage_mode$", "select", "backup")],
-        "export": [(r"select\..*_usage_mode$", "select", "manual"), (r"number\..*_system_load_preset$", "number", "{power_w}")],
+        "normal": [(r"select\..*_(preset_)?usage_mode$", "select", "re:^smart(meter)?$")],
+        "hold": [(r"select\..*_(preset_)?usage_mode$", "select", "manual"), (r"number\..*_(system_load_preset|preset_system_output_power)$", "number", "0")],
+        "charge": [(r"select\..*_(preset_)?usage_mode$", "select", "backup")],
+        "export": [(r"select\..*_(preset_)?usage_mode$", "select", "manual"), (r"number\..*_(system_load_preset|preset_system_output_power)$", "number", "{power_w}")],
     },
     # GivEnergy through GivTCP (britkat1980/giv_tcp, MQTT: select.givtcp_<serial>_mode …), checked in its source (3.6.14).
     # Not its "Force Charge"/"Force Export": those put the old settings back by themselves afterwards and would undo
@@ -867,7 +878,7 @@ PROFILES: dict[str, dict[str, Any]] = {
                    ("givenergy_local.enable_timed_charge", "service",
                     {"device_id": "{device_id}", "start_time": "{lease_from}", "end_time": "{lease_to}", "charge_target": "{target}"})],
         # Selling from the battery (only when the user turns it on): checked in the integration's source.
-        "export": [(r"select\..*battery_pause_mode$", "select", "Not Paused"), (r"number\..*battery_discharge_power_limit$", "number", "{max_power_w}"),
+        "export": [(r"select\..*battery_pause_mode$", "select", "Not Paused"), (r"number\..*battery_discharge_power_limit$", "number", "{power_w}"),
                    ("givenergy_local.activate_mode_timed_export", "service", {"device_id": "{device_id}", "start_time": "{lease_from}", "end_time": "{lease_to}"})],
         # The pause mode only comes with firmware that has it (#92); the power limits always come
         "optional": [r"number\..*battery_charge_power_limit$", r"select\..*battery_pause_mode$"],
@@ -1102,6 +1113,8 @@ def alpha_windows(now: Any, start: Any = None, end: Any = None) -> dict[str, str
 
 
 def fill(value: Any, ctx: dict[str, Any]) -> Any:
+    if isinstance(value, str) and value.startswith("txt:"):
+        return value[4:]  # "txt:0": the text "0", as an integration that wants a string (E3DC's power_mode) takes it
     if isinstance(value, str) and re.fullmatch(r"-?\d+(?:\.\d+)?", value):
         return float(value) if "." in value else int(value)  # a plain number in a profile ("0")
     if isinstance(value, str) and "{" in value:
@@ -1276,8 +1289,12 @@ def guess_profile(entities: list[str], platforms: set[str], model: str | None = 
 
 
 def pick_option(pattern: str, options: list[str]) -> str | None:
-    """The first option that matches the pattern, ignoring case."""
-    return next((o for o in options if re.search(pattern, str(o), re.I)), None)
+    """The first option that matches the pattern, ignoring case. "a||b": a if any option has it, else b (a newer
+    version's own option first, an older one's after)."""
+    for alt in pattern.split("||"):
+        if (hit := next((o for o in options if re.search(alt, str(o), re.I)), None)) is not None:
+            return hit
+    return None
 
 
 def _amp_option(options: list[str], current: float) -> str | None:

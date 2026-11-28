@@ -179,8 +179,10 @@ def test_profiles_from_the_integrations_own_names():
                                    "charge", "select.solaredge_b1_ac_charge_policy", "Always Allowed"),
         "foxess_modbus": (["select.work_mode", "number.min_soc_on_grid", "number.force_charge_power", "number.force_charge_max_soc"], "charge", "number.force_charge_max_soc", 90),
         "sigen": (["switch.sigen_plant_remote_ems_controlled_by_home_assistant", "select.sigen_plant_remote_ems_control_mode",
-                   "number.sigen_plant_ess_max_charging_limit"], "charge", "number.sigen_plant_ess_max_charging_limit", 2.4),
-        "sofar_solax": (["select.sofar_energy_storage_mode", "number.sofar_passive_mode_battery_power_min", "number.sofar_passive_mode_battery_power_max"],
+                   "number.sigen_plant_ess_max_charging_limit", "number.sigen_plant_ess_max_discharging_limit"], "charge",
+                  "number.sigen_plant_ess_max_charging_limit", 2.4),
+        "sofar_solax": (["select.sofar_energy_storage_mode", "number.sofar_passive_mode_battery_power_min", "number.sofar_passive_mode_battery_power_max",
+                         "button.sofar_passive_mode_battery_charge_discharge"],
                         "charge", "select.sofar_energy_storage_mode", "Passive Mode"),
         "tesla": (["number.my_home_backup_reserve", "switch.my_home_allow_charging_from_grid", "select.my_home_operation_mode"],
                   "charge", "number.my_home_backup_reserve", 90),
@@ -552,3 +554,41 @@ def test_sofar_me3000_zcs_through_solarman():
     hold = {c["data"]["entity_id"]: c["data"] for c in adapters.resolve(p["hold"], ents, ctx)}
     assert hold["number.zcs_timed_discharge_power"]["value"] == 0 and hold["time.zcs_timed_charge_end"]["time"] == "00:00:00"
     assert adapters.resolve(p["normal"], ents, ctx)[0]["data"]["option"] == "Auto"
+
+
+
+def test_sigenergy_without_its_discharge_limit_says_so():
+    """The discharge limit is off by default in the integration - without it "hold" can't stop the battery."""
+    p = adapters.PROFILES["sigen"]
+    ents = ["switch.sigen_plant_remote_ems_controlled_by_home_assistant", "select.sigen_plant_remote_ems_control_mode",
+            "number.sigen_plant_ess_max_charging_limit"]
+    assert adapters.missing(adapters.check({i: p[i] for i in ("normal", "hold", "charge")}, ents, p.get("optional"))) \
+        == [r"number\..*ess_max_discharging_limit$"] * 2
+
+
+
+def test_sofar_solax_sends_the_passive_values_with_its_button():
+    """SolaX Modbus keeps the passive numbers until "Passive: Update Battery Charge/Discharge" writes them (0x1187)."""
+    p = adapters.PROFILES["sofar_solax"]
+    ents = ["select.sofar_energy_storage_mode", "number.sofar_passive_mode_battery_power_min",
+            "number.sofar_passive_mode_battery_power_max", "button.sofar_passive_mode_battery_charge_discharge"]
+    for intent in ("hold", "charge"):
+        calls = adapters.resolve(p[intent], ents, {"power_w": 2000, "max_charge_w": 3000})
+        assert calls[-1] == {"domain": "button", "service": "press", "data": {"entity_id": "button.sofar_passive_mode_battery_charge_discharge"}}
+
+
+def test_audit_fixes_names_and_values():
+    """Found in the integrations' own code (28 November): translated ids, the right option, text where text is wanted."""
+    e3 = adapters.resolve(adapters.PROFILES["e3dc_rscp"]["hold"], [], {"device_id": "d"})
+    assert e3[0]["data"]["power_mode"] == "1"  # a string: E3DC refuses a number
+    opts = ["Self-Use - No Grid Charging", "Backup/Reserve - No Grid Charging", "Backup/Reserve", "Off-Grid Mode"]
+    want = adapters.PROFILES["solis_solax_fb00"]["charge"][0][2][3:]
+    assert adapters.pick_option(want, opts) == "Backup/Reserve"
+    assert adapters.pick_option("^stop$||force.?charge", ["Self-consumption", "Force charge", "Stop"]) == "Stop"
+    assert adapters.pick_option("^stop$||force.?charge", ["Self-consumption", "Force charge"]) == "Force charge"
+    hu = adapters.PROFILES["huawei_solar"]
+    assert any(adapters.hit(st[0], "switch.tk_storage_charge_from_grid_function") for st in hu["charge"])
+    assert any(adapters.hit(st[0], "number.tk_backup_reserve_percent") for st in adapters.PROFILES["tesla"]["hold"])
+    assert any(adapters.hit(st[0], "time.lux_ab12345678_ac_charge_start1") for st in adapters.PROFILES["luxpython"]["charge"])
+    give = [st for st in adapters.PROFILES["givenergy_local"]["export"] if "discharge_power_limit" in st[0]]
+    assert give[0][2] == "{power_w}"  # the planned power, not full power

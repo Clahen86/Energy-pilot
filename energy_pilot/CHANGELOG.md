@@ -6,6 +6,17 @@ Newest first. Each version lists what changed since the one before.
 - Works even when your inverter's integration lacks some controls: with the Solarman integration (davidrapan), a Sofar ME 3000-SP / HYD-ES / ZCS 3000SP or a Deye hybrid whose definition file is older or hand-made gets the missing controls written straight to the inverter's registers – the same values the controls would write. Only after reading the registers and checking that they really are that inverter's (its type or serial number, and values that fit); run the test first
 - When controls are missing, the app now says which inverter it looks like, which controls are missing in plain words, and on Solarman which definition file has them
 - A profile picked by an older version that misses its controls is replaced by the one made for your inverter's model
+- Every inverter profile checked against its integration's own code, and fixed where it was wrong:
+  - Found also when Home Assistant runs in another language: Huawei (grid charging), Tesla Powerwall, Growatt (cloud), Anker SOLIX, Victron GX, EP Cube
+  - E3DC: the mode is sent as text, as the integration wants – before, every command was refused
+  - Solis (SolaX Modbus): a grid charge picks "Backup/Reserve", not the variant that blocks grid charging, and the times are always sent with their update button
+  - Sofar (SolaX Modbus): the passive values are sent to the inverter with its update button – before, they stayed in Home Assistant
+  - Sungrow (sungrow-hass): hold uses Stop where the version has it, which doesn't run out after 30 minutes
+  - Sigenergy: hold needs the discharge limit (off by default in the integration) – the app says to turn it on, instead of holding without it
+  - SolaX Gen2/Gen3: a sale's 60-minute timer is cancelled on hold and charge too
+  - GivEnergy: selling at the planned power, not full power
+  - LuxPython with serial numbers in the entity names, SolaX remote control's "(mode 1)" names, Sunsynk three-phase's timer, EcoFlow PowerStream with a name of its own, Victron GX with its newer names
+  - Deye (ESPHome) holds 1 % above the level, like the other Deye profiles; MonitorMySolar puts your own feed-in setting back after selling
 
 ## 0.124.0 – 2026-11-28
 - Ask your AI about Energy Pilot in your own words: "can I start the dishwasher now?", "why isn't the battery charging?", "when does the car charge?", "how much did we save this month?". The Energy Pilot integration (1.4.0) gives Home Assistant's AI assistants (Google, ChatGPT, Claude or a local one) tools to look it up – turn on "Energy Pilot" once in the assistant's settings. Only reads, never controls; without an AI nothing changes
