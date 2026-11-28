@@ -193,6 +193,7 @@ Two ways of forecasting side by side, and the better one decides:
 - **Buttons and switches:** *Charge now*, *Ready at*, *Charge to*, *100 % for next trip* and *Battery/Car control*
   (Shadow / Control / Off) – and the same for every extra car, plus *Car in charger* when you have more cars than chargers.
 - **A settings check** that explains in plain words when a setting spoils the plan, with a one-tap fix.
+- **Ask your AI in your own words** – "can I start the dishwasher now?", "why isn't the battery charging?", "how much did we save this month?". The integration gives Home Assistant's AI assistants (Google, ChatGPT, Claude or a local one) tools to look it up. Turn on **Energy Pilot** once in the assistant's settings. Only reads – without an AI nothing changes.
 
 ### 🧩 More setups – several batteries and chargers, off-grid, power tariffs
 

@@ -2,6 +2,10 @@
 
 Newest first. Each version lists what changed since the one before.
 
+## 0.124.0 – 2026-11-28
+- Ask your AI about Energy Pilot in your own words: "can I start the dishwasher now?", "why isn't the battery charging?", "when does the car charge?", "how much did we save this month?". The Energy Pilot integration (1.4.0) gives Home Assistant's AI assistants (Google, ChatGPT, Claude or a local one) tools to look it up – turn on "Energy Pilot" once in the assistant's settings. Only reads, never controls; without an AI nothing changes
+- When is it cheapest to start an appliance: counted for the whole run, with the share your own spare sun covers, never across a gap in the prices
+
 ## 0.123.0 – 2026-11-28
 - When Energy Pilot lets go of the battery and the inverter doesn't confirm it's back to normal, it tries again every minute - also after a restart - until it takes. You're told if it keeps failing
 - While Energy Pilot controls the battery, a sensor you chose that disappears from Home Assistant is no longer swapped for a guess: the battery runs as normal and you're told which sensor is missing

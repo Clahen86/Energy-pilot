@@ -189,6 +189,8 @@ To slags prognoser side om side, og den bedste bestemmer:
   (Skygge / Styrer / Fra) – og det samme for hver ekstra bil, plus *Bil i laderen* når du har flere biler end ladebokse.
 - **Et indstillingstjek**, der forklarer med almindelige ord, når en indstilling ødelægger planen – med et tryk til at rette den.
 
+- **Spørg din AI med dine egne ord** – "kan jeg starte opvasken nu?", "hvorfor lader batteriet ikke?", "hvor meget har vi sparet i denne måned?". Integrationen giver Home Assistants AI-assistenter (Google, ChatGPT, Claude eller en lokal) værktøjer til at slå det op. Slå **Energy Pilot** til én gang i assistentens indstillinger. Læser kun – uden AI ændrer intet sig.
+
 ### 🧩 Flere opsætninger – flere batterier og ladere, off-grid, effekttarif
 
 - **Anden produktion** – en lille vindmølle eller vandkraft: tæller med i energibalancen, bilens overskud og

@@ -107,6 +107,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.runtime_data = pilot
     await _card(hass)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    from . import llm_tools
+
+    if undo := llm_tools.register(hass):  # the tools your AI may look things up with (turned on in the AI's settings)
+        entry.async_on_unload(undo)
 
     # An extra car added, removed, renamed or given its level in the app: its entities follow (a reload).
     seen = _cars_key(pilot.data)
